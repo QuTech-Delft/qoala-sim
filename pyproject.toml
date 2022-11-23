@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=62", "wheel", "setuptools_scm>=6.4"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version" # exclude "+<hash>" from version name so we can upload to Test PyPI
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+line_length = 88
+use_parentheses = true
+
+[tool.pytest.ini_options]
+# ignore deprecation warnings coming from external packages using NetSquid (i.e. outside of qoala's control)
+filterwarnings = ["ignore::DeprecationWarning"]
