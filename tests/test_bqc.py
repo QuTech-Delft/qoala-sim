@@ -648,6 +648,6 @@ def test_bqc():
 
 
 if __name__ == "__main__":
-    # test_bqc_1()
-    # test_bqc_2()
+    test_bqc_1()
+    test_bqc_2()
     test_bqc()

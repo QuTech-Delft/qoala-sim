@@ -48,9 +48,6 @@ lint: lint-isort lint-black lint-flake8
 tests:
 	@$(PYTHON3) -m pytest tests
 
-examples:
-	@${PYTHON3} ${RUNEXAMPLES}
-
 docs html:
 	@${MAKE} -C docs html
 

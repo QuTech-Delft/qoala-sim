@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
-from qoala.runtime.config import GenericQDeviceConfig, LinkConfig, NVQDeviceConfig
+from qoala.runtime.config import LinkConfig
 from qoala.runtime.program import ProgramInstance
 
 

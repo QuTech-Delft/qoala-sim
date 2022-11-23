@@ -7,8 +7,6 @@ from netqasm.lang import operand
 from netqasm.lang.encoding import RegisterName
 from netqasm.sdk.shared_memory import Arrays, RegisterGroup, setup_registers
 
-from qoala.sim.requests import T_NetstackRequest
-
 
 class RegisterMeta:
     @classmethod

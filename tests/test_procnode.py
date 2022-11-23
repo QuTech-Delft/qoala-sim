@@ -967,10 +967,10 @@ REQUEST req1
 
 
 if __name__ == "__main__":
-    # test_initialize()
-    # test_2()
-    # test_2_async()
-    # test_classical_comm()
-    # test_classical_comm_three_nodes()
+    test_initialize()
+    test_2()
+    test_2_async()
+    test_classical_comm()
+    test_classical_comm_three_nodes()
     test_epr()
-    # test_whole_program()
+    test_whole_program()

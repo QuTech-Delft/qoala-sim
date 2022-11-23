@@ -283,9 +283,8 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
         num_qubits=3,
     )
     server_procnode.submit_batch(server_batch_info)
-    server_procnode.initialize_runtime()
-    # server_procnode.scheduler.solve_and_install_schedule(NaiveSolver)
-    server_procnode.scheduler.solve_and_install_schedule(NoTimeSolver)
+    server_procnode.initialize_processes()
+    server_procnode.initialize_schedule(NoTimeSolver)
 
     path = os.path.join(os.path.dirname(__file__), "test_client.iqoala")
     with open(path) as file:
@@ -314,9 +313,8 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
         num_qubits=3,
     )
     client_procnode.submit_batch(client_batch_info)
-    client_procnode.initialize_runtime()
-    # client_procnode.scheduler.solve_and_install_schedule(NaiveSolver)
-    client_procnode.scheduler.solve_and_install_schedule(NoTimeSolver)
+    client_procnode.initialize_processes()
+    client_procnode.initialize_schedule(NoTimeSolver)
 
     server_procnode.start()
     client_procnode.start()
@@ -416,6 +414,4 @@ def test_bqc():
 
 
 if __name__ == "__main__":
-    # test_bqc_1()
-    # test_bqc_2()
     test_bqc()

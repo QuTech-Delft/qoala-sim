@@ -5,11 +5,6 @@ from typing import Dict, Generator, List, Optional, Tuple
 
 import pytest
 from netqasm.lang.parsing import parse_text_subroutine
-from netqasm.sdk.build_epr import (
-    SER_CREATE_IDX_NUMBER,
-    SER_CREATE_IDX_ROTATION_X_REMOTE2,
-    SER_CREATE_IDX_TYPE,
-)
 
 from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
@@ -22,11 +17,6 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import PhysicalQuantumMemory, QDevice
 from qoala.sim.qnosinterface import QnosInterface
 from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor
-from qoala.sim.requests import (
-    EprCreateType,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
-)
 from qoala.util.tests import yield_from
 
 MOCK_MESSAGE = Message(content=42)
@@ -630,19 +620,16 @@ def test_wait_all():
 
 
 if __name__ == "__main__":
-    # test_set_reg()
-    # test_add()
-    # test_alloc_qubit()
-    # test_free_qubit()
-    # test_free_non_allocated()
-    # test_alloc_multiple()
-    # test_alloc_multiprocess()
-    # test_alloc_multiprocess_same_virt_id()
-    # test_alloc_multiprocess_same_virt_id_trait_not_available()
-    # test_no_branch()
-    # test_branch()
-    # test_array()
-    test_create_epr()
-    test_create_epr_async()
-    test_recv_epr()
-    # test_wait_all()
+    test_set_reg()
+    test_add()
+    test_alloc_qubit()
+    test_free_qubit()
+    test_free_non_allocated()
+    test_alloc_multiple()
+    test_alloc_multiprocess()
+    test_alloc_multiprocess_same_virt_id()
+    test_alloc_multiprocess_same_virt_id_trait_not_available()
+    test_no_branch()
+    test_branch()
+    test_array()
+    test_wait_all()
