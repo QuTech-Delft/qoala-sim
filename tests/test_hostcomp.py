@@ -20,11 +20,11 @@ def create_hostcomp(num_other_nodes: int) -> HostComponent:
     node = Node(name="alice", ID=0)
     env = GlobalEnvironment()
 
-    node_info = GlobalNodeInfo.default_nv(node.name, node.ID, 2)
+    node_info = GlobalNodeInfo(node.name, node.ID)
     env.add_node(node.ID, node_info)
 
     for id in range(1, num_other_nodes + 1):
-        node_info = GlobalNodeInfo.default_nv(f"node_{id}", id, 2)
+        node_info = GlobalNodeInfo(f"node_{id}", id)
         env.add_node(id, node_info)
 
     return HostComponent(node, env)
@@ -76,9 +76,9 @@ def test_connection():
     bob = Node(name="bob", ID=1)
     env = GlobalEnvironment()
 
-    alice_info = GlobalNodeInfo.default_nv(alice.name, alice.ID, 2)
+    alice_info = GlobalNodeInfo(alice.name, alice.ID)
     env.add_node(alice.ID, alice_info)
-    bob_info = GlobalNodeInfo.default_nv(bob.name, bob.ID, 2)
+    bob_info = GlobalNodeInfo(bob.name, bob.ID)
     env.add_node(bob.ID, bob_info)
 
     alice_comp = HostComponent(alice, env)
@@ -111,11 +111,11 @@ def test_three_way_connection():
     charlie = Node(name="charlie", ID=2)
     env = GlobalEnvironment()
 
-    alice_info = GlobalNodeInfo.default_nv(alice.name, alice.ID, 2)
+    alice_info = GlobalNodeInfo(alice.name, alice.ID)
     env.add_node(alice.ID, alice_info)
-    bob_info = GlobalNodeInfo.default_nv(bob.name, bob.ID, 2)
+    bob_info = GlobalNodeInfo(bob.name, bob.ID)
     env.add_node(bob.ID, bob_info)
-    charlie_info = GlobalNodeInfo.default_nv(charlie.name, charlie.ID, 2)
+    charlie_info = GlobalNodeInfo(charlie.name, charlie.ID)
     env.add_node(charlie.ID, charlie_info)
 
     alice_comp = HostComponent(alice, env)

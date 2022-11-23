@@ -88,10 +88,8 @@ def setup_components_generic(
     bob_node = bob_qdevice._node
 
     env = GlobalEnvironment()
-    env.add_node(
-        alice_node.ID, GlobalNodeInfo.default_nv(alice_node.name, alice_node.ID, 2)
-    )
-    env.add_node(bob_node.ID, GlobalNodeInfo.default_nv(bob_node.name, bob_node.ID, 2))
+    env.add_node(alice_node.ID, GlobalNodeInfo(alice_node.name, alice_node.ID))
+    env.add_node(bob_node.ID, GlobalNodeInfo(bob_node.name, bob_node.ID))
 
     alice_comp = NetstackComponent(node=alice_node, global_env=env)
     bob_comp = NetstackComponent(node=bob_node, global_env=env)

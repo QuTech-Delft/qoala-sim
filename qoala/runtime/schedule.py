@@ -168,3 +168,78 @@ class ScheduleSolver:
     @classmethod
     def solve(cls, input: SchedulerInput) -> SchedulerOutput:
         raise NotImplementedError
+
+
+class NaiveSolver(ScheduleSolver):
+    """
+    Schedules all tasks as a consecutive list without gaps.
+    No interleaving of programs of program iterations.
+    No adherence to any global schedule.
+    """
+
+    @classmethod
+    def solve(cls, input: SchedulerInput) -> SchedulerOutput:
+        output_entries: List[SchedulerOutputEntry] = []
+
+        assert len(input.num_executions) == input.num_programs
+        assert len(input.num_instructions) == input.num_programs
+        assert len(input.instr_durations) == input.num_programs
+
+        current_time = 0
+
+        for i in range(input.num_programs):
+            num_executions = input.num_executions[i]
+            num_instructions = input.num_instructions[i]
+            instr_durations = input.instr_durations[i]
+            for j in range(num_executions):
+                for k in range(num_instructions):
+                    duration = instr_durations[k]
+                    entry = SchedulerOutputEntry(
+                        app_index=i,
+                        ex_index=j,
+                        instr_index=k,
+                        start_time=current_time,
+                        end_time=current_time + duration,
+                    )
+                    current_time += duration
+                    output_entries.append(entry)
+
+        return SchedulerOutput(output_entries)
+
+
+class NoTimeSolver(ScheduleSolver):
+    """
+    No time constraints at all.
+    Schedules all tasks as a consecutive list without gaps.
+    No interleaving of programs of program iterations.
+    No adherence to any global schedule.
+    """
+
+    @classmethod
+    def solve(cls, input: SchedulerInput) -> SchedulerOutput:
+        output_entries: List[SchedulerOutputEntry] = []
+
+        assert len(input.num_executions) == input.num_programs
+        assert len(input.num_instructions) == input.num_programs
+        assert len(input.instr_durations) == input.num_programs
+
+        current_time = 0
+
+        for i in range(input.num_programs):
+            num_executions = input.num_executions[i]
+            num_instructions = input.num_instructions[i]
+            instr_durations = input.instr_durations[i]
+            for j in range(num_executions):
+                for k in range(num_instructions):
+                    duration = instr_durations[k]
+                    entry = SchedulerOutputEntry(
+                        app_index=i,
+                        ex_index=j,
+                        instr_index=k,
+                        start_time=None,
+                        end_time=current_time + duration,
+                    )
+                    current_time += duration
+                    output_entries.append(entry)
+
+        return SchedulerOutput(output_entries)

@@ -326,7 +326,7 @@ def create_global_env(
 
     env = GlobalEnvironment()
     for i, name in enumerate(names):
-        env.add_node(i, GlobalNodeInfo.default_nv(name, i, num_qubits))
+        env.add_node(i, GlobalNodeInfo(name, i))
     return env
 
 

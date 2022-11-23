@@ -316,15 +316,15 @@ class Scheduler(Protocol):
                 # print(f"{self.name} executing task {task}")
                 yield from self.execute_task(process, task)
             else:
-                # ns_time = ns.sim_time()
+                ns_time = ns.sim_time()
                 delta = schedule_time.time - ns.sim_time()
-                # print(
-                #     f"{self.name} next scheduled time = {schedule_time.time}, delta = {delta}"
-                # )
+                print(
+                    f"{self.name} next scheduled time = {schedule_time.time}, delta = {delta}"
+                )
                 yield from self.wait(delta)
-                # print(f"{self.name} ns_time: {ns_time}, executing task {task}")
+                print(f"{self.name} ns_time: {ns_time}, executing task {task}")
                 yield from self.execute_task(process, task)
-                # print(f"{self.name} s_time: {ns_time}, finished task {task}")
+                print(f"{self.name} s_time: {ns_time}, finished task {task}")
 
-        # print(f"{self.name} finished with schedule\n\n")
+        print(f"{self.name} finished with schedule\n\n")
         self.collect_batch_results()

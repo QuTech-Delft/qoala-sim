@@ -37,3 +37,7 @@ class ProcNodeNetwork(Network):
     @property
     def qdevices(self) -> Dict[str, QuantumProcessor]:
         return {name: node.qdevice for name, node in self._nodes.items()}
+
+    def start_all_nodes(self) -> None:
+        for node in self.nodes.values():
+            node.start()

@@ -7,11 +7,11 @@ from qoala.sim.procnodecomp import ProcNodeComponent
 def create_procnodecomp(num_other_nodes: int) -> ProcNodeComponent:
     env = GlobalEnvironment()
 
-    node_info = GlobalNodeInfo.default_nv("alice", 0, 2)
+    node_info = GlobalNodeInfo("alice", 0)
     env.add_node(0, node_info)
 
     for id in range(1, num_other_nodes + 1):
-        node_info = GlobalNodeInfo.default_nv(f"node_{id}", id, 2)
+        node_info = GlobalNodeInfo(f"node_{id}", id)
         env.add_node(id, node_info)
 
     return ProcNodeComponent(name="alice", qprocessor=None, global_env=env)

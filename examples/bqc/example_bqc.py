@@ -23,24 +23,23 @@ from qoala.runtime.config import (
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import (
+    NaiveSolver,
+    NoTimeSolver,
     ProgramTaskList,
-    SchedulerInput,
-    SchedulerOutput,
-    SchedulerOutputEntry,
-    ScheduleSolver,
     TaskBuilder,
 )
 from qoala.sim.build import build_network
 from qoala.sim.egp import EgpProtocol
+from qoala.sim.logging import LogManager
+from qoala.sim.network import ProcNodeNetwork
 
 
-def create_global_env(
-    num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
-) -> GlobalEnvironment:
+def create_global_env(num_clients: int) -> GlobalEnvironment:
 
     env = GlobalEnvironment()
-    for i, name in enumerate(names):
-        env.add_node(i, GlobalNodeInfo(name, i))
+    env.add_node(0, GlobalNodeInfo("server", 0))
+    for i in range(1, num_clients + 1):
+        env.add_node(i, GlobalNodeInfo(f"client_{i}", i))
     return env
 
 
@@ -54,8 +53,56 @@ def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProt
     return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
 
 
+def get_client_config(id: int) -> ProcNodeConfig:
+    # client only needs 1 qubit
+    return ProcNodeConfig(
+        name=f"client_{id}",
+        node_id=id,
+        qdevice_typ="generic",
+        qdevice_cfg=GenericQDeviceConfig.perfect_config(1),
+        instr_latency=1000,
+    )
+
+
+def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
+    return ProcNodeConfig(
+        name="server",
+        node_id=id,
+        qdevice_typ="generic",
+        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        instr_latency=1000,
+    )
+
+
+def create_network(
+    server_cfg: ProcNodeConfig, client_configs: List[ProcNodeConfig], num_clients: int
+) -> ProcNodeNetwork:
+    assert len(client_configs) == num_clients
+
+    global_env = create_global_env(num_clients)
+
+    link_cfgs = [
+        LinkConfig.perfect_config("server", cfg.name) for cfg in client_configs
+    ]
+
+    node_cfgs = [server_cfg] + client_configs
+
+    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=link_cfgs)
+    return build_network(network_cfg, global_env)
+
+
+@dataclass
+class TaskDurations:
+    instr_latency: int
+    rot_dur: int
+    h_dur: int
+    meas_dur: int
+    free_dur: int
+    cphase_dur: int
+
+
 def create_server_tasks(
-    server_program: IqoalaProgram, cfg: ProcNodeConfig
+    server_program: IqoalaProgram, task_durations: TaskDurations
 ) -> ProgramTaskList:
     tasks = []
 
@@ -64,14 +111,12 @@ def create_server_tasks(
     # ql_dur = 1e4
     qc_dur = 1e6
 
-    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
-
-    set_dur = cfg.instr_latency
-    rot_dur = qdevice_cfg.single_qubit_gate_time
-    h_dur = qdevice_cfg.single_qubit_gate_time
-    meas_dur = qdevice_cfg.measure_time
-    free_dur = cfg.instr_latency
-    cphase_dur = qdevice_cfg.two_qubit_gate_time
+    set_dur = task_durations.instr_latency
+    rot_dur = task_durations.rot_dur
+    h_dur = task_durations.h_dur
+    meas_dur = task_durations.meas_dur
+    free_dur = task_durations.free_dur
+    cphase_dur = task_durations.cphase_dur
 
     # csocket = assign_cval() : 0
     tasks.append(TaskBuilder.CL(cl_dur, 0))
@@ -115,7 +160,7 @@ def create_server_tasks(
 
 
 def create_client_tasks(
-    client_program: IqoalaProgram, cfg: ProcNodeConfig
+    client_program: IqoalaProgram, task_durations: TaskDurations
 ) -> ProgramTaskList:
     tasks = []
 
@@ -124,13 +169,11 @@ def create_client_tasks(
     # ql_dur = 1e3
     qc_dur = 1e6
 
-    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
-
-    set_dur = cfg.instr_latency
-    rot_dur = qdevice_cfg.single_qubit_gate_time
-    h_dur = qdevice_cfg.single_qubit_gate_time
-    meas_dur = qdevice_cfg.measure_time
-    free_dur = cfg.instr_latency
+    set_dur = task_durations.instr_latency
+    rot_dur = task_durations.rot_dur
+    h_dur = task_durations.h_dur
+    meas_dur = task_durations.meas_dur
+    free_dur = task_durations.free_dur
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
     tasks.append(TaskBuilder.CL(cl_dur, 1))
@@ -169,160 +212,143 @@ def create_client_tasks(
     return ProgramTaskList(client_program, {i: task for i, task in enumerate(tasks)})
 
 
-class NaiveSolver(ScheduleSolver):
-    @classmethod
-    def solve(cls, input: SchedulerInput) -> SchedulerOutput:
-        output_entries: List[SchedulerOutputEntry] = []
-
-        assert len(input.num_executions) == input.num_programs
-        assert len(input.num_instructions) == input.num_programs
-        assert len(input.instr_durations) == input.num_programs
-
-        current_time = 0
-
-        for i in range(input.num_programs):
-            num_executions = input.num_executions[i]
-            num_instructions = input.num_instructions[i]
-            instr_durations = input.instr_durations[i]
-            for j in range(num_executions):
-                for k in range(num_instructions):
-                    duration = instr_durations[k]
-                    entry = SchedulerOutputEntry(
-                        app_index=i,
-                        ex_index=j,
-                        instr_index=k,
-                        start_time=current_time,
-                        end_time=current_time + duration,
-                    )
-                    current_time += duration
-                    output_entries.append(entry)
-
-        return SchedulerOutput(output_entries)
-
-
-class NoTimeSolver(ScheduleSolver):
-    @classmethod
-    def solve(cls, input: SchedulerInput) -> SchedulerOutput:
-        output_entries: List[SchedulerOutputEntry] = []
-
-        assert len(input.num_executions) == input.num_programs
-        assert len(input.num_instructions) == input.num_programs
-        assert len(input.instr_durations) == input.num_programs
-
-        current_time = 0
-
-        for i in range(input.num_programs):
-            num_executions = input.num_executions[i]
-            num_instructions = input.num_instructions[i]
-            instr_durations = input.instr_durations[i]
-            for j in range(num_executions):
-                for k in range(num_instructions):
-                    duration = instr_durations[k]
-                    entry = SchedulerOutputEntry(
-                        app_index=i,
-                        ex_index=j,
-                        instr_index=k,
-                        start_time=None,
-                        end_time=current_time + duration,
-                    )
-                    current_time += duration
-                    output_entries.append(entry)
-
-        return SchedulerOutput(output_entries)
-
-
 @dataclass
 class BqcResult:
-    client_results: Dict[int, BatchResult]
+    client_results: List[Dict[int, BatchResult]]
     server_results: Dict[int, BatchResult]
 
 
-def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
-    num_qubits = 3
-    global_env = create_global_env(num_qubits, names=["client", "server"])
-    server_id = global_env.get_node_id("server")
-    client_id = global_env.get_node_id("client")
+def create_durations() -> TaskDurations:
+    perfect_qdevice_cfg = GenericQDeviceConfig.perfect_config(1)
+    instr_latency = 1000
 
-    server_node_cfg = ProcNodeConfig(
-        name="server",
-        node_id=server_id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
-        instr_latency=1000,
+    return TaskDurations(
+        instr_latency=instr_latency,
+        rot_dur=perfect_qdevice_cfg.single_qubit_gate_time,
+        h_dur=perfect_qdevice_cfg.single_qubit_gate_time,
+        meas_dur=perfect_qdevice_cfg.measure_time,
+        free_dur=instr_latency,
+        cphase_dur=perfect_qdevice_cfg.two_qubit_gate_time,
     )
-    client_node_cfg = ProcNodeConfig(
-        name="client",
-        node_id=client_id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
-        instr_latency=1000,
-    )
-    link_cfg = LinkConfig.perfect_config("server", "client")
 
-    network_cfg = ProcNodeNetworkConfig(
-        nodes=[server_node_cfg, client_node_cfg], links=[link_cfg]
-    )
-    network = build_network(network_cfg, global_env)
-    server_procnode = network.nodes["server"]
-    client_procnode = network.nodes["client"]
 
-    path = os.path.join(os.path.dirname(__file__), "test_server.iqoala")
+def load_server_program(remote_name: str) -> IqoalaProgram:
+    path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
-    server_program = IqoalaParser(server_text).parse()
-    server_tasks = create_server_tasks(server_program, server_node_cfg)
-    server_inputs = [
-        ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
-    ]
-    server_batch_info = BatchInfo(
-        program=server_program,
-        inputs=server_inputs,
-        num_iterations=num_iterations,
-        deadline=0,
-        tasks=server_tasks,
-        num_qubits=3,
-    )
-    server_procnode.submit_batch(server_batch_info)
-    server_procnode.initialize_runtime()
-    # server_procnode.scheduler.solve_and_install_schedule(NaiveSolver)
-    server_procnode.scheduler.solve_and_install_schedule(NoTimeSolver)
+    program = IqoalaParser(server_text).parse()
 
-    path = os.path.join(os.path.dirname(__file__), "test_client.iqoala")
+    # Replace "client" by e.g. "client_1"
+    program.meta.csockets[0] = remote_name
+    program.meta.epr_sockets[0] = remote_name
+
+    return program
+
+
+def load_client_program() -> IqoalaProgram:
+    path = os.path.join(os.path.dirname(__file__), "bqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
-    client_program = IqoalaParser(client_text).parse()
-    client_tasks = create_client_tasks(client_program, client_node_cfg)
-    client_inputs = [
-        ProgramInput(
-            {
-                "server_id": server_id,
-                "alpha": alpha,
-                "beta": beta,
-                "theta1": theta1,
-                "theta2": theta2,
-            }
-        )
-        for _ in range(num_iterations)
-    ]
+    return IqoalaParser(client_text).parse()
 
-    client_batch_info = BatchInfo(
-        program=client_program,
-        inputs=client_inputs,
+
+def create_server_batch(
+    client_id: int,
+    inputs: List[ProgramInput],
+    num_iterations: int,
+    deadline: int,
+    num_qubits: int,
+) -> BatchInfo:
+    durations = create_durations()
+    server_program = load_server_program(remote_name=f"client_{client_id}")
+    server_tasks = create_server_tasks(server_program, durations)
+    return BatchInfo(
+        program=server_program,
+        inputs=inputs,
         num_iterations=num_iterations,
-        deadline=0,
-        tasks=client_tasks,
-        num_qubits=3,
+        deadline=deadline,
+        tasks=server_tasks,
+        num_qubits=num_qubits,
     )
-    client_procnode.submit_batch(client_batch_info)
-    client_procnode.initialize_runtime()
-    # client_procnode.scheduler.solve_and_install_schedule(NaiveSolver)
-    client_procnode.scheduler.solve_and_install_schedule(NoTimeSolver)
 
-    server_procnode.start()
-    client_procnode.start()
+
+def create_client_batch(
+    inputs: List[ProgramInput], num_iterations: int, deadline: int
+) -> BatchInfo:
+    durations = create_durations()
+    client_program = load_client_program()
+    client_tasks = create_client_tasks(client_program, durations)
+    return BatchInfo(
+        program=client_program,
+        inputs=inputs,
+        num_iterations=num_iterations,
+        deadline=deadline,
+        tasks=client_tasks,
+        num_qubits=1,
+    )
+
+
+def run_bqc(alpha, beta, theta1, theta2, num_iterations: int, num_clients: int):
+    # server needs to have 2 qubits per client
+    server_num_qubits = num_clients * 2
+    server_config = get_server_config(id=0, num_qubits=server_num_qubits)
+    server_config.qdevice_cfg.T1 = 1000
+    server_config.qdevice_cfg.T2 = 1000
+    server_config.qdevice_cfg.two_qubit_gate_time = 1e5
+    client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
+
+    network = create_network(server_config, client_configs, num_clients)
+
+    server_procnode = network.nodes["server"]
+
+    for client_id in range(1, num_clients + 1):
+        server_inputs = [
+            ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
+        ]
+
+        server_batch_info = create_server_batch(
+            client_id=client_id,
+            inputs=server_inputs,
+            num_iterations=num_iterations,
+            deadline=0,
+            num_qubits=server_num_qubits,
+        )
+
+        server_procnode.submit_batch(server_batch_info)
+    server_procnode.initialize_processes()
+    # server_procnode.initialize_schedule(NoTimeSolver)
+    server_procnode.initialize_schedule(NaiveSolver)
+
+    for client_id in range(1, num_clients + 1):
+        client_inputs = [
+            ProgramInput(
+                {
+                    "server_id": 0,
+                    "alpha": alpha,
+                    "beta": beta,
+                    "theta1": theta1,
+                    "theta2": theta2,
+                }
+            )
+            for _ in range(num_iterations)
+        ]
+
+        client_batch_info = create_client_batch(
+            client_inputs, num_iterations, deadline=0
+        )
+
+        client_procnode = network.nodes[f"client_{client_id}"]
+        client_procnode.submit_batch(client_batch_info)
+        client_procnode.initialize_processes()
+        client_procnode.initialize_schedule(NoTimeSolver)
+
+    network.start_all_nodes()
     ns.sim_run()
 
+    client_results: List[Dict[int, BatchResult]]
     client_results = client_procnode.scheduler.get_batch_results()
+
+    server_results: Dict[int, BatchResult]
     server_results = server_procnode.scheduler.get_batch_results()
 
     return BqcResult(client_results, server_results)
@@ -394,20 +420,32 @@ def test_bqc():
 
     # angles are in multiples of pi/16
 
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("test_run.log")
+    LogManager.set_log_level("DEBUG")
+    LogManager.log_to_file("example_bqc.log")
+
+    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
+
+    num_clients = 1
 
     def check(alpha, beta, theta1, theta2, expected):
         ns.sim_reset()
         bqc_result = run_bqc(
-            alpha=alpha, beta=beta, theta1=theta1, theta2=theta2, num_iterations=20
+            alpha=alpha,
+            beta=beta,
+            theta1=theta1,
+            theta2=theta2,
+            num_iterations=5,
+            num_clients=num_clients,
         )
 
         server_batch_results = bqc_result.server_results
         for batch_id, batch_results in server_batch_results.items():
             program_results = batch_results.results
             m2s = [result.values["m2"] for result in program_results]
+            print(f"checking batch_id {batch_id}...")
+            print(f"# correct outcomes: {len([m2 for m2 in m2s if m2==expected])}")
             assert all(m2 == expected for m2 in m2s)
+            print("OK!")
 
     check(alpha=8, beta=8, theta1=0, theta2=0, expected=0)
     check(alpha=8, beta=24, theta1=0, theta2=0, expected=1)
@@ -416,6 +454,4 @@ def test_bqc():
 
 
 if __name__ == "__main__":
-    # test_bqc_1()
-    # test_bqc_2()
     test_bqc()
