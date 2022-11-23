@@ -41,6 +41,8 @@ def create_global_env(
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
+    env.set_global_schedule([0, 1, 2])
+    env.set_timeslot_len(1e6)
     return env
 
 

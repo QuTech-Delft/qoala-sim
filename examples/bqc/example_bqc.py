@@ -22,7 +22,6 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
-from qoala.sim.logging import LogManager
 from qoala.sim.network import ProcNodeNetwork
 
 
