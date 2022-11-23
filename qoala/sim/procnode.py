@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional, Type
+from typing import Dict, Optional, Type
 
 from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
 from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
 from qoala.runtime.environment import GlobalEnvironment, LocalEnvironment
-from qoala.runtime.program import BatchInfo
+from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.schedule import Schedule, ScheduleSolver
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
@@ -231,3 +231,6 @@ class ProcNode(Protocol):
 
     def add_process(self, process: IqoalaProcess) -> None:
         self.memmgr.add_process(process)
+
+    def get_batches(self) -> Dict[int, ProgramBatch]:
+        return self.scheduler.get_batches()

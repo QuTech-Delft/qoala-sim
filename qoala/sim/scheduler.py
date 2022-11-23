@@ -111,6 +111,9 @@ class Scheduler(Protocol):
         self._batches[batch.batch_id] = batch
         self._batch_counter += 1
 
+    def get_batches(self) -> Dict[int, ProgramBatch]:
+        return self._batches
+
     def get_tasks_to_schedule(self) -> SchedulerInput:
         num_programs = len(self._batches)
         deadlines = [b.info.deadline for b in self._batches.values()]
@@ -125,9 +128,12 @@ class Scheduler(Protocol):
             [t.instr_type for t in task.tasks.values()] for _, task in tasks.items()
         ]
 
+        global_schedule = self._local_env.get_global_env().get_global_schedule()
+        timeslot_len = self._local_env.get_global_env().get_timeslot_len()
+
         return SchedulerInput(
-            global_schedule=[0, 1],
-            timeslot_len=100,
+            global_schedule=global_schedule,
+            timeslot_len=timeslot_len,
             num_programs=num_programs,
             deadlines=deadlines,
             num_executions=num_executions,
@@ -318,13 +324,17 @@ class Scheduler(Protocol):
             else:
                 ns_time = ns.sim_time()
                 delta = schedule_time.time - ns.sim_time()
-                print(
+                self._logger.debug(
                     f"{self.name} next scheduled time = {schedule_time.time}, delta = {delta}"
                 )
                 yield from self.wait(delta)
-                print(f"{self.name} ns_time: {ns_time}, executing task {task}")
+                self._logger.debug(
+                    f"{self.name} ns_time: {ns_time}, executing task {task}"
+                )
                 yield from self.execute_task(process, task)
-                print(f"{self.name} s_time: {ns_time}, finished task {task}")
+                self._logger.debug(
+                    f"{self.name} ns_time: {ns_time}, finished task {task}"
+                )
 
-        print(f"{self.name} finished with schedule\n\n")
+        self._logger.debug(f"{self.name} finished with schedule\n\n")
         self.collect_batch_results()

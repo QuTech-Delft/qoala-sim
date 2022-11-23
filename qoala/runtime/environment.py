@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from qoala.runtime.config import LinkConfig
 from qoala.runtime.program import ProgramInstance
@@ -49,6 +49,9 @@ class GlobalEnvironment:
         # for a pair (a, b) there exists no separate (b, a) info (it is the same)
         self._links: Dict[Tuple[int, int], GlobalLinkInfo] = {}
 
+        self._global_schedule: Optional[List[int]] = None
+        self._timeslot_len: Optional[int] = None
+
     def get_nodes(self) -> Dict[int, GlobalNodeInfo]:
         return self._nodes
 
@@ -72,6 +75,20 @@ class GlobalEnvironment:
 
     def add_link(self, id1: int, id2: int, link: GlobalLinkInfo) -> None:
         self._links[(id1, id2)] = link
+
+    def set_global_schedule(self, schedule: List[int]) -> None:
+        self._global_schedule = schedule
+
+    def get_global_schedule(self) -> List[int]:
+        assert self._global_schedule is not None
+        return self._global_schedule
+
+    def set_timeslot_len(self, len: int) -> None:
+        self._timeslot_len = len
+
+    def get_timeslot_len(self) -> int:
+        assert self._timeslot_len is not None
+        return self._timeslot_len
 
 
 class LocalEnvironment:

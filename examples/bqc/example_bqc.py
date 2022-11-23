@@ -2,16 +2,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import netsquid as ns
-from netsquid.nodes import Node
-from netsquid.qubits import ketstates, qubitapi
-from netsquid_magic.link_layer import (
-    MagicLinkLayerProtocolWithSignaling,
-    SingleClickTranslationUnit,
-)
-from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import (
@@ -21,7 +14,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
+from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.schedule import (
     NaiveSolver,
     NoTimeSolver,
@@ -29,28 +22,22 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
-from qoala.sim.egp import EgpProtocol
 from qoala.sim.logging import LogManager
 from qoala.sim.network import ProcNodeNetwork
 
 
-def create_global_env(num_clients: int) -> GlobalEnvironment:
+def create_global_env(
+    num_clients: int, global_schedule: List[int], timeslot_len: int
+) -> GlobalEnvironment:
 
     env = GlobalEnvironment()
     env.add_node(0, GlobalNodeInfo("server", 0))
     for i in range(1, num_clients + 1):
         env.add_node(i, GlobalNodeInfo(f"client_{i}", i))
+
+    env.set_global_schedule(global_schedule)
+    env.set_timeslot_len(timeslot_len)
     return env
-
-
-def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
-    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=0)
-    link_prot = MagicLinkLayerProtocolWithSignaling(
-        nodes=[node1, node2],
-        magic_distributor=link_dist,
-        translation_unit=SingleClickTranslationUnit(),
-    )
-    return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
 
 
 def get_client_config(id: int) -> ProcNodeConfig:
@@ -75,11 +62,15 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
 
 
 def create_network(
-    server_cfg: ProcNodeConfig, client_configs: List[ProcNodeConfig], num_clients: int
+    server_cfg: ProcNodeConfig,
+    client_configs: List[ProcNodeConfig],
+    num_clients: int,
+    global_schedule: List[int],
+    timeslot_len: int,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
-    global_env = create_global_env(num_clients)
+    global_env = create_global_env(num_clients, global_schedule, timeslot_len)
 
     link_cfgs = [
         LinkConfig.perfect_config("server", cfg.name) for cfg in client_configs
@@ -214,7 +205,7 @@ def create_client_tasks(
 
 @dataclass
 class BqcResult:
-    client_results: List[Dict[int, BatchResult]]
+    server_batches: Dict[int, ProgramBatch]
     server_results: Dict[int, BatchResult]
 
 
@@ -288,38 +279,52 @@ def create_client_batch(
     )
 
 
-def run_bqc(alpha, beta, theta1, theta2, num_iterations: int, num_clients: int):
+def run_bqc(
+    alpha,
+    beta,
+    theta1,
+    theta2,
+    num_iterations: List[int],
+    deadlines: List[int],
+    num_clients: int,
+    global_schedule: List[int],
+    timeslot_len: int,
+):
     # server needs to have 2 qubits per client
     server_num_qubits = num_clients * 2
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
-    server_config.qdevice_cfg.T1 = 1000
-    server_config.qdevice_cfg.T2 = 1000
-    server_config.qdevice_cfg.two_qubit_gate_time = 1e5
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
 
-    network = create_network(server_config, client_configs, num_clients)
+    network = create_network(
+        server_config, client_configs, num_clients, global_schedule, timeslot_len
+    )
 
     server_procnode = network.nodes["server"]
 
     for client_id in range(1, num_clients + 1):
+        # index in num_iterations and deadlines list
+        index = client_id - 1
+
         server_inputs = [
-            ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
+            ProgramInput({"client_id": client_id}) for _ in range(num_iterations[index])
         ]
 
         server_batch_info = create_server_batch(
             client_id=client_id,
             inputs=server_inputs,
-            num_iterations=num_iterations,
-            deadline=0,
+            num_iterations=num_iterations[index],
+            deadline=deadlines[index],
             num_qubits=server_num_qubits,
         )
 
         server_procnode.submit_batch(server_batch_info)
     server_procnode.initialize_processes()
-    # server_procnode.initialize_schedule(NoTimeSolver)
     server_procnode.initialize_schedule(NaiveSolver)
 
     for client_id in range(1, num_clients + 1):
+        # index in num_iterations and deadlines list
+        index = client_id - 1
+
         client_inputs = [
             ProgramInput(
                 {
@@ -330,11 +335,11 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int, num_clients: int):
                     "theta2": theta2,
                 }
             )
-            for _ in range(num_iterations)
+            for _ in range(num_iterations[index])
         ]
 
         client_batch_info = create_client_batch(
-            client_inputs, num_iterations, deadline=0
+            client_inputs, num_iterations[index], deadlines[index]
         )
 
         client_procnode = network.nodes[f"client_{client_id}"]
@@ -345,112 +350,91 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int, num_clients: int):
     network.start_all_nodes()
     ns.sim_run()
 
-    client_results: List[Dict[int, BatchResult]]
-    client_results = client_procnode.scheduler.get_batch_results()
+    server_batches = server_procnode.get_batches()
 
     server_results: Dict[int, BatchResult]
     server_results = server_procnode.scheduler.get_batch_results()
 
-    return BqcResult(client_results, server_results)
+    return BqcResult(server_batches, server_results)
 
 
-def expected_rsp_qubit(theta: int, p: int, dummy: bool):
-    expected = qubitapi.create_qubits(1)[0]
+def check(
+    alpha,
+    beta,
+    theta1,
+    theta2,
+    expected,
+    num_iterations,
+    deadlines,
+    num_clients,
+    global_schedule: List[int],
+    timeslot_len: int,
+):
+    ns.sim_reset()
+    bqc_result = run_bqc(
+        alpha=alpha,
+        beta=beta,
+        theta1=theta1,
+        theta2=theta2,
+        num_iterations=num_iterations,
+        deadlines=deadlines,
+        num_clients=num_clients,
+        global_schedule=global_schedule,
+        timeslot_len=timeslot_len,
+    )
 
-    if dummy:
-        if p == 0:
-            qubitapi.assign_qstate(expected, ketstates.s0)
-        elif p == 1:
-            qubitapi.assign_qstate(expected, ketstates.s1)
-    else:
-        if (theta, p) == (0, 0):
-            qubitapi.assign_qstate(expected, ketstates.h0)
-        elif (theta, p) == (0, 1):
-            qubitapi.assign_qstate(expected, ketstates.h1)
-        if (theta, p) == (8, 0):
-            qubitapi.assign_qstate(expected, ketstates.y0)
-        elif (theta, p) == (8, 1):
-            qubitapi.assign_qstate(expected, ketstates.y1)
-        if (theta, p) == (16, 0):
-            qubitapi.assign_qstate(expected, ketstates.h1)
-        elif (theta, p) == (16, 1):
-            qubitapi.assign_qstate(expected, ketstates.h0)
-        if (theta, p) == (-8, 0):
-            qubitapi.assign_qstate(expected, ketstates.y1)
-        elif (theta, p) == (-8, 1):
-            qubitapi.assign_qstate(expected, ketstates.y0)
+    batch_success_probabilities: List[float] = []
 
-    return expected
+    batch_results = bqc_result.server_results
+    for batch_id, batch_results in batch_results.items():
+        program_batch = bqc_result.server_batches[batch_id]
+        batch_iterations = program_batch.info.num_iterations
+        program_results = batch_results.results
+        m2s = [result.values["m2"] for result in program_results]
+        correct_outcomes = len([m2 for m2 in m2s if m2 == expected])
+        succ_prob = round(correct_outcomes / batch_iterations, 2)
+        batch_success_probabilities.append(succ_prob)
+
+    return batch_success_probabilities
 
 
-def expected_rsp_state(theta: int, p: int, dummy: bool):
-    expected = qubitapi.create_qubits(1)[0]
+def compute_succ_prob(
+    num_clients: int,
+    num_iterations: List[int],
+    deadlines: List[int],
+    global_schedule: List[int],
+    timeslot_len: int,
+):
+    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
-    if dummy:
-        if p == 0:
-            return ketstates.s0
-        elif p == 1:
-            return ketstates.s1
-    else:
-        if (theta, p) == (0, 0):
-            return ketstates.h0
-        elif (theta, p) == (0, 1):
-            return ketstates.h1
-        if (theta, p) == (8, 0):
-            return ketstates.y0
-        elif (theta, p) == (8, 1):
-            return ketstates.y1
-        if (theta, p) == (16, 0):
-            return ketstates.h1
-        elif (theta, p) == (16, 1):
-            return ketstates.h0
-        if (theta, p) == (-8, 0):
-            return ketstates.y1
-        elif (theta, p) == (-8, 1):
-            return ketstates.y0
-
-    return expected.qstate
+    return check(
+        alpha=8,
+        beta=24,
+        theta1=2,
+        theta2=22,
+        expected=1,
+        num_iterations=num_iterations,
+        deadlines=deadlines,
+        num_clients=num_clients,
+        global_schedule=global_schedule,
+        timeslot_len=timeslot_len,
+    )
 
 
 def test_bqc():
 
-    # Effective computation: measure in Z the following state:
-    # H Rz(beta) H Rz(alpha) |+>
-    # m2 should be this outcome
-
-    # angles are in multiples of pi/16
-
-    LogManager.set_log_level("DEBUG")
-    LogManager.log_to_file("example_bqc.log")
-
-    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
-
-    num_clients = 1
-
-    def check(alpha, beta, theta1, theta2, expected):
-        ns.sim_reset()
-        bqc_result = run_bqc(
-            alpha=alpha,
-            beta=beta,
-            theta1=theta1,
-            theta2=theta2,
-            num_iterations=5,
-            num_clients=num_clients,
-        )
-
-        server_batch_results = bqc_result.server_results
-        for batch_id, batch_results in server_batch_results.items():
-            program_results = batch_results.results
-            m2s = [result.values["m2"] for result in program_results]
-            print(f"checking batch_id {batch_id}...")
-            print(f"# correct outcomes: {len([m2 for m2 in m2s if m2==expected])}")
-            assert all(m2 == expected for m2 in m2s)
-            print("OK!")
-
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1)
+    # 5 clients, i.e. 5 BQC client applications (one on each client node)
+    # and 5 BQC server applications (all 5 on the single server node)
+    # Do 10 iterations for each of the 5 BQC applications.
+    # All applications have a deadline of 1e9.
+    succ_probs = compute_succ_prob(
+        num_clients=5,
+        num_iterations=[10, 10, 10, 10, 10],
+        deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
+        global_schedule=[1, 2, 3, 4, 5],
+        timeslot_len=1e6,
+    )
+    print(succ_probs)
 
 
 if __name__ == "__main__":
