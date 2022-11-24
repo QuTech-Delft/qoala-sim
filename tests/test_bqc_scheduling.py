@@ -293,7 +293,7 @@ def run_bqc(
     server_id = global_env.get_node_id("server")
     client_id = global_env.get_node_id("client")
 
-    path = os.path.join(os.path.dirname(__file__), "test_server.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "test_bqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
     server_program = IqoalaParser(server_text).parse()
@@ -314,7 +314,7 @@ def run_bqc(
     server_schedule = create_server_schedule(len(server_tasks.tasks))
     server_procnode.install_schedule(server_schedule)
 
-    path = os.path.join(os.path.dirname(__file__), "test_client.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "test_bqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
     client_program = IqoalaParser(client_text).parse()
