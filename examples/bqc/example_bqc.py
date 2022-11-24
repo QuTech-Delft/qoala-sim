@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-from cmath import sin
 from dataclasses import dataclass
-from pickle import INST
 from typing import Dict, List
 
 import netsquid as ns
@@ -25,7 +23,6 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
-from qoala.sim.logging import LogManager
 from qoala.sim.network import ProcNodeNetwork
 
 INSTR_LATENCY = 1e5
@@ -86,9 +83,6 @@ def create_network(
     global_env = create_global_env(num_clients, global_schedule, timeslot_len)
 
     link_cfg_file = relative_to_cwd("link_config.yaml")
-    # link_cfgs = [
-    #     LinkConfig.perfect_config("server", cfg.name) for cfg in client_configs
-    # ]
     depolarise_config = DepolariseLinkConfig.from_file(link_cfg_file)
     link_cfgs = [
         LinkConfig(
@@ -484,14 +478,8 @@ def check(
         m2s = [result.values["m2"] for result in batch_result.results]
 
         if dummy0 == 0:
-            # corresponds to "dummy = 1"
-            # do normal rotations on qubit 0
-            # no rotations on qubit 1
             num_fails = len([(p, m) for (p, m) in zip(p1s, m2s) if p != m])
         else:  # dummy0 = 1
-            # corresponds to "dummy = 2"
-            # no rotations on qubit 0
-            # do normal rotations on qubit 1
             num_fails = len([(p, m) for (p, m) in zip(p2s, m1s) if p != m])
 
         frac_fail = round(num_fails / batch_iterations, 2)
@@ -526,22 +514,6 @@ def compute_succ_prob(
 
 
 def test_bqc():
-
-    # 5 clients, i.e. 5 BQC client applications (one on each client node)
-    # and 5 BQC server applications (all 5 on the single server node)
-    # Do 10 iterations for each of the 5 BQC applications.
-    # All applications have a deadline of 1e9.
-
-    # succ_probs, makespan = compute_succ_prob(
-    #     num_clients=5,
-    #     num_iterations=[10, 10, 10, 10, 10],
-    #     deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
-    #     global_schedule=[1, 2, 3, 4, 5],
-    #     timeslot_len=1e6,
-    # )
-
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("logs/example_bqc.log")
     num_clients = 10
     succ_probs, makespan = compute_succ_prob(
         num_clients=num_clients,
