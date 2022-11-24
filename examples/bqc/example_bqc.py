@@ -347,14 +347,18 @@ def run_bqc(
         client_procnode.initialize_schedule(NoTimeSolver)
 
     network.start_all_nodes()
+    start_time = ns.sim_time()
     ns.sim_run()
+    end_time = ns.sim_time()
+    makespan = end_time - start_time
 
     server_batches = server_procnode.get_batches()
 
     server_results: Dict[int, BatchResult]
     server_results = server_procnode.scheduler.get_batch_results()
 
-    return BqcResult(server_batches, server_results)
+
+    return BqcResult(server_batches, server_results), makespan
 
 
 def check(
@@ -370,7 +374,7 @@ def check(
     timeslot_len: int,
 ):
     ns.sim_reset()
-    bqc_result = run_bqc(
+    bqc_result, makespan = run_bqc(
         alpha=alpha,
         beta=beta,
         theta1=theta1,
@@ -385,16 +389,16 @@ def check(
     batch_success_probabilities: List[float] = []
 
     batch_results = bqc_result.server_results
-    for batch_id, batch_results in batch_results.items():
+    for batch_id, batch_result in batch_results.items():
         program_batch = bqc_result.server_batches[batch_id]
         batch_iterations = program_batch.info.num_iterations
-        program_results = batch_results.results
+        program_results = batch_result.results
         m2s = [result.values["m2"] for result in program_results]
         correct_outcomes = len([m2 for m2 in m2s if m2 == expected])
         succ_prob = round(correct_outcomes / batch_iterations, 2)
         batch_success_probabilities.append(succ_prob)
 
-    return batch_success_probabilities
+    return batch_success_probabilities, makespan
 
 
 def compute_succ_prob(
@@ -426,14 +430,15 @@ def test_bqc():
     # and 5 BQC server applications (all 5 on the single server node)
     # Do 10 iterations for each of the 5 BQC applications.
     # All applications have a deadline of 1e9.
-    succ_probs = compute_succ_prob(
+    succ_probs, makespan = compute_succ_prob(
         num_clients=5,
         num_iterations=[10, 10, 10, 10, 10],
         deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
         global_schedule=[1, 2, 3, 4, 5],
         timeslot_len=1e6,
     )
-    print(succ_probs)
+    print(f"success probabilities: {succ_probs}")
+    print(f"makespan: {makespan}")
 
 
 if __name__ == "__main__":
