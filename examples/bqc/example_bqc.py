@@ -357,7 +357,6 @@ def run_bqc(
     server_results: Dict[int, BatchResult]
     server_results = server_procnode.scheduler.get_batch_results()
 
-
     return BqcResult(server_batches, server_results), makespan
 
 

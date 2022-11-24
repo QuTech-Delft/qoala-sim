@@ -140,7 +140,6 @@ class SchedulerOutputEntry:
     ex_index: int
     instr_index: int
     start_time: Optional[int]  # None means "earliest time possible"
-    end_time: int
 
 
 @dataclass
@@ -199,7 +198,6 @@ class NaiveSolver(ScheduleSolver):
                         ex_index=j,
                         instr_index=k,
                         start_time=current_time,
-                        end_time=current_time + duration,
                     )
                     current_time += duration
                     output_entries.append(entry)
@@ -237,7 +235,6 @@ class NoTimeSolver(ScheduleSolver):
                         ex_index=j,
                         instr_index=k,
                         start_time=None,
-                        end_time=current_time + duration,
                     )
                     current_time += duration
                     output_entries.append(entry)
