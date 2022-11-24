@@ -46,13 +46,14 @@ class HostProcessor:
         self._logger.info(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, iqoala.AssignCValueOp):
             value = instr.attributes[0]
-            host_mem.write(instr.results[0], instr.attributes[0])
+            loc = instr.results[0]
+            self._logger.info(f"writing {value} to {loc}")
+            host_mem.write(loc, value)
         elif isinstance(instr, iqoala.SendCMsgOp):
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
             value = host_mem.read(instr.arguments[1])
             self._logger.info(f"sending msg {value}")
-            # print(f"sending {instr.arguments[1]} = {value}")
             csck.send_int(value)
         elif isinstance(instr, iqoala.ReceiveCMsgOp):
             csck_id = host_mem.read(instr.arguments[0])
@@ -60,25 +61,33 @@ class HostProcessor:
             msg = yield from csck.recv_int()
             host_mem.write(instr.results[0], msg)
             self._logger.info(f"received msg {msg}")
-            # print(f"received {instr.results[0]} = {msg}")
         elif isinstance(instr, iqoala.AddCValueOp):
             arg0 = host_mem.read(instr.arguments[0])
             arg1 = host_mem.read(instr.arguments[1])
-            host_mem.write(instr.results[0], arg0 + arg1)
+            loc = instr.results[0]
+            result = arg0 + arg1
+            self._logger.info(f"computing {loc} = {arg0} + {arg1} = {result}")
+            host_mem.write(loc, result)
         elif isinstance(instr, iqoala.MultiplyConstantCValueOp):
             arg0 = host_mem.read(instr.arguments[0])
             const = instr.attributes[0]
             assert isinstance(const, int)
-            host_mem.write(instr.results[0], arg0 * const)
+            loc = instr.results[0]
+            result = arg0 * const
+            self._logger.info(f"computing {loc} = {arg0} * {const} = {result}")
+            host_mem.write(loc, result)
         elif isinstance(instr, iqoala.BitConditionalMultiplyConstantCValueOp):
             arg0 = host_mem.read(instr.arguments[0])
             cond = host_mem.read(instr.arguments[1])
             const = instr.attributes[0]
             assert isinstance(const, int)
+            loc = instr.results[0]
             if cond == 1:
-                host_mem.write(instr.results[0], arg0 * const)
+                result = arg0 * const
             else:
-                host_mem.write(instr.results[0], arg0)
+                result = arg0
+            self._logger.info(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
+            host_mem.write(loc, result)
         elif isinstance(instr, iqoala.RunSubroutineOp):
             arg_vec: iqoala.IqoalaVector = instr.arguments[0]
             args = arg_vec.values
@@ -107,8 +116,10 @@ class HostProcessor:
                 pass
 
         elif isinstance(instr, iqoala.ReturnResultOp):
-            value = instr.arguments[0]
-            process.result.values[value] = host_mem.read(value)
+            loc = instr.arguments[0]
+            value = host_mem.read(loc)
+            self._logger.info(f"returning {loc} = {value}")
+            process.result.values[loc] = value
 
     def copy_subroutine_results(self, process: IqoalaProcess, subrt_name: str) -> None:
         iqoala_subrt = process.subroutines[subrt_name]

@@ -1,4 +1,3 @@
-
 META_START
     name: client
     parameters: server_id, alpha, beta, theta1, theta2, dummy0, dummy1

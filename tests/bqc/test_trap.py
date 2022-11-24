@@ -22,6 +22,7 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
+from qoala.sim.logging import LogManager
 from qoala.sim.network import ProcNodeNetwork
 
 
@@ -418,52 +419,6 @@ def run_bqc(
     return BqcResult(client_batches, client_results), makespan
 
 
-def check_computation(
-    alpha,
-    beta,
-    theta1,
-    theta2,
-    dummy0,
-    dummy1,
-    expected,
-    num_iterations,
-    deadlines,
-    num_clients,
-    global_schedule: List[int],
-    timeslot_len: int,
-):
-    ns.sim_reset()
-    bqc_result, makespan = run_bqc(
-        alpha=alpha,
-        beta=beta,
-        theta1=theta1,
-        theta2=theta2,
-        dummy0=dummy0,
-        dummy1=dummy1,
-        num_iterations=num_iterations,
-        deadlines=deadlines,
-        num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
-    )
-
-    batch_success_probabilities: List[float] = []
-
-    for i in range(num_clients):
-        assert len(bqc_result.client_results[i]) == 1
-        batch_result = bqc_result.client_results[i][0]
-        assert len(bqc_result.client_batches[i]) == 1
-        program_batch = bqc_result.client_batches[i][0]
-        batch_iterations = program_batch.info.num_iterations
-
-        m2s = [result.values["m2"] for result in batch_result.results]
-        correct_outcomes = len([m2 for m2 in m2s if m2 == expected])
-        succ_prob = round(correct_outcomes / batch_iterations, 2)
-        batch_success_probabilities.append(succ_prob)
-
-    return batch_success_probabilities, makespan
-
-
 def check_trap(
     alpha,
     beta,
@@ -471,7 +426,6 @@ def check_trap(
     theta2,
     dummy0,
     dummy1,
-    expected,
     num_iterations,
     deadlines,
     num_clients,
@@ -524,31 +478,6 @@ def check_trap(
     return batch_success_probabilities, makespan
 
 
-def compute_succ_prob_computation(
-    num_clients: int,
-    num_iterations: List[int],
-    deadlines: List[int],
-    global_schedule: List[int],
-    timeslot_len: int,
-):
-    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
-
-    return check_computation(
-        alpha=8,
-        beta=24,
-        theta1=2,
-        theta2=22,
-        dummy0=0,
-        dummy1=0,
-        expected=1,
-        num_iterations=num_iterations,
-        deadlines=deadlines,
-        num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
-    )
-
-
 def compute_succ_prob_trap(
     num_clients: int,
     num_iterations: List[int],
@@ -561,13 +490,10 @@ def compute_succ_prob_trap(
     return check_trap(
         alpha=8,
         beta=24,
-        # theta1=2,
-        # theta2=22,
-        theta1=0,
-        theta2=0,
+        theta1=2,
+        theta2=22,
         dummy0=0,
         dummy1=1,
-        expected=1,
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
@@ -578,34 +504,18 @@ def compute_succ_prob_trap(
 
 def test_bqc():
 
-    # 5 clients, i.e. 5 BQC client applications (one on each client node)
-    # and 5 BQC server applications (all 5 on the single server node)
-    # Do 10 iterations for each of the 5 BQC applications.
-    # All applications have a deadline of 1e9.
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("logs/test_trap.log")
 
-    succ_probs, makespan = compute_succ_prob_computation(
-        num_clients=5,
-        num_iterations=[10, 10, 10, 10, 10],
-        deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
-        global_schedule=[1, 2, 3, 4, 5],
-        timeslot_len=1e6,
-    )
-    print(f"success probabilities: {succ_probs}")
-    print(f"makespan: {makespan}")
+    num_clients = 4
+
     succ_probs, makespan = compute_succ_prob_trap(
-        num_clients=5,
-        num_iterations=[10, 10, 10, 10, 10],
-        deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
-        global_schedule=[1, 2, 3, 4, 5],
+        num_clients=num_clients,
+        num_iterations=[20] * num_clients,
+        deadlines=[1e9] * num_clients,
+        global_schedule=[i for i in range(num_clients)],
         timeslot_len=1e6,
     )
-    # succ_probs, makespan = compute_succ_prob(
-    #     num_clients=1,
-    #     num_iterations=[1],
-    #     deadlines=[1e9],
-    #     global_schedule=[1],
-    #     timeslot_len=1e6,
-    # )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
 
