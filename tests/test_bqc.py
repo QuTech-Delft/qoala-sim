@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import math
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional, Tuple, Type
+from typing import Dict, List, Tuple
 
 import netsquid as ns
-from netqasm.lang.instr.core import CreateEPRInstruction, RecvEPRInstruction
-from netsquid.components import QuantumProcessor
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 from netsquid_magic.link_layer import (
@@ -16,59 +13,25 @@ from netsquid_magic.link_layer import (
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
-from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
-from qoala.runtime.config import GenericQDeviceConfig
+from qoala.runtime.config import (
+    GenericQDeviceConfig,
+    LinkConfig,
+    ProcNodeConfig,
+    ProcNodeNetworkConfig,
+)
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.build import build_generic_qprocessor
-from qoala.sim.csocket import ClassicalSocket
+from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
+from qoala.runtime.schedule import (
+    ProgramTaskList,
+    SchedulerInput,
+    SchedulerOutput,
+    SchedulerOutputEntry,
+    ScheduleSolver,
+    TaskBuilder,
+)
+from qoala.sim.build import build_network
 from qoala.sim.egp import EgpProtocol
-from qoala.sim.hostinterface import HostInterface
-from qoala.sim.logging import LogManager
-from qoala.sim.memory import ProgramMemory, UnitModule
-from qoala.sim.process import IqoalaProcess
-from qoala.sim.procnode import ProcNode
-from qoala.util.tests import has_state
-
-
-def create_process(
-    pid: int,
-    program: IqoalaProgram,
-    unit_module: UnitModule,
-    host_interface: HostInterface,
-    inputs: Optional[Dict[str, Any]] = None,
-) -> IqoalaProcess:
-    if inputs is None:
-        inputs = {}
-    prog_input = ProgramInput(values=inputs)
-    instance = ProgramInstance(
-        pid=pid,
-        program=program,
-        inputs=prog_input,
-        tasks=ProgramTaskList.empty(program),
-    )
-    mem = ProgramMemory(pid=0, unit_module=unit_module)
-
-    process = IqoalaProcess(
-        prog_instance=instance,
-        prog_memory=mem,
-        csockets={
-            id: ClassicalSocket(host_interface, name)
-            for (id, name) in program.meta.csockets.items()
-        },
-        epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
-        requests=program.requests,
-        result=ProgramResult(values={}),
-    )
-    return process
-
-
-def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    return build_generic_qprocessor(name=f"{name}_processor", cfg=cfg)
 
 
 def create_global_env(
@@ -78,34 +41,13 @@ def create_global_env(
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
+    env.set_global_schedule([0, 1, 2])
+    env.set_timeslot_len(1e6)
     return env
 
 
-def create_procnode(
-    name: str,
-    env: GlobalEnvironment,
-    num_qubits: int,
-    procnode_cls: Type[ProcNode] = ProcNode,
-    asynchronous: bool = False,
-    pid: int = 0,
-) -> ProcNode:
-    alice_qprocessor = create_qprocessor(name, num_qubits)
-
-    node_id = env.get_node_id(name)
-    procnode = procnode_cls(
-        name=name,
-        global_env=env,
-        qprocessor=alice_qprocessor,
-        node_id=node_id,
-        asynchronous=asynchronous,
-        pid=pid,
-    )
-
-    return procnode
-
-
 def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
-    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=1000.0)
+    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=0)
     link_prot = MagicLinkLayerProtocolWithSignaling(
         nodes=[node1, node2],
         magic_distributor=link_dist,
@@ -114,247 +56,274 @@ def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProt
     return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
 
 
-class BqcProcNode(ProcNode):
-    def __init__(
-        self, name, global_env, qprocessor, node_id, asynchronous, pid
-    ) -> None:
-        super().__init__(
-            name=name,
-            global_env=global_env,
-            qprocessor=qprocessor,
-            node_id=node_id,
-            asynchronous=asynchronous,
-        )
-        self.pid = pid
+def create_server_tasks(
+    server_program: IqoalaProgram, cfg: ProcNodeConfig
+) -> ProgramTaskList:
+    tasks = []
 
-    def run_epr_subroutine(
-        self, process: IqoalaProcess, subrt_name: str
-    ) -> Generator[EventExpression, None, None]:
-        subrt = process.subroutines[subrt_name]
-        epr_instr_idx = None
-        for i, instr in enumerate(subrt.subroutine.instructions):
-            if isinstance(instr, CreateEPRInstruction) or isinstance(
-                instr, RecvEPRInstruction
-            ):
-                epr_instr_idx = i
-                break
+    cl_dur = 1e3
+    cc_dur = 10e6
+    # ql_dur = 1e4
+    qc_dur = 1e6
 
-        # Set up arrays
-        for i in range(epr_instr_idx):
-            yield from self.qnos.processor.assign(process, subrt_name, i)
+    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
 
-        request_name = subrt.request_name
-        assert request_name is not None
-        request = process.requests[request_name].request
+    set_dur = cfg.instr_latency
+    rot_dur = qdevice_cfg.single_qubit_gate_time
+    h_dur = qdevice_cfg.single_qubit_gate_time
+    meas_dur = qdevice_cfg.measure_time
+    free_dur = cfg.instr_latency
+    cphase_dur = qdevice_cfg.two_qubit_gate_time
 
-        # Handle request
-        yield from self.netstack.processor.assign(process, request)
+    # csocket = assign_cval() : 0
+    tasks.append(TaskBuilder.CL(cl_dur, 0))
+    # run_subroutine(vec<client_id>) : create_epr_0
+    tasks.append(TaskBuilder.CL(cl_dur, 1))
+    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # run_subroutine(vec<client_id>) : create_epr_1
+    tasks.append(TaskBuilder.CL(cl_dur, 2))
+    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # run_subroutine(vec<client_id>) : local_cphase
+    tasks.append(TaskBuilder.CL(cl_dur, 3))
+    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
+    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 1))
+    tasks.append(TaskBuilder.QL(cphase_dur, "local_cphase", 2))
+    # delta1 = recv_cmsg(client_id)
+    tasks.append(TaskBuilder.CC(cc_dur, 4))
+    # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
+    tasks.append(TaskBuilder.CL(cl_dur, 5))
+    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_1", 0))
+    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_1", 1))
+    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_1", 2))
+    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_1", 3))
+    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_1", 4))
+    # send_cmsg(csocket, m1)
+    tasks.append(TaskBuilder.CC(cc_dur, 6))
+    # delta2 = recv_cmsg(csocket)
+    tasks.append(TaskBuilder.CC(cc_dur, 7))
+    # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
+    tasks.append(TaskBuilder.CL(cl_dur, 8))
+    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_0", 0))
+    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_0", 1))
+    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_0", 2))
+    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_0", 3))
+    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_0", 4))
+    # return_result(m1)
+    tasks.append(TaskBuilder.CL(cl_dur, 9))
+    # return_result(m2)
+    tasks.append(TaskBuilder.CL(cl_dur, 10))
 
-        # Execute wait instruction
-        yield from self.qnos.processor.assign(process, subrt_name, epr_instr_idx + 1)
-
-        # Return subroutine results
-        self.host.processor.copy_subroutine_results(process, subrt_name)
-
-    def run_subroutine(
-        self, process: IqoalaProcess, subrt_name: str
-    ) -> Generator[EventExpression, None, None]:
-        subrt = process.subroutines[subrt_name]
-        num_instrs = len(subrt.subroutine.instructions)
-
-        for i in range(num_instrs):
-            yield from self.qnos.processor.assign(process, subrt_name, i)
-
-        # Return subroutine results
-        self.host.processor.copy_subroutine_results(process, subrt_name)
-
-
-class ServerProcNode(BqcProcNode):
-    def run(self) -> Generator[EventExpression, None, None]:
-        self.finished = False
-
-        process = self.memmgr.get_process(self.pid)
-        self.scheduler.initialize_process(process)
-
-        # csocket = assign_cval() : 0
-        yield from self.host.processor.assign(process, 0)
-
-        # run_subroutine(vec<client_id>) : create_epr_0
-        yield from self.host.processor.assign(process, 1)
-        yield from self.run_epr_subroutine(process, "create_epr_0")
-
-        # run_subroutine(vec<client_id>) : create_epr_1
-        yield from self.host.processor.assign(process, 2)
-        yield from self.run_epr_subroutine(process, "create_epr_1")
-
-        # run_subroutine(vec<client_id>) : local_cphase
-        yield from self.host.processor.assign(process, 3)
-        yield from self.run_subroutine(process, "local_cphase")
-
-        # delta1 = recv_cmsg(client_id)
-        yield from self.host.processor.assign(process, 4)
-
-        # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-        yield from self.host.processor.assign(process, 5)
-        yield from self.run_subroutine(process, "meas_qubit_1")
-
-        # send_cmsg(csocket, m1)
-        yield from self.host.processor.assign(process, 6)
-        # delta2 = recv_cmsg(csocket)
-        yield from self.host.processor.assign(process, 7)
-
-        # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-        yield from self.host.processor.assign(process, 8)
-        yield from self.run_subroutine(process, "meas_qubit_0")
-
-        # return_result(m1)
-        yield from self.host.processor.assign(process, 9)
-        # return_result(m2)
-        yield from self.host.processor.assign(process, 10)
-
-        self.finished = True
+    return ProgramTaskList(server_program, {i: task for i, task in enumerate(tasks)})
 
 
-class ClientProcNode(BqcProcNode):
-    def run(self) -> Generator[EventExpression, None, None]:
-        self.finished = False
+def create_client_tasks(
+    client_program: IqoalaProgram, cfg: ProcNodeConfig
+) -> ProgramTaskList:
+    tasks = []
 
-        process = self.memmgr.get_process(self.pid)
-        self.scheduler.initialize_process(process)
+    cl_dur = 1e3
+    cc_dur = 10e6
+    # ql_dur = 1e3
+    qc_dur = 1e6
 
-        # csocket = assign_cval() : 0
-        yield from self.host.processor.assign(process, 0)
+    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
 
-        # run_subroutine(vec<>) : create_epr_0
-        yield from self.host.processor.assign(process, 1)
-        yield from self.run_epr_subroutine(process, "create_epr_0")
+    set_dur = cfg.instr_latency
+    rot_dur = qdevice_cfg.single_qubit_gate_time
+    h_dur = qdevice_cfg.single_qubit_gate_time
+    meas_dur = qdevice_cfg.measure_time
+    free_dur = cfg.instr_latency
 
-        # run_subroutine(vec<theta2>) : post_epr_0
-        yield from self.host.processor.assign(process, 2)
-        yield from self.run_subroutine(process, "post_epr_0")
+    tasks.append(TaskBuilder.CL(cl_dur, 0))
+    tasks.append(TaskBuilder.CL(cl_dur, 1))
+    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    tasks.append(TaskBuilder.CL(cl_dur, 2))
+    tasks.append(TaskBuilder.QL(set_dur, "post_epr_0", 0))
+    tasks.append(TaskBuilder.QL(rot_dur, "post_epr_0", 1))
+    tasks.append(TaskBuilder.QL(h_dur, "post_epr_0", 2))
+    tasks.append(TaskBuilder.QL(meas_dur, "post_epr_0", 3))
+    tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 4))
 
-        # run_subroutine(vec<>) : create_epr_1
-        yield from self.host.processor.assign(process, 3)
-        yield from self.run_epr_subroutine(process, "create_epr_1")
+    tasks.append(TaskBuilder.CL(cl_dur, 3))
+    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    tasks.append(TaskBuilder.CL(cl_dur, 4))
+    tasks.append(TaskBuilder.QL(set_dur, "post_epr_1", 0))
+    tasks.append(TaskBuilder.QL(rot_dur, "post_epr_1", 1))
+    tasks.append(TaskBuilder.QL(h_dur, "post_epr_1", 2))
+    tasks.append(TaskBuilder.QL(meas_dur, "post_epr_1", 3))
+    tasks.append(TaskBuilder.QL(free_dur, "post_epr_1", 4))
 
-        # run_subroutine(vec<theta1>) : post_epr_1
-        yield from self.host.processor.assign(process, 4)
-        yield from self.run_subroutine(process, "post_epr_1")
+    tasks.append(TaskBuilder.CL(cl_dur, 5))
+    tasks.append(TaskBuilder.CL(cl_dur, 6))
+    tasks.append(TaskBuilder.CL(cl_dur, 7))
+    tasks.append(TaskBuilder.CL(cl_dur, 8))
+    tasks.append(TaskBuilder.CC(cc_dur, 9))
+    tasks.append(TaskBuilder.CC(cc_dur, 10))
+    tasks.append(TaskBuilder.CL(cl_dur, 11))
+    tasks.append(TaskBuilder.CL(cl_dur, 12))
+    tasks.append(TaskBuilder.CL(cl_dur, 13))
+    tasks.append(TaskBuilder.CL(cl_dur, 14))
+    tasks.append(TaskBuilder.CL(cl_dur, 15))
+    tasks.append(TaskBuilder.CC(cc_dur, 16))
+    tasks.append(TaskBuilder.CL(cl_dur, 17))
+    tasks.append(TaskBuilder.CL(cl_dur, 18))
 
-        # x = mult_const(p1) : 16
-        # minus_theta1 = mult_const(theta1) : -1
-        # delta1 = add_cval_c(minus_theta1, x)
-        # delta1 = add_cval_c(delta1, alpha)
-        # send_cmsg(server_id, delta1)
-        for i in range(5, 10):
-            yield from self.host.processor.assign(process, i)
+    return ProgramTaskList(client_program, {i: task for i, task in enumerate(tasks)})
 
-        # m1 = recv_cmsg(csocket)
-        yield from self.host.processor.assign(process, 10)
 
-        # y = mult_const(p2) : 16
-        # minus_theta2 = mult_const(theta2) : -1
-        # beta = bcond_mult_const(beta, m1) : -1
-        # delta2 = add_cval_c(beta, minus_theta2)
-        # delta2 = add_cval_c(delta2, y)
-        # send_cmsg(csocket, delta2)
-        for i in range(11, 17):
-            yield from self.host.processor.assign(process, i)
+class NaiveSolver(ScheduleSolver):
+    @classmethod
+    def solve(cls, input: SchedulerInput) -> SchedulerOutput:
+        output_entries: List[SchedulerOutputEntry] = []
 
-        # return_result(p1)
-        yield from self.host.processor.assign(process, 17)
-        # return_result(p2)
-        yield from self.host.processor.assign(process, 18)
+        assert len(input.num_executions) == input.num_programs
+        assert len(input.num_instructions) == input.num_programs
+        assert len(input.instr_durations) == input.num_programs
 
-        self.finished = True
+        current_time = 0
+
+        for i in range(input.num_programs):
+            num_executions = input.num_executions[i]
+            num_instructions = input.num_instructions[i]
+            instr_durations = input.instr_durations[i]
+            for j in range(num_executions):
+                for k in range(num_instructions):
+                    duration = instr_durations[k]
+                    entry = SchedulerOutputEntry(
+                        app_index=i,
+                        ex_index=j,
+                        instr_index=k,
+                        start_time=current_time,
+                    )
+                    current_time += duration
+                    output_entries.append(entry)
+
+        return SchedulerOutput(output_entries)
+
+
+class NoTimeSolver(ScheduleSolver):
+    @classmethod
+    def solve(cls, input: SchedulerInput) -> SchedulerOutput:
+        output_entries: List[SchedulerOutputEntry] = []
+
+        assert len(input.num_executions) == input.num_programs
+        assert len(input.num_instructions) == input.num_programs
+        assert len(input.instr_durations) == input.num_programs
+
+        current_time = 0
+
+        for i in range(input.num_programs):
+            num_executions = input.num_executions[i]
+            num_instructions = input.num_instructions[i]
+            instr_durations = input.instr_durations[i]
+            for j in range(num_executions):
+                for k in range(num_instructions):
+                    duration = instr_durations[k]
+                    entry = SchedulerOutputEntry(
+                        app_index=i,
+                        ex_index=j,
+                        instr_index=k,
+                        start_time=None,
+                    )
+                    current_time += duration
+                    output_entries.append(entry)
+
+        return SchedulerOutput(output_entries)
 
 
 @dataclass
 class BqcResult:
-    client_process: IqoalaProcess
-    server_process: IqoalaProcess
-    client_procnode: BqcProcNode
-    server_procnode: BqcProcNode
+    client_results: Dict[int, BatchResult]
+    server_results: Dict[int, BatchResult]
 
 
-def run_bqc(
-    server_prot: Type[BqcProcNode],
-    client_prot: Type[BqcProcNode],
-    alpha,
-    beta,
-    theta1,
-    theta2,
-    client_pid: int = 0,
-    server_pid: int = 0,
-):
+def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     num_qubits = 3
-    unit_module = UnitModule.default_generic(num_qubits)
     global_env = create_global_env(num_qubits, names=["client", "server"])
     server_id = global_env.get_node_id("server")
     client_id = global_env.get_node_id("client")
 
-    path = os.path.join(os.path.dirname(__file__), "test_server.iqoala")
+    server_node_cfg = ProcNodeConfig(
+        name="server",
+        node_id=server_id,
+        qdevice_typ="generic",
+        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        instr_latency=1000,
+    )
+    client_node_cfg = ProcNodeConfig(
+        name="client",
+        node_id=client_id,
+        qdevice_typ="generic",
+        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        instr_latency=1000,
+    )
+    link_cfg = LinkConfig.perfect_config("server", "client")
+
+    network_cfg = ProcNodeNetworkConfig(
+        nodes=[server_node_cfg, client_node_cfg], links=[link_cfg]
+    )
+    network = build_network(network_cfg, global_env)
+    server_procnode = network.nodes["server"]
+    client_procnode = network.nodes["client"]
+
+    path = os.path.join(os.path.dirname(__file__), "test_bqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
     server_program = IqoalaParser(server_text).parse()
-
-    server_procnode = create_procnode(
-        "server", global_env, num_qubits, procnode_cls=server_prot, pid=server_pid
-    )
-    server_process = create_process(
-        pid=server_pid,
+    server_tasks = create_server_tasks(server_program, server_node_cfg)
+    server_inputs = [
+        ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
+    ]
+    server_batch_info = BatchInfo(
         program=server_program,
-        unit_module=unit_module,
-        host_interface=server_procnode.host._interface,
-        inputs={"client_id": client_id},
+        inputs=server_inputs,
+        num_iterations=num_iterations,
+        deadline=0,
+        tasks=server_tasks,
+        num_qubits=3,
     )
-    server_procnode.add_process(server_process)
+    server_procnode.submit_batch(server_batch_info)
+    server_procnode.initialize_processes()
+    server_procnode.initialize_schedule(NoTimeSolver)
 
-    path = os.path.join(os.path.dirname(__file__), "test_client.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "test_bqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
     client_program = IqoalaParser(client_text).parse()
+    client_tasks = create_client_tasks(client_program, client_node_cfg)
+    client_inputs = [
+        ProgramInput(
+            {
+                "server_id": server_id,
+                "alpha": alpha,
+                "beta": beta,
+                "theta1": theta1,
+                "theta2": theta2,
+            }
+        )
+        for _ in range(num_iterations)
+    ]
 
-    client_procnode = create_procnode(
-        "client", global_env, num_qubits, procnode_cls=client_prot, pid=client_pid
-    )
-    client_process = create_process(
-        pid=client_pid,
+    client_batch_info = BatchInfo(
         program=client_program,
-        unit_module=unit_module,
-        host_interface=client_procnode.host._interface,
-        inputs={
-            "server_id": server_id,
-            "alpha": alpha,
-            "beta": beta,
-            "theta1": theta1,
-            "theta2": theta2,
-        },
+        inputs=client_inputs,
+        num_iterations=num_iterations,
+        deadline=0,
+        tasks=client_tasks,
+        num_qubits=3,
     )
-    client_procnode.add_process(client_process)
+    client_procnode.submit_batch(client_batch_info)
+    client_procnode.initialize_processes()
+    client_procnode.initialize_schedule(NoTimeSolver)
 
-    client_egp, server_egp = create_egp_protocols(
-        client_procnode.node, server_procnode.node
-    )
-    client_procnode.egpmgr.add_egp(server_id, client_egp)
-    server_procnode.egpmgr.add_egp(client_id, server_egp)
-
-    client_procnode.connect_to(server_procnode)
-
-    # client_egp._ll_prot.start()
     server_procnode.start()
     client_procnode.start()
     ns.sim_run()
 
-    assert client_procnode.finished
-    assert server_procnode.finished
+    client_results = client_procnode.scheduler.get_batch_results()
+    server_results = server_procnode.scheduler.get_batch_results()
 
-    return BqcResult(
-        client_process=client_process,
-        server_process=server_process,
-        client_procnode=client_procnode,
-        server_procnode=server_procnode,
-    )
+    return BqcResult(client_results, server_results)
 
 
 def expected_rsp_qubit(theta: int, p: int, dummy: bool):
@@ -415,204 +384,6 @@ def expected_rsp_state(theta: int, p: int, dummy: bool):
     return expected.qstate
 
 
-def test_bqc_1():
-    class ServerProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_subroutine(vec<client_id>) : create_epr_0
-            yield from self.host.processor.assign(process, 1)
-            yield from self.run_epr_subroutine(process, "create_epr_0")
-
-            # run_subroutine(vec<client_id>) : create_epr_1
-            yield from self.host.processor.assign(process, 2)
-            yield from self.run_epr_subroutine(process, "create_epr_1")
-
-            self.finished = True
-
-    class ClientProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_subroutine(vec<>) : create_epr_0
-            yield from self.host.processor.assign(process, 1)
-            yield from self.run_epr_subroutine(process, "create_epr_0")
-
-            # run_subroutine(vec<theta2>) : post_epr_0
-            yield from self.host.processor.assign(process, 2)
-            yield from self.run_subroutine(process, "post_epr_0")
-
-            # run_subroutine(vec<>) : create_epr_1
-            yield from self.host.processor.assign(process, 3)
-            yield from self.run_epr_subroutine(process, "create_epr_1")
-
-            # run_subroutine(vec<theta1>) : post_epr_1
-            yield from self.host.processor.assign(process, 4)
-            yield from self.run_subroutine(process, "post_epr_1")
-
-            # x = mult_const(p1) : 16
-            # minus_theta1 = mult_const(theta1) : -1
-            # delta1 = add_cval_c(minus_theta1, x)
-            # delta1 = add_cval_c(delta1, alpha)
-            # send_cmsg(server_id, delta1)
-            for i in range(5, 10):
-                yield from self.host.processor.assign(process, i)
-
-            self.finished = True
-
-    alpha_beta_theta1_theta2 = [
-        (0, 0, 0, 0),
-        (0, 8, 0, 0),
-        (8, 0, 0, 0),
-        (8, 8, 0, 0),
-    ]
-
-    for (alpha, beta, theta1, theta2) in alpha_beta_theta1_theta2:
-        for _ in range(10):
-            result = run_bqc(
-                ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
-            )
-
-            p1 = result.client_process.host_mem.read("p1")
-            p2 = result.client_process.host_mem.read("p2")
-            delta1 = result.client_process.host_mem.read("delta1")
-            q0 = result.server_procnode.qdevice.get_local_qubit(0)
-            q1 = result.server_procnode.qdevice.get_local_qubit(1)
-
-            assert delta1 == alpha - theta1 + p1 * 16
-
-            # p2 and theta2 control state of q0
-            expected_q0 = expected_rsp_state(theta2, p2, dummy=False)
-            assert has_state(q0, expected_q0)
-
-            # p1 and theta1 control state of q1
-            expected_q1 = expected_rsp_state(theta1, p1, dummy=False)
-            assert has_state(q1, expected_q1)
-
-
-def test_bqc_2():
-    class ServerProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_subroutine(vec<client_id>) : create_epr_0
-            yield from self.host.processor.assign(process, 1)
-            yield from self.run_epr_subroutine(process, "create_epr_0")
-
-            # run_subroutine(vec<client_id>) : create_epr_1
-            yield from self.host.processor.assign(process, 2)
-            yield from self.run_epr_subroutine(process, "create_epr_1")
-
-            # run_subroutine(vec<client_id>) : local_cphase
-            yield from self.host.processor.assign(process, 3)
-            yield from self.run_subroutine(process, "local_cphase")
-
-            # delta1 = recv_cmsg(client_id)
-            yield from self.host.processor.assign(process, 4)
-
-            # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-            yield from self.host.processor.assign(process, 5)
-            yield from self.run_subroutine(process, "meas_qubit_1")
-
-            # send_cmsg(csocket, m1)
-            yield from self.host.processor.assign(process, 6)
-            # delta2 = recv_cmsg(csocket)
-            yield from self.host.processor.assign(process, 7)
-
-            self.finished = True
-
-    class ClientProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_subroutine(vec<>) : create_epr_0
-            yield from self.host.processor.assign(process, 1)
-            yield from self.run_epr_subroutine(process, "create_epr_0")
-
-            # run_subroutine(vec<theta2>) : post_epr_0
-            yield from self.host.processor.assign(process, 2)
-            yield from self.run_subroutine(process, "post_epr_0")
-
-            # run_subroutine(vec<>) : create_epr_1
-            yield from self.host.processor.assign(process, 3)
-            yield from self.run_epr_subroutine(process, "create_epr_1")
-
-            # run_subroutine(vec<theta1>) : post_epr_1
-            yield from self.host.processor.assign(process, 4)
-            yield from self.run_subroutine(process, "post_epr_1")
-
-            # x = mult_const(p1) : 16
-            # minus_theta1 = mult_const(theta1) : -1
-            # delta1 = add_cval_c(minus_theta1, x)
-            # delta1 = add_cval_c(delta1, alpha)
-            # send_cmsg(server_id, delta1)
-            for i in range(5, 10):
-                yield from self.host.processor.assign(process, i)
-
-            # m1 = recv_cmsg(csocket)
-            yield from self.host.processor.assign(process, 10)
-
-            # y = mult_const(p2) : 16
-            # minus_theta2 = mult_const(theta2) : -1
-            # beta = bcond_mult_const(beta, m1) : -1
-            # delta2 = add_cval_c(beta, minus_theta2)
-            # delta2 = add_cval_c(delta2, y)
-            # send_cmsg(csocket, delta2)
-            for i in range(11, 17):
-                yield from self.host.processor.assign(process, i)
-
-            self.finished = True
-
-    alpha_beta_theta1_theta2 = [
-        (0, 0, 0, 0),
-        (0, 8, 0, 0),
-        (8, 0, 0, 0),
-        (8, 8, 0, 0),
-    ]
-
-    for (alpha, beta, theta1, theta2) in alpha_beta_theta1_theta2:
-        for _ in range(10):
-            result = run_bqc(
-                ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
-            )
-
-            p1 = result.client_process.host_mem.read("p1")
-            p2 = result.client_process.host_mem.read("p2")
-            delta1 = result.client_process.host_mem.read("delta1")
-            m1 = result.client_process.host_mem.read("m1")
-            delta2 = result.client_process.host_mem.read("delta2")
-
-            q0 = result.server_procnode.qdevice.get_local_qubit(0)
-            print(q0.qstate)
-
-            assert delta1 == alpha - theta1 + p1 * 16
-            assert delta2 == math.pow(-1, m1) * beta - theta2 + p2 * 16
-
-
 def test_bqc():
 
     # Effective computation: measure in Z the following state:
@@ -621,33 +392,26 @@ def test_bqc():
 
     # angles are in multiples of pi/16
 
-    LogManager.set_log_level("DEBUG")
-    LogManager.log_to_file("test_bqc.log")
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("test_run.log")
 
     def check(alpha, beta, theta1, theta2, expected):
-        results = [
-            run_bqc(
-                server_prot=ServerProcNode,
-                client_prot=ClientProcNode,
-                alpha=alpha,
-                beta=beta,
-                theta1=theta1,
-                theta2=theta2,
-                client_pid=i,
-                server_pid=i,
-            )
-            for i in range(2)
-        ]
-        m2s = [result.server_process.result.values["m2"] for result in results]
-        assert all(m2 == expected for m2 in m2s)
+        ns.sim_reset()
+        bqc_result = run_bqc(
+            alpha=alpha, beta=beta, theta1=theta1, theta2=theta2, num_iterations=20
+        )
+
+        server_batch_results = bqc_result.server_results
+        for batch_id, batch_results in server_batch_results.items():
+            program_results = batch_results.results
+            m2s = [result.values["m2"] for result in program_results]
+            assert all(m2 == expected for m2 in m2s)
 
     check(alpha=8, beta=8, theta1=0, theta2=0, expected=0)
-    # check(alpha=8, beta=24, theta1=0, theta2=0, expected=1)
-    # check(alpha=8, beta=8, theta1=13, theta2=27, expected=0)
-    # check(alpha=8, beta=24, theta1=2, theta2=22, expected=1)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1)
 
 
 if __name__ == "__main__":
-    test_bqc_1()
-    test_bqc_2()
     test_bqc()
