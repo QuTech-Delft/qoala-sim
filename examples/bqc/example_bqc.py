@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
+from cmath import sin
 from dataclasses import dataclass
+from pickle import INST
 from typing import Dict, List
 
 import netsquid as ns
 
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import (
+    DepolariseLinkConfig,
     GenericQDeviceConfig,
     LinkConfig,
     ProcNodeConfig,
@@ -22,7 +25,12 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
+from qoala.sim.logging import LogManager
 from qoala.sim.network import ProcNodeNetwork
+
+INSTR_LATENCY = 1e5
+CC_LATENCY = 1e6
+QC_EXPECTATION = 30e6
 
 
 def create_global_env(
@@ -46,17 +54,23 @@ def get_client_config(id: int) -> ProcNodeConfig:
         node_id=id,
         qdevice_typ="generic",
         qdevice_cfg=GenericQDeviceConfig.perfect_config(1),
-        instr_latency=1000,
+        instr_latency=INSTR_LATENCY,
+        receive_latency=CC_LATENCY,
     )
 
 
 def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
+    config_file = relative_to_cwd("node_config.yaml")
+    qdevice_cfg = GenericQDeviceConfig.from_file(config_file)
+    qdevice_cfg.num_qubits = num_qubits
     return ProcNodeConfig(
         name="server",
         node_id=id,
         qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
-        instr_latency=1000,
+        # qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        qdevice_cfg=qdevice_cfg,
+        instr_latency=INSTR_LATENCY,
+        receive_latency=CC_LATENCY,
     )
 
 
@@ -71,8 +85,16 @@ def create_network(
 
     global_env = create_global_env(num_clients, global_schedule, timeslot_len)
 
+    link_cfg_file = relative_to_cwd("link_config.yaml")
+    # link_cfgs = [
+    #     LinkConfig.perfect_config("server", cfg.name) for cfg in client_configs
+    # ]
+    depolarise_config = DepolariseLinkConfig.from_file(link_cfg_file)
     link_cfgs = [
-        LinkConfig.perfect_config("server", cfg.name) for cfg in client_configs
+        LinkConfig(
+            node1="server", node2=cfg.name, typ="depolarise", cfg=depolarise_config
+        )
+        for cfg in client_configs
     ]
 
     node_cfgs = [server_cfg] + client_configs
@@ -84,11 +106,10 @@ def create_network(
 @dataclass
 class TaskDurations:
     instr_latency: int
-    rot_dur: int
-    h_dur: int
-    meas_dur: int
-    free_dur: int
-    cphase_dur: int
+    cc_latency: int
+    single_gate: int
+    two_gate: int
+    meas: int
 
 
 def create_server_tasks(
@@ -96,17 +117,16 @@ def create_server_tasks(
 ) -> ProgramTaskList:
     tasks = []
 
-    cl_dur = 1e3
-    cc_dur = 10e6
-    # ql_dur = 1e4
-    qc_dur = 1e6
+    cl_dur = 2 * task_durations.instr_latency
+    cc_dur = 2 * task_durations.cc_latency
+    qc_dur = QC_EXPECTATION
 
     set_dur = task_durations.instr_latency
-    rot_dur = task_durations.rot_dur
-    h_dur = task_durations.h_dur
-    meas_dur = task_durations.meas_dur
-    free_dur = task_durations.free_dur
-    cphase_dur = task_durations.cphase_dur
+    rot_dur = task_durations.single_gate
+    h_dur = task_durations.single_gate
+    meas_dur = task_durations.meas
+    free_dur = task_durations.instr_latency
+    cphase_dur = task_durations.two_gate
 
     # csocket = assign_cval() : 0
     tasks.append(TaskBuilder.CL(cl_dur, 0))
@@ -153,16 +173,15 @@ def create_client_tasks(
 ) -> ProgramTaskList:
     tasks = []
 
-    cl_dur = 1e3
-    cc_dur = 10e6
-    # ql_dur = 1e3
-    qc_dur = 1e6
+    cl_dur = task_durations.instr_latency
+    cc_dur = task_durations.cc_latency
+    qc_dur = QC_EXPECTATION
 
     set_dur = task_durations.instr_latency
-    rot_dur = task_durations.rot_dur
-    h_dur = task_durations.h_dur
-    meas_dur = task_durations.meas_dur
-    free_dur = task_durations.free_dur
+    rot_dur = task_durations.single_gate
+    h_dur = task_durations.single_gate
+    meas_dur = task_durations.meas
+    free_dur = task_durations.instr_latency
 
     class Counter:
         def __init__(self):
@@ -262,21 +281,24 @@ class BqcResult:
 
 
 def create_durations() -> TaskDurations:
-    perfect_qdevice_cfg = GenericQDeviceConfig.perfect_config(1)
-    instr_latency = 1000
+    config_file = relative_to_cwd("node_config.yaml")
+    qdevice_cfg = GenericQDeviceConfig.from_file(config_file)
 
     return TaskDurations(
-        instr_latency=instr_latency,
-        rot_dur=perfect_qdevice_cfg.single_qubit_gate_time,
-        h_dur=perfect_qdevice_cfg.single_qubit_gate_time,
-        meas_dur=perfect_qdevice_cfg.measure_time,
-        free_dur=instr_latency,
-        cphase_dur=perfect_qdevice_cfg.two_qubit_gate_time,
+        instr_latency=INSTR_LATENCY,
+        cc_latency=CC_LATENCY,
+        single_gate=qdevice_cfg.single_qubit_gate_time,
+        two_gate=qdevice_cfg.two_qubit_gate_time,
+        meas=qdevice_cfg.measure_time,
     )
 
 
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
+
+
 def load_server_program(remote_name: str) -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
+    path = relative_to_cwd("bqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
     program = IqoalaParser(server_text).parse()
@@ -289,7 +311,7 @@ def load_server_program(remote_name: str) -> IqoalaProgram:
 
 
 def load_client_program() -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "bqc_client.iqoala")
+    path = relative_to_cwd("bqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
     return IqoalaParser(client_text).parse()
@@ -418,53 +440,7 @@ def run_bqc(
     return BqcResult(client_batches, client_results), makespan
 
 
-def check_computation(
-    alpha,
-    beta,
-    theta1,
-    theta2,
-    dummy0,
-    dummy1,
-    expected,
-    num_iterations,
-    deadlines,
-    num_clients,
-    global_schedule: List[int],
-    timeslot_len: int,
-):
-    ns.sim_reset()
-    bqc_result, makespan = run_bqc(
-        alpha=alpha,
-        beta=beta,
-        theta1=theta1,
-        theta2=theta2,
-        dummy0=dummy0,
-        dummy1=dummy1,
-        num_iterations=num_iterations,
-        deadlines=deadlines,
-        num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
-    )
-
-    batch_success_probabilities: List[float] = []
-
-    for i in range(num_clients):
-        assert len(bqc_result.client_results[i]) == 1
-        batch_result = bqc_result.client_results[i][0]
-        assert len(bqc_result.client_batches[i]) == 1
-        program_batch = bqc_result.client_batches[i][0]
-        batch_iterations = program_batch.info.num_iterations
-
-        m2s = [result.values["m2"] for result in batch_result.results]
-        correct_outcomes = len([m2 for m2 in m2s if m2 == expected])
-        succ_prob = round(correct_outcomes / batch_iterations, 2)
-        batch_success_probabilities.append(succ_prob)
-
-    return batch_success_probabilities, makespan
-
-
-def check_trap(
+def check(
     alpha,
     beta,
     theta1,
@@ -524,7 +500,7 @@ def check_trap(
     return batch_success_probabilities, makespan
 
 
-def compute_succ_prob_computation(
+def compute_succ_prob(
     num_clients: int,
     num_iterations: List[int],
     deadlines: List[int],
@@ -533,38 +509,11 @@ def compute_succ_prob_computation(
 ):
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
-    return check_computation(
+    return check(
         alpha=8,
         beta=24,
         theta1=2,
         theta2=22,
-        dummy0=0,
-        dummy1=0,
-        expected=1,
-        num_iterations=num_iterations,
-        deadlines=deadlines,
-        num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
-    )
-
-
-def compute_succ_prob_trap(
-    num_clients: int,
-    num_iterations: List[int],
-    deadlines: List[int],
-    global_schedule: List[int],
-    timeslot_len: int,
-):
-    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
-
-    return check_trap(
-        alpha=8,
-        beta=24,
-        # theta1=2,
-        # theta2=22,
-        theta1=0,
-        theta2=0,
         dummy0=0,
         dummy1=1,
         expected=1,
@@ -583,29 +532,24 @@ def test_bqc():
     # Do 10 iterations for each of the 5 BQC applications.
     # All applications have a deadline of 1e9.
 
-    succ_probs, makespan = compute_succ_prob_computation(
-        num_clients=5,
-        num_iterations=[10, 10, 10, 10, 10],
-        deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
-        global_schedule=[1, 2, 3, 4, 5],
-        timeslot_len=1e6,
-    )
-    print(f"success probabilities: {succ_probs}")
-    print(f"makespan: {makespan}")
-    succ_probs, makespan = compute_succ_prob_trap(
-        num_clients=5,
-        num_iterations=[10, 10, 10, 10, 10],
-        deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
-        global_schedule=[1, 2, 3, 4, 5],
-        timeslot_len=1e6,
-    )
     # succ_probs, makespan = compute_succ_prob(
-    #     num_clients=1,
-    #     num_iterations=[1],
-    #     deadlines=[1e9],
-    #     global_schedule=[1],
+    #     num_clients=5,
+    #     num_iterations=[10, 10, 10, 10, 10],
+    #     deadlines=[1e9, 1e9, 1e9, 1e9, 1e9],
+    #     global_schedule=[1, 2, 3, 4, 5],
     #     timeslot_len=1e6,
     # )
+
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("logs/example_bqc.log")
+    num_clients = 10
+    succ_probs, makespan = compute_succ_prob(
+        num_clients=num_clients,
+        num_iterations=[30] * num_clients,
+        deadlines=[1e8] * num_clients,
+        global_schedule=[i for i in range(num_clients)],
+        timeslot_len=50e6,
+    )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
 

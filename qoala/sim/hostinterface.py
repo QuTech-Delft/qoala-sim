@@ -5,6 +5,7 @@ from typing import Generator
 from pydynaa import EventExpression
 from qoala.runtime.environment import LocalEnvironment
 from qoala.sim.common import ComponentProtocol, PortListener
+from qoala.sim.events import EVENT_WAIT
 from qoala.sim.hostcomp import HostComponent
 from qoala.sim.message import Message
 from qoala.sim.signals import SIGNAL_HAND_HOST_MSG, SIGNAL_HOST_HOST_MSG
@@ -55,3 +56,8 @@ class HostInterface(ComponentProtocol):
                 f"peer_{peer}", f"{SIGNAL_HOST_HOST_MSG}_{peer}"
             )
         )
+
+    def wait(self, delta_time: int) -> Generator[EventExpression, None, None]:
+        self._schedule_after(delta_time, EVENT_WAIT)
+        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
+        yield event_expr

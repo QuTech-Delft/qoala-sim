@@ -328,10 +328,12 @@ class Scheduler(Protocol):
                     f"{self.name} next scheduled time = {schedule_time.time}, delta = {delta}"
                 )
                 yield from self.wait(delta)
+                ns_time = ns.sim_time()
                 self._logger.debug(
                     f"{self.name} ns_time: {ns_time}, executing task {task}"
                 )
                 yield from self.execute_task(process, task)
+                ns_time = ns.sim_time()
                 self._logger.debug(
                     f"{self.name} ns_time: {ns_time}, finished task {task}"
                 )

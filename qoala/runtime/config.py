@@ -113,6 +113,7 @@ class ProcNodeConfig(BaseModel):
     qdevice_cfg: Any
     host_qnos_latency: float = 0.0
     instr_latency: float = 0.0
+    receive_latency: float = 0.0
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:
@@ -129,6 +130,7 @@ class ProcNodeConfig(BaseModel):
             qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
             host_qnos_latency=0.0,
             instr_latency=0.0,
+            receive_latency=0.0,
         )
 
 

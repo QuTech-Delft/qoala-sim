@@ -27,6 +27,10 @@ class HostProcessor:
             f"{self.__class__.__name__}({self._name})"
         )
 
+        # TODO: add way to set instr latency through constructor
+        self._instr_latency: float = 0.0
+        self._receive_latency: float = 0.0
+
     def initialize(self, process: IqoalaProcess) -> None:
         host_mem = process.prog_memory.host_mem
         inputs = process.prog_instance.inputs
@@ -59,6 +63,7 @@ class HostProcessor:
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
             msg = yield from csck.recv_int()
+            yield from self._interface.wait(self._receive_latency)
             host_mem.write(instr.results[0], msg)
             self._logger.info(f"received msg {msg}")
         elif isinstance(instr, iqoala.AddCValueOp):
@@ -121,6 +126,8 @@ class HostProcessor:
             self._logger.info(f"returning {loc} = {value}")
             process.result.values[loc] = value
 
+        yield from self._interface.wait(self._instr_latency)
+
     def copy_subroutine_results(self, process: IqoalaProcess, subrt_name: str) -> None:
         iqoala_subrt = process.subroutines[subrt_name]
 
@@ -136,3 +143,19 @@ class HostProcessor:
                 process.host_mem.write(key, value)
             except NetQASMSyntaxError:
                 pass  # TODO: needed?
+
+    @property
+    def instr_latency(self) -> float:
+        return self._instr_latency
+
+    @instr_latency.setter
+    def instr_latency(self, latency: float) -> None:
+        self._instr_latency = latency
+
+    @property
+    def receive_latency(self) -> float:
+        return self._receive_latency
+
+    @receive_latency.setter
+    def receive_latency(self, latency: float) -> None:
+        self._receive_latency = latency

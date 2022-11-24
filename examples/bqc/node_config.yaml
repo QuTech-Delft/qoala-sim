@@ -1,0 +1,14 @@
+# gate execution times
+single_qubit_gate_time: 1_000
+two_qubit_gate_time: 100_000
+measure_time: 10_000
+
+# decoherence times (noise over time)
+# T1: 10_000_000_000
+# T2: 1_000_000_000
+T1: 1
+T2: 1
+
+# gate noise (noise per gate)
+single_qubit_gate_depolar_prob: 0.05
+two_qubit_gate_depolar_prob: 0.1

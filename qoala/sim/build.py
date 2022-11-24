@@ -291,6 +291,8 @@ def build_procnode(cfg: ProcNodeConfig, global_env: GlobalEnvironment) -> ProcNo
         )
         # TODO: do this in constructor?
         procnode.qnos.processor.instr_latency = cfg.instr_latency
+        procnode.host.processor.instr_latency = cfg.instr_latency
+        procnode.host.processor.receive_latency = cfg.receive_latency
     return procnode
 
 
