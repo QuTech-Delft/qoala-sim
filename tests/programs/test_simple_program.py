@@ -106,6 +106,8 @@ def create_batch(
 
 
 def run_program():
+    ns.sim_reset()
+
     node_config = get_config()
     network = create_network(node_config)
     procnode = network.nodes["alice"]

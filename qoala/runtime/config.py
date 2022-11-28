@@ -39,6 +39,8 @@ class GenericQDeviceConfig(BaseModel):
     @classmethod
     def perfect_config(cls, num_qubits: int) -> GenericQDeviceConfig:
         cfg = GenericQDeviceConfig(num_qubits=num_qubits, num_comm_qubits=num_qubits)
+        cfg.T1 = 0
+        cfg.T2 = 0
         cfg.single_qubit_gate_depolar_prob = 0.0
         cfg.two_qubit_gate_depolar_prob = 0.0
         return cfg

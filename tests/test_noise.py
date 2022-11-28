@@ -114,6 +114,7 @@ def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
 
 
 def test_depolarizing_decoherence():
+    ns.sim_reset()
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
     q = qubitapi.create_qubits(1)[0]
@@ -126,6 +127,7 @@ def test_depolarizing_decoherence():
 
 
 def test_depolarizing_decoherence_qprocessor():
+    ns.sim_reset()
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
     phys_instructions = [
@@ -173,6 +175,7 @@ def test_depolarizing_decoherence_qprocessor():
 
 
 def test_depolarizing_decoherence_qprocessor_2():
+    ns.sim_reset()
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
     phys_instructions = [
@@ -216,6 +219,7 @@ def test_depolarizing_decoherence_qprocessor_2():
     prog.apply(INSTR_I, [0])
     processor.execute_program(prog)
     ns.sim_run()
+    print(ns.sim_time())
     assert ns.sim_time() == 2e10 + 2e3
 
     # Just before executing the I instruction, the decoherence noise (over 1e10 ns)
@@ -225,6 +229,7 @@ def test_depolarizing_decoherence_qprocessor_2():
 
 
 def test_t1t2_decoherence_qprocessor():
+    ns.sim_reset()
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
     phys_instructions = [
@@ -272,6 +277,7 @@ def test_t1t2_decoherence_qprocessor():
 
 
 def test_decoherence_in_subroutine():
+    ns.sim_reset()
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
     num_qubits = 3
@@ -297,12 +303,13 @@ def test_decoherence_in_subroutine():
 
     netsquid_wait(1e9)
     qubit = processor.qdevice.get_local_qubit(phys_id)
-    assert has_max_mixed_state(qubit)
+    # Qubit should be fully dephased and amplitude-dampened.
+    assert has_state(qubit, ketstates.s0)
 
 
 if __name__ == "__main__":
-    # test_depolarizing_decoherence()
-    # test_depolarizing_decoherence_qprocessor()
+    test_depolarizing_decoherence()
+    test_depolarizing_decoherence_qprocessor()
     test_depolarizing_decoherence_qprocessor_2()
-    # test_t1t2_decoherence_qprocessor()
-    # test_decoherence_in_subroutine()
+    test_t1t2_decoherence_qprocessor()
+    test_decoherence_in_subroutine()
