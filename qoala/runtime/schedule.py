@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from qoala.lang.iqoala import IqoalaProgram
 
@@ -38,7 +38,7 @@ class NetstackTask:
 
 
 @dataclass
-class ProgramTask:
+class SingleProgramTask:
     instr_type: InstructionType
     processor_type: ProcessorType
     instr_index: Optional[int]
@@ -66,10 +66,28 @@ class ProgramTask:
         return f"{self.processor_type.name} {self.subrt_name} {self.instr_index}"
 
 
+@dataclass
+class CombinedProgramTask:
+    tasks: List[SingleProgramTask]
+
+    @property
+    def instr_type(self) -> InstructionType:
+        assert len(self.tasks) > 0
+        return self.tasks[0].instr_type
+
+    @property
+    def duration(self) -> int:
+        assert len(self.tasks) > 0
+        return sum(task.duration for task in self.tasks)
+
+
+ProgramTask = Union[SingleProgramTask, CombinedProgramTask]
+
+
 class TaskBuilder:
     @classmethod
     def CC(cls, duration, index: int) -> ProgramTask:
-        return ProgramTask(
+        return SingleProgramTask(
             instr_type=InstructionType.CC,
             processor_type=ProcessorType.HOST,
             instr_index=index,
@@ -80,7 +98,7 @@ class TaskBuilder:
 
     @classmethod
     def CL(cls, duration, index: int) -> ProgramTask:
-        return ProgramTask(
+        return SingleProgramTask(
             instr_type=InstructionType.CL,
             processor_type=ProcessorType.HOST,
             instr_index=index,
@@ -91,7 +109,7 @@ class TaskBuilder:
 
     @classmethod
     def QL(cls, duration, subrt_name: str, index: int) -> ProgramTask:
-        return ProgramTask(
+        return SingleProgramTask(
             instr_type=InstructionType.QL,
             processor_type=ProcessorType.QNOS,
             instr_index=index,
@@ -102,7 +120,7 @@ class TaskBuilder:
 
     @classmethod
     def QC(cls, duration, subrt_name: str) -> ProgramTask:
-        return ProgramTask(
+        return SingleProgramTask(
             instr_type=InstructionType.QC,
             processor_type=ProcessorType.NETSTACK,
             instr_index=None,
@@ -110,6 +128,13 @@ class TaskBuilder:
             request_name=None,
             duration=duration,
         )
+
+    @classmethod
+    def task_group(cls, tasks: List[SingleProgramTask]) -> CombinedProgramTask:
+        assert len(tasks) > 0
+        typ = tasks[0].instr_type
+        assert all(t.instr_type == typ for t in tasks)
+        return CombinedProgramTask(tasks)
 
 
 @dataclass

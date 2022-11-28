@@ -19,6 +19,7 @@ from qoala.runtime.program import (
     ProgramResult,
 )
 from qoala.runtime.schedule import (
+    CombinedProgramTask,
     HostTask,
     NetstackTask,
     ProcessorType,
@@ -31,6 +32,7 @@ from qoala.runtime.schedule import (
     SchedulerOutput,
     ScheduleSolver,
     ScheduleTime,
+    SingleProgramTask,
 )
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.eprsocket import EprSocket
@@ -278,8 +280,8 @@ class Scheduler(Protocol):
     ) -> Generator[EventExpression, None, None]:
         yield from self.run_epr_subroutine(process, task.subrt_name)
 
-    def execute_task(
-        self, process: IqoalaProcess, task: ProgramTask
+    def execute_single_task(
+        self, process: IqoalaProcess, task: SingleProgramTask
     ) -> Generator[EventExpression, None, None]:
         if task.processor_type == ProcessorType.HOST:
             yield from self.execute_host_task(process, task.as_host_task())
@@ -287,6 +289,17 @@ class Scheduler(Protocol):
             yield from self.execute_qnos_task(process, task.as_qnos_task())
         elif task.processor_type == ProcessorType.NETSTACK:
             yield from self.execute_netstack_task(process, task.as_netstack_task())
+        else:
+            raise RuntimeError
+
+    def execute_task(
+        self, process: IqoalaProcess, task: ProgramTask
+    ) -> Generator[EventExpression, None, None]:
+        if isinstance(task, SingleProgramTask):
+            yield from self.execute_single_task(process, task)
+        elif isinstance(task, CombinedProgramTask):
+            for task in task.tasks:
+                yield from self.execute_single_task(process, task)
         else:
             raise RuntimeError
 

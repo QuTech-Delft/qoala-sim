@@ -123,41 +123,62 @@ def create_server_tasks(
     cphase_dur = task_durations.two_gate
 
     # csocket = assign_cval() : 0
-    tasks.append(TaskBuilder.CL(cl_dur, 0))
+    task0 = TaskBuilder.CL(cl_dur, 0)
     # run_subroutine(vec<client_id>) : create_epr_0
-    tasks.append(TaskBuilder.CL(cl_dur, 1))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    task1 = TaskBuilder.CL(cl_dur, 1)
+    task2 = TaskBuilder.QC(qc_dur, "create_epr_0")
     # run_subroutine(vec<client_id>) : create_epr_1
-    tasks.append(TaskBuilder.CL(cl_dur, 2))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    task3 = TaskBuilder.CL(cl_dur, 2)
+    task4 = TaskBuilder.QC(qc_dur, "create_epr_1")
+
     # run_subroutine(vec<client_id>) : local_cphase
-    tasks.append(TaskBuilder.CL(cl_dur, 3))
-    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
-    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 1))
-    tasks.append(TaskBuilder.QL(cphase_dur, "local_cphase", 2))
+    task5 = TaskBuilder.CL(cl_dur, 3)
+    task6 = TaskBuilder.QL(set_dur, "local_cphase", 0)
+    task7 = TaskBuilder.QL(set_dur, "local_cphase", 1)
+    task8 = TaskBuilder.QL(cphase_dur, "local_cphase", 2)
+
     # delta1 = recv_cmsg(client_id)
-    tasks.append(TaskBuilder.CC(cc_dur, 4))
+    task9 = TaskBuilder.CC(cc_dur, 4)
+
     # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-    tasks.append(TaskBuilder.CL(cl_dur, 5))
-    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_1", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_1", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_1", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_1", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_1", 4))
+    task10 = TaskBuilder.CL(cl_dur, 5)
+    task11 = TaskBuilder.QL(set_dur, "meas_qubit_1", 0)
+    task12 = TaskBuilder.QL(rot_dur, "meas_qubit_1", 1)
+    task13 = TaskBuilder.QL(h_dur, "meas_qubit_1", 2)
+    task14 = TaskBuilder.QL(meas_dur, "meas_qubit_1", 3)
+    task15 = TaskBuilder.QL(free_dur, "meas_qubit_1", 4)
+
     # send_cmsg(csocket, m1)
-    tasks.append(TaskBuilder.CC(cc_dur, 6))
+    task16 = TaskBuilder.CC(cc_dur, 6)
+
     # delta2 = recv_cmsg(csocket)
-    tasks.append(TaskBuilder.CC(cc_dur, 7))
+    task17 = TaskBuilder.CC(cc_dur, 7)
+
     # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-    tasks.append(TaskBuilder.CL(cl_dur, 8))
-    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_0", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_0", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_0", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_0", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_0", 4))
+    task18 = TaskBuilder.CL(cl_dur, 8)
+    task19 = TaskBuilder.QL(set_dur, "meas_qubit_0", 0)
+    task20 = TaskBuilder.QL(rot_dur, "meas_qubit_0", 1)
+    task21 = TaskBuilder.QL(h_dur, "meas_qubit_0", 2)
+    task22 = TaskBuilder.QL(meas_dur, "meas_qubit_0", 3)
+    task23 = TaskBuilder.QL(free_dur, "meas_qubit_0", 4)
 
     # send_cmsg(csocket, m2)
-    tasks.append(TaskBuilder.CC(cc_dur, 9))
+    task24 = TaskBuilder.CC(cc_dur, 9)
+
+    tasks.append(TaskBuilder.task_group([task0, task1]))
+    tasks.append(task2)
+    tasks.append(task3)
+    tasks.append(task4)
+    tasks.append(task5)
+    tasks.append(TaskBuilder.task_group([task6, task7, task8]))
+    tasks.append(task9)
+    tasks.append(task10)
+    tasks.append(TaskBuilder.task_group([task11, task12, task13, task14, task15]))
+    tasks.append(task16)
+    tasks.append(task17)
+    tasks.append(task18)
+    tasks.append(TaskBuilder.task_group([task19, task20, task21, task22, task23]))
+    tasks.append(task24)
 
     return ProgramTaskList(server_program, {i: task for i, task in enumerate(tasks)})
 
