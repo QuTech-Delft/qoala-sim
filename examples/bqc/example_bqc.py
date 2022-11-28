@@ -122,21 +122,21 @@ def create_server_tasks(
     free_dur = task_durations.instr_latency
     cphase_dur = task_durations.two_gate
 
-    # csocket = assign_cval() : 0
-    task0 = TaskBuilder.CL(cl_dur, 0)
     # run_subroutine(vec<client_id>) : create_epr_0
-    task1 = TaskBuilder.CL(cl_dur, 1)
-    task2 = TaskBuilder.QC(qc_dur, "create_epr_0")
+    task0 = TaskBuilder.CL(cl_dur, 0)
+    task1 = TaskBuilder.QC(qc_dur, "create_epr_0")
     # run_subroutine(vec<client_id>) : create_epr_1
-    task3 = TaskBuilder.CL(cl_dur, 2)
-    task4 = TaskBuilder.QC(qc_dur, "create_epr_1")
+    task2 = TaskBuilder.CL(cl_dur, 1)
+    task3 = TaskBuilder.QC(qc_dur, "create_epr_1")
 
     # run_subroutine(vec<client_id>) : local_cphase
-    task5 = TaskBuilder.CL(cl_dur, 3)
-    task6 = TaskBuilder.QL(set_dur, "local_cphase", 0)
-    task7 = TaskBuilder.QL(set_dur, "local_cphase", 1)
-    task8 = TaskBuilder.QL(cphase_dur, "local_cphase", 2)
+    task4 = TaskBuilder.CL(cl_dur, 2)
+    task5 = TaskBuilder.QL(set_dur, "local_cphase", 0)
+    task6 = TaskBuilder.QL(set_dur, "local_cphase", 1)
+    task7 = TaskBuilder.QL(cphase_dur, "local_cphase", 2)
 
+    # csocket = assign_cval() : 0
+    task8 = TaskBuilder.CL(cl_dur, 3)
     # delta1 = recv_cmsg(client_id)
     task9 = TaskBuilder.CC(cc_dur, 4)
 
@@ -165,19 +165,18 @@ def create_server_tasks(
     # send_cmsg(csocket, m2)
     task24 = TaskBuilder.CC(cc_dur, 9)
 
-    tasks.append(TaskBuilder.task_group([task0, task1]))
-    tasks.append(task2)
-    tasks.append(task3)
+    tasks.append(TaskBuilder.QC_group([task0, task1]))
+    tasks.append(TaskBuilder.QC_group([task2, task3]))
     tasks.append(task4)
-    tasks.append(task5)
-    tasks.append(TaskBuilder.task_group([task6, task7, task8]))
+    tasks.append(TaskBuilder.QL_group([task5, task6, task7]))
+    tasks.append(task8)
     tasks.append(task9)
     tasks.append(task10)
-    tasks.append(TaskBuilder.task_group([task11, task12, task13, task14, task15]))
+    tasks.append(TaskBuilder.QL_group([task11, task12, task13, task14, task15]))
     tasks.append(task16)
     tasks.append(task17)
     tasks.append(task18)
-    tasks.append(TaskBuilder.task_group([task19, task20, task21, task22, task23]))
+    tasks.append(TaskBuilder.QL_group([task19, task20, task21, task22, task23]))
     tasks.append(task24)
 
     return ProgramTaskList(server_program, {i: task for i, task in enumerate(tasks)})

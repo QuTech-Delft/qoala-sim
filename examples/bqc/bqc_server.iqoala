@@ -5,12 +5,11 @@ META_START
     epr_sockets: 0 -> client
 META_END
 
-csocket = assign_cval() : 0
-
 run_subroutine(vec<>) : create_epr_0
 run_subroutine(vec<>) : create_epr_1
 run_subroutine(vec<>) : local_cphase
 
+csocket = assign_cval() : 0
 delta1 = recv_cmsg(csocket)
 
 vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1

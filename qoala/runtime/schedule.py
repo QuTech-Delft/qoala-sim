@@ -69,15 +69,10 @@ class SingleProgramTask:
 @dataclass
 class CombinedProgramTask:
     tasks: List[SingleProgramTask]
-
-    @property
-    def instr_type(self) -> InstructionType:
-        assert len(self.tasks) > 0
-        return self.tasks[0].instr_type
+    instr_type: InstructionType
 
     @property
     def duration(self) -> int:
-        assert len(self.tasks) > 0
         return sum(task.duration for task in self.tasks)
 
 
@@ -130,11 +125,20 @@ class TaskBuilder:
         )
 
     @classmethod
-    def task_group(cls, tasks: List[SingleProgramTask]) -> CombinedProgramTask:
-        assert len(tasks) > 0
-        typ = tasks[0].instr_type
-        assert all(t.instr_type == typ for t in tasks)
-        return CombinedProgramTask(tasks)
+    def CC_group(cls, tasks: List[SingleProgramTask]) -> CombinedProgramTask:
+        return CombinedProgramTask(tasks, InstructionType.CC)
+
+    @classmethod
+    def CL_group(cls, tasks: List[SingleProgramTask]) -> CombinedProgramTask:
+        return CombinedProgramTask(tasks, InstructionType.CL)
+
+    @classmethod
+    def QL_group(cls, tasks: List[SingleProgramTask]) -> CombinedProgramTask:
+        return CombinedProgramTask(tasks, InstructionType.QL)
+
+    @classmethod
+    def QC_group(cls, tasks: List[SingleProgramTask]) -> CombinedProgramTask:
+        return CombinedProgramTask(tasks, InstructionType.QC)
 
 
 @dataclass
