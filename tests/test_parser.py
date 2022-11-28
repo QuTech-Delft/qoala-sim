@@ -596,6 +596,42 @@ SUBROUTINE subrt1
     assert len(parsed_program.requests) == 0
 
 
+def test_parse_program_no_subroutines():
+    meta_text = """
+META_START
+name: alice
+parameters: 
+csockets: 0 -> bob
+epr_sockets: 
+META_END
+    """
+
+    program_text = """
+my_value = assign_cval() : 1
+remote_id = assign_cval() : 0
+send_cmsg(remote_id, my_value)
+received_value = recv_cmsg(remote_id)
+new_value = assign_cval() : 3
+m = add_cval_c(new_value, new_value)
+return_result(m)
+    """
+
+    subrt_text = """
+    """
+
+    req_text = """
+    """
+
+    parsed_program = IqoalaParser(
+        meta_text=meta_text,
+        instr_text=program_text,
+        subrt_text=subrt_text,
+        req_text=req_text,
+    ).parse()
+    assert len(parsed_program.instructions) == 7
+    assert len(parsed_program.requests) == 0
+
+
 def test_parse_program_invalid_subrt_reference():
     meta_text = """
 META_START
@@ -796,6 +832,7 @@ if __name__ == "__main__":
     test_parse_invalid_request()
     test_parse_program()
     test_parse_program_no_requests()
+    test_parse_program_no_subroutines()
     test_parse_program_invalid_subrt_reference()
     test_split_text()
     test_split_text_multiple_subroutines()

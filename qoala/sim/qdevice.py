@@ -183,7 +183,7 @@ class QDevice:
         raise DeprecationWarning
 
     def get_local_qubit(self, index: int) -> Qubit:
-        return self.qprocessor.peek([index], skip_noise=True)[0]
+        return self.qprocessor.peek([index])[0]
 
     def get_local_qubits(self, indices: List[int]) -> List[Qubit]:
-        return self.qprocessor.peek(indices, skip_noise=True)  # type: ignore
+        return self.qprocessor.peek(indices)  # type: ignore

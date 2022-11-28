@@ -944,7 +944,7 @@ class IqoalaParser:
     def _split_text(self, text: str) -> Tuple[str, str, str, str]:
         lines = [line.strip() for line in text.split("\n")]
         meta_end_line: int
-        first_subrt_line: int
+        first_subrt_line: Optional[int] = None
         first_req_line: Optional[int] = None
         for i, line in enumerate(lines):
             if "META_END" in line:
@@ -961,10 +961,16 @@ class IqoalaParser:
 
         meta_text = "\n".join(lines[0 : meta_end_line + 1])
         instr_text = "\n".join(lines[meta_end_line + 1 : first_subrt_line])
-        if first_req_line is None:
+        if first_subrt_line is None:
+            # no subroutines and no requests
+            subrt_text = ""
+            req_text = ""
+        elif first_req_line is None:
+            # subroutines but no requests
             subrt_text = "\n".join(lines[first_subrt_line:])
             req_text = ""
         else:
+            # subroutines and requests
             subrt_text = "\n".join(lines[first_subrt_line:first_req_line])
             req_text = "\n".join(lines[first_req_line:])
 

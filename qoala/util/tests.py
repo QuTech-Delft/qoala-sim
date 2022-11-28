@@ -6,7 +6,9 @@ from netsquid.protocols import Protocol
 from netsquid.qubits import qubitapi
 from netsquid.qubits.qubit import Qubit
 
-from pydynaa import EventExpression
+from pydynaa import EventExpression, EventType
+
+EVENT_WAIT = EventType("NETSQUID_WAIT", "netquid wait")
 
 
 def yield_from(generator: Generator):
@@ -34,6 +36,13 @@ def netsquid_run(generator: Generator):
     return prot.result
 
 
+def netsquid_wait(delta_time: int):
+    prot = Protocol()
+    prot._schedule_after(delta_time, EVENT_WAIT)
+    prot.start()
+    ns.sim_run()
+
+
 def text_equal(text1, text2) -> bool:
     # allows whitespace differences
     lines1 = [line.strip() for line in text1.split("\n") if len(line) > 0]
@@ -54,8 +63,14 @@ def has_multi_state(
     return abs(1.0 - qubitapi.fidelity(qubits, state, squared=True)) < margin
 
 
+def density_matrices_equal(
+    state1: np.ndarray, state2: np.ndarray, margin: float = 0.001
+) -> bool:
+    distance = 0.5 * np.linalg.norm(state1 - state2, 1)
+    return abs(distance) < margin
+
+
 def has_max_mixed_state(qubit: Qubit, margin: float = 0.001) -> bool:
-    # TODO: fix fidelity calculation with mixed states
     max_mixed = np.array([[0.5, 0], [0, 0.5]])
-    # qubit_state = qubitapi.reduced_dm(qubit)
-    return np.isclose(qubitapi.reduced_dm(qubit), max_mixed, margin)
+    qubit_state = qubitapi.reduced_dm(qubit)
+    return density_matrices_equal(qubit_state, max_mixed)

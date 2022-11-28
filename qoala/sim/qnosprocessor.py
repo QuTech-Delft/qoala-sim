@@ -172,7 +172,7 @@ class QnosProcessor:
             self._logger.info("BREAKPOINT: dumping local state:")
             for i in range(self.qdevice.num_positions):
                 if self.qdevice.mem_positions[i].in_use:
-                    q = self.qdevice.peek(i, skip_noise=True)
+                    q = self.qdevice.peek(i)
                     qstate = qubitapi.reduced_dm(q)
                     self._logger.info(f"physical qubit {i}:\n{qstate}")
 

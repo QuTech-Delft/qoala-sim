@@ -34,7 +34,7 @@ class GlobalSimData:
             states[name] = {}
             for i in range(qdevice.num_positions):
                 if qdevice.mem_positions[i].in_use:
-                    [q] = qdevice.peek(i, skip_noise=True)
+                    [q] = qdevice.peek(i)
                     qubits[name][i] = q
                     if save:
                         states[name][i] = qubitapi.reduced_dm(q)
