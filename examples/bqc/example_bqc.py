@@ -64,6 +64,7 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
         name="server",
         node_id=id,
         qdevice_typ="generic",
+        # qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
         qdevice_cfg=qdevice_cfg,
         instr_latency=INSTR_LATENCY,
         receive_latency=CC_LATENCY,
@@ -537,7 +538,7 @@ def test_bqc():
     num_clients = 10
     succ_probs, makespan = compute_succ_prob(
         num_clients=num_clients,
-        num_iterations=[50] * num_clients,
+        num_iterations=[30] * num_clients,
         deadlines=[1e8] * num_clients,
         global_schedule=[i for i in range(num_clients)],
         timeslot_len=50e6,
