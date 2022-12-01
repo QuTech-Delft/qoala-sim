@@ -20,6 +20,7 @@ from qoala.runtime.schedule import (
     NaiveSolver,
     NoTimeSolver,
     ProgramTaskList,
+    Schedule,
     TaskBuilder,
 )
 from qoala.sim.build import build_network
@@ -367,6 +368,50 @@ def create_client_batch(
     )
 
 
+def compute_schedule(
+    num_iterations: List[int],
+    deadlines: List[int],
+    num_clients: int,
+    global_schedule: List[int],
+    timeslot_len: int,
+) -> Schedule:
+    # server needs to have 2 qubits per client
+    server_num_qubits = num_clients * 2
+    server_config = get_server_config(id=0, num_qubits=server_num_qubits)
+    client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
+
+    network = create_network(
+        server_config, client_configs, num_clients, global_schedule, timeslot_len
+    )
+
+    server_procnode = network.nodes["server"]
+
+    for client_id in range(1, num_clients + 1):
+        # index in num_iterations and deadlines list
+        index = client_id - 1
+
+        server_inputs = [
+            ProgramInput({"client_id": client_id}) for _ in range(num_iterations[index])
+        ]
+
+        server_batch_info = create_server_batch(
+            client_id=client_id,
+            inputs=server_inputs,
+            num_iterations=num_iterations[index],
+            deadline=deadlines[index],
+            num_qubits=server_num_qubits,
+        )
+
+        server_procnode.submit_batch(server_batch_info)
+    server_procnode.initialize_processes()
+
+    # Replace NaiveSolver with CPSolver.
+    server_procnode.initialize_schedule(NaiveSolver)
+
+    schedule = server_procnode._scheduler._schedule
+    return schedule
+
+
 def run_bqc(
     alpha,
     beta,
@@ -379,6 +424,7 @@ def run_bqc(
     num_clients: int,
     global_schedule: List[int],
     timeslot_len: int,
+    schedule: Schedule,
 ):
     # server needs to have 2 qubits per client
     server_num_qubits = num_clients * 2
@@ -409,7 +455,9 @@ def run_bqc(
 
         server_procnode.submit_batch(server_batch_info)
     server_procnode.initialize_processes()
-    server_procnode.initialize_schedule(NaiveSolver)
+
+    # Use the pre-computed schedule.
+    server_procnode.scheduler.install_schedule(schedule)
 
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
@@ -469,6 +517,12 @@ def check(
     timeslot_len: int,
 ):
     ns.sim_reset()
+
+    # Compute the server schedule once and then re-use it.
+    schedule = compute_schedule(
+        num_iterations, deadlines, num_clients, global_schedule, timeslot_len
+    )
+
     bqc_result, makespan = run_bqc(
         alpha=alpha,
         beta=beta,
@@ -481,6 +535,7 @@ def check(
         num_clients=num_clients,
         global_schedule=global_schedule,
         timeslot_len=timeslot_len,
+        schedule=schedule,
     )
 
     batch_success_probabilities: List[float] = []
