@@ -1,4 +1,4 @@
-from qoala.sim.memory import CommQubitTrait, MemQubitTrait, Topology, UnitModule
+from qoala.sim.qmem import CommQubitTrait, MemQubitTrait, Topology, UnitModule
 
 
 def test_create_unit_module():

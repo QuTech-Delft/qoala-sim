@@ -4,8 +4,8 @@ from typing import Dict, Optional
 
 from qoala.sim.hostprocessor import IqoalaProcess
 from qoala.sim.logging import LogManager
-from qoala.sim.memory import CommQubitTrait, MemQubitTrait, UnitModule
 from qoala.sim.qdevice import QDevice
+from qoala.sim.qmem import CommQubitTrait, MemQubitTrait, UnitModule
 
 
 class AllocError(Exception):

@@ -31,9 +31,10 @@ from qoala.sim.build import build_generic_qprocessor
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.hostinterface import HostInterface
-from qoala.sim.memory import ProgramMemory, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
+from qoala.sim.qmem import UnitModule
 
 
 def create_process(

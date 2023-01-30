@@ -17,9 +17,10 @@ from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.memory import ProgramMemory, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import GenericPhysicalQuantumMemory, QDevice, QDeviceType
+from qoala.sim.qmem import UnitModule
 from qoala.sim.qnoscomp import QnosComponent
 from qoala.sim.qnosinterface import QnosInterface
 from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor

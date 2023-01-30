@@ -40,9 +40,10 @@ from qoala.sim.events import EVENT_WAIT
 from qoala.sim.host import Host
 from qoala.sim.logging import LogManager
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.memory import ProgramMemory, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.netstack import Netstack
 from qoala.sim.process import IqoalaProcess
+from qoala.sim.qmem import UnitModule
 from qoala.sim.qnos import Qnos
 
 

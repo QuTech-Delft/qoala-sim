@@ -27,13 +27,14 @@ from qoala.sim.build import build_generic_qprocessor
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.memory import ProgramMemory, SharedMemory, Topology, UnitModule
+from qoala.sim.memory import ProgramMemory, SharedMemory
 from qoala.sim.message import Message
 from qoala.sim.netstackcomp import NetstackComponent
 from qoala.sim.netstackinterface import NetstackInterface
 from qoala.sim.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import GenericPhysicalQuantumMemory, QDevice, QDeviceType
+from qoala.sim.qmem import Topology, UnitModule
 from qoala.sim.requests import (
     EprCreateType,
     NetstackCreateRequest,

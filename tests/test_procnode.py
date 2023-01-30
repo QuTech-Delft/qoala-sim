@@ -47,7 +47,7 @@ from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.hostinterface import HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory, SharedMemory, Topology, UnitModule
+from qoala.sim.memory import ProgramMemory, SharedMemory
 from qoala.sim.message import Message
 from qoala.sim.netstackinterface import NetstackInterface
 from qoala.sim.process import IqoalaProcess
@@ -58,6 +58,7 @@ from qoala.sim.qdevice import (
     QDeviceCommand,
     QDeviceType,
 )
+from qoala.sim.qmem import Topology, UnitModule
 from qoala.sim.qnosinterface import QnosInterface
 from qoala.sim.requests import (
     EprCreateType,

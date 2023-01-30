@@ -24,12 +24,13 @@ from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.constants import PI
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory, Topology, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.message import Message
 from qoala.sim.netstackinterface import NetstackInterface
 from qoala.sim.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import PhysicalQuantumMemory, QDevice, QDeviceCommand
+from qoala.sim.qmem import Topology, UnitModule
 from qoala.sim.requests import (
     EprCreateType,
     NetstackCreateRequest,

@@ -27,9 +27,10 @@ from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.hostinterface import HostInterface
 from qoala.sim.logging import LogManager
-from qoala.sim.memory import ProgramMemory, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
+from qoala.sim.qmem import UnitModule
 from qoala.util.tests import has_state
 
 

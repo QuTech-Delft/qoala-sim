@@ -8,9 +8,10 @@ from qoala.lang.iqoala import IqoalaProgram, ProgramMeta
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import CommQubitTrait, MemQubitTrait, ProgramMemory, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
+from qoala.sim.qmem import CommQubitTrait, MemQubitTrait, UnitModule
 
 
 class MockQDevice(QDevice):

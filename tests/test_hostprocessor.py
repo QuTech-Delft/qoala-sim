@@ -28,9 +28,10 @@ from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.hostinterface import HostInterface
 from qoala.sim.hostprocessor import HostProcessor
-from qoala.sim.memory import ProgramMemory, SharedMemory, UnitModule
+from qoala.sim.memory import ProgramMemory, SharedMemory
 from qoala.sim.message import Message
 from qoala.sim.process import IqoalaProcess
+from qoala.sim.qmem import UnitModule
 from qoala.util.tests import yield_from
 
 MOCK_MESSAGE = Message(content=42)
