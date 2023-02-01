@@ -48,6 +48,9 @@ lint: lint-isort lint-black lint-flake8
 tests:
 	coverage run -m pytest tests
 
+test-report:
+	coverage report --omit="tests/*"
+
 docs html:
 	@${MAKE} -C docs html
 
