@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, List
 
 import yaml
@@ -10,6 +11,11 @@ def _from_file(path: str, typ: Any) -> Any:
     with open(path, "r") as f:
         raw_config = yaml.load(f, Loader=yaml.Loader)
         return typ(**raw_config)
+
+
+@dataclass
+class Topology:
+    pass
 
 
 class GenericQDeviceConfig(BaseModel):

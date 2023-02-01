@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
@@ -13,7 +13,7 @@ class ExposedQubitInfo:
 
 @dataclass(eq=True, frozen=True)
 class ExposedGateInfo:
-    ids: List[int]  # ordered list of qubit IDs
+    instruction: Type[NetQASMInstruction]
     duration: int  # ns
     decoherence: List[int]  # rate per second, per qubit ID (same order as `ids`)
 
@@ -25,4 +25,4 @@ class ExposedHardwareInfo:
     qubit_infos: Dict[int, ExposedQubitInfo]  # qubit ID -> info
 
     flavour: Flavour  # set of NetQASM instrs, no info about which qubits can do what instr
-    gate_infos: Dict[NetQASMInstruction, ExposedGateInfo]  # instr -> info
+    gate_infos: Dict[List[int], ExposedGateInfo]  # order list of qubit IDs -> info
