@@ -46,7 +46,10 @@ lint-mypy:
 lint: lint-isort lint-black lint-flake8
 
 tests:
-	@$(PYTHON3) -m pytest tests
+	coverage run -m pytest tests
+
+test-report:
+	coverage report --omit="tests/*"
 
 docs html:
 	@${MAKE} -C docs html
