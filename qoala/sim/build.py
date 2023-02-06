@@ -70,14 +70,31 @@ def build_qprocessor_from_topology(
         mem_noise_models.append(noise_model)
 
     phys_instructions: List[PhysicalInstruction] = []
-    for qubit_ids, gate_info in topology.gate_infos.items():
-        phys_instr = PhysicalInstruction(
-            instruction=gate_info.instruction,
-            duration=gate_info.duration,
-            topology=qubit_ids,
-            quantum_noise_model=gate_info.error_model(**gate_info.error_model_kwargs),
-        )
-        phys_instructions.append(phys_instr)
+    # single-qubit gates
+    for qubit_id, gate_infos in topology.single_gate_infos.items():
+        for gate_info in gate_infos:
+            phys_instr = PhysicalInstruction(
+                instruction=gate_info.instruction,
+                duration=gate_info.duration,
+                topology=[qubit_id],
+                quantum_noise_model=gate_info.error_model(
+                    **gate_info.error_model_kwargs
+                ),
+            )
+            phys_instructions.append(phys_instr)
+
+    # multi-qubit gates
+    for qubit_ids, gate_infos in topology.multi_gate_infos.items():
+        for gate_info in gate_infos:
+            phys_instr = PhysicalInstruction(
+                instruction=gate_info.instruction,
+                duration=gate_info.duration,
+                topology=[qubit_ids],
+                quantum_noise_model=gate_info.error_model(
+                    **gate_info.error_model_kwargs
+                ),
+            )
+            phys_instructions.append(phys_instr)
 
     return QuantumProcessor(
         name=name,

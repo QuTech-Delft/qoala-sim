@@ -13,11 +13,6 @@ def _from_file(path: str, typ: Any) -> Any:
         return typ(**raw_config)
 
 
-@dataclass
-class Topology:
-    pass
-
-
 class GenericQDeviceConfig(BaseModel):
     # total number of qubits
     num_qubits: int = 2

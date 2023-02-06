@@ -161,14 +161,14 @@ def test_free_alreay_freed():
 def test_get_unmapped_qubit():
     pid, mgr = setup_manager()
 
-    assert mgr.get_unmapped_mem_qubit(pid) == 1
+    assert mgr.get_unmapped_non_comm_qubit(pid) == 1
     mgr.allocate(pid, 0)
-    assert mgr.get_unmapped_mem_qubit(pid) == 1
+    assert mgr.get_unmapped_non_comm_qubit(pid) == 1
     mgr.allocate(pid, 1)
     with pytest.raises(AllocError):
-        mgr.get_unmapped_mem_qubit(pid)
+        mgr.get_unmapped_non_comm_qubit(pid)
     mgr.free(pid, 1)
-    assert mgr.get_unmapped_mem_qubit(pid) == 1
+    assert mgr.get_unmapped_non_comm_qubit(pid) == 1
 
 
 def test_alloc_multiple_processes():

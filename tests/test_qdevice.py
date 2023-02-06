@@ -6,7 +6,12 @@ from netsquid.nodes import Node
 from netsquid.qubits import ketstates
 
 from qoala.runtime.config import GenericQDeviceConfig, NVQDeviceConfig
-from qoala.sim.build import build_generic_qprocessor, build_nv_qprocessor
+from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.sim.build import (
+    build_generic_qprocessor,
+    build_nv_qprocessor,
+    build_qprocessor_from_topology,
+)
 from qoala.sim.constants import PI, PI_OVER_2
 from qoala.sim.qdevice import (
     GenericPhysicalQuantumMemory,
@@ -21,8 +26,10 @@ from qoala.util.tests import has_state, netsquid_run
 
 
 def perfect_generic_qdevice(num_qubits: int) -> QDevice:
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    processor = build_generic_qprocessor(name="processor", cfg=cfg)
+    # cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
+    topology = LhiTopologyBuilder.build_star_generic_perfect(num_qubits)
+    # processor = build_generic_qprocessor(name="processor", cfg=cfg)
+    processor = build_qprocessor_from_topology(name="processor", topology=topology)
     node = Node(name="alice", qmemory=processor)
     return QDevice(
         node=node,

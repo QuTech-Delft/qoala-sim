@@ -5,7 +5,7 @@ from typing import Dict, Optional
 from qoala.sim.hostprocessor import IqoalaProcess
 from qoala.sim.logging import LogManager
 from qoala.sim.qdevice import QDevice
-from qoala.sim.qmem import CommQubitTrait, MemQubitTrait, UnitModule
+from qoala.sim.qmem import UnitModule
 
 
 class AllocError(Exception):
@@ -49,14 +49,6 @@ class MemoryManager:
             i: None for i in qdevice.all_qubit_ids
         }  # phys ID -> virt location
 
-    def _virt_qubit_is_comm(self, unit_module: UnitModule, virt_id: int) -> bool:
-        traits = unit_module.qubit_traits[virt_id]
-        return CommQubitTrait in traits
-
-    def _virt_qubit_is_mem(self, unit_module: UnitModule, virt_id: int) -> bool:
-        traits = unit_module.qubit_traits[virt_id]
-        return MemQubitTrait in traits
-
     def _get_free_comm_phys_id(self) -> int:
         for phys_id in self._qdevice.comm_qubit_ids:
             if self._physical_mapping[phys_id] is None:
@@ -90,7 +82,7 @@ class MemoryManager:
             raise AllocError
 
         phys_id: int
-        if self._virt_qubit_is_comm(vmap.unit_module, virt_id):
+        if vmap.unit_module.is_communication(virt_id):
             phys_id = self._get_free_comm_phys_id()
         else:
             phys_id = self._get_free_mem_phys_id()
@@ -107,7 +99,7 @@ class MemoryManager:
         # Check that the virt ID is indeed a (virtual) comm qubit.
         if virt_id not in vmap.unit_module.qubit_ids:
             raise AllocError
-        if not self._virt_qubit_is_comm(vmap.unit_module, virt_id):
+        if not vmap.unit_module.is_communication(virt_id):
             raise AllocError
 
         return self.allocate(pid, virt_id)
@@ -129,14 +121,14 @@ class MemoryManager:
         # update netsquid memory
         self._qdevice.set_mem_pos_in_use(phys_id, False)
 
-    def get_unmapped_mem_qubit(self, pid: int) -> int:
+    def get_unmapped_non_comm_qubit(self, pid: int) -> int:
         """returns virt ID"""
         vp_map = self._process_mappings[pid].mapping
         unit_module = self._process_mappings[pid].unit_module
         free_ids = [
             v
             for v, p in vp_map.items()
-            if p is None and self._virt_qubit_is_mem(unit_module, v)
+            if p is None and not unit_module.is_communication(v)
         ]
         if len(free_ids) == 0:
             raise AllocError
