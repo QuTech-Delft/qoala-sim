@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import abstractclassmethod, abstractmethod
+from cmath import sin
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, Type
 
@@ -80,6 +81,10 @@ class QubitT1T2Config(LhiQubitConfigInterface, BaseModel):
 
 
 class GateNoiseConfigInterface:
+    @abstractclassmethod
+    def from_dict(cls, dict: Any) -> GateNoiseConfigInterface:
+        raise NotImplementedError
+
     @abstractmethod
     def to_duration(self) -> int:
         raise NotImplementedError
@@ -102,7 +107,7 @@ class GateDepolariseConfig(GateNoiseConfigInterface, BaseModel):
         return cls.from_dict(_read_dict(path))
 
     @classmethod
-    def from_dict(cls, dict: Any) -> QubitT1T2Config:
+    def from_dict(cls, dict: Any) -> GateDepolariseConfig:
         return GateDepolariseConfig(**dict)
 
     def to_duration(self) -> int:
@@ -115,11 +120,15 @@ class GateDepolariseConfig(GateNoiseConfigInterface, BaseModel):
         return {"depolar_rate": self.depolarise_prob, "time_independent": True}
 
 
+_DEFAULT_REGISTRY: Dict[str, LhiGateConfigInterface] = {
+    "GateDepolariseConfig": GateDepolariseConfig,
+}
+
+
 class GateConfig(LhiGateConfigInterface, BaseModel):
     name: str
-    # gate_noise_config: GateNoiseConfigInterface
-    noise_config_typ: Type[LhiGateConfigInterface]
-    noise_config: Any
+    noise_config_cls: str
+    noise_config: GateNoiseConfigInterface
 
     @classmethod
     def from_file(cls, path: str) -> GateConfig:
@@ -128,24 +137,28 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
     @classmethod
     def from_dict(cls, dict: Any) -> GateConfig:
         name = dict["name"]
-        typ = dict["noise_config_typ"]
+        raw_typ = dict["noise_config_cls"]
+        typ: GateNoiseConfigInterface = _DEFAULT_REGISTRY[raw_typ]
         raw_noise_config = dict["noise_config"]
         noise_config = typ.from_dict(raw_noise_config)
-        return GateDepolariseConfig(
-            name=name, noise_config_typ=typ, noise_config=noise_config
+        return GateConfig(
+            name=name, noise_config_cls=raw_typ, noise_config=noise_config
         )
 
     def to_instruction(self) -> Type[NetSquidInstruction]:
         return _NS_INSTR_MAP[self.name]
 
     def to_duration(self) -> int:
-        return self.gate_noise_config.to_duration()
+        assert isinstance(self.noise_config, GateNoiseConfigInterface)
+        return self.noise_config.to_duration()
 
     def to_error_model(self) -> Type[QuantumErrorModel]:
-        return self.gate_noise_config.to_error_model()
+        assert isinstance(self.noise_config, GateNoiseConfigInterface)
+        return self.noise_config.to_error_model()
 
     def to_error_model_kwargs(self) -> Dict[str, Any]:
-        return self.gate_noise_config.to_error_model_kwargs()
+        assert isinstance(self.noise_config, GateNoiseConfigInterface)
+        return self.noise_config.to_error_model_kwargs()
 
 
 class TopologyConfig(BaseModel):
@@ -155,7 +168,19 @@ class TopologyConfig(BaseModel):
 
     @classmethod
     def from_file(cls, path: str) -> TopologyConfig:
-        return _from_file(path, TopologyConfig)  # type: ignore
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> TopologyConfig:
+        raw_qubits = dict["qubits"]
+        qubits = {i: QubitT1T2Config.from_dict(d) for i, d in raw_qubits.items()}
+        raw_single_gates = dict["single_gates"]
+        single_gates = {
+            i: [GateConfig.from_dict(d) for d in gate_dicts]
+            for i, gate_dicts in raw_single_gates.items()
+        }
+        # TODO: parse multigates !!
+        return TopologyConfig(qubits=qubits, single_gates=single_gates, multi_gates={})
 
     def get_qubit_infos(self) -> Dict[int, LhiQubitConfigInterface]:
         return self.qubits

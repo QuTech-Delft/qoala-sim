@@ -3,6 +3,6 @@ gate_noise: &gate_noise
   depolarise_prob: 0.2
 
 name: "INSTR_X"
-noise_config_typ: GateDepolariseConfig
+noise_config_cls: "GateDepolariseConfig"
 noise_config:
   <<: *gate_noise
