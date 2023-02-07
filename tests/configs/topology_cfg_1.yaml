@@ -1,8 +1,13 @@
+qubit_noise: &qubit_noise
+  T1: 1_000_000
+  T2: 3_000_000
+
 qubits:
   0:
     is_communication: true
-    T1: 1_000_000
-    T2: 3_000_000
+    noise_config_cls: "QubitT1T2Config"
+    noise_config:
+      <<: *qubit_noise
 
 gate_noise: &gate_noise
   duration: 4_000
@@ -15,4 +20,4 @@ single_gates:
     noise_config:
       <<: *gate_noise
 
-multi_gates: []
+multi_gates: {}

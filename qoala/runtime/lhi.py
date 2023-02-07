@@ -19,6 +19,14 @@ from netsquid.components.models.qerrormodels import (
 )
 
 
+@dataclass(eq=True, frozen=True)
+class MultiQubit:
+    qubit_ids: List[int]
+
+    def __hash__(self) -> int:
+        return hash(tuple(self.qubit_ids))
+
+
 @dataclass
 class LhiQubitInfo:
     is_communication: bool
@@ -78,7 +86,7 @@ class LhiTopologyConfigInterface:
     @abstractmethod
     def get_multi_gate_configs(
         self,
-    ) -> Dict[Tuple[int, ...], List[LhiGateConfigInterface]]:
+    ) -> Dict[MultiQubit, List[LhiGateConfigInterface]]:
         raise NotImplementedError
 
 
@@ -87,7 +95,7 @@ class LhiTopology:
     qubit_infos: Dict[int, LhiQubitInfo]  # qubit ID -> info
     single_gate_infos: Dict[int, List[LhiGateInfo]]  # qubit ID -> gates
     multi_gate_infos: Dict[
-        Tuple[int, ...], List[LhiGateInfo]
+        MultiQubit, List[LhiGateInfo]
     ]  # ordered qubit ID list -> gates
 
 
@@ -116,7 +124,7 @@ class LhiTopologyBuilder:
                 for info in cfg_infos
             ]
 
-        multi_gate_infos: Dict[Tuple[int, ...], List[LhiGateInfo]] = {}
+        multi_gate_infos: Dict[MultiQubit, List[LhiGateInfo]] = {}
         for ids, cfg_infos in cfg.get_multi_gate_configs().items():
             multi_gate_infos[ids] = [
                 LhiGateInfo(
@@ -184,7 +192,7 @@ class LhiTopologyBuilder:
         for i in range(num_qubits):
             single_gate_infos[i] = single_gates
 
-        multi_gate_infos: Dict[Tuple[int, ...], LhiGateInfo] = {}
+        multi_gate_infos: Dict[MultiQubit, LhiGateInfo] = {}
         for i in range(1, num_qubits):
             multi_gate_infos[(0, i)] = multi_gates
 
@@ -245,7 +253,7 @@ class LhiTopologyBuilder:
         for i in range(num_qubits):
             single_gate_infos[i] = single_gates
 
-        multi_gate_infos: Dict[Tuple[int, ...], LhiGateInfo] = {}
+        multi_gate_infos: Dict[MultiQubit, LhiGateInfo] = {}
         for i in range(1, num_qubits):
             multi_gate_infos[(0, i)] = multi_gates
 
