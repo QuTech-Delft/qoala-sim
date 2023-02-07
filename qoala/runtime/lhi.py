@@ -1,4 +1,5 @@
 # Low-level Hardware Info. Expressed using NetSquid concepts and objects.
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, Type
 
@@ -25,12 +26,60 @@ class LhiQubitInfo:
     error_model_kwargs: Dict[str, Any]
 
 
+class LhiQubitConfigInterface:
+    @abstractmethod
+    def to_is_communication(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_error_model(self) -> Type[QuantumErrorModel]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_error_model_kwargs(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+
 @dataclass
 class LhiGateInfo:
     instruction: Type[NetSquidInstruction]
     duration: int  # ns
     error_model: Type[QuantumErrorModel]
     error_model_kwargs: Dict[str, Any]
+
+
+class LhiGateConfigInterface:
+    @abstractmethod
+    def to_instruction(self) -> Type[NetSquidInstruction]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_duration(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_error_model(self) -> Type[QuantumErrorModel]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_error_model_kwargs(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+
+class LhiTopologyConfigInterface:
+    @abstractmethod
+    def get_qubit_configs(self) -> Dict[int, LhiQubitConfigInterface]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_single_gate_configs(self) -> Dict[int, List[LhiGateConfigInterface]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_multi_gate_configs(
+        self,
+    ) -> Dict[Tuple[int, ...], List[LhiGateConfigInterface]]:
+        raise NotImplementedError
 
 
 @dataclass
@@ -44,6 +93,46 @@ class LhiTopology:
 
 class LhiTopologyBuilder:
     """Convenience methods for creating a Topology object."""
+
+    @classmethod
+    def from_config(cls, cfg: LhiTopologyConfigInterface) -> LhiTopology:
+        qubit_infos: Dict[int, LhiQubitInfo] = {}
+        for i, cfg_info in cfg.get_qubit_configs().items():
+            qubit_infos[i] = LhiQubitInfo(
+                is_communication=cfg_info.to_is_communication(),
+                error_model=cfg_info.to_error_model(),
+                error_model_kwargs=cfg_info.to_error_model_kwargs(),
+            )
+
+        single_gate_infos: Dict[int, List[LhiGateInfo]] = {}
+        for i, cfg_infos in cfg.get_single_gate_configs().items():
+            single_gate_infos[i] = [
+                LhiGateInfo(
+                    instruction=info.to_instruction(),
+                    duration=info.to_duration(),
+                    error_model=info.to_error_model(),
+                    error_model_kwargs=info.to_error_model_kwargs(),
+                )
+                for info in cfg_infos
+            ]
+
+        multi_gate_infos: Dict[Tuple[int, ...], List[LhiGateInfo]] = {}
+        for ids, cfg_infos in cfg.get_multi_gate_configs().items():
+            multi_gate_infos[ids] = [
+                LhiGateInfo(
+                    instruction=info.to_instruction(),
+                    duration=info.to_duration(),
+                    error_model=info.to_error_model(),
+                    error_model_kwargs=info.to_error_model_kwargs(),
+                )
+                for info in cfg_infos
+            ]
+
+        return LhiTopology(
+            qubit_infos=qubit_infos,
+            single_gate_infos=single_gate_infos,
+            multi_gate_infos=multi_gate_infos,
+        )
 
     @classmethod
     def build_star_generic_perfect(

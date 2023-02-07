@@ -1,16 +1,172 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, Dict, List, Tuple, Type
 
 import yaml
-from pydantic import BaseModel
+from netsquid.components.instructions import (
+    INSTR_CNOT,
+    INSTR_CZ,
+    INSTR_INIT,
+    INSTR_X,
+    INSTR_Y,
+    INSTR_Z,
+)
+from netsquid.components.instructions import Instruction as NetSquidInstruction
+from netsquid.components.models.qerrormodels import (
+    DepolarNoiseModel,
+    QuantumErrorModel,
+    T1T2NoiseModel,
+)
+from pydantic import BaseModel as PydanticBaseModel
+
+from qoala.runtime.lhi import LhiGateConfigInterface, LhiQubitConfigInterface
+
+
+class BaseModel(PydanticBaseModel):
+    class Config:
+        arbitrary_types_allowed = True
+
+
+_NS_INSTR_MAP = {
+    "INSTR_CNOT": INSTR_CNOT,
+    "INSTR_CZ": INSTR_CZ,
+    "INSTR_INIT": INSTR_INIT,
+    "INSTR_X": INSTR_X,
+    "INSTR_Y": INSTR_Y,
+    "INSTR_Z": INSTR_Z,
+}
+
+
+def _from_dict(dict: Any, typ: Any) -> Any:
+    return typ(**dict)
 
 
 def _from_file(path: str, typ: Any) -> Any:
     with open(path, "r") as f:
         raw_config = yaml.load(f, Loader=yaml.Loader)
-        return typ(**raw_config)
+        return _from_dict(raw_config, typ)
+
+
+def _read_dict(path: str) -> Any:
+    with open(path, "r") as f:
+        return yaml.load(f, Loader=yaml.Loader)
+
+
+# TODO: make generic QubitConfig, i.e. have LHI interface and non-LHI interface
+# (same as for gates)
+class QubitT1T2Config(LhiQubitConfigInterface, BaseModel):
+    is_communication: bool
+    T1: int
+    T2: int
+
+    @classmethod
+    def from_file(cls, path: str) -> QubitT1T2Config:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> QubitT1T2Config:
+        return QubitT1T2Config(**dict)
+
+    def to_is_communication(self) -> bool:
+        return self.is_communication
+
+    def to_error_model(self) -> Type[QuantumErrorModel]:
+        return T1T2NoiseModel
+
+    def to_error_model_kwargs(self) -> Dict[str, Any]:
+        return ({"T1": self.T1, "T2": self.T2},)
+
+
+class GateNoiseConfigInterface:
+    @abstractmethod
+    def to_duration(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_error_model(self) -> Type[QuantumErrorModel]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_error_model_kwargs(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+
+class GateDepolariseConfig(GateNoiseConfigInterface, BaseModel):
+    duration: int
+    depolarise_prob: float
+
+    @classmethod
+    def from_file(cls, path: str) -> GateDepolariseConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> QubitT1T2Config:
+        return GateDepolariseConfig(**dict)
+
+    def to_duration(self) -> int:
+        return self.duration
+
+    def to_error_model(self) -> Type[QuantumErrorModel]:
+        return DepolarNoiseModel
+
+    def to_error_model_kwargs(self) -> Dict[str, Any]:
+        return {"depolar_rate": self.depolarise_prob, "time_independent": True}
+
+
+class GateConfig(LhiGateConfigInterface, BaseModel):
+    name: str
+    # gate_noise_config: GateNoiseConfigInterface
+    noise_config_typ: Type[LhiGateConfigInterface]
+    noise_config: Any
+
+    @classmethod
+    def from_file(cls, path: str) -> GateConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> GateConfig:
+        name = dict["name"]
+        typ = dict["noise_config_typ"]
+        raw_noise_config = dict["noise_config"]
+        noise_config = typ.from_dict(raw_noise_config)
+        return GateDepolariseConfig(
+            name=name, noise_config_typ=typ, noise_config=noise_config
+        )
+
+    def to_instruction(self) -> Type[NetSquidInstruction]:
+        return _NS_INSTR_MAP[self.name]
+
+    def to_duration(self) -> int:
+        return self.gate_noise_config.to_duration()
+
+    def to_error_model(self) -> Type[QuantumErrorModel]:
+        return self.gate_noise_config.to_error_model()
+
+    def to_error_model_kwargs(self) -> Dict[str, Any]:
+        return self.gate_noise_config.to_error_model_kwargs()
+
+
+class TopologyConfig(BaseModel):
+    qubits: Dict[int, QubitT1T2Config]
+    single_gates: Dict[int, List[GateConfig]]
+    multi_gates: Dict[Tuple[int, ...], List[GateConfig]]
+
+    @classmethod
+    def from_file(cls, path: str) -> TopologyConfig:
+        return _from_file(path, TopologyConfig)  # type: ignore
+
+    def get_qubit_infos(self) -> Dict[int, LhiQubitConfigInterface]:
+        return self.qubits
+
+    def get_single_gate_configs(self) -> Dict[int, List[LhiGateConfigInterface]]:
+        return self.single_gates
+
+    def get_multi_gate_configs(
+        self,
+    ) -> Dict[Tuple[int, ...], List[LhiGateConfigInterface]]:
+        return self.multi_gates
 
 
 class GenericQDeviceConfig(BaseModel):
