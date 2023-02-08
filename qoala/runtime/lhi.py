@@ -1,5 +1,5 @@
 # Low-level Hardware Info. Expressed using NetSquid concepts and objects.
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, Type
 
@@ -18,6 +18,8 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 
+# Config Interface
+
 
 @dataclass(eq=True, frozen=True)
 class MultiQubit:
@@ -27,14 +29,7 @@ class MultiQubit:
         return hash(tuple(self.qubit_ids))
 
 
-@dataclass
-class LhiQubitInfo:
-    is_communication: bool
-    error_model: Type[QuantumErrorModel]
-    error_model_kwargs: Dict[str, Any]
-
-
-class LhiQubitConfigInterface:
+class LhiQubitConfigInterface(ABC):
     @abstractmethod
     def to_is_communication(self) -> bool:
         raise NotImplementedError
@@ -48,15 +43,7 @@ class LhiQubitConfigInterface:
         raise NotImplementedError
 
 
-@dataclass
-class LhiGateInfo:
-    instruction: Type[NetSquidInstruction]
-    duration: int  # ns
-    error_model: Type[QuantumErrorModel]
-    error_model_kwargs: Dict[str, Any]
-
-
-class LhiGateConfigInterface:
+class LhiGateConfigInterface(ABC):
     @abstractmethod
     def to_instruction(self) -> Type[NetSquidInstruction]:
         raise NotImplementedError
@@ -74,7 +61,7 @@ class LhiGateConfigInterface:
         raise NotImplementedError
 
 
-class LhiTopologyConfigInterface:
+class LhiTopologyConfigInterface(ABC):
     @abstractmethod
     def get_qubit_configs(self) -> Dict[int, LhiQubitConfigInterface]:
         raise NotImplementedError
@@ -90,6 +77,24 @@ class LhiTopologyConfigInterface:
         raise NotImplementedError
 
 
+# Data classes
+
+
+@dataclass
+class LhiQubitInfo:
+    is_communication: bool
+    error_model: Type[QuantumErrorModel]
+    error_model_kwargs: Dict[str, Any]
+
+
+@dataclass
+class LhiGateInfo:
+    instruction: Type[NetSquidInstruction]
+    duration: int  # ns
+    error_model: Type[QuantumErrorModel]
+    error_model_kwargs: Dict[str, Any]
+
+
 @dataclass
 class LhiTopology:
     qubit_infos: Dict[int, LhiQubitInfo]  # qubit ID -> info
@@ -97,6 +102,9 @@ class LhiTopology:
     multi_gate_infos: Dict[
         MultiQubit, List[LhiGateInfo]
     ]  # ordered qubit ID list -> gates
+
+
+# Convenience methods.
 
 
 class LhiTopologyBuilder:

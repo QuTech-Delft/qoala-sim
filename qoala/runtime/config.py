@@ -20,7 +20,12 @@ from netsquid.components.models.qerrormodels import (
 )
 from pydantic import BaseModel as PydanticBaseModel
 
-from qoala.runtime.lhi import LhiGateConfigInterface, LhiQubitConfigInterface
+from qoala.runtime.lhi import (
+    LhiGateConfigInterface,
+    LhiQubitConfigInterface,
+    LhiTopologyConfigInterface,
+    MultiQubit,
+)
 
 
 class BaseModel(PydanticBaseModel):
@@ -201,6 +206,33 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         return self.noise_config.to_error_model_kwargs()
 
 
+# Config classes directly used by Topology config.
+
+
+class QubitIdConfig(BaseModel):
+    qubit_id: int
+    qubit_config: QubitConfig
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> QubitIdConfig:
+        return QubitIdConfig(
+            qubit_id=dict["qubit_id"],
+            qubit_config=QubitConfig.from_dict(dict["qubit_config"]),
+        )
+
+
+class SingleGateConfig(BaseModel):
+    qubit_id: int
+    gate_configs: List[GateConfig]
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> MultiGateConfig:
+        return SingleGateConfig(
+            qubit_id=dict["qubit_id"],
+            gate_configs=[GateConfig.from_dict(d) for d in dict["gate_configs"]],
+        )
+
+
 class MultiGateConfig(BaseModel):
     qubit_ids: List[int]
     gate_configs: List[GateConfig]
@@ -213,12 +245,13 @@ class MultiGateConfig(BaseModel):
         )
 
 
-class TopologyConfig(BaseModel):
-    qubits: Dict[int, QubitConfig]
-    single_gates: Dict[int, List[GateConfig]]
-    multi_gates: List[
-        MultiGateConfig
-    ]  # "keys" (multiple IDs) are inside the MultiGateConfig object
+# Topology config.
+
+
+class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
+    qubits: List[QubitIdConfig]
+    single_gates: List[SingleGateConfig]
+    multi_gates: List[MultiGateConfig]
 
     @classmethod
     def from_file(cls, path: str) -> TopologyConfig:
@@ -227,28 +260,34 @@ class TopologyConfig(BaseModel):
     @classmethod
     def from_dict(cls, dict: Any) -> TopologyConfig:
         raw_qubits = dict["qubits"]
-        qubits = {i: QubitConfig.from_dict(d) for i, d in raw_qubits.items()}
+        qubits = [QubitIdConfig.from_dict(d) for d in raw_qubits]
         raw_single_gates = dict["single_gates"]
-        single_gates = {
-            i: [GateConfig.from_dict(d) for d in gate_dicts]
-            for i, gate_dicts in raw_single_gates.items()
-        }
+        single_gates = [SingleGateConfig.from_dict(d) for d in raw_single_gates]
         raw_multi_gates = dict["multi_gates"]
         multi_gates = [MultiGateConfig.from_dict(d) for d in raw_multi_gates]
         return TopologyConfig(
             qubits=qubits, single_gates=single_gates, multi_gates=multi_gates
         )
 
-    def get_qubit_infos(self) -> Dict[int, LhiQubitConfigInterface]:
-        return self.qubits
+    def get_qubit_configs(self) -> Dict[int, LhiQubitConfigInterface]:
+        infos: Dict[int, LhiQubitConfigInterface] = {}
+        for cfg in self.qubits:
+            infos[cfg.qubit_id] = cfg.qubit_config
+        return infos
 
     def get_single_gate_configs(self) -> Dict[int, List[LhiGateConfigInterface]]:
-        return self.single_gates
+        infos: Dict[int, LhiGateConfigInterface] = {}
+        for cfg in self.single_gates:
+            infos[cfg.qubit_id] = cfg.gate_configs
+        return infos
 
     def get_multi_gate_configs(
         self,
-    ) -> Dict[Tuple[int, ...], List[LhiGateConfigInterface]]:
-        return self.multi_gates
+    ) -> Dict[MultiQubit, List[LhiGateConfigInterface]]:
+        infos: Dict[Tuple[int, ...], LhiGateConfigInterface] = {}
+        for cfg in self.multi_gates:
+            infos[MultiQubit(cfg.qubit_ids)] = cfg.gate_configs
+        return infos
 
 
 class GenericQDeviceConfig(BaseModel):

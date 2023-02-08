@@ -3,21 +3,23 @@ qubit_noise: &qubit_noise
   T2: 3_000_000
 
 qubits:
-  0:
-    is_communication: true
-    noise_config_cls: "QubitT1T2Config"
-    noise_config:
-      <<: *qubit_noise
+  - qubit_id: 0
+    qubit_config:
+      is_communication: true
+      noise_config_cls: "QubitT1T2Config"
+      noise_config:
+        <<: *qubit_noise
 
 gate_noise: &gate_noise
   duration: 4_000
   depolarise_prob: 0.2
 
 single_gates:
-  0:
-  - name: "INSTR_X"
-    noise_config_cls: "GateDepolariseConfig"
-    noise_config:
-      <<: *gate_noise
+  - qubit_id: 0
+    gate_configs:
+      - name: "INSTR_X"
+        noise_config_cls: "GateDepolariseConfig"
+        noise_config:
+          <<: *gate_noise
 
 multi_gates: {}
