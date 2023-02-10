@@ -19,7 +19,6 @@ from qoala.sim.network import ProcNodeNetwork
 
 
 def create_global_env() -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     env.add_node(0, GlobalNodeInfo("alice", 0))
 

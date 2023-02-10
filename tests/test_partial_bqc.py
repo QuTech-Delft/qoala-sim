@@ -75,7 +75,6 @@ def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
 def create_global_env(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
@@ -480,7 +479,7 @@ def test_bqc_1():
         (8, 8, 0, 0),
     ]
 
-    for (alpha, beta, theta1, theta2) in alpha_beta_theta1_theta2:
+    for alpha, beta, theta1, theta2 in alpha_beta_theta1_theta2:
         for _ in range(10):
             result = run_bqc(
                 ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
@@ -595,7 +594,7 @@ def test_bqc_2():
         (8, 8, 0, 0),
     ]
 
-    for (alpha, beta, theta1, theta2) in alpha_beta_theta1_theta2:
+    for alpha, beta, theta1, theta2 in alpha_beta_theta1_theta2:
         for _ in range(10):
             result = run_bqc(
                 ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
@@ -615,7 +614,6 @@ def test_bqc_2():
 
 
 def test_bqc():
-
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome

@@ -34,7 +34,6 @@ QC_EXPECTATION = 30e6
 def create_global_env(
     num_clients: int, global_schedule: List[int], timeslot_len: int
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     env.add_node(0, GlobalNodeInfo("server", 0))
     for i in range(1, num_clients + 1):

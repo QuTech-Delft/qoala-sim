@@ -28,7 +28,6 @@ from qoala.sim.network import ProcNodeNetwork
 def create_global_env(
     num_clients: int, global_schedule: List[int], timeslot_len: int
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     env.add_node(0, GlobalNodeInfo("server", 0))
     for i in range(1, num_clients + 1):
@@ -502,7 +501,6 @@ def compute_succ_prob_trap(
 
 
 def test_bqc():
-
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("logs/test_trap.log")
 

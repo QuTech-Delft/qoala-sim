@@ -4,7 +4,7 @@ from netsquid.protocols import Protocol
 
 from qoala.runtime.environment import LocalEnvironment
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.qdevice import PhysicalQuantumMemory, QDevice, QDeviceType
+from qoala.sim.qdevice import QDevice
 from qoala.sim.qnoscomp import QnosComponent
 from qoala.sim.qnosinterface import QnosInterface
 from qoala.sim.qnosprocessor import GenericProcessor, NVProcessor, QnosProcessor

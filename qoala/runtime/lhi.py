@@ -1,7 +1,8 @@
 # Low-level Hardware Info. Expressed using NetSquid concepts and objects.
 from abc import ABC, abstractmethod
+from ast import Mult
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -103,6 +104,27 @@ class LhiTopology:
         MultiQubit, List[LhiGateInfo]
     ]  # ordered qubit ID list -> gates
 
+    def find_single_gate(
+        self, qubit_id: int, instr: Type[NetSquidInstruction]
+    ) -> Optional[LhiGateInfo]:
+        if qubit_id not in self.single_gate_infos:
+            return None
+        for info in self.single_gate_infos[qubit_id]:
+            if info.instruction == instr:
+                return info
+        return None
+
+    def find_multi_gate(
+        self, qubit_ids: List[int], instr: Type[NetSquidInstruction]
+    ) -> Optional[LhiGateInfo]:
+        multi = MultiQubit(qubit_ids)
+        if multi not in self.multi_gate_infos:
+            return None
+        for info in self.multi_gate_infos[multi]:
+            if info.instruction == instr:
+                return info
+        return None
+
 
 # Convenience methods.
 
@@ -149,6 +171,24 @@ class LhiTopologyBuilder:
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
         )
+
+    @classmethod
+    def fully_uniform(
+        cls,
+        num_qubits,
+        qubit_info: LhiQubitInfo,
+        single_gate_infos: List[LhiGateInfo],
+        two_gate_infos: List[LhiGateInfo],
+    ) -> LhiTopology:
+        q_infos = {i: qubit_info for i in range(num_qubits)}
+        sg_infos = {i: single_gate_infos for i in range(num_qubits)}
+        mg_infos = {}
+        for i in range(num_qubits):
+            for j in range(num_qubits):
+                if i != j:
+                    multi = MultiQubit([i, j])
+                    mg_infos[multi] = two_gate_infos
+        return LhiTopology(q_infos, sg_infos, mg_infos)
 
     @classmethod
     def build_star_generic_perfect(

@@ -84,7 +84,8 @@ def build_qprocessor_from_topology(
             phys_instructions.append(phys_instr)
 
     # multi-qubit gates
-    for qubit_ids, gate_infos in topology.multi_gate_infos.items():
+    for multi_qubit, gate_infos in topology.multi_gate_infos.items():
+        qubit_ids = tuple(multi_qubit.qubit_ids)
         for gate_info in gate_infos:
             phys_instr = PhysicalInstruction(
                 instruction=gate_info.instruction,
@@ -166,7 +167,6 @@ def build_generic_qprocessor(name: str, cfg: GenericQDeviceConfig) -> QuantumPro
 
 
 def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
-
     # noise models for single- and multi-qubit operations
     electron_init_noise = DepolarNoiseModel(
         depolar_rate=cfg.electron_init_depolar_prob, time_independent=True
@@ -208,7 +208,7 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
         )
     )
 
-    for (instr, dur) in zip(
+    for instr, dur in zip(
         [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z],
         [cfg.carbon_rot_x, cfg.carbon_rot_y, cfg.carbon_rot_z],
     ):
@@ -230,7 +230,7 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
         )
     )
 
-    for (instr, dur) in zip(
+    for instr, dur in zip(
         [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z],
         [cfg.electron_rot_x, cfg.electron_rot_y, cfg.electron_rot_z],
     ):

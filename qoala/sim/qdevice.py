@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import Generator, List, Optional, Set
 
 from netsquid.components.instructions import INSTR_INIT, Instruction
@@ -9,48 +8,7 @@ from netsquid.nodes import Node
 from netsquid.qubits.qubit import Qubit
 
 from pydynaa import EventExpression
-
-
-class QDeviceType(Enum):
-    GENERIC = 0
-    NV = auto()
-
-
-class PhysicalQuantumMemory:
-    def __init__(self, comm_ids: Set[int], mem_ids: Set[int]) -> None:
-        self._comm_qubit_ids: Set[int] = comm_ids
-        self._mem_qubit_ids: Set[int] = mem_ids
-        self._all_ids = comm_ids.union(mem_ids)
-        self._qubit_count = len(self._all_ids)
-
-    @property
-    def qubit_count(self) -> int:
-        return self._qubit_count
-
-    @property
-    def comm_qubit_count(self) -> int:
-        return len(self._comm_qubit_ids)
-
-    @property
-    def comm_qubit_ids(self) -> Set[int]:
-        return self._comm_qubit_ids
-
-    @property
-    def mem_qubit_ids(self) -> Set[int]:
-        return self._mem_qubit_ids
-
-
-class GenericPhysicalQuantumMemory(PhysicalQuantumMemory):
-    def __init__(self, qubit_count: int) -> None:
-        super().__init__(
-            comm_ids={i for i in range(qubit_count)},
-            mem_ids={i for i in range(qubit_count)},
-        )
-
-
-class NVPhysicalQuantumMemory(PhysicalQuantumMemory):
-    def __init__(self, qubit_count: int) -> None:
-        super().__init__(comm_ids={0}, mem_ids={i for i in range(1, qubit_count)})
+from qoala.runtime.lhi import LhiTopology
 
 
 class UnsupportedQDeviceCommandError(Exception):
@@ -70,11 +28,12 @@ class QDeviceCommand:
 
 class QDevice:
     def __init__(
-        self, node: Node, typ: QDeviceType, memory: PhysicalQuantumMemory
+        self,
+        node: Node,
+        topology: LhiTopology,
     ) -> None:
         self._node = node
-        self._typ = typ
-        self._memory = memory
+        self._topology = topology
 
     @property
     def qprocessor(self) -> QuantumProcessor:
@@ -82,32 +41,32 @@ class QDevice:
         return self._node.qmemory
 
     @property
-    def typ(self) -> QDeviceType:
-        return self._typ
+    def topology(self) -> LhiTopology:
+        return self._topology
 
-    @property
-    def memory(self) -> PhysicalQuantumMemory:
-        return self._memory
+    def get_qubit_count(self) -> int:
+        return len(self.get_all_qubit_ids())
 
-    @property
-    def qubit_count(self) -> int:
-        return self.memory.qubit_count
+    def get_comm_qubit_count(self) -> int:
+        return len(self.get_comm_qubit_ids())
 
-    @property
-    def comm_qubit_count(self) -> int:
-        return self.memory.comm_qubit_count
+    def get_non_comm_qubit_count(self) -> int:
+        return len(self.get_non_comm_qubit_ids())
 
-    @property
-    def comm_qubit_ids(self) -> Set[int]:
-        return self.memory.comm_qubit_ids
+    def get_all_qubit_ids(self) -> Set[int]:
+        return [q for q, _ in self.topology.qubit_infos.items()]
 
-    @property
-    def mem_qubit_ids(self) -> Set[int]:
-        return self.memory.mem_qubit_ids
+    def get_comm_qubit_ids(self) -> Set[int]:
+        return [
+            q for q, info in self.topology.qubit_infos.items() if info.is_communication
+        ]
 
-    @property
-    def all_qubit_ids(self) -> Set[int]:
-        return self.comm_qubit_ids.union(self.mem_qubit_ids)
+    def get_non_comm_qubit_ids(self) -> Set[int]:
+        return [
+            q
+            for q, info in self.topology.qubit_infos.items()
+            if not info.is_communication
+        ]
 
     def is_allowed(self, cmd: QDeviceCommand) -> bool:
         all_phys_instructions = self.qprocessor.get_physical_instructions()

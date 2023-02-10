@@ -324,7 +324,6 @@ def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
 def create_global_env(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))

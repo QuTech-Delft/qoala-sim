@@ -105,7 +105,6 @@ class NetstackProcessor:
     def assign(
         self, process: IqoalaProcess, request: T_NetstackRequest
     ) -> Generator[EventExpression, None, None]:
-
         if isinstance(request, NetstackCreateRequest):
             yield from self.handle_create_request(process, request)
             self._logger.debug("create request done")

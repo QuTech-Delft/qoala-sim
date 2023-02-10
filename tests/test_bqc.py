@@ -37,7 +37,6 @@ from qoala.sim.egp import EgpProtocol
 def create_global_env(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
@@ -385,7 +384,6 @@ def expected_rsp_state(theta: int, p: int, dummy: bool):
 
 
 def test_bqc():
-
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome

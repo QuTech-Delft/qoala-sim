@@ -271,7 +271,6 @@ def test_create_single_pair_1():
 
 
 def test_create_single_pair_2():
-
     # Let HW have 3 comm qubits.
     topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
     qdevice = MockQDevice(topology)
@@ -546,7 +545,6 @@ def test_receive_single_pair_1():
 
 
 def test_receive_single_pair_2():
-
     # Let HW have 3 comm qubits.
     topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
     qdevice = MockQDevice(topology)
