@@ -54,19 +54,19 @@ class QDevice:
         return len(self.get_non_comm_qubit_ids())
 
     def get_all_qubit_ids(self) -> Set[int]:
-        return [q for q, _ in self.topology.qubit_infos.items()]
+        return {q for q, _ in self.topology.qubit_infos.items()}
 
     def get_comm_qubit_ids(self) -> Set[int]:
-        return [
+        return {
             q for q, info in self.topology.qubit_infos.items() if info.is_communication
-        ]
+        }
 
     def get_non_comm_qubit_ids(self) -> Set[int]:
-        return [
+        return {
             q
             for q, info in self.topology.qubit_infos.items()
             if not info.is_communication
-        ]
+        }
 
     def is_allowed(self, cmd: QDeviceCommand) -> bool:
         all_phys_instructions = self.qprocessor.get_physical_instructions()
@@ -110,7 +110,7 @@ class QDevice:
             # Check if this instruction is allowed on this processor.
             # If not, NetSquid will just silently skip this instruction which is confusing.
             if not self.is_allowed(cmd):
-                raise UnsupportedQDeviceCommandError
+                raise UnsupportedQDeviceCommandError(cmd)
 
         for cmd in commands:
             # Check if the qubit has been initialized, since instructions won't work

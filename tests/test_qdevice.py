@@ -4,10 +4,14 @@ from netsquid.components import instructions as ns_instr
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
+    INSTR_CYDIR,
     INSTR_CZ,
+    INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -38,82 +42,71 @@ from qoala.sim.qdevice import (
 from qoala.util.tests import has_state, netsquid_run
 
 
-def perfect_generic_qdevice(num_qubits: int) -> QDevice:
-    qubit_info = LhiQubitInfo(
-        is_communication=True,
-        error_model=T1T2NoiseModel,
-        error_model_kwargs={"T1": 1e6, "T2": 1e6},
-    )
-    single_gate_infos = [
-        LhiGateInfo(
-            instruction=instr,
-            duration=5e3,
-            error_model=DepolarNoiseModel,
-            error_model_kwargs={
-                "depolar_rate": 0.2,
-                "time_independent": True,
-            },
-        )
-        for instr in [INSTR_X, INSTR_Y, INSTR_Z]
-    ]
-    two_gate_infos = [
-        LhiGateInfo(
-            instruction=INSTR_CNOT,
-            duration=2e4,
-            error_model=DepolarNoiseModel,
-            error_model_kwargs={
-                "depolar_rate": 0.2,
-                "time_independent": True,
-            },
-        )
-    ]
-    return LhiTopologyBuilder.fully_uniform(
+def perfect_uniform_qdevice(num_qubits: int) -> QDevice:
+    topology = LhiTopologyBuilder.perfect_uniform(
         num_qubits=num_qubits,
-        qubit_info=qubit_info,
-        single_gate_infos=single_gate_infos,
-        two_gate_infos=two_gate_infos,
+        single_instructions=[
+            INSTR_INIT,
+            INSTR_X,
+            INSTR_Y,
+            INSTR_Z,
+            INSTR_H,
+            INSTR_ROT_X,
+            INSTR_ROT_Y,
+            INSTR_ROT_Z,
+            INSTR_MEASURE,
+        ],
+        single_duration=5e3,
+        two_instructions=[INSTR_CNOT],
+        two_duration=100e3,
     )
-
-    # cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    topology = LhiTopologyBuilder.build_star_generic_perfect(num_qubits)
-    # processor = build_generic_qprocessor(name="processor", cfg=cfg)
     processor = build_qprocessor_from_topology(name="processor", topology=topology)
     node = Node(name="alice", qmemory=processor)
-    return QDevice(
-        node=node,
-        typ=QDeviceType.GENERIC,
-        memory=GenericPhysicalQuantumMemory(num_qubits),
+    return QDevice(node=node, topology=topology)
+
+
+def perfect_nv_star_qdevice(num_qubits: int) -> QDevice:
+    topology = LhiTopologyBuilder.perfect_star(
+        num_qubits=num_qubits,
+        comm_instructions=[
+            INSTR_INIT,
+            INSTR_ROT_X,
+            INSTR_ROT_Y,
+            INSTR_ROT_Z,
+            INSTR_MEASURE,
+        ],
+        comm_duration=5e3,
+        mem_instructions=[
+            INSTR_INIT,
+            INSTR_ROT_X,
+            INSTR_ROT_Y,
+            INSTR_ROT_Z,
+        ],
+        mem_duration=1e4,
+        two_instructions=[INSTR_CXDIR, INSTR_CYDIR],
+        two_duration=1e5,
     )
-
-
-def perfect_nv_qdevice(num_qubits: int) -> QDevice:
-    cfg = NVQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    processor = build_nv_qprocessor(name="processor", cfg=cfg)
+    processor = build_qprocessor_from_topology(name="processor", topology=topology)
     node = Node(name="alice", qmemory=processor)
-    return QDevice(
-        node=node,
-        typ=QDeviceType.NV,
-        memory=NVPhysicalQuantumMemory(num_qubits),
-    )
+    return QDevice(node=node, topology=topology)
 
 
 def test_static_generic():
     num_qubits = 3
-    qdevice = perfect_generic_qdevice(num_qubits)
+    qdevice = perfect_uniform_qdevice(num_qubits)
 
     assert qdevice.qprocessor.num_positions == num_qubits
 
-    assert qdevice.typ == QDeviceType.GENERIC
-    assert qdevice.qubit_count == num_qubits
-    assert qdevice.comm_qubit_count == num_qubits
-    assert qdevice.comm_qubit_ids == {i for i in range(num_qubits)}
-    assert qdevice.mem_qubit_ids == {i for i in range(num_qubits)}
-    assert qdevice.all_qubit_ids == {i for i in range(num_qubits)}
+    assert qdevice.get_qubit_count() == num_qubits
+    assert qdevice.get_comm_qubit_count() == num_qubits
+    assert qdevice.get_comm_qubit_ids() == {i for i in range(num_qubits)}
+    assert qdevice.get_non_comm_qubit_ids() == set()
+    assert qdevice.get_all_qubit_ids() == {i for i in range(num_qubits)}
 
 
 def test_static_nv():
     num_qubits = 3
-    qdevice = perfect_nv_qdevice(num_qubits)
+    qdevice = perfect_nv_star_qdevice(num_qubits)
 
     assert qdevice.qprocessor.num_positions == num_qubits
     with pytest.raises(MissingInstructionError):
@@ -123,17 +116,16 @@ def test_static_nv():
     # Should not raise error:
     qdevice.qprocessor.get_instruction_duration(ns_instr.INSTR_CXDIR, [0, 1])
 
-    assert qdevice.typ == QDeviceType.NV
-    assert qdevice.qubit_count == num_qubits
-    assert qdevice.comm_qubit_count == 1
-    assert qdevice.comm_qubit_ids == {0}
-    assert qdevice.mem_qubit_ids == {i for i in range(1, num_qubits)}
-    assert qdevice.all_qubit_ids == {i for i in range(num_qubits)}
+    assert qdevice.get_qubit_count() == num_qubits
+    assert qdevice.get_comm_qubit_count() == 1
+    assert qdevice.get_comm_qubit_ids() == {0}
+    assert qdevice.get_non_comm_qubit_ids() == {i for i in range(1, num_qubits)}
+    assert qdevice.get_all_qubit_ids() == {i for i in range(num_qubits)}
 
 
 def test_initalize_generic():
     num_qubits = 3
-    qdevice = perfect_generic_qdevice(num_qubits)
+    qdevice = perfect_uniform_qdevice(num_qubits)
 
     # All qubits are not initalized yet.
     assert qdevice.get_local_qubit(0) is None
@@ -181,7 +173,7 @@ def test_initalize_generic():
 
 def test_initalize_nv():
     num_qubits = 3
-    qdevice = perfect_nv_qdevice(num_qubits)
+    qdevice = perfect_nv_star_qdevice(num_qubits)
 
     # All qubits are not initalized yet.
     assert qdevice.get_local_qubit(0) is None
@@ -239,7 +231,7 @@ def test_initalize_nv():
 
 def test_rotations_generic():
     num_qubits = 3
-    qdevice = perfect_generic_qdevice(num_qubits)
+    qdevice = perfect_uniform_qdevice(num_qubits)
 
     # All qubits are not initalized yet.
     assert qdevice.get_local_qubit(0) is None
@@ -283,7 +275,7 @@ def test_rotations_generic():
 
 def test_rotations_nv():
     num_qubits = 3
-    qdevice = perfect_nv_qdevice(num_qubits)
+    qdevice = perfect_nv_star_qdevice(num_qubits)
 
     # All qubits are not initalized yet.
     assert qdevice.get_local_qubit(0) is None
@@ -336,7 +328,7 @@ def test_rotations_nv():
 
 def test_measure_generic():
     num_qubits = 3
-    qdevice = perfect_generic_qdevice(num_qubits)
+    qdevice = perfect_uniform_qdevice(num_qubits)
 
     # Initialize qubit 0 and measure it.
     commands = [
@@ -390,7 +382,7 @@ def test_measure_generic():
 
 def test_measure_nv():
     num_qubits = 3
-    qdevice = perfect_nv_qdevice(num_qubits)
+    qdevice = perfect_nv_star_qdevice(num_qubits)
 
     # Initialize qubit 0 and measure it.
     commands = [
@@ -432,7 +424,7 @@ def test_measure_nv():
 
 def test_two_qubit_gates_generic():
     num_qubits = 3
-    qdevice = perfect_generic_qdevice(num_qubits)
+    qdevice = perfect_uniform_qdevice(num_qubits)
 
     # All qubits are not initalized yet.
     assert qdevice.get_local_qubit(0) is None
@@ -469,7 +461,7 @@ def test_two_qubit_gates_generic():
 
 def test_two_qubit_gates_nv():
     num_qubits = 3
-    qdevice = perfect_nv_qdevice(num_qubits)
+    qdevice = perfect_nv_star_qdevice(num_qubits)
 
     # All qubits are not initalized yet.
     assert qdevice.get_local_qubit(0) is None
@@ -508,7 +500,7 @@ def test_two_qubit_gates_nv():
 
 def test_unsupported_commands_generic():
     num_qubits = 3
-    qdevice = perfect_generic_qdevice(num_qubits)
+    qdevice = perfect_uniform_qdevice(num_qubits)
 
     with pytest.raises(UnsupportedQDeviceCommandError):
         commands = [QDeviceCommand(ns_instr.INSTR_T, [0])]
@@ -517,7 +509,7 @@ def test_unsupported_commands_generic():
 
 def test_unsupported_commands_nv():
     num_qubits = 3
-    qdevice = perfect_nv_qdevice(num_qubits)
+    qdevice = perfect_nv_star_qdevice(num_qubits)
 
     with pytest.raises(UnsupportedQDeviceCommandError):
         commands = [QDeviceCommand(ns_instr.INSTR_X, [0])]
@@ -562,7 +554,7 @@ def test_unsupported_commands_nv():
 
 def test_non_initalized():
     num_qubits = 3
-    qdevice = perfect_generic_qdevice(num_qubits)
+    qdevice = perfect_uniform_qdevice(num_qubits)
 
     with pytest.raises(NonInitializedQubitError):
         commands = [QDeviceCommand(ns_instr.INSTR_X, [0])]

@@ -276,6 +276,47 @@ def test_build_fully_uniform():
             assert INSTR_CNOT in gates
 
 
+def test_perfect_star():
+    num_qubits = 3
+    comm_instructions = [INSTR_X, INSTR_Y, INSTR_Z]
+    comm_duration = 5e3
+    mem_instructions = [INSTR_X, INSTR_Y]
+    mem_duration = 1e4
+    two_instructions = [INSTR_CNOT, INSTR_CZ]
+    two_duration = 2e5
+    topology = LhiTopologyBuilder.perfect_star(
+        num_qubits,
+        comm_instructions,
+        comm_duration,
+        mem_instructions,
+        mem_duration,
+        two_instructions,
+        two_duration,
+    )
+
+    assert topology.qubit_infos[0] == LhiTopologyBuilder.perfect_qubit(
+        is_communication=True
+    )
+
+    for i in range(1, num_qubits):
+        assert topology.qubit_infos[i] == LhiTopologyBuilder.perfect_qubit(
+            is_communication=False
+        )
+
+    assert topology.single_gate_infos[0] == LhiTopologyBuilder.perfect_gates(
+        comm_duration, [INSTR_X, INSTR_Y, INSTR_Z]
+    )
+    for i in range(1, num_qubits):
+        assert topology.single_gate_infos[i] == LhiTopologyBuilder.perfect_gates(
+            mem_duration, [INSTR_X, INSTR_Y]
+        )
+
+    for i in range(1, num_qubits):
+        assert topology.multi_gate_infos[
+            MultiQubit([0, i])
+        ] == LhiTopologyBuilder.perfect_gates(two_duration, [INSTR_CNOT, INSTR_CZ])
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
@@ -285,3 +326,4 @@ if __name__ == "__main__":
     test_perfect_gates()
     test_perfect_uniform()
     test_build_fully_uniform()
+    test_perfect_star()

@@ -230,64 +230,35 @@ class LhiTopologyBuilder:
         return LhiTopology(q_infos, sg_infos, mg_infos)
 
     @classmethod
-    def build_star_generic_perfect(
+    def perfect_star(
         cls,
         num_qubits: int,
+        comm_instructions: List[NetSquidInstruction],
+        comm_duration: int,
+        mem_instructions: List[NetSquidInstruction],
+        mem_duration: int,
+        two_instructions: List[NetSquidInstruction],
+        two_duration: int,
     ) -> LhiTopology:
-        single_gate_duration = 1_000
-        multi_gate_duration = 10_000
+        comm_qubit_info = cls.perfect_qubit(is_communication=True)
+        mem_qubit_info = cls.perfect_qubit(is_communication=False)
+        comm_gate_infos = cls.perfect_gates(comm_duration, comm_instructions)
+        mem_gate_infos = cls.perfect_gates(mem_duration, mem_instructions)
+        two_gate_infos = cls.perfect_gates(two_duration, two_instructions)
 
-        qubit_infos: Dict[int, LhiQubitInfo] = {}
-        qubit_infos[0] = LhiQubitInfo(
-            is_communication=True,
-            error_model=T1T2NoiseModel,
-            error_model_kwargs={"T1": 0, "T2": 0},
-        )
+        q_infos = {0: comm_qubit_info}
         for i in range(1, num_qubits):
-            qubit_infos[i] = LhiQubitInfo(
-                is_communication=False,
-                error_model=T1T2NoiseModel,
-                error_model_kwargs={"T1": 0, "T2": 0},
-            )
+            q_infos[i] = mem_qubit_info
 
-        single_gates = [
-            LhiGateInfo(
-                instruction=instr,
-                duration=single_gate_duration,
-                error_model=DepolarNoiseModel,
-                error_model_kwargs={
-                    "depolar_rate": 0,
-                    "time_independent": True,
-                },
-            )
-            for instr in [INSTR_X, INSTR_Y, INSTR_Z, INSTR_INIT]
-        ]
-        multi_gates = [
-            LhiGateInfo(
-                instruction=instr,
-                duration=multi_gate_duration,
-                error_model=DepolarNoiseModel,
-                error_model_kwargs={
-                    "depolar_rate": 0,
-                    "time_independent": True,
-                },
-            )
-            for instr in [INSTR_CNOT, INSTR_CZ]
-        ]
-
-        single_gate_infos: Dict[int, LhiGateInfo] = {}
-        for i in range(num_qubits):
-            single_gate_infos[i] = single_gates
-
-        multi_gate_infos: Dict[MultiQubit, LhiGateInfo] = {}
+        sg_infos = {0: comm_gate_infos}
         for i in range(1, num_qubits):
-            multi_gate_infos[(0, i)] = multi_gates
+            sg_infos[i] = mem_gate_infos
 
-        return LhiTopology(
-            qubit_infos=qubit_infos,
-            single_gate_infos=single_gate_infos,
-            multi_gate_infos=multi_gate_infos,
-        )
+        mg_infos = {}
+        for i in range(1, num_qubits):
+            mg_infos[MultiQubit([0, i])] = two_gate_infos
+
+        return LhiTopology(q_infos, sg_infos, mg_infos)
 
     @classmethod
     def build_star_generic_t1t2(
