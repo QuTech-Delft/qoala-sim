@@ -1,0 +1,9 @@
+weird_qubit_noise: &weird_qubit_noise
+  T1: 1_000_000
+  T2: 3_000_000
+  T3: 5_000_000  # idk
+
+is_communication: true
+noise_config_cls: "QubitT1T2T3Config"
+noise_config:
+  <<: *weird_qubit_noise

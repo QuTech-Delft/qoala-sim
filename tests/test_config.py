@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import os
+from typing import Any, Dict, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CZ,
+    INSTR_H,
     INSTR_INIT,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
 )
+from netsquid.components.instructions import Instruction as NetSquidInstruction
 from netsquid.components.models.qerrormodels import (
     DepolarNoiseModel,
     QuantumErrorModel,
@@ -15,17 +20,23 @@ from netsquid.components.models.qerrormodels import (
 )
 
 from qoala.runtime.config import (
+    BaseModel,
     DepolariseLinkConfig,
     GateConfig,
+    GateConfigRegistry,
     GateDepolariseConfig,
+    GateNoiseConfigInterface,
+    InstrConfigRegistry,
     MultiGateConfig,
     QubitConfig,
+    QubitConfigRegistry,
     QubitIdConfig,
+    QubitNoiseConfigInterface,
     QubitT1T2Config,
     SingleGateConfig,
     TopologyConfig,
 )
-from qoala.runtime.lhi import MultiQubit
+from qoala.runtime.lhi import LhiGateConfigInterface, MultiQubit
 
 
 def relative_path(path: str) -> str:
@@ -364,6 +375,87 @@ def test_topology_config_file_reuse_gate_def():
     assert cfg.get_single_gate_configs()[1][0].to_instruction() == INSTR_X
 
 
+def test_qubit_config_file_registry():
+    class QubitT1T2T3Config(QubitT1T2Config):
+        T3: int
+
+        @classmethod
+        def from_dict(cls, dict: Any) -> QubitT1T2T3Config:
+            return QubitT1T2T3Config(**dict)
+
+        def to_error_model_kwargs(self) -> Dict[str, Any]:
+            return {"T1": self.T1, "T2": self.T2, "T3": self.T3}
+
+    class CustomQubitConfigRegistry(QubitConfigRegistry):
+        @classmethod
+        def map(cls) -> Dict[str, QubitNoiseConfigInterface]:
+            return {"QubitT1T2T3Config": QubitT1T2T3Config}
+
+    cfg = QubitConfig.from_file(
+        relative_path("configs/qubit_cfg_2_custom_cls.yaml"),
+        registry=[CustomQubitConfigRegistry],
+    )
+
+    assert cfg.is_communication
+    assert cfg.to_is_communication()
+    assert cfg.to_error_model() == T1T2NoiseModel
+    assert cfg.to_error_model_kwargs() == {"T1": 1e6, "T2": 3e6, "T3": 5e6}
+
+
+def test_gate_config_file_registry():
+    class MyLeetNoise(GateNoiseConfigInterface, BaseModel):
+        my_noise_param: int
+
+        @classmethod
+        def from_dict(cls, dict: Any) -> MyLeetNoise:
+            return MyLeetNoise(**dict)
+
+        def to_duration(self) -> int:
+            return 42
+
+        def to_error_model(self) -> Type[QuantumErrorModel]:
+            return QuantumErrorModel
+
+        def to_error_model_kwargs(self) -> Dict[str, Any]:
+            return {"my_noise_param": self.my_noise_param}
+
+    class CustomGateConfigRegistry(GateConfigRegistry):
+        @classmethod
+        def map(cls) -> Dict[str, GateNoiseConfigInterface]:
+            return {"MyLeetNoise": MyLeetNoise}
+
+    cfg = GateConfig.from_file(
+        relative_path("configs/gate_cfg_2_custom_cls.yaml"),
+        registry=[CustomGateConfigRegistry],
+    )
+
+    assert cfg.name == "INSTR_X"
+    assert cfg.to_instruction() == INSTR_X
+    assert cfg.to_duration() == 42
+    assert cfg.to_error_model() == QuantumErrorModel
+    assert cfg.to_error_model_kwargs() == {
+        "my_noise_param": 1337,
+    }
+
+
+def test_custom_instruction():
+    class CustomInstrRegistry(InstrConfigRegistry):
+        @classmethod
+        def map(cls) -> Dict[str, NetSquidInstruction]:
+            return {"MY_CUSTOM_INSTR": INSTR_H}
+
+    cfg = GateConfig.from_file(relative_path("configs/gate_cfg_2_custom_instr.yaml"))
+
+    assert cfg.name == "MY_CUSTOM_INSTR"
+    assert cfg.to_instruction(registry=[CustomInstrRegistry]) == INSTR_H
+    assert cfg.to_duration() == 4e3
+    assert cfg.to_error_model() == DepolarNoiseModel
+    assert cfg.to_error_model_kwargs() == {
+        "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+
 if __name__ == "__main__":
     test_qubit_t1t2_config()
     test_qubit_t1t2_config_file()
@@ -379,3 +471,6 @@ if __name__ == "__main__":
     test_topology_config_multi_gate()
     test_topology_config_file_multi_gate()
     test_topology_config_file_reuse_gate_def()
+    test_qubit_config_file_registry()
+    test_gate_config_file_registry()
+    test_custom_instruction()

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from abc import abstractclassmethod, abstractmethod
-from typing import Any, Dict, List, Tuple, Type
+import re
+from abc import ABC, abstractclassmethod, abstractmethod
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import yaml
 from netsquid.components.instructions import (
@@ -33,14 +34,22 @@ class BaseModel(PydanticBaseModel):
         arbitrary_types_allowed = True
 
 
-_NS_INSTR_MAP = {
-    "INSTR_CNOT": INSTR_CNOT,
-    "INSTR_CZ": INSTR_CZ,
-    "INSTR_INIT": INSTR_INIT,
-    "INSTR_X": INSTR_X,
-    "INSTR_Y": INSTR_Y,
-    "INSTR_Z": INSTR_Z,
-}
+class InstrConfigRegistry(ABC):
+    @abstractclassmethod
+    def map(cls) -> Dict[str, NetSquidInstruction]:
+        raise NotImplementedError
+
+
+class QubitConfigRegistry(ABC):
+    @abstractclassmethod
+    def map(cls) -> Dict[str, LhiQubitConfigInterface]:
+        raise NotImplementedError
+
+
+class GateConfigRegistry(ABC):
+    @abstractclassmethod
+    def map(cls) -> Dict[str, GateNoiseConfigInterface]:
+        raise NotImplementedError
 
 
 def _from_dict(dict: Any, typ: Any) -> Any:
@@ -91,25 +100,42 @@ class QubitT1T2Config(QubitNoiseConfigInterface, BaseModel):
         return {"T1": self.T1, "T2": self.T2}
 
 
-_DEFAULT_QUBIT_REGISTRY: Dict[str, LhiQubitConfigInterface] = {
-    "QubitT1T2Config": QubitT1T2Config,
-}
-
-
 class QubitConfig(LhiQubitConfigInterface, BaseModel):
     is_communication: bool
     noise_config_cls: str
     noise_config: QubitNoiseConfigInterface
 
     @classmethod
-    def from_file(cls, path: str) -> QubitConfig:
-        return cls.from_dict(_read_dict(path))
+    def from_file(
+        cls, path: str, registry: Optional[List[Type[QubitConfigRegistry]]] = None
+    ) -> QubitConfig:
+        return cls.from_dict(_read_dict(path), registry)
 
     @classmethod
-    def from_dict(cls, dict: Any) -> QubitConfig:
+    def from_dict(
+        cls, dict: Any, registry: Optional[List[Type[QubitConfigRegistry]]] = None
+    ) -> QubitConfig:
         is_communication = dict["is_communication"]
         raw_typ = dict["noise_config_cls"]
-        typ: QubitNoiseConfigInterface = _DEFAULT_QUBIT_REGISTRY[raw_typ]
+
+        # Try to get the type of the noise config class.
+        typ: Optional[QubitNoiseConfigInterface] = None
+        # First try custom registries.
+        if registry is not None:
+            try:
+                for reg in registry:
+                    if raw_typ in reg.map():
+                        typ = reg.map()[raw_typ]
+                        break
+            except KeyError:
+                pass
+        # If not found in custom registries, try default registry.
+        if typ is None:
+            try:
+                typ = DefaultQubitConfigRegistry.map()[raw_typ]
+            except KeyError:
+                raise RuntimeError("invalid instruction type")
+
         raw_noise_config = dict["noise_config"]
         noise_config = typ.from_dict(raw_noise_config)
         return QubitConfig(
@@ -168,33 +194,75 @@ class GateDepolariseConfig(GateNoiseConfigInterface, BaseModel):
         return {"depolar_rate": self.depolarise_prob, "time_independent": True}
 
 
-_DEFAULT_GATE_REGISTRY: Dict[str, LhiGateConfigInterface] = {
-    "GateDepolariseConfig": GateDepolariseConfig,
-}
-
-
 class GateConfig(LhiGateConfigInterface, BaseModel):
     name: str
     noise_config_cls: str
     noise_config: GateNoiseConfigInterface
 
     @classmethod
-    def from_file(cls, path: str) -> GateConfig:
-        return cls.from_dict(_read_dict(path))
+    def from_file(
+        cls, path: str, registry: Optional[List[Type[GateConfigRegistry]]] = None
+    ) -> GateConfig:
+        return cls.from_dict(_read_dict(path), registry)
 
     @classmethod
-    def from_dict(cls, dict: Any) -> GateConfig:
+    def from_dict(
+        cls,
+        dict: Any,
+        registry: Optional[List[Type[GateConfigRegistry]]] = None,
+    ) -> GateConfig:
         name = dict["name"]
+
         raw_typ = dict["noise_config_cls"]
-        typ: GateNoiseConfigInterface = _DEFAULT_GATE_REGISTRY[raw_typ]
+
+        # Try to get the type of the noise config class.
+        typ: Optional[GateNoiseConfigInterface] = None
+        # First try custom registries.
+        if registry is not None:
+            try:
+                for reg in registry:
+                    if raw_typ in reg.map():
+                        typ = reg.map()[raw_typ]
+                        break
+            except KeyError:
+                pass
+        # If not found in custom registries, try default registry.
+        if typ is None:
+            try:
+                typ = DefaultGateConfigRegistry.map()[raw_typ]
+            except KeyError:
+                raise RuntimeError("invalid instruction type")
+
         raw_noise_config = dict["noise_config"]
         noise_config = typ.from_dict(raw_noise_config)
         return GateConfig(
-            name=name, noise_config_cls=raw_typ, noise_config=noise_config
+            name=name,
+            noise_config_cls=raw_typ,
+            noise_config=noise_config,
         )
 
-    def to_instruction(self) -> Type[NetSquidInstruction]:
-        return _NS_INSTR_MAP[self.name]
+    def to_instruction(
+        self,
+        registry: Optional[List[Type[InstrConfigRegistry]]] = None,
+    ) -> Type[NetSquidInstruction]:
+        # Try to get the NetSquid Instruction class.
+        instr: Optional[Type[NetSquidInstruction]] = None
+        # First try custom registries.
+        if registry is not None:
+            try:
+                for reg in registry:
+                    if self.name in reg.map():
+                        instr = reg.map()[self.name]
+                        break
+            except KeyError:
+                pass
+        # If not found in custom registries, try default registry.
+        if instr is None:
+            try:
+                instr = DefaultInstrConfigRegistry.map()[self.name]
+            except KeyError:
+                raise RuntimeError("invalid instruction type")
+        return instr
 
     def to_duration(self) -> int:
         return self.noise_config.to_duration()
@@ -204,6 +272,41 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
 
     def to_error_model_kwargs(self) -> Dict[str, Any]:
         return self.noise_config.to_error_model_kwargs()
+
+
+class DefaultInstrConfigRegistry(InstrConfigRegistry):
+    _MAP = {
+        "INSTR_CNOT": INSTR_CNOT,
+        "INSTR_CZ": INSTR_CZ,
+        "INSTR_INIT": INSTR_INIT,
+        "INSTR_X": INSTR_X,
+        "INSTR_Y": INSTR_Y,
+        "INSTR_Z": INSTR_Z,
+    }
+
+    @classmethod
+    def map(cls) -> Dict[str, NetSquidInstruction]:
+        return cls._MAP
+
+
+class DefaultQubitConfigRegistry(QubitConfigRegistry):
+    _MAP = {
+        "QubitT1T2Config": QubitT1T2Config,
+    }
+
+    @classmethod
+    def map(cls) -> Dict[str, QubitNoiseConfigInterface]:
+        return cls._MAP
+
+
+class DefaultGateConfigRegistry(GateConfigRegistry):
+    _MAP = {
+        "GateDepolariseConfig": GateDepolariseConfig,
+    }
+
+    @classmethod
+    def map(cls) -> Dict[str, GateNoiseConfigInterface]:
+        return cls._MAP
 
 
 # Config classes directly used by Topology config.

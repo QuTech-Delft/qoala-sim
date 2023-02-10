@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from ast import Mult
 from dataclasses import dataclass
+from operator import is_
 from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 from netsquid.components.instructions import (
@@ -170,6 +171,44 @@ class LhiTopologyBuilder:
             qubit_infos=qubit_infos,
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
+        )
+
+    @classmethod
+    def perfect_qubit(cls, is_communication: bool) -> LhiQubitInfo:
+        return LhiQubitInfo(
+            is_communication=is_communication,
+            error_model=T1T2NoiseModel,
+            error_model_kwargs={"T1": 0, "T2": 0},
+        )
+
+    @classmethod
+    def perfect_gates(
+        cls, duration: int, instructions: List[NetSquidInstruction]
+    ) -> List[LhiGateInfo]:
+        return [
+            LhiGateInfo(
+                instruction=instr,
+                duration=duration,
+                error_model=DepolarNoiseModel,
+                error_model_kwargs={"depolar_rate": 0},
+            )
+            for instr in instructions
+        ]
+
+    @classmethod
+    def perfect_uniform(
+        cls,
+        num_qubits,
+        single_instructions: List[NetSquidInstruction],
+        single_duration: int,
+        two_instructions: List[NetSquidInstruction],
+        two_duration: int,
+    ) -> LhiTopology:
+        return cls.fully_uniform(
+            num_qubits=num_qubits,
+            qubit_info=cls.perfect_qubit(is_communication=True),
+            single_gate_infos=cls.perfect_gates(single_duration, single_instructions),
+            two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
         )
 
     @classmethod

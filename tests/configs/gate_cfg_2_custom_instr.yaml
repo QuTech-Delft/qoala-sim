@@ -1,0 +1,8 @@
+gate_noise: &gate_noise
+  duration: 4_000
+  depolarise_prob: 0.2
+
+name: "MY_CUSTOM_INSTR"
+noise_config_cls: "GateDepolariseConfig"
+noise_config:
+  <<: *gate_noise

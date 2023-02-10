@@ -1,12 +1,28 @@
 import netsquid as ns
 import pytest
 from netsquid.components import instructions as ns_instr
+from netsquid.components.instructions import (
+    INSTR_CNOT,
+    INSTR_CXDIR,
+    INSTR_CZ,
+    INSTR_INIT,
+    INSTR_MEASURE,
+    INSTR_ROT_X,
+    INSTR_X,
+    INSTR_Y,
+    INSTR_Z,
+)
+from netsquid.components.models.qerrormodels import (
+    DepolarNoiseModel,
+    QuantumErrorModel,
+    T1T2NoiseModel,
+)
 from netsquid.components.qprocessor import MissingInstructionError
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates
 
 from qoala.runtime.config import GenericQDeviceConfig, NVQDeviceConfig
-from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopologyBuilder
 from qoala.sim.build import (
     build_generic_qprocessor,
     build_nv_qprocessor,
@@ -14,18 +30,50 @@ from qoala.sim.build import (
 )
 from qoala.sim.constants import PI, PI_OVER_2
 from qoala.sim.qdevice import (
-    GenericPhysicalQuantumMemory,
     NonInitializedQubitError,
-    NVPhysicalQuantumMemory,
     QDevice,
     QDeviceCommand,
-    QDeviceType,
     UnsupportedQDeviceCommandError,
 )
 from qoala.util.tests import has_state, netsquid_run
 
 
 def perfect_generic_qdevice(num_qubits: int) -> QDevice:
+    qubit_info = LhiQubitInfo(
+        is_communication=True,
+        error_model=T1T2NoiseModel,
+        error_model_kwargs={"T1": 1e6, "T2": 1e6},
+    )
+    single_gate_infos = [
+        LhiGateInfo(
+            instruction=instr,
+            duration=5e3,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={
+                "depolar_rate": 0.2,
+                "time_independent": True,
+            },
+        )
+        for instr in [INSTR_X, INSTR_Y, INSTR_Z]
+    ]
+    two_gate_infos = [
+        LhiGateInfo(
+            instruction=INSTR_CNOT,
+            duration=2e4,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={
+                "depolar_rate": 0.2,
+                "time_independent": True,
+            },
+        )
+    ]
+    return LhiTopologyBuilder.fully_uniform(
+        num_qubits=num_qubits,
+        qubit_info=qubit_info,
+        single_gate_infos=single_gate_infos,
+        two_gate_infos=two_gate_infos,
+    )
+
     # cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
     topology = LhiTopologyBuilder.build_star_generic_perfect(num_qubits)
     # processor = build_generic_qprocessor(name="processor", cfg=cfg)

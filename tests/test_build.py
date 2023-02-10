@@ -44,7 +44,7 @@ from qoala.sim.build import (
 )
 
 
-def uniform_topology(num_qubits: int):
+def uniform_topology(num_qubits: int) -> LhiTopology:
     qubit_info = LhiQubitInfo(
         is_communication=True,
         error_model=T1T2NoiseModel,
@@ -101,6 +101,35 @@ def test_build_from_topology():
     )
 
 
+def test_build_perfect_topology():
+    num_qubits = 3
+    topology = LhiTopologyBuilder.perfect_uniform(
+        num_qubits=num_qubits,
+        single_instructions=[INSTR_X, INSTR_Y],
+        single_duration=5e3,
+        two_instructions=[INSTR_CNOT],
+        two_duration=100e3,
+    )
+    proc: QuantumProcessor = build_qprocessor_from_topology("proc", topology)
+    assert proc.num_positions == num_qubits
+
+    for i in range(num_qubits):
+        assert (
+            proc.get_instruction_duration(INSTR_X, [i])
+            == topology.find_single_gate(i, INSTR_X).duration
+        )
+        assert proc.get_instruction_duration(INSTR_X, [i]) == 5e3
+
+        with pytest.raises(MissingInstructionError):
+            proc.get_instruction_duration(INSTR_ROT_X, [i])
+
+    assert (
+        proc.get_instruction_duration(INSTR_CNOT, [0, 1])
+        == topology.find_multi_gate([0, 1], INSTR_CNOT).duration
+    )
+    assert proc.get_instruction_duration(INSTR_CNOT, [0, 1]) == 100e3
+
+
 def test_build_generic_perfect():
     num_qubits = 2
     cfg = GenericQDeviceConfig.perfect_config(num_qubits)
@@ -146,5 +175,6 @@ def test_build_nv_perfect():
 
 if __name__ == "__main__":
     test_build_from_topology()
+    test_build_perfect_topology()
     test_build_generic_perfect()
     test_build_nv_perfect()

@@ -1,6 +1,13 @@
+import itertools
 import os
 
-from netsquid.components.instructions import INSTR_CNOT, INSTR_X, INSTR_Y, INSTR_Z
+from netsquid.components.instructions import (
+    INSTR_CNOT,
+    INSTR_CZ,
+    INSTR_X,
+    INSTR_Y,
+    INSTR_Z,
+)
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 
 from qoala.runtime.config import TopologyConfig
@@ -141,6 +148,81 @@ def test_find_gates():
     assert topology.find_multi_gate([0, 0], INSTR_CNOT) is None
 
 
+def test_perfect_qubit():
+    qubit_info = LhiTopologyBuilder.perfect_qubit(is_communication=True)
+    assert qubit_info.is_communication
+    assert qubit_info.error_model == T1T2NoiseModel
+    assert qubit_info.error_model_kwargs == {"T1": 0, "T2": 0}
+
+
+def test_perfect_gates():
+    duration = 5e3
+    instructions = [INSTR_X, INSTR_Y, INSTR_Z]
+    gate_infos = LhiTopologyBuilder.perfect_gates(duration, instructions)
+
+    assert gate_infos == [
+        LhiGateInfo(
+            instruction=instr,
+            duration=duration,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={"depolar_rate": 0},
+        )
+        for instr in instructions
+    ]
+
+
+def test_perfect_uniform():
+    num_qubits = 3
+    single_qubit_instructions = [INSTR_X, INSTR_Y, INSTR_Z]
+    single_gate_duration = 5e3
+    two_qubit_instructions = [INSTR_CNOT, INSTR_CZ]
+    two_gate_duration = 2e5
+    topology = LhiTopologyBuilder.perfect_uniform(
+        num_qubits,
+        single_qubit_instructions,
+        single_gate_duration,
+        two_qubit_instructions,
+        two_gate_duration,
+    )
+
+    assert topology.qubit_infos == {
+        i: LhiQubitInfo(
+            is_communication=True,
+            error_model=T1T2NoiseModel,
+            error_model_kwargs={"T1": 0, "T2": 0},
+        )
+        for i in range(num_qubits)
+    }
+
+    assert topology.single_gate_infos == {
+        i: [
+            LhiGateInfo(
+                instruction=instr,
+                duration=single_gate_duration,
+                error_model=DepolarNoiseModel,
+                error_model_kwargs={"depolar_rate": 0},
+            )
+            for instr in single_qubit_instructions
+        ]
+        for i in range(num_qubits)
+    }
+
+    assert topology.multi_gate_infos == {
+        MultiQubit([i, j]): [
+            LhiGateInfo(
+                instruction=instr,
+                duration=two_gate_duration,
+                error_model=DepolarNoiseModel,
+                error_model_kwargs={"depolar_rate": 0},
+            )
+            for instr in two_qubit_instructions
+        ]
+        for i in range(num_qubits)
+        for j in range(num_qubits)
+        if i != j
+    }
+
+
 def test_build_fully_uniform():
     qubit_info = LhiQubitInfo(
         is_communication=True,
@@ -199,4 +281,7 @@ if __name__ == "__main__":
     test_topology_from_config()
     test_topology_from_config_2()
     test_find_gates()
+    test_perfect_qubit()
+    test_perfect_gates()
+    test_perfect_uniform()
     test_build_fully_uniform()
