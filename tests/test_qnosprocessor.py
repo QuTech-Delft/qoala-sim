@@ -613,9 +613,7 @@ def test_wait_all():
         pid=pid, array_id=array_id, start_idx=start_idx, end_idx=end_idx
     )
 
-    processor, unit_module = setup_components(
-        Topology(comm_ids={0}, mem_ids={0}), netstack_result
-    )
+    processor, unit_module = setup_components(uniform_topology(1), netstack_result)
 
     subrt = f"""
     array 10 @{array_id}
