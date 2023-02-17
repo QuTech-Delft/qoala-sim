@@ -10,6 +10,7 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.memmgr import AllocError, MemoryManager
@@ -194,7 +195,8 @@ def setup_components(
     asynchronous: bool = False,
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=NvToNvInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     interface = MockQnosInterface(qdevice, netstack_result)
     processor = QnosProcessor(interface, asynchronous)
     return (processor, unit_module)

@@ -5,6 +5,7 @@ from netqasm.lang.instr.flavour import Flavour, NVFlavour
 
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import (
+    EhiBuilder,
     ExposedGateInfo,
     ExposedHardwareInfo,
     ExposedQubitInfo,
@@ -88,6 +89,157 @@ def test_2_qubits():
     assert um12.info.multi_gate_infos == {}
 
 
+def test_full():
+    ehi = create_ehi()
+    um = UnitModule.from_full_ehi(ehi)
+
+    assert um.info.qubit_infos == {i: qubit_info() for i in range(3)}
+    assert um.info.single_gate_infos == {i: single_gates() for i in range(3)}
+    assert um.info.multi_gate_infos == {
+        MultiQubit([0, 1]): multi_gates(),
+        MultiQubit([1, 0]): multi_gates(),
+    }
+
+
+def test_perfect_qubit():
+    qubit_info = EhiBuilder.perfect_qubit(is_communication=True)
+    assert qubit_info.is_communication
+    assert qubit_info.decoherence_rate == 0
+
+
+def test_perfect_gates():
+    duration = 5e3
+    instructions = [nv.RotXInstruction, nv.RotYInstruction]
+    gate_infos = EhiBuilder.perfect_gates(duration, instructions)
+
+    assert gate_infos == [
+        ExposedGateInfo(instruction=instr, duration=duration, decoherence=0)
+        for instr in instructions
+    ]
+
+
+def test_perfect_uniform():
+    num_qubits = 3
+    single_qubit_instructions = [nv.RotXInstruction, nv.RotYInstruction]
+    single_gate_duration = 5e3
+    two_qubit_instructions = [nv.ControlledRotXInstruction]
+    two_gate_duration = 2e5
+    ehi = EhiBuilder.perfect_uniform(
+        num_qubits,
+        NVFlavour,
+        single_qubit_instructions,
+        single_gate_duration,
+        two_qubit_instructions,
+        two_gate_duration,
+    )
+
+    assert ehi.qubit_infos == {
+        i: ExposedQubitInfo(is_communication=True, decoherence_rate=0)
+        for i in range(num_qubits)
+    }
+
+    assert ehi.single_gate_infos == {
+        i: [
+            ExposedGateInfo(
+                instruction=instr, duration=single_gate_duration, decoherence=0
+            )
+            for instr in single_qubit_instructions
+        ]
+        for i in range(num_qubits)
+    }
+
+    assert ehi.multi_gate_infos == {
+        MultiQubit([i, j]): [
+            ExposedGateInfo(
+                instruction=instr, duration=two_gate_duration, decoherence=0
+            )
+            for instr in two_qubit_instructions
+        ]
+        for i in range(num_qubits)
+        for j in range(num_qubits)
+        if i != j
+    }
+
+
+def test_build_fully_uniform():
+    qubit_info = ExposedQubitInfo(is_communication=True, decoherence_rate=0.01)
+    single_gate_infos = [
+        ExposedGateInfo(instruction=instr, duration=5e3, decoherence=0.02)
+        for instr in [nv.RotXInstruction, nv.RotYInstruction]
+    ]
+    two_gate_infos = [
+        ExposedGateInfo(
+            instruction=nv.ControlledRotXInstruction, duration=2e4, decoherence=0.05
+        )
+    ]
+    ehi = EhiBuilder.fully_uniform(
+        num_qubits=3,
+        flavour=NVFlavour,
+        qubit_info=qubit_info,
+        single_gate_infos=single_gate_infos,
+        two_gate_infos=two_gate_infos,
+    )
+
+    assert len(ehi.qubit_infos) == 3
+    for i in range(3):
+        assert ehi.qubit_infos[i].is_communication
+        single_gates = [info.instruction for info in ehi.single_gate_infos[i]]
+        assert nv.RotXInstruction in single_gates
+        assert nv.RotYInstruction in single_gates
+
+    for i in range(3):
+        for j in range(3):
+            if i == j:
+                continue
+            multi = MultiQubit([i, j])
+            gates = [info.instruction for info in ehi.multi_gate_infos[multi]]
+            assert nv.ControlledRotXInstruction in gates
+
+
+def test_perfect_star():
+    num_qubits = 3
+    comm_instructions = [nv.RotXInstruction, nv.RotYInstruction, nv.RotZInstruction]
+    comm_duration = 5e3
+    mem_instructions = [nv.RotXInstruction, nv.RotYInstruction]
+    mem_duration = 1e4
+    two_instructions = [nv.ControlledRotXInstruction, nv.ControlledRotYInstruction]
+    two_duration = 2e5
+    ehi = EhiBuilder.perfect_star(
+        num_qubits,
+        NVFlavour,
+        comm_instructions,
+        comm_duration,
+        mem_instructions,
+        mem_duration,
+        two_instructions,
+        two_duration,
+    )
+
+    assert ehi.qubit_infos[0] == EhiBuilder.perfect_qubit(is_communication=True)
+
+    for i in range(1, num_qubits):
+        assert ehi.qubit_infos[i] == EhiBuilder.perfect_qubit(is_communication=False)
+
+    assert ehi.single_gate_infos[0] == EhiBuilder.perfect_gates(
+        comm_duration, [nv.RotXInstruction, nv.RotYInstruction, nv.RotZInstruction]
+    )
+    for i in range(1, num_qubits):
+        assert ehi.single_gate_infos[i] == EhiBuilder.perfect_gates(
+            mem_duration, [nv.RotXInstruction, nv.RotYInstruction]
+        )
+
+    for i in range(1, num_qubits):
+        assert ehi.multi_gate_infos[MultiQubit([0, i])] == EhiBuilder.perfect_gates(
+            two_duration, [nv.ControlledRotXInstruction, nv.ControlledRotYInstruction]
+        )
+
+
 if __name__ == "__main__":
     test_1_qubit()
     test_2_qubits()
+    test_full()
+    test_perfect_qubit()
+    test_perfect_gates()
+    test_perfect_uniform()
+    test_build_fully_uniform()
+    test_perfect_star()

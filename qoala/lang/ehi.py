@@ -37,6 +37,90 @@ class ExposedHardwareInfo:
     ]  # ordered qubit ID list -> gates
 
 
+class EhiBuilder:
+    @classmethod
+    def perfect_qubit(cls, is_communication: bool) -> ExposedQubitInfo:
+        return ExposedQubitInfo(is_communication=is_communication, decoherence_rate=0)
+
+    @classmethod
+    def perfect_gates(
+        cls, duration: int, instructions: List[Type[NetQASMInstruction]]
+    ) -> List[ExposedGateInfo]:
+        return [
+            ExposedGateInfo(instruction=instr, duration=duration, decoherence=0)
+            for instr in instructions
+        ]
+
+    @classmethod
+    def perfect_uniform(
+        cls,
+        num_qubits,
+        flavour: Type[Flavour],
+        single_instructions: List[Type[NetQASMInstruction]],
+        single_duration: int,
+        two_instructions: List[Type[NetQASMInstruction]],
+        two_duration: int,
+    ) -> ExposedHardwareInfo:
+        return cls.fully_uniform(
+            num_qubits=num_qubits,
+            flavour=flavour,
+            qubit_info=cls.perfect_qubit(is_communication=True),
+            single_gate_infos=cls.perfect_gates(single_duration, single_instructions),
+            two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
+        )
+
+    @classmethod
+    def fully_uniform(
+        cls,
+        num_qubits,
+        qubit_info: ExposedQubitInfo,
+        flavour: Type[Flavour],
+        single_gate_infos: List[ExposedGateInfo],
+        two_gate_infos: List[ExposedGateInfo],
+    ) -> ExposedHardwareInfo:
+        q_infos = {i: qubit_info for i in range(num_qubits)}
+        sg_infos = {i: single_gate_infos for i in range(num_qubits)}
+        mg_infos = {}
+        for i in range(num_qubits):
+            for j in range(num_qubits):
+                if i != j:
+                    multi = MultiQubit([i, j])
+                    mg_infos[multi] = two_gate_infos
+        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos)
+
+    @classmethod
+    def perfect_star(
+        cls,
+        num_qubits: int,
+        flavour: Type[Flavour],
+        comm_instructions: List[Type[NetQASMInstruction]],
+        comm_duration: int,
+        mem_instructions: List[Type[NetQASMInstruction]],
+        mem_duration: int,
+        two_instructions: List[Type[NetQASMInstruction]],
+        two_duration: int,
+    ) -> ExposedHardwareInfo:
+        comm_qubit_info = cls.perfect_qubit(is_communication=True)
+        mem_qubit_info = cls.perfect_qubit(is_communication=False)
+        comm_gate_infos = cls.perfect_gates(comm_duration, comm_instructions)
+        mem_gate_infos = cls.perfect_gates(mem_duration, mem_instructions)
+        two_gate_infos = cls.perfect_gates(two_duration, two_instructions)
+
+        q_infos = {0: comm_qubit_info}
+        for i in range(1, num_qubits):
+            q_infos[i] = mem_qubit_info
+
+        sg_infos = {0: comm_gate_infos}
+        for i in range(1, num_qubits):
+            sg_infos[i] = mem_gate_infos
+
+        mg_infos = {}
+        for i in range(1, num_qubits):
+            mg_infos[MultiQubit([0, i])] = two_gate_infos
+
+        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos)
+
+
 @dataclass(eq=True, frozen=True)
 class UnitModule:
     """Virtual memory space for programs. Target for a compiler.
@@ -69,3 +153,12 @@ class UnitModule:
                 qubit_infos, ehi.flavour, single_gate_infos, multi_gate_infos
             )
         )
+
+    @classmethod
+    def from_full_ehi(cls, ehi: ExposedHardwareInfo) -> UnitModule:
+        """Use the full ExposedHardwareInfo"""
+        qubit_ids = [i for i in ehi.qubit_infos.keys()]
+        return cls.from_ehi(ehi, qubit_ids)
+
+    def get_all_qubit_ids(self) -> List[int]:
+        return self.info.qubit_infos.keys()

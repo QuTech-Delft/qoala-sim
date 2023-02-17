@@ -46,17 +46,17 @@ class MemoryManager:
         self._qdevice = qdevice
         self._process_mappings: Dict[int, VirtualMapping] = {}  # pid -> mapping
         self._physical_mapping: Dict[int, Optional[VirtualLocation]] = {
-            i: None for i in qdevice.all_qubit_ids
+            i: None for i in qdevice.get_all_qubit_ids()
         }  # phys ID -> virt location
 
     def _get_free_comm_phys_id(self) -> int:
-        for phys_id in self._qdevice.comm_qubit_ids:
+        for phys_id in self._qdevice.get_comm_qubit_ids():
             if self._physical_mapping[phys_id] is None:
                 return phys_id  # type: ignore
         raise AllocError
 
     def _get_free_mem_phys_id(self) -> int:
-        for phys_id in self._qdevice.mem_qubit_ids:
+        for phys_id in self._qdevice.get_non_comm_qubit_ids():
             if self._physical_mapping[phys_id] is None:
                 return phys_id  # type: ignore
         raise AllocError
@@ -65,7 +65,7 @@ class MemoryManager:
         self._processes[process.pid] = process
         unit_module = process.prog_memory.quantum_mem.unit_module
         self._process_mappings[process.pid] = VirtualMapping(
-            unit_module, {x: None for x in unit_module.qubit_ids}
+            unit_module, {x: None for x in unit_module.get_all_qubit_ids()}
         )
 
     def get_process(self, pid: int) -> IqoalaProcess:
@@ -74,7 +74,7 @@ class MemoryManager:
     def allocate(self, pid: int, virt_id: int) -> int:
         vmap = self._process_mappings[pid]
         # Check if the virtual ID is in the unit module
-        if virt_id not in vmap.unit_module.qubit_ids:
+        if virt_id not in vmap.unit_module.get_all_qubit_ids():
             raise AllocError
 
         # Check whether this virt ID is already mapped to a physical qubit.
@@ -107,7 +107,7 @@ class MemoryManager:
     def free(self, pid: int, virt_id: int) -> None:
         vmap = self._process_mappings[pid]
         # Check if the virtual ID is in the unit module
-        assert virt_id in vmap.unit_module.qubit_ids
+        assert virt_id in vmap.unit_module.get_all_qubit_ids()
         assert virt_id in self._process_mappings[pid].mapping
 
         phys_id = self._process_mappings[pid].mapping[virt_id]
