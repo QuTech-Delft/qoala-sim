@@ -1,8 +1,20 @@
 import abc
 from typing import Any, Dict, Type
 
+from netqasm.lang.instr import core, nv, vanilla
 from netqasm.lang.instr.base import NetQASMInstruction
-from netqasm.lang.instr.flavour import Flavour
+from netqasm.lang.instr.flavour import Flavour, NVFlavour
+from netsquid.components.instructions import (
+    INSTR_CNOT,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
+    INSTR_CZ,
+    INSTR_INIT,
+    INSTR_MEASURE,
+    INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
+)
 from netsquid.components.instructions import Instruction as NetSquidInstruction
 from netsquid.components.models.qerrormodels import (
     DepolarNoiseModel,
@@ -24,6 +36,26 @@ class NativeToFlavourInterface(abc.ABC):
         """Responsiblity of implementor that return instructions are of the
         flavour returned by flavour()."""
         raise NotImplementedError
+
+
+class NvToNvInterface(NativeToFlavourInterface):
+    _MAP: Dict[Type[NetSquidInstruction], Type[NetQASMInstruction]] = {
+        INSTR_INIT: core.InitInstruction,
+        INSTR_ROT_X: nv.RotXInstruction,
+        INSTR_ROT_Y: nv.RotYInstruction,
+        INSTR_ROT_Z: nv.RotZInstruction,
+        INSTR_CXDIR: nv.ControlledRotXInstruction,
+        INSTR_CYDIR: nv.ControlledRotYInstruction,
+        INSTR_MEASURE: core.MeasInstruction,
+    }
+
+    def flavour(self) -> Type[Flavour]:
+        return NVFlavour
+
+    def map(self, ns_instr: Type[NetSquidInstruction]) -> Type[NetQASMInstruction]:
+        """Responsiblity of implementor that return instructions are of the
+        flavour returned by flavour()."""
+        return self._MAP[ns_instr]
 
 
 class LhiConverter:
@@ -62,7 +94,9 @@ class LhiConverter:
     def to_ehi(
         cls, topology: LhiTopology, ntf: NativeToFlavourInterface
     ) -> ExposedHardwareInfo:
-        qubit_infos = [cls.qubit_info_to_ehi(qi) for qi in topology.qubit_infos]
+        qubit_infos = {
+            id: cls.qubit_info_to_ehi(qi) for (id, qi) in topology.qubit_infos.items()
+        }
         single_gate_infos = {
             id: [cls.gate_info_to_ehi(gi, ntf) for gi in gis]
             for (id, gis) in topology.single_gate_infos.items()

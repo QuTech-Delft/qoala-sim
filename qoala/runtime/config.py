@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from abc import ABC, abstractclassmethod, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -21,11 +20,11 @@ from netsquid.components.models.qerrormodels import (
 )
 from pydantic import BaseModel as PydanticBaseModel
 
+from qoala.lang.common import MultiQubit
 from qoala.runtime.lhi import (
     LhiGateConfigInterface,
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
-    MultiQubit,
 )
 
 

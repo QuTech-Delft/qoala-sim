@@ -19,6 +19,7 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 
+from qoala.lang.common import MultiQubit
 from qoala.runtime.config import (
     BaseModel,
     DepolariseLinkConfig,
@@ -36,7 +37,6 @@ from qoala.runtime.config import (
     SingleGateConfig,
     TopologyConfig,
 )
-from qoala.runtime.lhi import LhiGateConfigInterface, MultiQubit
 
 
 def relative_path(path: str) -> str:

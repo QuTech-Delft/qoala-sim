@@ -2,7 +2,6 @@
 from abc import ABC, abstractmethod
 from ast import Mult
 from dataclasses import dataclass
-from operator import is_
 from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 from netsquid.components.instructions import (
@@ -20,15 +19,9 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 
+from qoala.lang.common import MultiQubit
+
 # Config Interface
-
-
-@dataclass(eq=True, frozen=True)
-class MultiQubit:
-    qubit_ids: List[int]
-
-    def __hash__(self) -> int:
-        return hash(tuple(self.qubit_ids))
 
 
 class LhiQubitConfigInterface(ABC):

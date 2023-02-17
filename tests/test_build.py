@@ -17,6 +17,7 @@ from netsquid.components.models.qerrormodels import (
 )
 from netsquid.components.qprocessor import MissingInstructionError, QuantumProcessor
 
+from qoala.lang.common import MultiQubit
 from qoala.runtime.config import (
     DepolariseLinkConfig,
     GateConfig,
@@ -30,13 +31,7 @@ from qoala.runtime.config import (
     SingleGateConfig,
     TopologyConfig,
 )
-from qoala.runtime.lhi import (
-    LhiGateInfo,
-    LhiQubitInfo,
-    LhiTopology,
-    LhiTopologyBuilder,
-    MultiQubit,
-)
+from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology, LhiTopologyBuilder
 from qoala.sim.build import (
     build_generic_qprocessor,
     build_nv_qprocessor,

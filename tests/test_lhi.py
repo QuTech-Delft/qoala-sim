@@ -10,14 +10,9 @@ from netsquid.components.instructions import (
 )
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 
+from qoala.lang.common import MultiQubit
 from qoala.runtime.config import TopologyConfig
-from qoala.runtime.lhi import (
-    LhiGateInfo,
-    LhiQubitInfo,
-    LhiTopology,
-    LhiTopologyBuilder,
-    MultiQubit,
-)
+from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology, LhiTopologyBuilder
 
 
 def relative_path(path: str) -> str:

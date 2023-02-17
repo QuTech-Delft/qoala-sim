@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
+
+from qoala.lang.common import MultiQubit
 
 
 @dataclass(eq=True, frozen=True)
@@ -15,7 +19,7 @@ class ExposedQubitInfo:
 class ExposedGateInfo:
     instruction: Type[NetQASMInstruction]
     duration: int  # ns
-    decoherence: List[int]  # rate per second, per qubit ID (same order as `ids`)
+    decoherence: int  # rate per second, for all qubits
 
 
 @dataclass(eq=True, frozen=True)
@@ -29,7 +33,7 @@ class ExposedHardwareInfo:
     ]  # set of NetQASM instrs, no info about which qubits can do what instr
     single_gate_infos: Dict[int, List[ExposedGateInfo]]  # qubit ID -> gates
     multi_gate_infos: Dict[
-        Tuple[int, ...], List[ExposedGateInfo]
+        MultiQubit, List[ExposedGateInfo]
     ]  # ordered qubit ID list -> gates
 
 
@@ -48,3 +52,20 @@ class UnitModule:
 
     def is_communication(self, qubit_id: int) -> bool:
         return self.info.qubit_infos[qubit_id].is_communication
+
+    @classmethod
+    def from_ehi(cls, ehi: ExposedHardwareInfo, qubit_ids: List[int]) -> UnitModule:
+        """Get a subset of an ExposedHardwareInfo"""
+        qubit_infos = {i: ehi.qubit_infos[i] for i in qubit_ids}
+        single_gate_infos = {i: ehi.single_gate_infos[i] for i in qubit_ids}
+        multi_gate_infos = {
+            ids: info
+            for (ids, info) in ehi.multi_gate_infos.items()
+            if all(id in qubit_ids for id in ids.qubit_ids)
+        }
+
+        return UnitModule(
+            info=ExposedHardwareInfo(
+                qubit_infos, ehi.flavour, single_gate_infos, multi_gate_infos
+            )
+        )
