@@ -150,6 +150,13 @@ def test_perfect_qubit():
     assert qubit_info.error_model_kwargs == {"T1": 0, "T2": 0}
 
 
+def test_t1t2_qubit():
+    qubit_info = LhiTopologyBuilder.t1t2_qubit(is_communication=True, t1=1e3, t2=1e4)
+    assert qubit_info.is_communication
+    assert qubit_info.error_model == T1T2NoiseModel
+    assert qubit_info.error_model_kwargs == {"T1": 1e3, "T2": 1e4}
+
+
 def test_perfect_gates():
     duration = 5e3
     instructions = [INSTR_X, INSTR_Y, INSTR_Z]
@@ -161,6 +168,24 @@ def test_perfect_gates():
             duration=duration,
             error_model=DepolarNoiseModel,
             error_model_kwargs={"depolar_rate": 0},
+        )
+        for instr in instructions
+    ]
+
+
+def test_depolar_gates():
+    duration = 5e3
+    instructions = [INSTR_X, INSTR_Y, INSTR_Z]
+    gate_infos = LhiTopologyBuilder.depolar_gates(
+        duration, instructions, depolar_rate=0.4
+    )
+
+    assert gate_infos == [
+        LhiGateInfo(
+            instruction=instr,
+            duration=duration,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={"depolar_rate": 0.4},
         )
         for instr in instructions
     ]
@@ -312,13 +337,73 @@ def test_perfect_star():
         ] == LhiTopologyBuilder.perfect_gates(two_duration, [INSTR_CNOT, INSTR_CZ])
 
 
+def test_generic_t1t2_star():
+    num_qubits = 3
+    comm_t1 = 1e8
+    comm_t2 = 2e8
+    mem_t1 = 1e9
+    mem_t2 = 2e9
+    comm_instructions = [INSTR_X, INSTR_Y, INSTR_Z]
+    comm_duration = 5e3
+    comm_instr_depolar_rate = 0.2
+    mem_instructions = [INSTR_X, INSTR_Y]
+    mem_duration = 1e4
+    mem_instr_depolar_rate = 0.3
+    two_instructions = [INSTR_CNOT, INSTR_CZ]
+    two_duration = 2e5
+    two_instr_depolar_rate = 0.4
+    topology = LhiTopologyBuilder.generic_t1t2_star(
+        num_qubits,
+        comm_t1,
+        comm_t2,
+        mem_t1,
+        mem_t2,
+        comm_instructions,
+        comm_duration,
+        comm_instr_depolar_rate,
+        mem_instructions,
+        mem_duration,
+        mem_instr_depolar_rate,
+        two_instructions,
+        two_duration,
+        two_instr_depolar_rate,
+    )
+
+    assert topology.qubit_infos[0] == LhiTopologyBuilder.t1t2_qubit(
+        is_communication=True, t1=comm_t1, t2=comm_t2
+    )
+
+    for i in range(1, num_qubits):
+        assert topology.qubit_infos[i] == LhiTopologyBuilder.t1t2_qubit(
+            is_communication=False, t1=mem_t1, t2=mem_t2
+        )
+
+    assert topology.single_gate_infos[0] == LhiTopologyBuilder.depolar_gates(
+        comm_duration, [INSTR_X, INSTR_Y, INSTR_Z], comm_instr_depolar_rate
+    )
+    for i in range(1, num_qubits):
+        assert topology.single_gate_infos[i] == LhiTopologyBuilder.depolar_gates(
+            mem_duration, [INSTR_X, INSTR_Y], mem_instr_depolar_rate
+        )
+
+    for i in range(1, num_qubits):
+        assert topology.multi_gate_infos[
+            MultiQubit([0, i])
+        ] == LhiTopologyBuilder.depolar_gates(
+            two_duration, [INSTR_CNOT, INSTR_CZ], two_instr_depolar_rate
+        )
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
     test_topology_from_config_2()
     test_find_gates()
     test_perfect_qubit()
+    test_t1t2_qubit()
     test_perfect_gates()
+    test_depolar_gates()
     test_perfect_uniform()
     test_build_fully_uniform()
     test_perfect_star()
+    test_generic_t1t2_star()

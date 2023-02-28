@@ -3,17 +3,21 @@ from typing import Any, Dict, Type
 
 from netqasm.lang.instr import core, nv, vanilla
 from netqasm.lang.instr.base import NetQASMInstruction
-from netqasm.lang.instr.flavour import Flavour, NVFlavour
+from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
     INSTR_CYDIR,
     INSTR_CZ,
+    INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,
     INSTR_ROT_Y,
     INSTR_ROT_Z,
+    INSTR_X,
+    INSTR_Y,
+    INSTR_Z,
 )
 from netsquid.components.instructions import Instruction as NetSquidInstruction
 from netsquid.components.models.qerrormodels import (
@@ -36,6 +40,29 @@ class NativeToFlavourInterface(abc.ABC):
         """Responsiblity of implementor that return instructions are of the
         flavour returned by flavour()."""
         raise NotImplementedError
+
+
+class GenericToVanillaInterface(NativeToFlavourInterface):
+    _MAP: Dict[Type[NetSquidInstruction], Type[NetQASMInstruction]] = {
+        INSTR_INIT: core.InitInstruction,
+        INSTR_X: vanilla.GateXInstruction,
+        INSTR_Y: vanilla.GateYInstruction,
+        INSTR_Z: vanilla.GateZInstruction,
+        INSTR_H: vanilla.GateHInstruction,
+        INSTR_ROT_X: vanilla.RotXInstruction,
+        INSTR_ROT_Y: vanilla.RotYInstruction,
+        INSTR_ROT_Z: vanilla.RotZInstruction,
+        INSTR_CNOT: vanilla.CnotInstruction,
+        INSTR_MEASURE: core.MeasInstruction,
+    }
+
+    def flavour(self) -> Type[Flavour]:
+        return VanillaFlavour
+
+    def map(self, ns_instr: Type[NetSquidInstruction]) -> Type[NetQASMInstruction]:
+        """Responsiblity of implementor that return instructions are of the
+        flavour returned by flavour()."""
+        return self._MAP[ns_instr]
 
 
 class NvToNvInterface(NativeToFlavourInterface):

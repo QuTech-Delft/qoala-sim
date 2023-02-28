@@ -39,17 +39,40 @@ class ExposedHardwareInfo:
 
 class EhiBuilder:
     @classmethod
+    def decoherence_qubit(
+        cls, is_communication: bool, decoherence_rate: float
+    ) -> ExposedQubitInfo:
+        return ExposedQubitInfo(
+            is_communication=is_communication, decoherence_rate=decoherence_rate
+        )
+
+    @classmethod
     def perfect_qubit(cls, is_communication: bool) -> ExposedQubitInfo:
-        return ExposedQubitInfo(is_communication=is_communication, decoherence_rate=0)
+        return cls.decoherence_qubit(
+            is_communication=is_communication, decoherence_rate=0
+        )
+
+    @classmethod
+    def decoherence_gates(
+        cls,
+        duration: int,
+        instructions: List[Type[NetQASMInstruction]],
+        decoherence: float,
+    ) -> List[ExposedGateInfo]:
+        return [
+            ExposedGateInfo(
+                instruction=instr, duration=duration, decoherence=decoherence
+            )
+            for instr in instructions
+        ]
 
     @classmethod
     def perfect_gates(
         cls, duration: int, instructions: List[Type[NetQASMInstruction]]
     ) -> List[ExposedGateInfo]:
-        return [
-            ExposedGateInfo(instruction=instr, duration=duration, decoherence=0)
-            for instr in instructions
-        ]
+        return cls.decoherence_gates(
+            duration=duration, instructions=instructions, decoherence=0
+        )
 
     @classmethod
     def perfect_uniform(
@@ -105,6 +128,53 @@ class EhiBuilder:
         comm_gate_infos = cls.perfect_gates(comm_duration, comm_instructions)
         mem_gate_infos = cls.perfect_gates(mem_duration, mem_instructions)
         two_gate_infos = cls.perfect_gates(two_duration, two_instructions)
+
+        q_infos = {0: comm_qubit_info}
+        for i in range(1, num_qubits):
+            q_infos[i] = mem_qubit_info
+
+        sg_infos = {0: comm_gate_infos}
+        for i in range(1, num_qubits):
+            sg_infos[i] = mem_gate_infos
+
+        mg_infos = {}
+        for i in range(1, num_qubits):
+            mg_infos[MultiQubit([0, i])] = two_gate_infos
+
+        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos)
+
+    @classmethod
+    def generic_t1t2_star(
+        cls,
+        num_qubits: int,
+        flavour: Type[Flavour],
+        comm_decoherence: float,
+        mem_decoherence: float,
+        comm_instructions: List[Type[NetQASMInstruction]],
+        comm_duration: int,
+        comm_instr_decoherence: float,
+        mem_instructions: List[Type[NetQASMInstruction]],
+        mem_duration: int,
+        mem_instr_decoherence: float,
+        two_instructions: List[Type[NetQASMInstruction]],
+        two_duration: int,
+        two_instr_decoherence: float,
+    ) -> ExposedHardwareInfo:
+        comm_qubit_info = cls.decoherence_qubit(
+            is_communication=True, decoherence_rate=comm_decoherence
+        )
+        mem_qubit_info = cls.decoherence_qubit(
+            is_communication=False, decoherence_rate=mem_decoherence
+        )
+        comm_gate_infos = cls.decoherence_gates(
+            comm_duration, comm_instructions, comm_instr_decoherence
+        )
+        mem_gate_infos = cls.decoherence_gates(
+            mem_duration, mem_instructions, mem_instr_decoherence
+        )
+        two_gate_infos = cls.decoherence_gates(
+            two_duration, two_instructions, two_instr_decoherence
+        )
 
         q_infos = {0: comm_qubit_info}
         for i in range(1, num_qubits):

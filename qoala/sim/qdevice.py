@@ -27,11 +27,7 @@ class QDeviceCommand:
 
 
 class QDevice:
-    def __init__(
-        self,
-        node: Node,
-        topology: LhiTopology,
-    ) -> None:
+    def __init__(self, node: Node, topology: LhiTopology) -> None:
         self._node = node
         self._topology = topology
 
