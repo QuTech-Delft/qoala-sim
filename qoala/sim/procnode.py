@@ -8,6 +8,7 @@ from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
 from qoala.runtime.environment import GlobalEnvironment, LocalEnvironment
 from qoala.runtime.lhi import LhiTopology
+from qoala.runtime.lhi_to_ehi import NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.schedule import Schedule, ScheduleSolver
 from qoala.sim.egp import EgpProtocol
@@ -33,8 +34,8 @@ class ProcNode(Protocol):
         global_env: GlobalEnvironment,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
+        ntf_interface: NativeToFlavourInterface,
         node: Optional[ProcNodeComponent] = None,
-        qdevice_type: Optional[str] = "generic",
         node_id: Optional[int] = None,
         scheduler: Optional[Scheduler] = None,
         asynchronous: bool = False,
@@ -62,6 +63,7 @@ class ProcNode(Protocol):
 
         self._global_env = global_env
         self._local_env = LocalEnvironment(global_env, global_env.get_node_id(name))
+        self._ntf_interface = ntf_interface
         self._asynchronous = asynchronous
 
         # Create internal components.
@@ -75,6 +77,7 @@ class ProcNode(Protocol):
             self._local_env,
             self._memmgr,
             self._qdevice,
+            self._ntf_interface,
             self._asynchronous,
         )
         self._netstack = Netstack(

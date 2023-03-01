@@ -4,7 +4,21 @@ from typing import Dict, Optional, Tuple
 
 import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
-from netsquid.components.instructions import INSTR_I, INSTR_INIT, INSTR_X, INSTR_Z
+from netsquid.components.instructions import (
+    INSTR_CNOT,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
+    INSTR_H,
+    INSTR_I,
+    INSTR_INIT,
+    INSTR_MEASURE,
+    INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
+    INSTR_X,
+    INSTR_Y,
+    INSTR_Z,
+)
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
 from netsquid.components.qprogram import QuantumProgram
@@ -13,13 +27,15 @@ from netsquid.qubits import ketstates, qubitapi
 
 from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
 from qoala.runtime.config import GenericQDeviceConfig
+from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.build import build_generic_qprocessor
+from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import GenericPhysicalQuantumMemory, QDevice, QDeviceType
+from qoala.sim.qdevice import QDevice
 from qoala.sim.qmem import UnitModule
 from qoala.sim.qnoscomp import QnosComponent
 from qoala.sim.qnosinterface import QnosInterface
@@ -27,22 +43,44 @@ from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor
 from qoala.util.tests import has_max_mixed_state, has_state, netsquid_run, netsquid_wait
 
 
-def noisy_generic_qdevice(num_qubits: int) -> QDevice:
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    cfg.T1 = 1
-    cfg.T2 = 1
-    processor = build_generic_qprocessor(name="processor", cfg=cfg)
-    node = Node(name="alice", qmemory=processor)
-    return QDevice(
-        node=node,
-        typ=QDeviceType.GENERIC,
-        memory=GenericPhysicalQuantumMemory(num_qubits),
+def uniform_qdevice_noisy_qubits(num_qubits: int) -> QDevice:
+    qubit_info = LhiTopologyBuilder.t1t2_qubit(is_communication=True, t1=1, t2=1)
+    single_gate_infos = LhiTopologyBuilder.perfect_gates(
+        duration=1e4,
+        instructions=[
+            INSTR_INIT,
+            INSTR_X,
+            INSTR_Y,
+            INSTR_Z,
+            INSTR_H,
+            INSTR_ROT_X,
+            INSTR_ROT_Y,
+            INSTR_ROT_Z,
+            INSTR_MEASURE,
+        ],
     )
+    two_gate_infos = LhiTopologyBuilder.perfect_gates(
+        duration=1e5,
+        instructions=[
+            INSTR_CNOT,
+        ],
+    )
+
+    topology = LhiTopologyBuilder.fully_uniform(
+        num_qubits=num_qubits,
+        qubit_info=qubit_info,
+        single_gate_infos=single_gate_infos,
+        two_gate_infos=two_gate_infos,
+    )
+    processor = build_qprocessor_from_topology(name="processor", topology=topology)
+    node = Node(name="alice", qmemory=processor)
+    return QDevice(node=node, topology=topology)
 
 
 def setup_noisy_components(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
-    qdevice = noisy_generic_qdevice(num_qubits)
-    unit_module = UnitModule.default_generic(num_qubits)
+    qdevice = uniform_qdevice_noisy_qubits(num_qubits)
+    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
