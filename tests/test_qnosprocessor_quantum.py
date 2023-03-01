@@ -35,7 +35,7 @@ from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import AllocError, MemoryManager, NotAllocatedError
 from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import QDevice
+from qoala.sim.qdevice import QDevice, UnsupportedQDeviceCommandError
 from qoala.sim.qmem import UnitModule
 from qoala.sim.qnoscomp import QnosComponent
 from qoala.sim.qnosinterface import QnosInterface
@@ -299,17 +299,6 @@ def test_single_gates_generic():
     execute_process(processor, process)
 
     # Qubit should be back in |0>
-    qubit = processor.qdevice.get_local_qubit(phys_id)
-    assert has_state(qubit, ketstates.s0)
-
-    # New subroutine: apply Z.
-    subrt = """
-    z Q0
-    """
-    set_new_vanilla_subroutine(process, subrt)
-    execute_process(processor, process)
-
-    # Qubit should still be in |0>
     qubit = processor.qdevice.get_local_qubit(phys_id)
     assert has_state(qubit, ketstates.s0)
 
@@ -597,8 +586,12 @@ def test_multiple_processes_generic():
     assert has_state(phys_qubit_0, ketstates.s0)
 
 
-def test_single_gates_nv():
+def test_single_gates_nv_comm():
     num_qubits = 3
+
+    # Set up a NV processor where
+    # - comm qubit can only do ROT_X and ROT_Y
+    # - mem qubit can do ROT_X, ROT_Y, ROT_Z
     processor, unit_module = setup_components_nv_star(num_qubits)
 
     subrt = """
@@ -619,7 +612,7 @@ def test_single_gates_nv():
     qubit = processor.qdevice.get_local_qubit(phys_id)
     assert has_state(qubit, ketstates.s1)
 
-    # New subroutine: apply X.
+    # New subroutine: apply rot_x on qubit 0 (comm).
     subrt = """
     rot_x Q0 16 4
     """
@@ -630,20 +623,19 @@ def test_single_gates_nv():
     qubit = processor.qdevice.get_local_qubit(phys_id)
     assert has_state(qubit, ketstates.s0)
 
-    # New subroutine: apply Z.
+    # New subroutine: apply rot_z on qubit 0 (comm). Should not be allowed.
     subrt = """
     rot_z Q0 16 4
     """
     set_new_nv_subroutine(process, subrt)
-    execute_process(processor, process)
+    with pytest.raises(UnsupportedQDeviceCommandError):
+        execute_process(processor, process)
 
-    # Qubit should still be in |0>
-    qubit = processor.qdevice.get_local_qubit(phys_id)
-    assert has_state(qubit, ketstates.s0)
-
-    # New subroutine: apply Z.
+    # New subroutine: apply rot_z on qubit 0 (comm), decomposed as rot_x and rot_y.
     subrt = """
-    rot_z Q0 16 4
+    rot_x Q0 24 4
+    rot_y Q0 16 4
+    rot_x Q0 8 4
     """
     set_new_nv_subroutine(process, subrt)
     execute_process(processor, process)
@@ -664,10 +656,12 @@ def test_single_gates_nv():
     qubit = processor.qdevice.get_local_qubit(phys_id)
     assert has_state(qubit, ketstates.h0)
 
-    # New subroutine: apply -PI/2 Z-rotation.
+    # New subroutine: apply -PI/2 Z-rotation, decomposed as X-rotations and Y-rotation.
     # -pi/2 = 24 / 2^4 * pi
     subrt = """
-    rot_z Q0 24 4
+    rot_x Q0 24 4
+    rot_y Q0 24 4
+    rot_x Q0 8 4
     """
     set_new_nv_subroutine(process, subrt)
     execute_process(processor, process)
@@ -675,6 +669,194 @@ def test_single_gates_nv():
     # Qubit should be in |-i>
     qubit = processor.qdevice.get_local_qubit(phys_id)
     assert has_state(qubit, ketstates.y1)
+
+
+def test_single_gates_nv_mem():
+    num_qubits = 3
+
+    # Set up a NV processor where
+    # - comm qubit can only do ROT_X and ROT_Y
+    # - mem qubit can do ROT_X, ROT_Y, ROT_Z
+    processor, unit_module = setup_components_nv_star(num_qubits)
+
+    subrt = """
+    set Q1 1
+    qalloc Q1
+    init Q1
+    rot_x Q1 16 4
+    """
+
+    process = create_process_with_nv_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+
+    # Check if qubit with virt ID 1 has been initialized.
+    phys_id = processor._interface.memmgr.phys_id_for(process.pid, virt_id=1)
+
+    # Qubit should be in |1>
+    qubit = processor.qdevice.get_local_qubit(phys_id)
+    assert has_state(qubit, ketstates.s1)
+
+    # New subroutine: apply rot_x on qubit 1 (mem).
+    subrt = """
+    rot_x Q1 16 4
+    """
+    set_new_nv_subroutine(process, subrt)
+    execute_process(processor, process)
+
+    # Qubit should be back in |0>
+    qubit = processor.qdevice.get_local_qubit(phys_id)
+    assert has_state(qubit, ketstates.s0)
+
+    # New subroutine: apply rot_z on qubit 1 (mem). Should be allowed.
+    subrt = """
+    rot_z Q1 16 4
+    """
+    set_new_nv_subroutine(process, subrt)
+    execute_process(processor, process)
+
+    # Qubit should still be in |0>
+    qubit = processor.qdevice.get_local_qubit(phys_id)
+    assert has_state(qubit, ketstates.s0)
+
+    # New subroutine: apply PI/2 Y-rotation.
+    # pi/2 = 8 / 2^4 * pi
+    subrt = """
+    rot_y Q1 8 4
+    """
+    set_new_nv_subroutine(process, subrt)
+    execute_process(processor, process)
+
+    # Qubit should be in |+>
+    qubit = processor.qdevice.get_local_qubit(phys_id)
+    assert has_state(qubit, ketstates.h0)
+
+    # New subroutine: apply -PI/2 Z-rotation.
+    # -pi/2 = 24 / 2^4 * pi
+    subrt = """
+    rot_z Q1 24 4
+    """
+    set_new_nv_subroutine(process, subrt)
+    execute_process(processor, process)
+
+    # Qubit should be in |-i>
+    qubit = processor.qdevice.get_local_qubit(phys_id)
+    assert has_state(qubit, ketstates.y1)
+
+
+def test_two_qubit_gates_nv():
+    num_qubits = 3
+    processor, unit_module = setup_components_nv_star(num_qubits)
+
+    # Initialize q0 and q1. Apply CROT_X (angle 0) between q0 and q1.
+    subrt = """
+    set Q0 0
+    qalloc Q0
+    init Q0
+    set Q1 1
+    qalloc Q1
+    init Q1
+    crot_x Q0 Q1 0 4
+    """
+
+    process = create_process_with_nv_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+
+    # Check if qubit with virt ID 0 has been initialized.
+    phys_id0 = processor._interface.memmgr.phys_id_for(process.pid, virt_id=0)
+    # Check if qubit with virt ID 1 has been initialized.
+    phys_id1 = processor._interface.memmgr.phys_id_for(process.pid, virt_id=1)
+
+    # Virtual qubit 0 should be in |0>
+    q0 = processor.qdevice.get_local_qubit(phys_id0)
+    assert has_state(q0, ketstates.s0)
+
+    # Virtual qubit 1 should be in |0>
+    q1 = processor.qdevice.get_local_qubit(phys_id1)
+    assert has_state(q1, ketstates.s0)
+
+    # New subroutine: apply CNOT between q0 and q1.
+    # Should not be allowed because CNOT is not in NV flavour.
+    subrt = """
+    cnot Q0 Q1
+    """
+    # parse as vanilla just to check that NVProcessor cannot handle it
+    # (parsing as NV will already give a parsing error)
+    set_new_vanilla_subroutine(process, subrt)
+    with pytest.raises(
+        NotImplementedError
+    ):  # NVProcessor does not implement _interpret_single_qubit_instr
+        execute_process(processor, process)
+
+    # New subroutine: apply H to q0 and CNOT between q0 and q1, decomposed using NV gates.
+    subrt = """
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    crot_x Q0 Q1 8 4
+    rot_x Q0 24 4
+    rot_y Q0 24 4
+    rot_x Q0 8 4
+    rot_x Q1 24 4
+    """
+    set_new_nv_subroutine(process, subrt)
+    execute_process(processor, process)
+
+    # q0 and q1 should be maximally entangled
+    [q0, q1] = processor.qdevice.get_local_qubits([phys_id0, phys_id1])
+    assert has_multi_state([q0, q1], ketstates.b00)
+
+    # New subroutine: apply CNOT between q1 and q0, decomposed using NV gates.
+    subrt = """
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    rot_y Q1 8 4
+    crot_x Q0 Q1 8 4
+    rot_x Q0 24 4
+    rot_y Q0 24 4
+    rot_x Q0 8 4
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    rot_x Q1 24 4
+    rot_y Q1 24 4
+    """
+    set_new_nv_subroutine(process, subrt)
+    execute_process(processor, process)
+
+    # q0 should be |0>
+    # q1 should be |+>
+    [q0, q1] = processor.qdevice.get_local_qubits([phys_id0, phys_id1])
+    assert has_state(q0, ketstates.s0)
+    assert has_state(q1, ketstates.h0)
+
+
+def test_multiple_processes_nv_alloc_error():
+    num_qubits = 3
+    processor, unit_module = setup_components_nv_star(num_qubits)
+
+    # Process 0: initialize q0.
+    subrt0 = """
+    set Q0 0
+    qalloc Q0
+    init Q0
+    """
+
+    # Process 1: initialize q0.
+    subrt1 = """
+    set Q0 0
+    qalloc Q0
+    init Q0
+    """
+
+    process0 = create_process_with_nv_subrt(0, subrt0, unit_module)
+    process1 = create_process_with_nv_subrt(1, subrt1, unit_module)
+    processor._interface.memmgr.add_process(process0)
+    processor._interface.memmgr.add_process(process1)
+
+    # Should raise an AllocError: both processes allocate their virtual comm qubit
+    # but there is only one physical comm qubit available.
+    with pytest.raises(AllocError):
+        execute_multiple_processes(processor, [process0, process1])
 
 
 if __name__ == "__main__":
@@ -685,4 +867,7 @@ if __name__ == "__main__":
     test_single_gates_multiple_qubits_generic()
     test_two_qubit_gates_generic()
     test_multiple_processes_generic()
-    test_single_gates_nv()
+    test_single_gates_nv_comm()
+    test_single_gates_nv_mem()
+    test_two_qubit_gates_nv()
+    test_multiple_processes_nv_alloc_error()

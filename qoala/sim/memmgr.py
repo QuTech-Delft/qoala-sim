@@ -97,7 +97,7 @@ class MemoryManager:
     def allocate_comm(self, pid: int, virt_id: int) -> int:
         vmap = self._process_mappings[pid]
         # Check that the virt ID is indeed a (virtual) comm qubit.
-        if virt_id not in vmap.unit_module.qubit_ids:
+        if virt_id not in vmap.unit_module.get_all_qubit_ids():
             raise AllocError
         if not vmap.unit_module.is_communication(virt_id):
             raise AllocError

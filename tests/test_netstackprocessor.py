@@ -20,6 +20,12 @@ from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaProgram, ProgramMeta
+from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import (
+    GenericToVanillaInterface,
+    LhiConverter,
+    NvToNvInterface,
+)
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.constants import PI
@@ -29,8 +35,8 @@ from qoala.sim.message import Message
 from qoala.sim.netstackinterface import NetstackInterface
 from qoala.sim.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import PhysicalQuantumMemory, QDevice, QDeviceCommand
-from qoala.sim.qmem import Topology, UnitModule
+from qoala.sim.qdevice import QDevice, QDeviceCommand
+from qoala.sim.qmem import UnitModule
 from qoala.sim.requests import (
     EprCreateType,
     NetstackCreateRequest,
@@ -82,8 +88,8 @@ class MockNetstackInterface(NetstackInterface):
 
 
 class MockQDevice(QDevice):
-    def __init__(self, topology: Topology) -> None:
-        self._memory = PhysicalQuantumMemory(topology.comm_ids, topology.mem_ids)
+    def __init__(self, topology: LhiTopology) -> None:
+        self._topology = topology
 
         self._executed_commands: List[QDeviceCommand] = []
 
@@ -99,6 +105,30 @@ class MockQDevice(QDevice):
 
     def reset(self) -> None:
         self._executed_commands = []
+
+
+def generic_topology(num_qubits: int) -> LhiTopology:
+    # Instructions and durations are not needed for these tests.
+    return LhiTopologyBuilder.perfect_uniform(
+        num_qubits=num_qubits,
+        single_instructions=[],
+        single_duration=0,
+        two_instructions=[],
+        two_duration=0,
+    )
+
+
+def star_topology(num_qubits: int) -> LhiTopology:
+    # Instructions and durations are not needed for these tests.
+    return LhiTopologyBuilder.perfect_star(
+        num_qubits=num_qubits,
+        comm_instructions=[],
+        comm_duration=0,
+        mem_instructions=[],
+        mem_duration=0,
+        two_instructions=[],
+        two_duration=0,
+    )
 
 
 def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
@@ -126,7 +156,7 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
 
 
 def test_create_link_layer_create_request():
-    qdevice = MockQDevice(Topology(comm_ids={0}, mem_ids={1}))
+    qdevice = MockQDevice(star_topology(2))
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -187,9 +217,10 @@ def test_create_link_layer_create_request():
 
 
 def test_create_single_pair_1():
-    topology = Topology(comm_ids={0}, mem_ids={1})
+    topology = star_topology(2)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=NvToNvInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -272,9 +303,10 @@ def test_create_single_pair_1():
 
 def test_create_single_pair_2():
     # Let HW have 3 comm qubits.
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(3)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -347,9 +379,10 @@ def test_create_single_pair_2():
 
 
 def test_write_pair_result():
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(3)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -396,9 +429,10 @@ def test_write_pair_result():
 
 
 def test_handle_create_ck_request():
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(3)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -431,9 +465,10 @@ def test_handle_create_ck_request():
 
 
 def test_handle_create_ck_request_invalid_virt_ids():
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(3)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -466,9 +501,10 @@ def test_handle_create_ck_request_invalid_virt_ids():
 
 
 def test_receive_single_pair_1():
-    topology = Topology(comm_ids={0}, mem_ids={1})
+    topology = star_topology(2)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=NvToNvInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -546,9 +582,10 @@ def test_receive_single_pair_1():
 
 def test_receive_single_pair_2():
     # Let HW have 3 comm qubits.
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(3)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
@@ -621,9 +658,10 @@ def test_receive_single_pair_2():
 
 
 def test_handle_receive_ck_request():
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(3)
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)

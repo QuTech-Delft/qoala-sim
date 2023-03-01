@@ -4,6 +4,20 @@ from typing import Dict, Generator, Tuple
 
 import netsquid as ns
 from netqasm.sdk.build_epr import SER_RESPONSE_KEEP_IDX_GOODNESS, SER_RESPONSE_KEEP_LEN
+from netsquid.components.instructions import (
+    INSTR_CNOT,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
+    INSTR_H,
+    INSTR_INIT,
+    INSTR_MEASURE,
+    INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
+    INSTR_X,
+    INSTR_Y,
+    INSTR_Z,
+)
 from netsquid.nodes import Node
 from netsquid.protocols import Protocol
 from netsquid.qubits import ketstates
@@ -21,9 +35,15 @@ from qoala.runtime.environment import (
     GlobalNodeInfo,
     LocalEnvironment,
 )
+from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import (
+    GenericToVanillaInterface,
+    LhiConverter,
+    NvToNvInterface,
+)
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.build import build_generic_qprocessor
+from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.memmgr import MemoryManager
@@ -33,8 +53,8 @@ from qoala.sim.netstackcomp import NetstackComponent
 from qoala.sim.netstackinterface import NetstackInterface
 from qoala.sim.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import GenericPhysicalQuantumMemory, QDevice, QDeviceType
-from qoala.sim.qmem import Topology, UnitModule
+from qoala.sim.qdevice import QDevice
+from qoala.sim.qmem import UnitModule
 from qoala.sim.requests import (
     EprCreateType,
     NetstackCreateRequest,
@@ -43,15 +63,52 @@ from qoala.sim.requests import (
 from qoala.util.tests import has_multi_state
 
 
-def perfect_generic_qdevice(node_name: str, num_qubits: int) -> QDevice:
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    processor = build_generic_qprocessor(name="processor", cfg=cfg)
-    node = Node(name=node_name, qmemory=processor)
-    return QDevice(
-        node=node,
-        typ=QDeviceType.GENERIC,
-        memory=GenericPhysicalQuantumMemory(num_qubits),
+def perfect_uniform_qdevice(node_name: str, num_qubits: int) -> QDevice:
+    topology = LhiTopologyBuilder.perfect_uniform(
+        num_qubits=num_qubits,
+        single_instructions=[
+            INSTR_INIT,
+            INSTR_X,
+            INSTR_Y,
+            INSTR_Z,
+            INSTR_H,
+            INSTR_ROT_X,
+            INSTR_ROT_Y,
+            INSTR_ROT_Z,
+            INSTR_MEASURE,
+        ],
+        single_duration=5e3,
+        two_instructions=[INSTR_CNOT],
+        two_duration=100e3,
     )
+    processor = build_qprocessor_from_topology(name="processor", topology=topology)
+    node = Node(name=node_name, qmemory=processor)
+    return QDevice(node=node, topology=topology)
+
+
+def perfect_nv_star_qdevice(node_name: str, num_qubits: int) -> QDevice:
+    topology = LhiTopologyBuilder.perfect_star(
+        num_qubits=num_qubits,
+        comm_instructions=[
+            INSTR_INIT,
+            INSTR_ROT_X,
+            INSTR_ROT_Y,
+            INSTR_MEASURE,
+        ],
+        comm_duration=5e3,
+        mem_instructions=[
+            INSTR_INIT,
+            INSTR_ROT_X,
+            INSTR_ROT_Y,
+            INSTR_ROT_Z,
+        ],
+        mem_duration=1e4,
+        two_instructions=[INSTR_CXDIR, INSTR_CYDIR],
+        two_duration=1e5,
+    )
+    processor = build_qprocessor_from_topology(name="processor", topology=topology)
+    node = Node(name=node_name, qmemory=processor)
+    return QDevice(node=node, topology=topology)
 
 
 def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
@@ -78,13 +135,9 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     return process
 
 
-def setup_components_generic(
-    num_qubits: int,
+def setup_components(
+    alice_qdevice: QDevice, bob_qdevice: QDevice
 ) -> Tuple[NetstackProcessor, NetstackProcessor]:
-    # TODO: SUPPORT ANY TOPOLOGY (ALSO REQUIRES REFACTORING CONFIG HANDLING)
-    alice_qdevice = perfect_generic_qdevice("alice", num_qubits)
-    bob_qdevice = perfect_generic_qdevice("bob", num_qubits)
-
     alice_node = alice_qdevice._node
     bob_node = bob_qdevice._node
 
@@ -125,6 +178,24 @@ def setup_components_generic(
     return (alice_processor, bob_processor)
 
 
+def setup_components_generic(
+    num_qubits: int,
+) -> Tuple[NetstackProcessor, NetstackProcessor]:
+    alice_qdevice = perfect_uniform_qdevice("alice", num_qubits)
+    bob_qdevice = perfect_uniform_qdevice("bob", num_qubits)
+
+    return setup_components(alice_qdevice, bob_qdevice)
+
+
+def setup_components_nv(
+    num_qubits: int,
+) -> Tuple[NetstackProcessor, NetstackProcessor]:
+    alice_qdevice = perfect_nv_star_qdevice("alice", num_qubits)
+    bob_qdevice = perfect_nv_star_qdevice("bob", num_qubits)
+
+    return setup_components(alice_qdevice, bob_qdevice)
+
+
 def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
     link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=1000.0)
     link_prot = MagicLinkLayerProtocolWithSignaling(
@@ -160,10 +231,13 @@ def create_netstack_receive_request(remote_id: int) -> NetstackReceiveRequest:
 
 
 def test_1():
-    alice_processor, bob_processor = setup_components_generic(num_qubits=2)
+    alice_processor, bob_processor = setup_components_nv(num_qubits=2)
 
-    topology = Topology(comm_ids={0}, mem_ids={1})
-    unit_module = UnitModule.from_topology(topology)
+    alice_topology = alice_processor.qdevice.topology
+    bob_topology = alice_processor.qdevice.topology
+    assert alice_topology == bob_topology
+    ehi = LhiConverter.to_ehi(alice_topology, ntf=NvToNvInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_node = alice_processor._interface._comp.node
     bob_node = bob_processor._interface._comp.node
@@ -249,10 +323,13 @@ def test_1():
 
 
 def test_2():
-    alice_processor, bob_processor = setup_components_generic(num_qubits=2)
+    alice_processor, bob_processor = setup_components_nv(num_qubits=2)
 
-    topology = Topology(comm_ids={0}, mem_ids={1})
-    unit_module = UnitModule.from_topology(topology)
+    alice_topology = alice_processor.qdevice.topology
+    bob_topology = alice_processor.qdevice.topology
+    assert alice_topology == bob_topology
+    ehi = LhiConverter.to_ehi(alice_topology, ntf=NvToNvInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_node = alice_processor._interface._comp.node
     bob_node = bob_processor._interface._comp.node
@@ -369,8 +446,11 @@ def test_2():
 def test_3():
     alice_processor, bob_processor = setup_components_generic(num_qubits=3)
 
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
-    unit_module = UnitModule.from_topology(topology)
+    alice_topology = alice_processor.qdevice.topology
+    bob_topology = alice_processor.qdevice.topology
+    assert alice_topology == bob_topology
+    ehi = LhiConverter.to_ehi(alice_topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_node = alice_processor._interface._comp.node
     bob_node = bob_processor._interface._comp.node
@@ -499,8 +579,11 @@ def test_3():
 def test_4():
     alice_processor, bob_processor = setup_components_generic(num_qubits=3)
 
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
-    unit_module = UnitModule.from_topology(topology)
+    alice_topology = alice_processor.qdevice.topology
+    bob_topology = alice_processor.qdevice.topology
+    assert alice_topology == bob_topology
+    ehi = LhiConverter.to_ehi(alice_topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_node = alice_processor._interface._comp.node
     bob_node = bob_processor._interface._comp.node
