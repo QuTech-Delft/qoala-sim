@@ -7,6 +7,7 @@ from netqasm.lang.parsing import parse_text_subroutine
 from netqasm.lang.subroutine import Subroutine
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import EhiBuilder
 from qoala.lang.iqoala import (
     AddCValueOp,
     AssignCValueOp,
@@ -103,7 +104,17 @@ def create_process(
         inputs=prog_input,
         tasks=ProgramTaskList.empty(program),
     )
-    mem = ProgramMemory(pid=0, unit_module=UnitModule.default_generic(2))
+
+    mock_ehi = EhiBuilder.perfect_uniform(
+        num_qubits=2,
+        flavour=None,
+        single_instructions=[],
+        single_duration=0,
+        two_instructions=[],
+        two_duration=0,
+    )
+
+    mem = ProgramMemory(pid=0, unit_module=UnitModule.from_full_ehi(mock_ehi))
     process = IqoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
