@@ -111,6 +111,14 @@ class QubitConfig(LhiQubitConfigInterface, BaseModel):
         return cls.from_dict(_read_dict(path), registry)
 
     @classmethod
+    def perfect_config(cls, is_communication: bool) -> QubitConfig:
+        return QubitConfig(
+            is_communication=is_communication,
+            noise_config_cls="T1T2NoiseModel",
+            noise_config=QubitT1T2Config(T1=0, T2=0),
+        )
+
+    @classmethod
     def from_dict(
         cls, dict: Any, registry: Optional[List[Type[QubitConfigRegistry]]] = None
     ) -> QubitConfig:
@@ -203,6 +211,14 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         cls, path: str, registry: Optional[List[Type[GateConfigRegistry]]] = None
     ) -> GateConfig:
         return cls.from_dict(_read_dict(path), registry)
+
+    @classmethod
+    def perfect_config(cls, name: str, duration: int) -> GateConfig:
+        return GateConfig(
+            name=name,
+            noise_config_cls="GateDepolariseConfig",
+            noise_config=GateDepolariseConfig(duration=duration, depolarise_prob=0),
+        )
 
     @classmethod
     def from_dict(
@@ -360,6 +376,135 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         return cls.from_dict(_read_dict(path))
 
     @classmethod
+    def perfect_config_uniform(
+        cls,
+        num_qubits: int,
+        single_instructions: List[str],
+        single_duration: int,
+        two_instructions: List[str],
+        two_duration: int,
+    ) -> TopologyConfig:
+        qubits = [
+            QubitIdConfig(
+                qubit_id=i,
+                qubit_config=QubitConfig.perfect_config(is_communication=True),
+            )
+            for i in range(num_qubits)
+        ]
+
+        single_gates = [
+            SingleGateConfig(
+                qubit_id=i,
+                gate_configs=[
+                    GateConfig.perfect_config(name=name, duration=single_duration)
+                    for name in single_instructions
+                ],
+            )
+            for i in range(num_qubits)
+        ]
+
+        multi_gates = []
+        for i in range(num_qubits):
+            for j in range(num_qubits):
+                if i == j:
+                    continue
+                cfg = MultiGateConfig(
+                    qubit_ids=[i, j],
+                    gate_configs=[
+                        GateConfig.perfect_config(name=name, duration=two_duration)
+                        for name in two_instructions
+                    ],
+                )
+                multi_gates.append(cfg)
+
+        return TopologyConfig(
+            qubits=qubits, single_gates=single_gates, multi_gates=multi_gates
+        )
+
+    @classmethod
+    def perfect_config_uniform_default_params(cls, num_qubits: int) -> TopologyConfig:
+        return cls.perfect_config_uniform(
+            num_qubits=num_qubits,
+            single_instructions=[
+                "INSTR_INIT",
+                "INSTR_ROT_X",
+                "INSTR_ROT_Y",
+                "INSTR_ROT_Z",
+                "INSTR_X",
+                "INSTR_Y",
+                "INSTR_Z",
+                "INSTR_H",
+            ],
+            single_duration=5e3,
+            two_instructions=["INSTR_CNOT", "INSTR_CZ"],
+            two_duration=200e3,
+        )
+
+    @classmethod
+    def perfect_config_star(
+        cls,
+        num_qubits: int,
+        comm_instructions: List[str],
+        comm_duration: int,
+        mem_instructions: List[str],
+        mem_duration: int,
+        two_instructions: List[str],
+        two_duration: int,
+    ) -> TopologyConfig:
+        # comm qubit
+        qubits = [
+            QubitIdConfig(
+                qubit_id=0,
+                qubit_config=QubitConfig.perfect_config(is_communication=True),
+            )
+        ]
+        # mem qubits
+        qubits += [
+            QubitIdConfig(
+                qubit_id=i,
+                qubit_config=QubitConfig.perfect_config(is_communication=False),
+            )
+            for i in range(1, num_qubits)
+        ]
+
+        # comm gate
+        single_gates = [
+            SingleGateConfig(
+                qubit_id=0,
+                gate_configs=[
+                    GateConfig.perfect_config(name=name, duration=comm_duration)
+                    for name in comm_instructions
+                ],
+            )
+        ]
+        # mem gates
+        single_gates += [
+            SingleGateConfig(
+                qubit_id=i,
+                gate_configs=[
+                    GateConfig.perfect_config(name=name, duration=mem_duration)
+                    for name in mem_instructions
+                ],
+            )
+            for i in range(1, num_qubits)
+        ]
+
+        multi_gates = [
+            MultiGateConfig(
+                qubit_ids=[0, i],
+                gate_configs=[
+                    GateConfig.perfect_config(name=name, duration=two_duration)
+                    for name in two_instructions
+                ],
+            )
+            for i in range(1, num_qubits)
+        ]
+
+        return TopologyConfig(
+            qubits=qubits, single_gates=single_gates, multi_gates=multi_gates
+        )
+
+    @classmethod
     def from_dict(cls, dict: Any) -> TopologyConfig:
         raw_qubits = dict["qubits"]
         qubits = [QubitIdConfig.from_dict(d) for d in raw_qubits]
@@ -491,8 +636,7 @@ class NVQDeviceConfig(BaseModel):
 class ProcNodeConfig(BaseModel):
     name: str
     node_id: int
-    qdevice_typ: str
-    qdevice_cfg: Any
+    qdevice_cfg: TopologyConfig
     host_qnos_latency: float = 0.0
     instr_latency: float = 0.0
     receive_latency: float = 0.0
@@ -500,20 +644,6 @@ class ProcNodeConfig(BaseModel):
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:
         return _from_file(path, ProcNodeConfig)  # type: ignore
-
-    @classmethod
-    def perfect_generic_config(
-        cls, name: str, node_id: int, num_qubits: int
-    ) -> ProcNodeConfig:
-        return ProcNodeConfig(
-            name=name,
-            node_id=node_id,
-            qdevice_typ="generic",
-            qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
-            host_qnos_latency=0.0,
-            instr_latency=0.0,
-            receive_latency=0.0,
-        )
 
 
 class DepolariseLinkConfig(BaseModel):

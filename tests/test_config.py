@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from operator import is_
 from typing import Any, Dict, Type
 
 from netsquid.components.instructions import (
@@ -71,6 +72,15 @@ def test_qubit_config():
     assert cfg.to_error_model_kwargs() == {"T1": 1e6, "T2": 3e6}
 
 
+def test_qubit_config_perfect():
+    for comm in [True, False]:
+        cfg = QubitConfig.perfect_config(is_communication=comm)
+        assert cfg.is_communication == comm
+        assert cfg.to_is_communication() == comm
+        assert cfg.to_error_model() == T1T2NoiseModel
+        assert cfg.to_error_model_kwargs() == {"T1": 0, "T2": 0}
+
+
 def test_qubit_config_file():
     cfg = QubitConfig.from_file(relative_path("configs/qubit_cfg_2.yaml"))
 
@@ -112,6 +122,19 @@ def test_gate_config():
     assert cfg.to_error_model() == DepolarNoiseModel
     assert cfg.to_error_model_kwargs() == {
         "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+
+def test_gate_config_perfect():
+    cfg = GateConfig.perfect_config(name="INSTR_X", duration=4e3)
+
+    assert cfg.name == "INSTR_X"
+    assert cfg.to_instruction() == INSTR_X
+    assert cfg.to_duration() == 4e3
+    assert cfg.to_error_model() == DepolarNoiseModel
+    assert cfg.to_error_model_kwargs() == {
+        "depolar_rate": 0,
         "time_independent": True,
     }
 
@@ -171,6 +194,41 @@ def test_topology_config():
     assert cfg.get_single_gate_configs()[0][0].to_error_model() == DepolarNoiseModel
     assert cfg.get_single_gate_configs()[0][0].to_error_model_kwargs() == {
         "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+
+def test_topology_config_perfect_uniform():
+    cfg = TopologyConfig.perfect_config_uniform(
+        num_qubits=1,
+        single_instructions=["INSTR_X"],
+        single_duration=4e3,
+        two_instructions=[],
+        two_duration=0,
+    )
+
+    assert cfg.qubits[0].qubit_id == 0
+    assert cfg.qubits[0].qubit_config.to_is_communication()
+    assert cfg.qubits[0].qubit_config.to_error_model() == T1T2NoiseModel
+    assert cfg.qubits[0].qubit_config.to_error_model_kwargs() == {"T1": 0, "T2": 0}
+    assert cfg.single_gates[0].qubit_id == 0
+    assert cfg.single_gates[0].gate_configs[0].to_instruction() == INSTR_X
+    assert cfg.single_gates[0].gate_configs[0].to_duration() == 4e3
+    assert cfg.single_gates[0].gate_configs[0].to_error_model() == DepolarNoiseModel
+    assert cfg.single_gates[0].gate_configs[0].to_error_model_kwargs() == {
+        "depolar_rate": 0,
+        "time_independent": True,
+    }
+
+    # check interface
+    assert cfg.get_qubit_configs()[0].to_is_communication()
+    assert cfg.get_qubit_configs()[0].to_error_model() == T1T2NoiseModel
+    assert cfg.get_qubit_configs()[0].to_error_model_kwargs() == {"T1": 0, "T2": 0}
+    assert cfg.get_single_gate_configs()[0][0].to_instruction() == INSTR_X
+    assert cfg.get_single_gate_configs()[0][0].to_duration() == 4e3
+    assert cfg.get_single_gate_configs()[0][0].to_error_model() == DepolarNoiseModel
+    assert cfg.get_single_gate_configs()[0][0].to_error_model_kwargs() == {
+        "depolar_rate": 0,
         "time_independent": True,
     }
 
@@ -291,6 +349,152 @@ def test_topology_config_multi_gate():
         single_gates=[],
         multi_gates=[MultiGateConfig(qubit_ids=[0, 1], gate_configs=[gate_cfg])],
     )
+
+    for i in [0, 1]:
+        assert cfg.qubits[i].qubit_id == i
+        assert cfg.qubits[i].qubit_config.to_is_communication()
+        assert cfg.qubits[i].qubit_config.to_error_model() == T1T2NoiseModel
+        assert cfg.qubits[i].qubit_config.to_error_model_kwargs() == {
+            "T1": 1e6,
+            "T2": 3e6,
+        }
+
+    assert cfg.multi_gates[0].qubit_ids == [0, 1]
+    assert cfg.multi_gates[0].gate_configs[0].to_instruction() == INSTR_CNOT
+    assert cfg.multi_gates[0].gate_configs[0].to_duration() == 4e3
+    assert cfg.multi_gates[0].gate_configs[0].to_error_model() == DepolarNoiseModel
+    assert cfg.multi_gates[0].gate_configs[0].to_error_model_kwargs() == {
+        "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+    # check interface
+    for i in [0, 1]:
+        assert cfg.get_qubit_configs()[i].to_is_communication()
+        assert cfg.get_qubit_configs()[i].to_error_model() == T1T2NoiseModel
+        assert cfg.get_qubit_configs()[i].to_error_model_kwargs() == {
+            "T1": 1e6,
+            "T2": 3e6,
+        }
+    q01 = MultiQubit([0, 1])
+    assert cfg.get_multi_gate_configs()[q01][0].to_instruction() == INSTR_CNOT
+    assert cfg.get_multi_gate_configs()[q01][0].to_duration() == 4e3
+    assert cfg.get_multi_gate_configs()[q01][0].to_error_model() == DepolarNoiseModel
+    assert cfg.get_multi_gate_configs()[q01][0].to_error_model_kwargs() == {
+        "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+
+def test_topology_config_multi_gate_perfect_uniform():
+    cfg = TopologyConfig.perfect_config_uniform(
+        num_qubits=2,
+        single_instructions=[],
+        single_duration=0,
+        two_instructions=["INSTR_CNOT"],
+        two_duration=4e3,
+    )
+
+    for i in [0, 1]:
+        assert cfg.qubits[i].qubit_id == i
+        assert cfg.qubits[i].qubit_config.to_is_communication()
+        assert cfg.qubits[i].qubit_config.to_error_model() == T1T2NoiseModel
+        assert cfg.qubits[i].qubit_config.to_error_model_kwargs() == {
+            "T1": 0,
+            "T2": 0,
+        }
+
+    assert cfg.multi_gates[0].qubit_ids == [0, 1]
+    assert cfg.multi_gates[0].gate_configs[0].to_instruction() == INSTR_CNOT
+    assert cfg.multi_gates[0].gate_configs[0].to_duration() == 4e3
+    assert cfg.multi_gates[0].gate_configs[0].to_error_model() == DepolarNoiseModel
+    assert cfg.multi_gates[0].gate_configs[0].to_error_model_kwargs() == {
+        "depolar_rate": 0,
+        "time_independent": True,
+    }
+
+    # check interface
+    for i in [0, 1]:
+        assert cfg.get_qubit_configs()[i].to_is_communication()
+        assert cfg.get_qubit_configs()[i].to_error_model() == T1T2NoiseModel
+        assert cfg.get_qubit_configs()[i].to_error_model_kwargs() == {
+            "T1": 0,
+            "T2": 0,
+        }
+    q01 = MultiQubit([0, 1])
+    assert cfg.get_multi_gate_configs()[q01][0].to_instruction() == INSTR_CNOT
+    assert cfg.get_multi_gate_configs()[q01][0].to_duration() == 4e3
+    assert cfg.get_multi_gate_configs()[q01][0].to_error_model() == DepolarNoiseModel
+    assert cfg.get_multi_gate_configs()[q01][0].to_error_model_kwargs() == {
+        "depolar_rate": 0,
+        "time_independent": True,
+    }
+
+
+def test_topology_config_multi_gate_perfect_star():
+    cfg = TopologyConfig.perfect_config_star(
+        num_qubits=3,
+        comm_instructions=["INSTR_X"],
+        comm_duration=5e3,
+        mem_instructions=["INSTR_Y", "INSTR_Z"],
+        mem_duration=10e3,
+        two_instructions=["INSTR_CNOT"],
+        two_duration=200e3,
+    )
+
+    for i, comm in zip([0, 1, 2], [True, False, False]):
+        assert cfg.qubits[i].qubit_id == i
+        assert cfg.qubits[i].qubit_config.to_is_communication() == comm
+        assert cfg.qubits[i].qubit_config.to_error_model() == T1T2NoiseModel
+        assert cfg.qubits[i].qubit_config.to_error_model_kwargs() == {
+            "T1": 0,
+            "T2": 0,
+        }
+
+    assert cfg.single_gates[0].qubit_id == 0
+    assert len(cfg.single_gates[0].gate_configs) == 1
+    assert cfg.single_gates[0].gate_configs[0].to_instruction() == INSTR_X
+    assert cfg.single_gates[0].gate_configs[0].to_duration() == 5e3
+    assert cfg.single_gates[0].gate_configs[0].to_error_model() == DepolarNoiseModel
+    assert cfg.single_gates[0].gate_configs[0].to_error_model_kwargs() == {
+        "depolar_rate": 0,
+        "time_independent": True,
+    }
+
+    for i in [1, 2]:
+        assert cfg.single_gates[i].qubit_id == i
+        assert len(cfg.single_gates[i].gate_configs) == 2
+        assert cfg.single_gates[i].gate_configs[0].to_instruction() == INSTR_Y
+        assert cfg.single_gates[i].gate_configs[1].to_instruction() == INSTR_Z
+        for j in [0, 1]:
+            assert cfg.single_gates[i].gate_configs[j].to_duration() == 10e3
+            assert (
+                cfg.single_gates[i].gate_configs[j].to_error_model()
+                == DepolarNoiseModel
+            )
+            assert cfg.single_gates[i].gate_configs[j].to_error_model_kwargs() == {
+                "depolar_rate": 0,
+                "time_independent": True,
+            }
+
+    assert len(cfg.multi_gates) == 2
+    for i in [1, 2]:
+        assert cfg.multi_gates[i - 1].qubit_ids == [0, i]
+        assert len(cfg.multi_gates[i - 1].gate_configs) == 1
+        assert len(cfg.multi_gates[i - 1].gate_configs) == 1
+        assert cfg.multi_gates[i - 1].gate_configs[0].to_instruction() == INSTR_CNOT
+        assert cfg.multi_gates[i - 1].gate_configs[0].to_duration() == 200e3
+        assert (
+            cfg.multi_gates[i - 1].gate_configs[0].to_error_model() == DepolarNoiseModel
+        )
+        assert cfg.multi_gates[i - 1].gate_configs[0].to_error_model_kwargs() == {
+            "depolar_rate": 0,
+            "time_independent": True,
+        }
+
+
+def test_topology_config_file_multi_gate():
+    cfg = TopologyConfig.from_file(relative_path("configs/topology_cfg_3.yaml"))
 
     for i in [0, 1]:
         assert cfg.qubits[i].qubit_id == i
@@ -460,16 +664,21 @@ if __name__ == "__main__":
     test_qubit_t1t2_config()
     test_qubit_t1t2_config_file()
     test_qubit_config()
+    test_qubit_config_perfect()
     test_qubit_config_file()
     test_gate_depolarise_config()
     test_gate_depolarise_config_file()
     test_gate_config()
+    test_gate_config_perfect()
     test_gate_config_file()
     test_topology_config()
+    test_topology_config_perfect_uniform()
     test_topology_config_file()
     test_topology_config_file_2()
     test_topology_config_multi_gate()
     test_topology_config_file_multi_gate()
+    test_topology_config_multi_gate_perfect_uniform()
+    test_topology_config_multi_gate_perfect_star()
     test_topology_config_file_reuse_gate_def()
     test_qubit_config_file_registry()
     test_gate_config_file_registry()

@@ -27,11 +27,7 @@ from netsquid.qubits import ketstates
 
 from qoala.runtime.config import GenericQDeviceConfig, NVQDeviceConfig
 from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopologyBuilder
-from qoala.sim.build import (
-    build_generic_qprocessor,
-    build_nv_qprocessor,
-    build_qprocessor_from_topology,
-)
+from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
 from qoala.sim.constants import PI, PI_OVER_2
 from qoala.sim.qdevice import (
     NonInitializedQubitError,

@@ -19,6 +19,7 @@ from qoala.runtime.config import (
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
+    TopologyConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
@@ -245,15 +246,12 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     server_node_cfg = ProcNodeConfig(
         name="server",
         node_id=server_id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         instr_latency=1000,
     )
     client_node_cfg = ProcNodeConfig(
         name="client",
-        node_id=client_id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         instr_latency=1000,
     )
     link_cfg = LinkConfig.perfect_config("server", "client")
