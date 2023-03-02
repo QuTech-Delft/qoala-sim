@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+from qoala.lang.ehi import ExposedHardwareInfo
 from qoala.sim.hostprocessor import IqoalaProcess
 from qoala.sim.logging import LogManager
 from qoala.sim.qdevice import QDevice
@@ -36,12 +37,18 @@ class VirtualLocation:
 
 
 class MemoryManager:
-    def __init__(self, node_name: str, qdevice: QDevice) -> None:
+    def __init__(
+        self,
+        node_name: str,
+        qdevice: QDevice,
+        ehi: Optional[ExposedHardwareInfo] = None,  # TODO refactor?
+    ) -> None:
         self._node_name = node_name
         self._processes: Dict[int, IqoalaProcess] = {}
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}({self._node_name})"
         )
+        self._ehi = ehi
 
         self._qdevice = qdevice
         self._process_mappings: Dict[int, VirtualMapping] = {}  # pid -> mapping
@@ -60,6 +67,9 @@ class MemoryManager:
             if self._physical_mapping[phys_id] is None:
                 return phys_id  # type: ignore
         raise AllocError
+
+    def get_ehi(self) -> ExposedHardwareInfo:
+        return self._ehi
 
     def add_process(self, process: IqoalaProcess) -> None:
         self._processes[process.pid] = process

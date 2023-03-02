@@ -19,6 +19,8 @@ from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import (
     ProgramTaskList,
@@ -27,7 +29,7 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     TaskBuilder,
 )
-from qoala.sim.build import build_generic_qprocessor
+from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.hostinterface import HostInterface
@@ -93,13 +95,16 @@ def create_procnode(
     num_qubits: int,
     asynchronous: bool = False,
 ) -> ProcNode:
-    alice_qprocessor = create_qprocessor(name, num_qubits)
+    topology = LhiTopologyBuilder.perfect_uniform(num_qubits)
+    alice_qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
 
     node_id = env.get_node_id(name)
     procnode = ProcNode(
         name=name,
         global_env=env,
         qprocessor=alice_qprocessor,
+        qdevice_topology=topology,
+        ntf_interface=GenericToVanillaInterface(),
         node_id=node_id,
         asynchronous=asynchronous,
     )
@@ -288,7 +293,6 @@ def run_bqc(
     theta2,
 ):
     num_qubits = 3
-    unit_module = UnitModule.default_generic(num_qubits)
     global_env = create_global_env(num_qubits, names=["client", "server"])
     server_id = global_env.get_node_id("server")
     client_id = global_env.get_node_id("client")
@@ -300,10 +304,11 @@ def run_bqc(
     server_tasks = create_server_tasks(server_program)
 
     server_procnode = create_procnode("server", global_env, num_qubits)
+    server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
         pid=0,
         program=server_program,
-        unit_module=unit_module,
+        unit_module=UnitModule.from_full_ehi(server_ehi),
         host_interface=server_procnode.host._interface,
         inputs={"client_id": client_id},
         tasks=server_tasks,
@@ -321,10 +326,11 @@ def run_bqc(
     client_tasks = create_client_tasks(client_program)
 
     client_procnode = create_procnode("client", global_env, num_qubits)
+    client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
         pid=0,
         program=client_program,
-        unit_module=unit_module,
+        unit_module=UnitModule.from_full_ehi(client_ehi),
         host_interface=client_procnode.host._interface,
         inputs={
             "server_id": server_id,

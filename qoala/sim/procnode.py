@@ -6,9 +6,10 @@ from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
 from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
+from qoala.lang.ehi import ExposedHardwareInfo
 from qoala.runtime.environment import GlobalEnvironment, LocalEnvironment
 from qoala.runtime.lhi import LhiTopology
-from qoala.runtime.lhi_to_ehi import NativeToFlavourInterface
+from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.schedule import Schedule, ScheduleSolver
 from qoala.sim.egp import EgpProtocol
@@ -68,9 +69,12 @@ class ProcNode(Protocol):
 
         # Create internal components.
         self._qdevice: QDevice = QDevice(self._node, qdevice_topology)
+        self._ehi: ExposedHardwareInfo = LhiConverter.to_ehi(
+            qdevice_topology, ntf_interface
+        )
 
         self._host = Host(self.host_comp, self._local_env, self._asynchronous)
-        self._memmgr = MemoryManager(self.node.name, self._qdevice)
+        self._memmgr = MemoryManager(self.node.name, self._qdevice, self._ehi)
         self._egpmgr = EgpManager()
         self._qnos = Qnos(
             self.qnos_comp,

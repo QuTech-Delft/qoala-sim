@@ -6,8 +6,15 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 import yaml
 from netsquid.components.instructions import (
     INSTR_CNOT,
+    INSTR_CROT_X,
+    INSTR_CROT_Y,
     INSTR_CZ,
+    INSTR_H,
     INSTR_INIT,
+    INSTR_MEASURE,
+    INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -291,12 +298,19 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
 
 class DefaultInstrConfigRegistry(InstrConfigRegistry):
     _MAP = {
-        "INSTR_CNOT": INSTR_CNOT,
-        "INSTR_CZ": INSTR_CZ,
         "INSTR_INIT": INSTR_INIT,
         "INSTR_X": INSTR_X,
         "INSTR_Y": INSTR_Y,
         "INSTR_Z": INSTR_Z,
+        "INSTR_H": INSTR_H,
+        "INSTR_ROT_X": INSTR_ROT_X,
+        "INSTR_ROT_Y": INSTR_ROT_Y,
+        "INSTR_ROT_Z": INSTR_ROT_Z,
+        "INSTR_CNOT": INSTR_CNOT,
+        "INSTR_CZ": INSTR_CZ,
+        "INSTR_CROT_X": INSTR_CROT_X,
+        "INSTR_CROT_Y": INSTR_CROT_Y,
+        "INSTR_MEASURE": INSTR_MEASURE,
     }
 
     @classmethod
@@ -434,6 +448,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
                 "INSTR_Y",
                 "INSTR_Z",
                 "INSTR_H",
+                "INSTR_MEASURE",
             ],
             single_duration=5e3,
             two_instructions=["INSTR_CNOT", "INSTR_CZ"],

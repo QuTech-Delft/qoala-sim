@@ -167,11 +167,14 @@ class Scheduler(Protocol):
         self.install_schedule(schedule)
 
     def create_processes_for_batches(self) -> None:
+        ehi = self.memmgr.get_ehi()
         for batch in self._batches.values():
             for prog_instance in batch.instances:
                 prog_memory = ProgramMemory(
                     prog_instance.pid,
-                    unit_module=UnitModule.default_generic(batch.info.num_qubits),
+                    unit_module=UnitModule.from_full_ehi(
+                        ehi
+                    ),  # TODO: make configurable
                 )
                 meta = prog_instance.program.meta
 

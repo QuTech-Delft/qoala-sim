@@ -53,6 +53,7 @@ class GenericToVanillaInterface(NativeToFlavourInterface):
         INSTR_ROT_Y: vanilla.RotYInstruction,
         INSTR_ROT_Z: vanilla.RotZInstruction,
         INSTR_CNOT: vanilla.CnotInstruction,
+        INSTR_CZ: vanilla.CphaseInstruction,
         INSTR_MEASURE: core.MeasInstruction,
     }
 

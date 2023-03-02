@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import netsquid as ns
+from matplotlib.colors import TwoSlopeNorm
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 from netsquid_magic.link_layer import (
@@ -66,14 +67,19 @@ def create_server_tasks(
     # ql_dur = 1e4
     qc_dur = 1e6
 
-    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
+    topology_cfg: TopologyConfig = cfg.qdevice_cfg
+
+    single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
+    two_qubit_gate_time = list(topology_cfg.get_multi_gate_configs().values())[0][
+        0
+    ].to_duration()
 
     set_dur = cfg.instr_latency
-    rot_dur = qdevice_cfg.single_qubit_gate_time
-    h_dur = qdevice_cfg.single_qubit_gate_time
-    meas_dur = qdevice_cfg.measure_time
+    rot_dur = single_qubit_gate_time
+    h_dur = single_qubit_gate_time
+    meas_dur = single_qubit_gate_time
     free_dur = cfg.instr_latency
-    cphase_dur = qdevice_cfg.two_qubit_gate_time
+    cphase_dur = two_qubit_gate_time
 
     # csocket = assign_cval() : 0
     tasks.append(TaskBuilder.CL(cl_dur, 0))
@@ -126,12 +132,17 @@ def create_client_tasks(
     # ql_dur = 1e3
     qc_dur = 1e6
 
-    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
+    topology_cfg: TopologyConfig = cfg.qdevice_cfg
+
+    single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
+    two_qubit_gate_time = list(topology_cfg.get_multi_gate_configs().values())[0][
+        0
+    ].to_duration()
 
     set_dur = cfg.instr_latency
-    rot_dur = qdevice_cfg.single_qubit_gate_time
-    h_dur = qdevice_cfg.single_qubit_gate_time
-    meas_dur = qdevice_cfg.measure_time
+    rot_dur = single_qubit_gate_time
+    h_dur = single_qubit_gate_time
+    meas_dur = single_qubit_gate_time
     free_dur = cfg.instr_latency
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
@@ -251,6 +262,7 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     )
     client_node_cfg = ProcNodeConfig(
         name="client",
+        node_id=client_id,
         qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         instr_latency=1000,
     )

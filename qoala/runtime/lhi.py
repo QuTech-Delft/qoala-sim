@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CZ,
+    INSTR_H,
     INSTR_INIT,
+    INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -199,6 +203,27 @@ class LhiTopologyBuilder:
     ) -> List[LhiGateInfo]:
         return cls.depolar_gates(
             duration=duration, instructions=instructions, depolar_rate=0
+        )
+
+    @classmethod
+    def perfect_uniform_default_gates(cls, num_qubits) -> LhiTopology:
+        # TODO: test this and update default values
+        return cls.perfect_uniform(
+            num_qubits=num_qubits,
+            single_instructions=[
+                INSTR_INIT,
+                INSTR_X,
+                INSTR_Y,
+                INSTR_Z,
+                INSTR_H,
+                INSTR_ROT_X,
+                INSTR_ROT_Y,
+                INSTR_ROT_Z,
+                INSTR_MEASURE,
+            ],
+            single_duration=5e3,
+            two_instructions=[INSTR_CNOT, INSTR_CZ],
+            two_duration=100e3,
         )
 
     @classmethod
