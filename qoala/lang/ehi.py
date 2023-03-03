@@ -232,3 +232,12 @@ class UnitModule:
 
     def get_all_qubit_ids(self) -> List[int]:
         return self.info.qubit_infos.keys()
+
+
+@dataclass
+class ExposedLatencyInfo:
+    host_qnos_latency: float  # delay for Host <-> Qnos communication
+    host_instr_time: float  # duration of classical Host instr execution
+    qnos_instr_time: float  # duration of classical Qnos instr execution
+    host_peer_latency: float  # processing time for incoming Host messages
+    qnos_peer_latency: float  # processing time for incoming Qnos messages

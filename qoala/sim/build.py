@@ -48,7 +48,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment
-from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
@@ -298,45 +298,22 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 
 
 def build_procnode(cfg: ProcNodeConfig, global_env: GlobalEnvironment) -> ProcNode:
-    topology = LhiTopologyBuilder.from_config(cfg.qdevice_cfg)
-    qprocessor = build_qprocessor_from_topology(name=cfg.name, topology=topology)
+    topology = LhiTopologyBuilder.from_config(cfg.topology)
+    qprocessor = build_qprocessor_from_topology(name=cfg.node_name, topology=topology)
+    latencies = LhiLatencies.from_config(cfg.latencies)
     procnode = ProcNode(
-        cfg.name,
+        cfg.node_name,
         global_env=global_env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
+        latencies=latencies,
         ntf_interface=GenericToVanillaInterface(),  # TODO: make configurable
         node_id=cfg.node_id,
     )
 
-    # if cfg.qdevice_typ == "nv":
-    #     qdevice_cfg = cfg.qdevice_cfg
-    #     if not isinstance(qdevice_cfg, NVQDeviceConfig):
-    #         qdevice_cfg = NVQDeviceConfig(**cfg.qdevice_cfg)
-    #     qprocessor = build_nv_qprocessor(f"qdevice_{cfg.name}", cfg=qdevice_cfg)
-    #     procnode = ProcNode(
-    #         cfg.name,
-    #         global_env=global_env,
-    #         qprocessor=qprocessor,
-    #         qdevice_type="nv",
-    #         node_id=cfg.node_id,
-    #     )
-    # elif cfg.qdevice_typ == "generic":
-    #     qdevice_cfg = cfg.qdevice_cfg
-    #     if not isinstance(qdevice_cfg, GenericQDeviceConfig):
-    #         qdevice_cfg = GenericQDeviceConfig(**cfg.qdevice_cfg)
-    #     qprocessor = build_generic_qprocessor(f"qdevice_{cfg.name}", cfg=qdevice_cfg)
-    #     procnode = ProcNode(
-    #         cfg.name,
-    #         global_env=global_env,
-    #         qprocessor=qprocessor,
-    #         qdevice_type="generic",
-    #         node_id=cfg.node_id,
-    #     )
-    # TODO: do this in constructor?
-    procnode.qnos.processor.instr_latency = cfg.instr_latency
-    procnode.host.processor.instr_latency = cfg.instr_latency
-    procnode.host.processor.receive_latency = cfg.receive_latency
+    procnode.qnos.processor.instr_latency = cfg.latencies.qnos_instr_time
+    procnode.host.processor.instr_latency = cfg.latencies.host_instr_time
+    procnode.host.processor.receive_latency = cfg.latencies.host_peer_latency
     return procnode
 
 
@@ -395,7 +372,7 @@ def build_network(
     link_prots: List[MagicLinkLayerProtocol] = []
 
     for cfg in config.nodes:
-        proc_nodes[cfg.name] = build_procnode(cfg, global_env)
+        proc_nodes[cfg.node_name] = build_procnode(cfg, global_env)
 
     for (_, s1), (_, s2) in itertools.combinations(proc_nodes.items(), 2):
         s1.connect_to(s2)

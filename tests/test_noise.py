@@ -35,7 +35,7 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qmem import UnitModule
 from qoala.sim.qnoscomp import QnosComponent
-from qoala.sim.qnosinterface import QnosInterface
+from qoala.sim.qnosinterface import QnosInterface, QnosLatencies
 from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor
 from qoala.util.tests import has_max_mixed_state, has_state, netsquid_run, netsquid_wait
 
@@ -81,7 +81,7 @@ def setup_noisy_components(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
-    processor = GenericProcessor(interface)
+    processor = GenericProcessor(interface, latencies=QnosLatencies.all_zero())
     return (processor, unit_module)
 
 

@@ -6,7 +6,12 @@ from typing import List
 import netsquid as ns
 
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
-from qoala.runtime.config import ProcNodeConfig, ProcNodeNetworkConfig, TopologyConfig
+from qoala.runtime.config import (
+    LatenciesConfig,
+    ProcNodeConfig,
+    ProcNodeNetworkConfig,
+    TopologyConfig,
+)
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, ProgramInput
 from qoala.runtime.schedule import NaiveSolver, ProgramTaskList, TaskBuilder
@@ -27,10 +32,10 @@ def create_global_env() -> GlobalEnvironment:
 def get_config() -> ProcNodeConfig:
     topology = TopologyConfig.perfect_config_uniform_default_params(1)
     return ProcNodeConfig(
-        name="alice",
+        node_name="alice",
         node_id=0,
-        qdevice_cfg=topology,
-        instr_latency=1000,
+        topology=topology,
+        latencies=LatenciesConfig(qnos_instr_time=1000),
     )
 
 

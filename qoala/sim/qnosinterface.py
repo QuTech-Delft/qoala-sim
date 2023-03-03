@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Generator
 
 from pydynaa import EventExpression
@@ -14,6 +15,17 @@ from qoala.sim.signals import (
     SIGNAL_MEMORY_FREED,
     SIGNAL_NSTK_PROC_MSG,
 )
+
+
+@dataclass
+class QnosLatencies:
+    qnos_instr_time: float = 0  # duration of classical Qnos instr execution
+
+    @classmethod
+    def all_zero(cls) -> QnosLatencies:
+        # NOTE: can also just use QnosLatencies() which will default all values to 0
+        # However, using this classmethod makes this behavior more explicit and clear.
+        return QnosLatencies(0)
 
 
 class QnosInterface(ComponentProtocol):

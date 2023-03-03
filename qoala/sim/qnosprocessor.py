@@ -33,7 +33,7 @@ from qoala.sim.memory import ProgramMemory
 from qoala.sim.message import Message
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.qnosinterface import QnosInterface
+from qoala.sim.qnosinterface import QnosInterface, QnosLatencies
 from qoala.sim.requests import (
     NetstackBreakpointCreateRequest,
     NetstackBreakpointReceiveRequest,
@@ -43,12 +43,15 @@ from qoala.sim.requests import (
 class QnosProcessor:
     """Does not have state itself."""
 
-    def __init__(self, interface: QnosInterface, asynchronous: bool = False) -> None:
+    def __init__(
+        self,
+        interface: QnosInterface,
+        latencies: QnosLatencies,
+        asynchronous: bool = False,
+    ) -> None:
         self._interface = interface
+        self._latencies = latencies
         self._asynchronous = asynchronous
-
-        # TODO: add way to set instr latency through constructor
-        self._instr_latency: float = 0.0
 
         # TODO: rewrite
         self._name = f"{interface.name}_QnosProcessor"
@@ -68,14 +71,6 @@ class QnosProcessor:
     @property
     def qdevice(self) -> QDevice:
         return self._interface.qdevice
-
-    @property
-    def instr_latency(self) -> float:
-        return self._instr_latency
-
-    @instr_latency.setter
-    def instr_latency(self, latency: float) -> None:
-        self._instr_latency = latency
 
     def assign(
         self, process: IqoalaProcess, subrt_name: str, instr_idx: int
@@ -100,7 +95,7 @@ class QnosProcessor:
             or isinstance(instr, core.BranchUnaryInstruction)
             or isinstance(instr, core.BranchBinaryInstruction)
         ):
-            if new_line := self._interpret_branch_instr(pid, instr):
+            if new_line := (yield from self._interpret_branch_instr(pid, instr)):
                 next_instr_idx = new_line
             else:
                 next_instr_idx = instr_idx + 1
@@ -212,7 +207,7 @@ class QnosProcessor:
         self._logger.debug(f"Set register {instr.reg} to {instr.imm}")
         shared_mem = self._prog_mem().shared_mem
         shared_mem.set_reg_value(instr.reg, instr.imm.value)
-        yield from self._interface.wait(self._instr_latency)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_qalloc(
@@ -225,6 +220,7 @@ class QnosProcessor:
             raise RuntimeError(f"qubit address in register {instr.reg} is not defined")
         self._logger.debug(f"Allocating qubit with virtual ID {virt_id}")
         self._interface.memmgr.allocate(pid, virt_id)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
 
         return None
 
@@ -238,6 +234,7 @@ class QnosProcessor:
         self._logger.debug(f"Freeing virtual qubit {virt_id}")
         self._interface.memmgr.free(pid, virt_id)
         self._interface.signal_memory_freed()
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
 
         return None
 
@@ -255,6 +252,7 @@ class QnosProcessor:
         )
 
         shared_mem.set_array_entry(instr.entry, value)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_load(
@@ -271,6 +269,7 @@ class QnosProcessor:
         )
 
         shared_mem.set_reg_value(instr.reg, value)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_lea(
@@ -281,6 +280,7 @@ class QnosProcessor:
             f"Storing address of {instr.address} to register {instr.reg}"
         )
         shared_mem.set_reg_value(instr.reg, instr.address.address)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_undef(
@@ -289,6 +289,7 @@ class QnosProcessor:
         shared_mem = self._prog_mem().shared_mem
         self._logger.debug(f"Unset array entry {instr.entry}")
         shared_mem.set_array_entry(instr.entry, None)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_array(
@@ -303,6 +304,7 @@ class QnosProcessor:
         )
 
         shared_mem.init_new_array(instr.address.address, length)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_branch_instr(
@@ -313,7 +315,7 @@ class QnosProcessor:
             core.BranchBinaryInstruction,
             core.JmpInstruction,
         ],
-    ) -> Optional[int]:
+    ) -> Optional[Generator[EventExpression, None, int]]:
         """Returns line to jump to, or None if no jump happens."""
         shared_mem = self._prog_mem().shared_mem
         a, b = None, None
@@ -333,6 +335,7 @@ class QnosProcessor:
         elif isinstance(instr, core.BranchBinaryInstruction):
             condition = instr.check_condition(a, b)
 
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         if condition:
             jump_address = instr.line
             self._logger.debug(
@@ -372,6 +375,7 @@ class QnosProcessor:
             f"and storing the value {value} at register {instr.regout}"
         )
         shared_mem.set_reg_value(instr.regout, value)
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _compute_binary_classical_instr(
@@ -595,6 +599,7 @@ class QnosProcessor:
         self._logger.debug("all entries were written")
 
         self._logger.info(f"\nFinished waiting for array slice {instr.slice}")
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_ret_reg(

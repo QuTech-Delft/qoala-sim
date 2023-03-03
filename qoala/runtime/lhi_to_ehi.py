@@ -26,8 +26,13 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 
-from qoala.lang.ehi import ExposedGateInfo, ExposedHardwareInfo, ExposedQubitInfo
-from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology
+from qoala.lang.ehi import (
+    ExposedGateInfo,
+    ExposedHardwareInfo,
+    ExposedLatencyInfo,
+    ExposedQubitInfo,
+)
+from qoala.runtime.lhi import LhiGateInfo, LhiLatencies, LhiQubitInfo, LhiTopology
 
 
 class NativeToFlavourInterface(abc.ABC):
@@ -138,4 +143,14 @@ class LhiConverter:
             flavour=ntf.flavour(),
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
+        )
+
+    @classmethod
+    def lhi_latencies_to_ehi(cls, latencies: LhiLatencies) -> ExposedLatencyInfo:
+        return ExposedLatencyInfo(
+            host_qnos_latency=latencies.host_qnos_latency,
+            host_instr_time=latencies.host_instr_time,
+            qnos_instr_time=latencies.qnos_instr_time,
+            host_peer_latency=latencies.host_peer_latency,
+            qnos_peer_latency=latencies.qnos_peer_latency,
         )

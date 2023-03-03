@@ -1,4 +1,6 @@
 # Low-level Hardware Info. Expressed using NetSquid concepts and objects.
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Type
@@ -334,3 +336,50 @@ class LhiTopologyBuilder:
             mg_infos[MultiQubit([0, i])] = two_gate_infos
 
         return LhiTopology(q_infos, sg_infos, mg_infos)
+
+
+class LhiLatenciesConfigInterface(ABC):
+    @abstractmethod
+    def get_host_qnos_latency(self) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_host_instr_time(self) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_qnos_instr_time(self) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_host_peer_latency(self) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_qnos_peer_latency(self) -> float:
+        raise NotImplementedError
+
+
+@dataclass
+class LhiLatencies:
+    host_qnos_latency: float = 0  # delay for Host <-> Qnos communication
+    host_instr_time: float = 0  # duration of classical Host instr execution
+    qnos_instr_time: float = 0  # duration of classical Qnos instr execution
+    host_peer_latency: float = 0  # processing time for incoming Host messages
+    qnos_peer_latency: float = 0  # processing time for incoming Qnos messages
+
+    @classmethod
+    def from_config(cls, cfg: LhiLatenciesConfigInterface) -> LhiLatencies:
+        return LhiLatencies(
+            host_qnos_latency=cfg.get_host_qnos_latency(),
+            host_instr_time=cfg.get_host_instr_time(),
+            qnos_instr_time=cfg.get_qnos_instr_time(),
+            host_peer_latency=cfg.get_host_peer_latency(),
+            qnos_peer_latency=cfg.get_qnos_peer_latency(),
+        )
+
+    @classmethod
+    def all_zero(cls) -> LhiLatencies:
+        # NOTE: can also just use LhiLatencies() which will default all values to 0
+        # However, using this classmethod makes this behavior more explicit and clear.
+        return LhiLatencies(0, 0, 0, 0, 0)

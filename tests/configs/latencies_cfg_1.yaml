@@ -1,0 +1,5 @@
+host_qnos_latency: 10_000
+host_instr_time: 500
+qnos_instr_time: 2_000
+host_peer_latency: 2_000_000
+qnos_peer_latency: 1_000_000

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Generator, List, Optional, Tuple
 
+import netsquid as ns
 import pytest
 from netqasm.lang.parsing import parse_text_subroutine
 
@@ -18,9 +19,9 @@ from qoala.sim.memory import ProgramMemory
 from qoala.sim.message import Message
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.sim.qnosinterface import QnosInterface
+from qoala.sim.qnosinterface import QnosInterface, QnosLatencies
 from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor
-from qoala.util.tests import yield_from
+from qoala.util.tests import netsquid_run, yield_from
 
 MOCK_MESSAGE = Message(content=42)
 MOCK_QNOS_RET_REG = "R0"
@@ -179,6 +180,21 @@ def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     return instr_count
 
 
+def execute_process_with_latencies(
+    processor: GenericProcessor, process: IqoalaProcess
+) -> int:
+    subroutines = process.prog_instance.program.subroutines
+    netqasm_instructions = subroutines["subrt"].subroutine.instructions
+
+    instr_count = 0
+
+    instr_idx = 0
+    while instr_idx < len(netqasm_instructions):
+        instr_count += 1
+        instr_idx = netsquid_run(processor.assign(process, "subrt", instr_idx))
+    return instr_count
+
+
 def execute_multiple_processes(
     processor: GenericProcessor, processes: List[IqoalaProcess]
 ) -> None:
@@ -191,6 +207,7 @@ def execute_multiple_processes(
 
 def setup_components(
     topology: LhiTopology,
+    latencies: QnosLatencies = QnosLatencies.all_zero(),
     netstack_result: Optional[MockNetstackResultInfo] = None,
     asynchronous: bool = False,
 ) -> Tuple[QnosProcessor, UnitModule]:
@@ -198,7 +215,7 @@ def setup_components(
     ehi = LhiConverter.to_ehi(topology, ntf=NvToNvInterface())
     unit_module = UnitModule.from_full_ehi(ehi)
     interface = MockQnosInterface(qdevice, netstack_result)
-    processor = QnosProcessor(interface, asynchronous)
+    processor = QnosProcessor(interface, latencies, asynchronous)
     return (processor, unit_module)
 
 
@@ -210,11 +227,11 @@ def star_topology(num_qubits: int) -> LhiTopology:
     return LhiTopologyBuilder.perfect_star(num_qubits, [], 0, [], 0, [], 0)
 
 
-def verify_native(subrt_text: str, num_instr: int) -> bool:
-    # check that the instructions in the subroutine text do not expand
-    # to additional instructions when parsed and compiled
+def native_instr_count(subrt_text: str) -> int:
+    # count the number of instructions in the subroutine when the subrt text
+    # is parsed and compiled (which may lead to additional instructions)
     parsed_subrt = parse_text_subroutine(subrt_text)
-    assert len(parsed_subrt.instructions) == num_instr
+    return len(parsed_subrt.instructions)
 
 
 def test_set_reg():
@@ -229,6 +246,26 @@ def test_set_reg():
     assert process.prog_memory.shared_mem.get_reg_value("R0") == 17
 
 
+def test_set_reg_with_latencies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+
+    subrt = """
+    set R0 17
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    assert ns.sim_time() == 0
+    execute_process_with_latencies(processor, process)
+    assert ns.sim_time() == 5e3
+
+    assert process.prog_memory.shared_mem.get_reg_value("R0") == 17
+
+
 def test_add():
     processor, unit_module = setup_components(star_topology(2))
 
@@ -240,6 +277,29 @@ def test_add():
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
+    assert process.prog_memory.shared_mem.get_reg_value("R2") == 7
+
+
+def test_add_with_latencies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+
+    subrt = """
+    set R0 2
+    set R1 5
+    add R2 R0 R1
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+    assert native_instr_count(subrt) == 3
+
+    assert ns.sim_time() == 0
+    execute_process_with_latencies(processor, process)
+    assert ns.sim_time() == 5e3 * 3
+
     assert process.prog_memory.shared_mem.get_reg_value("R2") == 7
 
 
@@ -390,7 +450,7 @@ def test_no_branch():
     add C0 R3 R1
 LABEL1:
     """
-    verify_native(subrt, 5)
+    assert native_instr_count(subrt) == 5
 
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
@@ -411,13 +471,41 @@ def test_branch():
     add C0 R3 R1
 LABEL1:
     """
-    verify_native(subrt, 5)
+    assert native_instr_count(subrt) == 5
 
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     instr_count = execute_process(processor, process)
 
     assert instr_count == 3
+    assert process.prog_memory.shared_mem.get_reg_value("C0") == 0
+
+
+def test_branch_with_latencies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+
+    subrt = """
+    set R3 3
+    set C3 3
+    beq R3 C3 LABEL1
+    set R1 1
+    add C0 R3 R1
+LABEL1:
+    """
+    assert native_instr_count(subrt) == 5
+
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    assert ns.sim_time() == 0
+    instr_count = execute_process_with_latencies(processor, process)
+    assert instr_count == 3
+    assert ns.sim_time() == 5e3 * 3
+
     assert process.prog_memory.shared_mem.get_reg_value("C0") == 0
 
 
@@ -431,7 +519,7 @@ def test_array():
     set C8 8
     store C8 @0[R4]
     """
-    verify_native(subrt, 5)
+    assert native_instr_count(subrt) == 5
 
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
@@ -613,7 +701,9 @@ def test_wait_all():
         pid=pid, array_id=array_id, start_idx=start_idx, end_idx=end_idx
     )
 
-    processor, unit_module = setup_components(uniform_topology(1), netstack_result)
+    processor, unit_module = setup_components(
+        uniform_topology(1), netstack_result=netstack_result
+    )
 
     subrt = f"""
     array 10 @{array_id}
@@ -631,7 +721,9 @@ def test_wait_all():
 
 if __name__ == "__main__":
     test_set_reg()
+    test_set_reg_with_latencies()
     test_add()
+    test_add_with_latencies()
     test_alloc_qubit()
     test_free_qubit()
     test_free_non_allocated()
@@ -641,5 +733,6 @@ if __name__ == "__main__":
     test_alloc_multiprocess_same_virt_id_trait_not_available()
     test_no_branch()
     test_branch()
+    test_branch_with_latencies()
     test_array()
     test_wait_all()

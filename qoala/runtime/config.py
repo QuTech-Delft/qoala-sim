@@ -30,6 +30,7 @@ from pydantic import BaseModel as PydanticBaseModel
 from qoala.lang.common import MultiQubit
 from qoala.runtime.lhi import (
     LhiGateConfigInterface,
+    LhiLatenciesConfigInterface,
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
@@ -648,17 +649,77 @@ class NVQDeviceConfig(BaseModel):
         return cfg
 
 
+class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
+    host_qnos_latency: float = 0.0  # delay for Host <-> Qnos communication
+    host_instr_time: float = 0.0  # duration of classical Host instr execution
+    qnos_instr_time: float = 0.0  # duration of classical Qnos instr execution
+    host_peer_latency: float = 0.0  # processing time for incoming Host messages
+    qnos_peer_latency: float = 0.0  # processing time for incoming Qnos messages
+
+    @classmethod
+    def from_file(cls, path: str) -> LatenciesConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> LatenciesConfig:
+        host_qnos_latency = 0.0
+        if "host_qnos_latency" in dict:
+            host_qnos_latency = dict["host_qnos_latency"]
+        host_instr_time = 0.0
+        if "host_instr_time" in dict:
+            host_instr_time = dict["host_instr_time"]
+        qnos_instr_time = 0.0
+        if "qnos_instr_time" in dict:
+            qnos_instr_time = dict["qnos_instr_time"]
+        host_peer_latency = 0.0
+        if "host_peer_latency" in dict:
+            host_peer_latency = dict["host_peer_latency"]
+        qnos_peer_latency = 0.0
+        if "qnos_peer_latency" in dict:
+            qnos_peer_latency = dict["qnos_peer_latency"]
+        return LatenciesConfig(
+            host_qnos_latency=host_qnos_latency,
+            host_instr_time=host_instr_time,
+            qnos_instr_time=qnos_instr_time,
+            host_peer_latency=host_peer_latency,
+            qnos_peer_latency=qnos_peer_latency,
+        )
+
+    def get_host_qnos_latency(self) -> float:
+        return self.host_qnos_latency
+
+    def get_host_instr_time(self) -> float:
+        return self.host_instr_time
+
+    def get_qnos_instr_time(self) -> float:
+        return self.qnos_instr_time
+
+    def get_host_peer_latency(self) -> float:
+        return self.host_peer_latency
+
+    def get_qnos_peer_latency(self) -> float:
+        return self.qnos_peer_latency
+
+
 class ProcNodeConfig(BaseModel):
-    name: str
+    node_name: str
     node_id: int
-    qdevice_cfg: TopologyConfig
-    host_qnos_latency: float = 0.0
-    instr_latency: float = 0.0
-    receive_latency: float = 0.0
+    topology: TopologyConfig
+    latencies: LatenciesConfig
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:
-        return _from_file(path, ProcNodeConfig)  # type: ignore
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> ProcNodeConfig:
+        node_name = dict["node_name"]
+        node_id = dict["node_id"]
+        topology = TopologyConfig.from_dict(dict["topology"])
+        latencies = LatenciesConfig.from_dict(dict["latencies"])
+        return ProcNodeConfig(
+            node_name=node_name, node_id=node_id, topology=topology, latencies=latencies
+        )
 
 
 class DepolariseLinkConfig(BaseModel):

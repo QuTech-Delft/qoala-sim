@@ -40,7 +40,7 @@ from qoala.runtime.environment import (
     GlobalNodeInfo,
     LocalEnvironment,
 )
-from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
@@ -332,6 +332,7 @@ def create_procnode(
     env: GlobalEnvironment,
     num_qubits: int,
     topology: LhiTopology,
+    latencies: LhiLatencies,
     ntf_interface: NativeToFlavourInterface,
     procnode_cls: Type[ProcNode] = ProcNode,
     asynchronous: bool = False,
@@ -344,6 +345,7 @@ def create_procnode(
         global_env=env,
         qprocessor=alice_qprocessor,
         qdevice_topology=topology,
+        latencies=latencies,
         ntf_interface=ntf_interface,
         node_id=node_id,
         asynchronous=asynchronous,
@@ -398,11 +400,14 @@ def star_topology(num_qubits: int) -> LhiTopology:
 def test_initialize():
     num_qubits = 3
     topology = generic_topology(num_qubits)
+    latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
     local_env = LocalEnvironment(global_env, global_env.get_node_id("alice"))
-    procnode = create_procnode("alice", global_env, num_qubits, topology, ntf)
+    procnode = create_procnode(
+        "alice", global_env, num_qubits, topology, latencies, ntf
+    )
     procnode.qdevice = MockQDevice(topology)
 
     procnode.host.interface = MockHostInterface()
@@ -467,10 +472,13 @@ def test_initialize():
 def test_2():
     num_qubits = 3
     topology = generic_topology(num_qubits)
+    latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
-    procnode = create_procnode("alice", global_env, num_qubits, topology, ntf)
+    procnode = create_procnode(
+        "alice", global_env, num_qubits, topology, latencies, ntf
+    )
     procnode.qdevice = MockQDevice(topology)
 
     # procnode.host.interface = MockHostInterface()
@@ -523,11 +531,12 @@ SUBROUTINE subrt1
 def test_2_async():
     num_qubits = 3
     topology = generic_topology(num_qubits)
+    latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
     procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, ntf, asynchronous=True
+        "alice", global_env, num_qubits, topology, latencies, ntf, asynchronous=True
     )
     procnode.qdevice = MockQDevice(topology)
 
@@ -584,6 +593,7 @@ def test_classical_comm():
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
+    latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
@@ -594,10 +604,22 @@ def test_classical_comm():
             yield from self.host.processor.assign(process, 0)
 
     alice_procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
+        "alice",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=TestProcNode,
     )
     bob_procnode = create_procnode(
-        "bob", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
+        "bob",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=TestProcNode,
     )
 
     alice_host_processor = alice_procnode.host.processor
@@ -655,6 +677,7 @@ def test_classical_comm_three_nodes():
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
+    latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
@@ -671,13 +694,31 @@ def test_classical_comm_three_nodes():
             yield from self.host.processor.assign(process, 1)
 
     alice_procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, ntf, procnode_cls=SenderProcNode
+        "alice",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=SenderProcNode,
     )
     bob_procnode = create_procnode(
-        "bob", global_env, num_qubits, topology, ntf, procnode_cls=SenderProcNode
+        "bob",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=SenderProcNode,
     )
     charlie_procnode = create_procnode(
-        "charlie", global_env, num_qubits, topology, ntf, procnode_cls=ReceiverProcNode
+        "charlie",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=ReceiverProcNode,
     )
 
     alice_host_processor = alice_procnode.host.processor
@@ -761,6 +802,7 @@ def test_epr():
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
+    latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
@@ -774,10 +816,22 @@ def test_epr():
             yield from self.netstack.processor.assign(process, request)
 
     alice_procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
+        "alice",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=TestProcNode,
     )
     bob_procnode = create_procnode(
-        "bob", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
+        "bob",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=TestProcNode,
     )
 
     alice_host_processor = alice_procnode.host.processor
@@ -901,6 +955,7 @@ REQUEST req1
 
     num_qubits = 3
     topology = generic_topology(num_qubits)
+    latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
     ehi = LhiConverter.to_ehi(topology, ntf)
     unit_module = UnitModule.from_full_ehi(ehi)
@@ -935,7 +990,13 @@ REQUEST req1
             # yield from self.netstack.processor.assign(process, request)
 
     server_procnode = create_procnode(
-        "server", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
+        "server",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=TestProcNode,
     )
     server_process = create_process(
         pid=0,
@@ -980,7 +1041,13 @@ REQUEST req1
     """
     client_program = IqoalaParser(client_text).parse()
     client_procnode = create_procnode(
-        "client", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
+        "client",
+        global_env,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        procnode_cls=TestProcNode,
     )
     client_process = create_process(
         pid=0,

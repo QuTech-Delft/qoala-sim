@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional
 
+import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
 from netqasm.lang.subroutine import Subroutine
 
@@ -27,13 +28,14 @@ from qoala.lang.iqoala import (
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.csocket import ClassicalSocket
-from qoala.sim.hostinterface import HostInterface
+from qoala.sim.host import Host
+from qoala.sim.hostinterface import HostInterface, HostLatencies
 from qoala.sim.hostprocessor import HostProcessor
 from qoala.sim.memory import ProgramMemory, SharedMemory
 from qoala.sim.message import Message
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qmem import UnitModule
-from qoala.util.tests import yield_from
+from qoala.util.tests import netsquid_run, yield_from
 
 MOCK_MESSAGE = Message(content=42)
 MOCK_QNOS_RET_REG = "R0"
@@ -132,7 +134,7 @@ def create_process(
 
 def test_initialize():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program()
     process = create_process(
         program, interface, inputs={"x": 1, "theta": 3.14, "name": "alice"}
@@ -147,7 +149,7 @@ def test_initialize():
 
 def test_assign_cvalue():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(instrs=[AssignCValueOp("x", 3)])
     process = create_process(program, interface)
     processor.initialize(process)
@@ -156,9 +158,25 @@ def test_assign_cvalue():
     assert process.prog_memory.host_mem.read("x") == 3
 
 
+def test_assign_cvalue_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    latencies = HostLatencies(host_instr_time=500)
+    processor = HostProcessor(interface, latencies)
+    program = create_program(instrs=[AssignCValueOp("x", 3)])
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign(process, 0))
+    assert process.prog_memory.host_mem.read("x") == 3
+    assert ns.sim_time() == 500
+
+
 def test_send_msg():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     meta = ProgramMeta.empty("alice")
     meta.csockets = {0: "bob"}
     program = create_program(instrs=[SendCMsgOp("bob", "msg")], meta=meta)
@@ -171,7 +189,7 @@ def test_send_msg():
 
 def test_recv_msg():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     meta = ProgramMeta.empty("alice")
     meta.csockets = {0: "bob"}
     program = create_program(instrs=[ReceiveCMsgOp("bob", "msg")], meta=meta)
@@ -183,9 +201,28 @@ def test_recv_msg():
     assert process.prog_memory.host_mem.read("msg") == MOCK_MESSAGE.content
 
 
+def test_recv_msg_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    latencies = HostLatencies(host_instr_time=500, host_peer_latency=1e6)
+    processor = HostProcessor(interface, latencies)
+    meta = ProgramMeta.empty("alice")
+    meta.csockets = {0: "bob"}
+    program = create_program(instrs=[ReceiveCMsgOp("bob", "msg")], meta=meta)
+    process = create_process(program, interface, inputs={"bob": 0})
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign(process, 0))
+    assert interface.recv_events[0] == InterfaceEvent("bob", MOCK_MESSAGE)
+    assert process.prog_memory.host_mem.read("msg") == MOCK_MESSAGE.content
+    assert ns.sim_time() == 500 + 1e6
+
+
 def test_add_cvalue():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
         instrs=[
             AssignCValueOp("a", 2),
@@ -202,9 +239,32 @@ def test_add_cvalue():
     assert process.prog_memory.host_mem.read("sum") == 5
 
 
+def test_add_cvalue_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=1200))
+    program = create_program(
+        instrs=[
+            AssignCValueOp("a", 2),
+            AssignCValueOp("b", 3),
+            AddCValueOp("sum", "a", "b"),
+        ]
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    for i in range(len(program.instructions)):
+        netsquid_run(processor.assign(process, i))
+
+    assert process.prog_memory.host_mem.read("sum") == 5
+    assert ns.sim_time() == len(program.instructions) * 1200
+
+
 def test_multiply_const():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
         instrs=[AssignCValueOp("a", 4), MultiplyConstantCValueOp("result", "a", -1)]
     )
@@ -219,7 +279,7 @@ def test_multiply_const():
 
 def test_bit_cond_mult():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
         instrs=[
             AssignCValueOp("var1", 4),
@@ -242,7 +302,7 @@ def test_bit_cond_mult():
 
 def test_run_subroutine():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
 
     subrt = Subroutine()
     iqoala_subrt = IqoalaSubroutine("subrt1", subrt, return_map={})
@@ -264,7 +324,7 @@ def test_run_subroutine():
 
 def test_run_subroutine_async():
     interface = MockHostInterface()
-    processor = HostProcessor(interface, asynchronous=True)
+    processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
     subrt = Subroutine()
     iqoala_subrt = IqoalaSubroutine("subrt1", subrt, return_map={})
@@ -286,7 +346,7 @@ def test_run_subroutine_async():
 
 def test_run_subroutine_async_2():
     interface = MockHostInterface()
-    processor = HostProcessor(interface, asynchronous=True)
+    processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
     subrt_text = """
     set R0 {my_value}
@@ -322,7 +382,7 @@ def test_run_subroutine_async_2():
 
 def test_return_result():
     interface = MockHostInterface()
-    processor = HostProcessor(interface)
+    processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
         instrs=[AssignCValueOp("result", 2), ReturnResultOp("result")]
     )
@@ -339,9 +399,12 @@ def test_return_result():
 if __name__ == "__main__":
     test_initialize()
     test_assign_cvalue()
+    test_assign_cvalue_with_latencies()
     test_send_msg()
     test_recv_msg()
+    test_recv_msg_with_latencies()
     test_add_cvalue()
+    test_add_cvalue_with_latencies()
     test_multiply_const()
     test_bit_cond_mult()
     test_run_subroutine()
