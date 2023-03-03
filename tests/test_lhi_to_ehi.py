@@ -66,7 +66,7 @@ def test_latencies_to_ehi():
         host_instr_time=2,
         qnos_instr_time=3,
         host_peer_latency=4,
-        qnos_peer_latency=5,
+        netstack_peer_latency=5,
     )
 
     ehi_latencies = LhiConverter.lhi_latencies_to_ehi(lhi_latencies)
@@ -75,7 +75,7 @@ def test_latencies_to_ehi():
     assert ehi_latencies.host_instr_time == 2
     assert ehi_latencies.qnos_instr_time == 3
     assert ehi_latencies.host_peer_latency == 4
-    assert ehi_latencies.qnos_peer_latency == 5
+    assert ehi_latencies.netstack_peer_latency == 5
 
 
 if __name__ == "__main__":

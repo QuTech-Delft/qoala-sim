@@ -19,6 +19,7 @@ from qoala.sim.hostcomp import HostComponent
 from qoala.sim.hostinterface import HostLatencies
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import Netstack, NetstackComponent
+from qoala.sim.netstackinterface import NetstackLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
 from qoala.sim.qdevice import QDevice
@@ -83,6 +84,9 @@ class ProcNode(Protocol):
         qnos_latencies = QnosLatencies(
             latencies.qnos_instr_time,
         )
+        netstack_latencies = NetstackLatencies(
+            latencies.netstack_peer_latency,
+        )
 
         self._host = Host(
             self.host_comp, self._local_env, host_latencies, self._asynchronous
@@ -104,6 +108,7 @@ class ProcNode(Protocol):
             self._memmgr,
             self._egpmgr,
             self._qdevice,
+            netstack_latencies,
         )
 
         if scheduler is None:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from socket import gaierror
 from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns

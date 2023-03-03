@@ -49,7 +49,7 @@ from qoala.sim.memmgr import MemoryManager
 from qoala.sim.memory import ProgramMemory, SharedMemory
 from qoala.sim.message import Message
 from qoala.sim.netstackcomp import NetstackComponent
-from qoala.sim.netstackinterface import NetstackInterface
+from qoala.sim.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
@@ -135,7 +135,9 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
 
 
 def setup_components(
-    alice_qdevice: QDevice, bob_qdevice: QDevice
+    alice_qdevice: QDevice,
+    bob_qdevice: QDevice,
+    latencies: NetstackLatencies = NetstackLatencies.all_zero(),
 ) -> Tuple[NetstackProcessor, NetstackProcessor]:
     alice_node = alice_qdevice._node
     bob_node = bob_qdevice._node
@@ -171,32 +173,34 @@ def setup_components(
         bob_egpmgr,
     )
 
-    alice_processor = NetstackProcessor(alice_intf)
-    bob_processor = NetstackProcessor(bob_intf)
+    alice_processor = NetstackProcessor(alice_intf, latencies)
+    bob_processor = NetstackProcessor(bob_intf, latencies)
 
     return (alice_processor, bob_processor)
 
 
 def setup_components_generic(
-    num_qubits: int,
+    num_qubits: int, latencies: NetstackLatencies = NetstackLatencies.all_zero()
 ) -> Tuple[NetstackProcessor, NetstackProcessor]:
     alice_qdevice = perfect_uniform_qdevice("alice", num_qubits)
     bob_qdevice = perfect_uniform_qdevice("bob", num_qubits)
 
-    return setup_components(alice_qdevice, bob_qdevice)
+    return setup_components(alice_qdevice, bob_qdevice, latencies)
 
 
 def setup_components_nv(
-    num_qubits: int,
+    num_qubits: int, latencies: NetstackLatencies = NetstackLatencies.all_zero()
 ) -> Tuple[NetstackProcessor, NetstackProcessor]:
     alice_qdevice = perfect_nv_star_qdevice("alice", num_qubits)
     bob_qdevice = perfect_nv_star_qdevice("bob", num_qubits)
 
-    return setup_components(alice_qdevice, bob_qdevice)
+    return setup_components(alice_qdevice, bob_qdevice, latencies)
 
 
-def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
-    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=1000.0)
+def create_egp_protocols(
+    node1: Node, node2: Node, duration: float = 1000
+) -> Tuple[EgpProtocol, EgpProtocol]:
+    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=duration)
     link_prot = MagicLinkLayerProtocolWithSignaling(
         nodes=[node1, node2],
         magic_distributor=link_dist,
@@ -706,8 +710,105 @@ def test_4():
     assert bob_qubit is None
 
 
+def test_4_with_latencies():
+    ns.sim_reset()
+    netstack_peer_latency = 200e3
+    epr_creation_duration = 100e3
+
+    alice_processor, bob_processor = setup_components_generic(
+        num_qubits=3,
+        latencies=NetstackLatencies(netstack_peer_latency=netstack_peer_latency),
+    )
+
+    alice_topology = alice_processor.qdevice.topology
+    bob_topology = alice_processor.qdevice.topology
+    assert alice_topology == bob_topology
+    ehi = LhiConverter.to_ehi(alice_topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
+
+    alice_node = alice_processor._interface._comp.node
+    bob_node = bob_processor._interface._comp.node
+
+    alice_requests = {
+        0: create_netstack_create_request(remote_id=bob_node.ID),
+    }
+    bob_requests = {
+        0: create_netstack_receive_request(remote_id=alice_node.ID),
+    }
+
+    alice_memmgr = alice_processor._interface.memmgr
+    bob_memmgr = bob_processor._interface.memmgr
+
+    alice_egpmgr = alice_processor._interface.egpmgr
+    bob_egpmgr = bob_processor._interface.egpmgr
+
+    alice_egp, bob_egp = create_egp_protocols(
+        alice_node, bob_node, epr_creation_duration
+    )
+    alice_egpmgr.add_egp(bob_node.ID, alice_egp)
+    bob_egpmgr.add_egp(alice_node.ID, bob_egp)
+
+    class NetstackProcessorProtocol(Protocol):
+        def __init__(
+            self,
+            name: str,
+            processor: NetstackProcessor,
+            processes: Dict[int, IqoalaProcess],
+        ) -> None:
+            super().__init__(name)
+            self._processor = processor
+            self._memmgr = processor._interface.memmgr
+            self._processes = processes
+
+        @property
+        def processes(self) -> Dict[int, IqoalaProcess]:
+            return self._processes
+
+        @property
+        def memmgr(self) -> MemoryManager:
+            return self._memmgr
+
+    class AliceProtocol(NetstackProcessorProtocol):
+        def run(self) -> Generator[EventExpression, None, None]:
+            for pid, process in self.processes.items():
+                yield from self._processor.handle_create_request(
+                    process, alice_requests[pid]
+                )
+
+    class BobProtocol(NetstackProcessorProtocol):
+        def run(self) -> Generator[EventExpression, None, None]:
+            for pid, process in self.processes.items():
+                yield from self._processor.handle_receive_request(
+                    process, bob_requests[pid]
+                )
+
+    alice_process0 = create_process(pid=0, unit_module=unit_module)
+    alice_process0.shared_mem.init_new_array(0, 10)
+    alice_memmgr.add_process(alice_process0)
+    alice = AliceProtocol("alice", alice_processor, {0: alice_process0})
+    alice_processor._interface.start()  # also starts peer listeners
+    alice.start()
+    alice_egp.start()
+
+    bob_process0 = create_process(pid=0, unit_module=unit_module)
+    bob_process0.shared_mem.init_new_array(0, 10)
+    bob_memmgr.add_process(bob_process0)
+    bob = BobProtocol("bob", bob_processor, {0: bob_process0})
+    bob_processor._interface.start()  # also starts peer listeners
+    bob.start()
+    bob_egp.start()
+
+    link_prot = alice_egp._ll_prot  # same as bob_egp._ll_prot
+    link_prot.start()
+
+    assert ns.sim_time() == 0
+    ns.sim_run()
+    assert ns.sim_time() == 2 * netstack_peer_latency + 1 * epr_creation_duration
+
+
 if __name__ == "__main__":
     test_1()
     test_2()
     test_3()
     test_4()
+    test_4_with_latencies()

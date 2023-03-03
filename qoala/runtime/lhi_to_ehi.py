@@ -152,5 +152,5 @@ class LhiConverter:
             host_instr_time=latencies.host_instr_time,
             qnos_instr_time=latencies.qnos_instr_time,
             host_peer_latency=latencies.host_peer_latency,
-            qnos_peer_latency=latencies.qnos_peer_latency,
+            netstack_peer_latency=latencies.netstack_peer_latency,
         )

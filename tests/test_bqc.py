@@ -22,7 +22,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.lhi import LhiLatencies
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import (
     ProgramTaskList,

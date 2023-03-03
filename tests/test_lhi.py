@@ -405,7 +405,7 @@ def test_latencies_from_config():
         host_instr_time=2,
         qnos_instr_time=3,
         host_peer_latency=4,
-        qnos_peer_latency=5,
+        netstack_peer_latency=5,
     )
     latencies = LhiLatencies.from_config(cfg)
 
@@ -413,7 +413,7 @@ def test_latencies_from_config():
     assert latencies.host_instr_time == 2
     assert latencies.qnos_instr_time == 3
     assert latencies.host_peer_latency == 4
-    assert latencies.qnos_peer_latency == 5
+    assert latencies.netstack_peer_latency == 5
 
 
 if __name__ == "__main__":

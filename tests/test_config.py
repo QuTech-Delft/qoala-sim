@@ -626,14 +626,14 @@ def test_latencies_config_file():
     assert cfg.host_instr_time == 500
     assert cfg.qnos_instr_time == 2000
     assert cfg.host_peer_latency == 2e6
-    assert cfg.qnos_peer_latency == 1e6
+    assert cfg.netstack_peer_latency == 1e6
 
     # check interface
     assert cfg.get_host_qnos_latency() == 10e3
     assert cfg.get_host_instr_time() == 500
     assert cfg.get_qnos_instr_time() == 2000
     assert cfg.get_host_peer_latency() == 2e6
-    assert cfg.get_qnos_peer_latency() == 1e6
+    assert cfg.get_netstack_peer_latency() == 1e6
 
 
 def test_latencies_config_file_default_values():
@@ -646,14 +646,14 @@ def test_latencies_config_file_default_values():
     assert cfg.host_instr_time == 0
     assert cfg.qnos_instr_time == 0
     assert cfg.host_peer_latency == 0
-    assert cfg.qnos_peer_latency == 0
+    assert cfg.netstack_peer_latency == 0
 
     # check interface
     assert cfg.get_host_qnos_latency() == 10e3
     assert cfg.get_host_instr_time() == 0
     assert cfg.get_qnos_instr_time() == 0
     assert cfg.get_host_peer_latency() == 0
-    assert cfg.get_qnos_peer_latency() == 0
+    assert cfg.get_netstack_peer_latency() == 0
 
 
 def test_procnode_config_file():
@@ -671,7 +671,7 @@ def test_procnode_config_file():
     assert cfg.latencies.host_instr_time == 500
     assert cfg.latencies.qnos_instr_time == 2000
     assert cfg.latencies.host_peer_latency == 2e6
-    assert cfg.latencies.qnos_peer_latency == 1e6
+    assert cfg.latencies.netstack_peer_latency == 1e6
 
 
 def test_procnode_config_file_default_values():
@@ -684,7 +684,7 @@ def test_procnode_config_file_default_values():
 
     # explicitly given by cfg file
     assert cfg.latencies.host_peer_latency == 2e6
-    assert cfg.latencies.qnos_peer_latency == 1e6
+    assert cfg.latencies.netstack_peer_latency == 1e6
 
 
 if __name__ == "__main__":

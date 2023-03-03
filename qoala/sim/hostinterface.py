@@ -15,7 +15,7 @@ from qoala.sim.signals import SIGNAL_HAND_HOST_MSG, SIGNAL_HOST_HOST_MSG
 @dataclass
 class HostLatencies:
     host_instr_time: float = 0  # duration of classical Host instr execution
-    host_peer_latency: float = 0  # processing time for incoming Host messages
+    host_peer_latency: float = 0  # processing time for messages from remote node
 
     @classmethod
     def all_zero(cls) -> HostLatencies:

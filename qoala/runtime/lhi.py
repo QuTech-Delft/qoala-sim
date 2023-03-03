@@ -356,7 +356,7 @@ class LhiLatenciesConfigInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_qnos_peer_latency(self) -> float:
+    def get_netstack_peer_latency(self) -> float:
         raise NotImplementedError
 
 
@@ -365,8 +365,10 @@ class LhiLatencies:
     host_qnos_latency: float = 0  # delay for Host <-> Qnos communication
     host_instr_time: float = 0  # duration of classical Host instr execution
     qnos_instr_time: float = 0  # duration of classical Qnos instr execution
-    host_peer_latency: float = 0  # processing time for incoming Host messages
-    qnos_peer_latency: float = 0  # processing time for incoming Qnos messages
+    host_peer_latency: float = 0  # processing time for Host messages from remote node
+    netstack_peer_latency: float = (
+        0  # processing time for Netstack messages from remote node
+    )
 
     @classmethod
     def from_config(cls, cfg: LhiLatenciesConfigInterface) -> LhiLatencies:
@@ -375,7 +377,7 @@ class LhiLatencies:
             host_instr_time=cfg.get_host_instr_time(),
             qnos_instr_time=cfg.get_qnos_instr_time(),
             host_peer_latency=cfg.get_host_peer_latency(),
-            qnos_peer_latency=cfg.get_qnos_peer_latency(),
+            netstack_peer_latency=cfg.get_netstack_peer_latency(),
         )
 
     @classmethod

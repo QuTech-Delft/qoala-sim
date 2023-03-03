@@ -28,7 +28,7 @@ from qoala.sim.logging import LogManager
 from qoala.sim.memmgr import AllocError
 from qoala.sim.memory import ProgramMemory, SharedMemory
 from qoala.sim.message import Message
-from qoala.sim.netstackinterface import NetstackInterface
+from qoala.sim.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.requests import (
@@ -42,8 +42,11 @@ from qoala.sim.requests import (
 
 
 class NetstackProcessor:
-    def __init__(self, interface: NetstackInterface) -> None:
+    def __init__(
+        self, interface: NetstackInterface, latencies: NetstackLatencies
+    ) -> None:
         self._interface = interface
+        self._latencies = latencies
 
         self._name = f"{interface.name}_NetstackProcessor"
 
@@ -134,6 +137,7 @@ class NetstackProcessor:
         peer = self._interface.remote_id_to_peer_name(req.remote_id)
         self._interface.send_peer_msg(peer, Message(content=req))
         peer_msg = yield from self._interface.receive_peer_msg(peer)
+        yield from self._interface.wait(self._latencies.netstack_peer_latency)
         self._logger.debug(f"received peer msg: {peer_msg}")
 
         # Handle the request.
@@ -545,6 +549,7 @@ class NetstackProcessor:
         # and/or interleaving multiple different requests.
         peer = self._interface.remote_id_to_peer_name(req.remote_id)
         msg = yield from self._interface.receive_peer_msg(peer)
+        yield from self._interface.wait(self._latencies.netstack_peer_latency)
         create_request = msg.content
         self._logger.debug(f"received {create_request} from peer")
 
@@ -574,6 +579,10 @@ class NetstackProcessor:
 
         for peer in remote_names:
             response = yield from self._interface.receive_peer_msg(peer)
+            # DON'T apply network latency since breakpoints are only meant to check
+            # quantum states in simulation and therefore in reality no messages would
+            # be exchanged (inducing latency).
+            # yield from self._interface.wait(self._latencies.netstack_peer_latency)
             assert response.content == "breakpoint start"
 
         # Remote nodes are now ready. Notify the processor.
@@ -590,6 +599,10 @@ class NetstackProcessor:
         # Wait for the remote node to have finsihed as well.
         for peer in remote_names:
             response = yield from self._interface.receive_peer_msg(peer)
+            # DON'T apply network latency since breakpoints are only meant to check
+            # quantum states in simulation and therefore in reality no messages would
+            # be exchanged (inducing latency).
+            # yield from self._interface.wait(self._latencies.netstack_peer_latency)
             assert response.content == "breakpoint end"
 
         # Notify the processor that we are done.
@@ -606,6 +619,10 @@ class NetstackProcessor:
         # Synchronize with the remote nodes.
         for peer in remote_names:
             msg = yield from self._interface.receive_peer_msg(peer)
+            # DON'T apply network latency since breakpoints are only meant to check
+            # quantum states in simulation and therefore in reality no messages would
+            # be exchanged (inducing latency).
+            # yield from self._interface.wait(self._latencies.netstack_peer_latency)
             assert msg.content == "breakpoint start"
 
         for peer in remote_names:
@@ -621,6 +638,10 @@ class NetstackProcessor:
         # Wait for the remote nodes to finish and tell it we are finished as well.
         for peer in remote_names:
             peer_msg = yield from self._interface.receive_peer_msg(peer)
+            # DON'T apply network latency since breakpoints are only meant to check
+            # quantum states in simulation and therefore in reality no messages would
+            # be exchanged (inducing latency).
+            # yield from self._interface.wait(self._latencies.netstack_peer_latency)
             assert peer_msg.content == "breakpoint end"
 
         for peer in remote_names:

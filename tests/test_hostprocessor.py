@@ -28,7 +28,6 @@ from qoala.lang.iqoala import (
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.csocket import ClassicalSocket
-from qoala.sim.host import Host
 from qoala.sim.hostinterface import HostInterface, HostLatencies
 from qoala.sim.hostprocessor import HostProcessor
 from qoala.sim.memory import ProgramMemory, SharedMemory
