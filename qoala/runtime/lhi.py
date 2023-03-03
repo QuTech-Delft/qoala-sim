@@ -10,6 +10,7 @@ from netsquid.components.instructions import (
     INSTR_CZ,
     INSTR_H,
     INSTR_INIT,
+    INSTR_MEASURE,
     INSTR_ROT_X,
     INSTR_ROT_Y,
     INSTR_ROT_Z,

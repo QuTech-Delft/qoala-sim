@@ -95,14 +95,14 @@ def create_procnode(
     num_qubits: int,
     asynchronous: bool = False,
 ) -> ProcNode:
-    topology = LhiTopologyBuilder.perfect_uniform(num_qubits)
-    alice_qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
+    qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
 
     node_id = env.get_node_id(name)
     procnode = ProcNode(
         name=name,
         global_env=env,
-        qprocessor=alice_qprocessor,
+        qprocessor=qprocessor,
         qdevice_topology=topology,
         ntf_interface=GenericToVanillaInterface(),
         node_id=node_id,

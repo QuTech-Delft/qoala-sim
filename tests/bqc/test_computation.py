@@ -12,6 +12,7 @@ from qoala.runtime.config import (
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
+    TopologyConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
@@ -22,6 +23,7 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
+from qoala.sim.logging import LogManager
 from qoala.sim.network import ProcNodeNetwork
 
 
@@ -43,8 +45,7 @@ def get_client_config(id: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         name=f"client_{id}",
         node_id=id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(1),
+        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(1),
         instr_latency=1000,
     )
 
@@ -53,8 +54,7 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         name="server",
         node_id=id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(1),
         instr_latency=1000,
     )
 
@@ -489,7 +489,7 @@ def compute_succ_prob_computation(
 
 
 def test_bqc():
-    # LogManager.set_log_level("DEBUG")
+    LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("logs/test_computation.log")
 
     num_clients = 3
