@@ -9,6 +9,7 @@ import netsquid as ns
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import (
     GenericQDeviceConfig,
+    LatenciesConfig,
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -62,19 +63,19 @@ def topology_config(num_qubits: int) -> TopologyConfig:
 def get_client_config(id: int) -> ProcNodeConfig:
     # client only needs 1 qubit
     return ProcNodeConfig(
-        name=f"client_{id}",
+        node_name=f"client_{id}",
         node_id=id,
-        qdevice_cfg=topology_config(1),
-        instr_latency=1000,
+        topology=topology_config(1),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
     )
 
 
 def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
-        name="server",
+        node_name="server",
         node_id=id,
-        qdevice_cfg=topology_config(num_qubits),
-        instr_latency=1000,
+        topology=topology_config(num_qubits),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
     )
 
 
@@ -90,7 +91,7 @@ def create_network(
     global_env = create_global_env(num_clients, global_schedule, timeslot_len)
 
     link_cfgs = [
-        LinkConfig.perfect_config("server", cfg.name) for cfg in client_configs
+        LinkConfig.perfect_config("server", cfg.node_name) for cfg in client_configs
     ]
 
     node_cfgs = [server_cfg] + client_configs

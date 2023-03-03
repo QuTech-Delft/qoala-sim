@@ -19,7 +19,7 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
@@ -93,6 +93,7 @@ def create_procnode(
         global_env=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
+        latencies=LhiLatencies(qnos_instr_time=1000),
         ntf_interface=GenericToVanillaInterface(),
         node_id=node_id,
         asynchronous=asynchronous,
@@ -119,6 +120,7 @@ class BqcProcNode(ProcNode):
         global_env: GlobalEnvironment,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
+        latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
         node_id: Optional[int] = None,
         asynchronous: bool = False,
@@ -129,6 +131,7 @@ class BqcProcNode(ProcNode):
             global_env=global_env,
             qprocessor=qprocessor,
             qdevice_topology=qdevice_topology,
+            latencies=latencies,
             ntf_interface=ntf_interface,
             node_id=node_id,
             asynchronous=asynchronous,

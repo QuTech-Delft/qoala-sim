@@ -32,7 +32,7 @@ from qoala.sim.constants import PI
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.memory import ProgramMemory
 from qoala.sim.message import Message
-from qoala.sim.netstackinterface import NetstackInterface
+from qoala.sim.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
@@ -160,7 +160,8 @@ def test_create_link_layer_create_request():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 3
     num_pairs = 2
@@ -224,7 +225,8 @@ def test_create_single_pair_1():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 1
     num_pairs = 3
@@ -310,7 +312,8 @@ def test_create_single_pair_2():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 1
     num_pairs = 3
@@ -386,7 +389,8 @@ def test_write_pair_result():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     process = create_process(0, unit_module)
     memmgr.add_process(process)
@@ -436,7 +440,8 @@ def test_handle_create_ck_request():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 1
     num_pairs = 3
@@ -472,7 +477,8 @@ def test_handle_create_ck_request_invalid_virt_ids():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 1
     num_pairs = 3
@@ -508,7 +514,8 @@ def test_receive_single_pair_1():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 1
     num_pairs = 3
@@ -589,7 +596,8 @@ def test_receive_single_pair_2():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 1
     num_pairs = 3
@@ -665,7 +673,8 @@ def test_handle_receive_ck_request():
     memmgr = MemoryManager("alice", qdevice)
     mock_result = ResCreateAndKeep(bell_state=BellIndex.B00)
     interface = MockNetstackInterface(qdevice, memmgr, mock_result)
-    processor = NetstackProcessor(interface)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
 
     remote_id = 1
     num_pairs = 3

@@ -8,7 +8,7 @@ from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
 from qoala.lang.ehi import ExposedHardwareInfo
 from qoala.runtime.environment import GlobalEnvironment, LocalEnvironment
-from qoala.runtime.lhi import LhiTopology
+from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.schedule import Schedule, ScheduleSolver
@@ -16,13 +16,16 @@ from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.host import Host
 from qoala.sim.hostcomp import HostComponent
+from qoala.sim.hostinterface import HostLatencies
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import Netstack, NetstackComponent
+from qoala.sim.netstackinterface import NetstackLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import Qnos
 from qoala.sim.qnoscomp import QnosComponent
+from qoala.sim.qnosinterface import QnosLatencies
 from qoala.sim.scheduler import Scheduler
 
 
@@ -35,6 +38,7 @@ class ProcNode(Protocol):
         global_env: GlobalEnvironment,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
+        latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
         node: Optional[ProcNodeComponent] = None,
         node_id: Optional[int] = None,
@@ -73,7 +77,20 @@ class ProcNode(Protocol):
             qdevice_topology, ntf_interface
         )
 
-        self._host = Host(self.host_comp, self._local_env, self._asynchronous)
+        host_latencies = HostLatencies(
+            latencies.host_instr_time,
+            latencies.host_peer_latency,
+        )
+        qnos_latencies = QnosLatencies(
+            latencies.qnos_instr_time,
+        )
+        netstack_latencies = NetstackLatencies(
+            latencies.netstack_peer_latency,
+        )
+
+        self._host = Host(
+            self.host_comp, self._local_env, host_latencies, self._asynchronous
+        )
         self._memmgr = MemoryManager(self.node.name, self._qdevice, self._ehi)
         self._egpmgr = EgpManager()
         self._qnos = Qnos(
@@ -81,6 +98,7 @@ class ProcNode(Protocol):
             self._local_env,
             self._memmgr,
             self._qdevice,
+            qnos_latencies,
             self._ntf_interface,
             self._asynchronous,
         )
@@ -90,6 +108,7 @@ class ProcNode(Protocol):
             self._memmgr,
             self._egpmgr,
             self._qdevice,
+            netstack_latencies,
         )
 
         if scheduler is None:

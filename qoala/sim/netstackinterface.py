@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Generator
 
 from qlink_interface.interface import (
@@ -12,6 +13,7 @@ from pydynaa import EventExpression
 from qoala.runtime.environment import LocalEnvironment
 from qoala.sim.common import ComponentProtocol, PortListener
 from qoala.sim.egpmgr import EgpManager
+from qoala.sim.events import EVENT_WAIT
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.message import Message
 from qoala.sim.netstackcomp import NetstackComponent
@@ -21,6 +23,17 @@ from qoala.sim.signals import (
     SIGNAL_PEER_NSTK_MSG,
     SIGNAL_PROC_NSTK_MSG,
 )
+
+
+@dataclass
+class NetstackLatencies:
+    netstack_peer_latency: float = 0  # processing time for messages from remote node
+
+    @classmethod
+    def all_zero(cls) -> NetstackLatencies:
+        # NOTE: can also just use NetstackLatencies() which will default all values to 0
+        # However, using this classmethod makes this behavior more explicit and clear.
+        return NetstackLatencies(0)
 
 
 class NetstackInterface(ComponentProtocol):
@@ -143,3 +156,8 @@ class NetstackInterface(ComponentProtocol):
         node_info = self._local_env.get_global_env().get_nodes()[remote_id]
         # TODO figure out why mypy does not like this
         return node_info.name  # type: ignore
+
+    def wait(self, delta_time: int) -> Generator[EventExpression, None, None]:
+        self._schedule_after(delta_time, EVENT_WAIT)
+        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
+        yield event_expr

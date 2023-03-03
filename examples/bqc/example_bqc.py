@@ -10,6 +10,7 @@ from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import (
     DepolariseLinkConfig,
     GenericQDeviceConfig,
+    LatenciesConfig,
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -68,11 +69,14 @@ def topology_config(num_qubits: int) -> TopologyConfig:
 def get_client_config(id: int) -> ProcNodeConfig:
     # client only needs 1 qubit
     return ProcNodeConfig(
-        name=f"client_{id}",
+        node_name=f"client_{id}",
         node_id=id,
-        qdevice_cfg=topology_config(1),
-        instr_latency=INSTR_LATENCY,
-        receive_latency=CC_LATENCY,
+        topology=topology_config(1),
+        latencies=LatenciesConfig(
+            host_instr_time=INSTR_LATENCY,
+            host_peer_latency=CC_LATENCY,
+            qnos_instr_time=INSTR_LATENCY,
+        ),
     )
 
 
@@ -81,11 +85,14 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
     qdevice_cfg = GenericQDeviceConfig.from_file(config_file)
     qdevice_cfg.num_qubits = num_qubits
     return ProcNodeConfig(
-        name="server",
+        node_name="server",
         node_id=id,
-        qdevice_cfg=topology_config(num_qubits),
-        instr_latency=INSTR_LATENCY,
-        receive_latency=CC_LATENCY,
+        topology=topology_config(num_qubits),
+        latencies=LatenciesConfig(
+            host_instr_time=INSTR_LATENCY,
+            host_peer_latency=CC_LATENCY,
+            qnos_instr_time=INSTR_LATENCY,
+        ),
     )
 
 
@@ -104,7 +111,7 @@ def create_network(
     depolarise_config = DepolariseLinkConfig.from_file(link_cfg_file)
     link_cfgs = [
         LinkConfig(
-            node1="server", node2=cfg.name, typ="depolarise", cfg=depolarise_config
+            node1="server", node2=cfg.node_name, typ="depolarise", cfg=depolarise_config
         )
         for cfg in client_configs
     ]

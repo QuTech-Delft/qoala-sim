@@ -19,7 +19,7 @@ from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import (
@@ -104,6 +104,7 @@ def create_procnode(
         global_env=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
+        latencies=LhiLatencies(qnos_instr_time=1000),
         ntf_interface=GenericToVanillaInterface(),
         node_id=node_id,
         asynchronous=asynchronous,

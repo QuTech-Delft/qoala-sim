@@ -6,9 +6,8 @@ from netsquid.protocols import Protocol
 from netsquid.qubits import qubitapi
 from netsquid.qubits.qubit import Qubit
 
-from pydynaa import EventExpression, EventType
-
-EVENT_WAIT = EventType("NETSQUID_WAIT", "netquid wait")
+from pydynaa import EventExpression
+from qoala.sim.events import EVENT_WAIT
 
 
 def yield_from(generator: Generator):

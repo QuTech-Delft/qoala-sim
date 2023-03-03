@@ -5,7 +5,7 @@ from netsquid.protocols import Protocol
 from qoala.runtime.environment import LocalEnvironment
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.hostcomp import HostComponent
-from qoala.sim.hostinterface import HostInterface
+from qoala.sim.hostinterface import HostInterface, HostLatencies
 from qoala.sim.hostprocessor import HostProcessor
 
 
@@ -16,6 +16,7 @@ class Host(Protocol):
         self,
         comp: HostComponent,
         local_env: LocalEnvironment,
+        latencies: HostLatencies,
         asynchronous: bool = False,
     ) -> None:
         """Host protocol constructor.
@@ -30,7 +31,7 @@ class Host(Protocol):
 
         # Owned objects.
         self._interface = HostInterface(comp, local_env)
-        self._processor = HostProcessor(self._interface, asynchronous)
+        self._processor = HostProcessor(self._interface, latencies, asynchronous)
 
     @property
     def interface(self) -> HostInterface:

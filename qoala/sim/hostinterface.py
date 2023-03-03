@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Generator
 
 from pydynaa import EventExpression
@@ -9,6 +10,18 @@ from qoala.sim.events import EVENT_WAIT
 from qoala.sim.hostcomp import HostComponent
 from qoala.sim.message import Message
 from qoala.sim.signals import SIGNAL_HAND_HOST_MSG, SIGNAL_HOST_HOST_MSG
+
+
+@dataclass
+class HostLatencies:
+    host_instr_time: float = 0  # duration of classical Host instr execution
+    host_peer_latency: float = 0  # processing time for messages from remote node
+
+    @classmethod
+    def all_zero(cls) -> HostLatencies:
+        # NOTE: can also just use HostLatencies() which will default all values to 0
+        # However, using this classmethod makes this behavior more explicit and clear.
+        return HostLatencies(0, 0)
 
 
 class HostInterface(ComponentProtocol):

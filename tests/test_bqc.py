@@ -15,6 +15,7 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import (
+    LatenciesConfig,
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -65,18 +66,18 @@ def create_server_tasks(
     # ql_dur = 1e4
     qc_dur = 1e6
 
-    topology_cfg: TopologyConfig = cfg.qdevice_cfg
+    topology_cfg: TopologyConfig = cfg.topology
 
     single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
     two_qubit_gate_time = list(topology_cfg.get_multi_gate_configs().values())[0][
         0
     ].to_duration()
 
-    set_dur = cfg.instr_latency
+    set_dur = cfg.latencies.qnos_instr_time
     rot_dur = single_qubit_gate_time
     h_dur = single_qubit_gate_time
     meas_dur = single_qubit_gate_time
-    free_dur = cfg.instr_latency
+    free_dur = cfg.latencies.qnos_instr_time
     cphase_dur = two_qubit_gate_time
 
     # csocket = assign_cval() : 0
@@ -130,15 +131,15 @@ def create_client_tasks(
     # ql_dur = 1e3
     qc_dur = 1e6
 
-    topology_cfg: TopologyConfig = cfg.qdevice_cfg
+    topology_cfg: TopologyConfig = cfg.topology
 
     single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
 
-    set_dur = cfg.instr_latency
+    set_dur = cfg.latencies.qnos_instr_time
     rot_dur = single_qubit_gate_time
     h_dur = single_qubit_gate_time
     meas_dur = single_qubit_gate_time
-    free_dur = cfg.instr_latency
+    free_dur = cfg.latencies.qnos_instr_time
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
     tasks.append(TaskBuilder.CL(cl_dur, 1))
@@ -250,16 +251,16 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     client_id = global_env.get_node_id("client")
 
     server_node_cfg = ProcNodeConfig(
-        name="server",
+        node_name="server",
         node_id=server_id,
-        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        instr_latency=1000,
+        topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
     )
     client_node_cfg = ProcNodeConfig(
-        name="client",
+        node_name="client",
         node_id=client_id,
-        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        instr_latency=1000,
+        topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
     )
     link_cfg = LinkConfig.perfect_config("server", "client")
 

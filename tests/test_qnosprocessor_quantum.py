@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
+import netsquid as ns
 import pytest
 from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
 from netqasm.lang.parsing import parse_text_subroutine
@@ -38,7 +39,7 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, UnsupportedQDeviceCommandError
 from qoala.sim.qmem import UnitModule
 from qoala.sim.qnoscomp import QnosComponent
-from qoala.sim.qnosinterface import QnosInterface
+from qoala.sim.qnosinterface import QnosInterface, QnosLatencies
 from qoala.sim.qnosprocessor import GenericProcessor, NVProcessor, QnosProcessor
 from qoala.util.tests import has_multi_state, has_state, netsquid_run
 
@@ -187,25 +188,29 @@ def execute_multiple_processes(
             netsquid_run(processor.assign(proc, "subrt", i))
 
 
-def setup_components_generic(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
+def setup_components_generic(
+    num_qubits: int, latencies: QnosLatencies = QnosLatencies.all_zero()
+) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = perfect_uniform_qdevice(num_qubits)
     ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericToVanillaInterface())
     unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
-    processor = GenericProcessor(interface)
+    processor = GenericProcessor(interface, latencies)
     return (processor, unit_module)
 
 
-def setup_components_nv_star(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
+def setup_components_nv_star(
+    num_qubits: int, latencies: QnosLatencies = QnosLatencies.all_zero()
+) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = perfect_nv_star_qdevice(num_qubits)
     ehi = LhiConverter.to_ehi(qdevice.topology, ntf=NvToNvInterface())
     unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
-    processor = NVProcessor(interface)
+    processor = NVProcessor(interface, latencies)
     return (processor, unit_module)
 
 
@@ -222,6 +227,39 @@ def test_init_qubit():
     process = create_process_with_vanilla_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
+
+    # Check if qubit with virt ID 0 has been initialized.
+    phys_id = processor._interface.memmgr.phys_id_for(process.pid, virt_id=0)
+    qubit = processor.qdevice.get_local_qubit(phys_id)
+    assert has_state(qubit, ketstates.s0)
+
+
+def test_init_qubit_with_latencies():
+    ns.sim_reset()
+
+    instr_time = 1e3
+
+    # TODO: improve this
+    # Value is copied from hardcoded implementation of `perfect_uniform_qdevice`.
+    gate_time = 5e3
+
+    num_qubits = 3
+    processor, unit_module = setup_components_generic(
+        num_qubits, latencies=QnosLatencies(qnos_instr_time=instr_time)
+    )
+
+    subrt = """
+    set Q0 0
+    qalloc Q0
+    init Q0
+    """
+
+    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    assert ns.sim_time() == 0
+    execute_process(processor, process)
+    assert ns.sim_time() == 2 * instr_time + 1 * gate_time
 
     # Check if qubit with virt ID 0 has been initialized.
     phys_id = processor._interface.memmgr.phys_id_for(process.pid, virt_id=0)
@@ -861,6 +899,7 @@ def test_multiple_processes_nv_alloc_error():
 
 if __name__ == "__main__":
     test_init_qubit()
+    test_init_qubit_with_latencies()
     test_init_not_allocated()
     test_alloc_no_init()
     test_single_gates_generic()

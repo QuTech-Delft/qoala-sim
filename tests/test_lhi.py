@@ -10,8 +10,14 @@ from netsquid.components.instructions import (
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import TopologyConfig
-from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology, LhiTopologyBuilder
+from qoala.runtime.config import LatenciesConfig, TopologyConfig
+from qoala.runtime.lhi import (
+    LhiGateInfo,
+    LhiLatencies,
+    LhiQubitInfo,
+    LhiTopology,
+    LhiTopologyBuilder,
+)
 
 
 def relative_path(path: str) -> str:
@@ -393,6 +399,23 @@ def test_generic_t1t2_star():
         )
 
 
+def test_latencies_from_config():
+    cfg = LatenciesConfig(
+        host_qnos_latency=1,
+        host_instr_time=2,
+        qnos_instr_time=3,
+        host_peer_latency=4,
+        netstack_peer_latency=5,
+    )
+    latencies = LhiLatencies.from_config(cfg)
+
+    assert latencies.host_qnos_latency == 1
+    assert latencies.host_instr_time == 2
+    assert latencies.qnos_instr_time == 3
+    assert latencies.host_peer_latency == 4
+    assert latencies.netstack_peer_latency == 5
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
@@ -406,3 +429,4 @@ if __name__ == "__main__":
     test_build_fully_uniform()
     test_perfect_star()
     test_generic_t1t2_star()
+    test_latencies_from_config()

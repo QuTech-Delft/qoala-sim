@@ -11,11 +11,11 @@ from netsquid.components.instructions import (
 
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import ExposedGateInfo, ExposedQubitInfo
-from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 
 
-def test1():
+def test_topology_to_ehi():
     topology = LhiTopologyBuilder.perfect_uniform(
         num_qubits=2,
         single_instructions=[
@@ -60,5 +60,24 @@ def test1():
     }
 
 
+def test_latencies_to_ehi():
+    lhi_latencies = LhiLatencies(
+        host_qnos_latency=1,
+        host_instr_time=2,
+        qnos_instr_time=3,
+        host_peer_latency=4,
+        netstack_peer_latency=5,
+    )
+
+    ehi_latencies = LhiConverter.lhi_latencies_to_ehi(lhi_latencies)
+
+    assert ehi_latencies.host_qnos_latency == 1
+    assert ehi_latencies.host_instr_time == 2
+    assert ehi_latencies.qnos_instr_time == 3
+    assert ehi_latencies.host_peer_latency == 4
+    assert ehi_latencies.netstack_peer_latency == 5
+
+
 if __name__ == "__main__":
-    test1()
+    test_topology_to_ehi()
+    test_latencies_to_ehi()

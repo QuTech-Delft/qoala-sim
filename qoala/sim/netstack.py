@@ -9,7 +9,7 @@ from qoala.runtime.environment import LocalEnvironment
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstackcomp import NetstackComponent
-from qoala.sim.netstackinterface import NetstackInterface
+from qoala.sim.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.netstackprocessor import NetstackProcessor
 from qoala.sim.qdevice import QDevice
 
@@ -24,6 +24,7 @@ class Netstack(Protocol):
         memmgr: MemoryManager,
         egpmgr: EgpManager,
         qdevice: QDevice,
+        latencies: NetstackLatencies,
     ) -> None:
         """Network stack protocol constructor. Typically created indirectly through
         constructing a `Qnos` instance.
@@ -39,7 +40,7 @@ class Netstack(Protocol):
 
         # Owned objects.
         self._interface = NetstackInterface(comp, local_env, qdevice, memmgr, egpmgr)
-        self._processor = NetstackProcessor(self._interface)
+        self._processor = NetstackProcessor(self._interface, latencies)
 
     def run(self) -> Generator[EventExpression, None, None]:
         # Loop forever acting on messages from the processor.
