@@ -51,6 +51,9 @@ tests:
 test-report:
 	coverage report --omit="tests/*"
 
+examples:
+	@$(PYTHON3) ${RUNEXAMPLES}
+
 docs html:
 	@${MAKE} -C docs html
 

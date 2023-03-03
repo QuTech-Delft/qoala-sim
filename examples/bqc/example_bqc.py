@@ -13,6 +13,7 @@ from qoala.runtime.config import (
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
+    TopologyConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
@@ -44,13 +45,32 @@ def create_global_env(
     return env
 
 
+def topology_config(num_qubits: int) -> TopologyConfig:
+    return TopologyConfig.perfect_config_uniform(
+        num_qubits,
+        single_instructions=[
+            "INSTR_INIT",
+            "INSTR_ROT_X",
+            "INSTR_ROT_Y",
+            "INSTR_ROT_Z",
+            "INSTR_X",
+            "INSTR_Y",
+            "INSTR_Z",
+            "INSTR_H",
+            "INSTR_MEASURE",
+        ],
+        single_duration=1e3,
+        two_instructions=["INSTR_CNOT", "INSTR_CZ"],
+        two_duration=100e3,
+    )
+
+
 def get_client_config(id: int) -> ProcNodeConfig:
     # client only needs 1 qubit
     return ProcNodeConfig(
         name=f"client_{id}",
         node_id=id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(1),
+        qdevice_cfg=topology_config(1),
         instr_latency=INSTR_LATENCY,
         receive_latency=CC_LATENCY,
     )
@@ -63,9 +83,7 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         name="server",
         node_id=id,
-        qdevice_typ="generic",
-        # qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
-        qdevice_cfg=qdevice_cfg,
+        qdevice_cfg=topology_config(num_qubits),
         instr_latency=INSTR_LATENCY,
         receive_latency=CC_LATENCY,
     )
