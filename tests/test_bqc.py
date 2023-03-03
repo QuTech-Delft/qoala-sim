@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import netsquid as ns
-from matplotlib.colors import TwoSlopeNorm
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 from netsquid_magic.link_layer import (
@@ -16,7 +15,6 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import (
-    GenericQDeviceConfig,
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -135,9 +133,6 @@ def create_client_tasks(
     topology_cfg: TopologyConfig = cfg.qdevice_cfg
 
     single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
-    two_qubit_gate_time = list(topology_cfg.get_multi_gate_configs().values())[0][
-        0
-    ].to_duration()
 
     set_dur = cfg.instr_latency
     rot_dur = single_qubit_gate_time

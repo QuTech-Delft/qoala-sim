@@ -2,7 +2,6 @@ import pytest
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
-    INSTR_CZ,
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,
@@ -10,27 +9,10 @@ from netsquid.components.instructions import (
     INSTR_Y,
     INSTR_Z,
 )
-from netsquid.components.models.qerrormodels import (
-    DepolarNoiseModel,
-    QuantumErrorModel,
-    T1T2NoiseModel,
-)
+from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 from netsquid.components.qprocessor import MissingInstructionError, QuantumProcessor
 
-from qoala.lang.common import MultiQubit
-from qoala.runtime.config import (
-    DepolariseLinkConfig,
-    GateConfig,
-    GateDepolariseConfig,
-    GenericQDeviceConfig,
-    MultiGateConfig,
-    NVQDeviceConfig,
-    QubitConfig,
-    QubitIdConfig,
-    QubitT1T2Config,
-    SingleGateConfig,
-    TopologyConfig,
-)
+from qoala.runtime.config import GenericQDeviceConfig, NVQDeviceConfig
 from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology, LhiTopologyBuilder
 from qoala.sim.build import (
     build_generic_qprocessor,

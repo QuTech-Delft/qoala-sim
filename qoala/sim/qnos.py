@@ -70,10 +70,6 @@ class Qnos(Protocol):
     def processor(self, processor: QnosProcessor) -> None:
         self._processor = processor
 
-    @property
-    def physical_memory(self) -> PhysicalQuantumMemory:
-        return self._interface.qdevice.memory
-
     def start(self) -> None:
         super().start()
         self._interface.start()

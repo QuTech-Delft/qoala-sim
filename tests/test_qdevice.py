@@ -5,7 +5,6 @@ from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
     INSTR_CYDIR,
-    INSTR_CZ,
     INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
@@ -16,18 +15,12 @@ from netsquid.components.instructions import (
     INSTR_Y,
     INSTR_Z,
 )
-from netsquid.components.models.qerrormodels import (
-    DepolarNoiseModel,
-    QuantumErrorModel,
-    T1T2NoiseModel,
-)
 from netsquid.components.qprocessor import MissingInstructionError
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates
 
-from qoala.runtime.config import GenericQDeviceConfig, NVQDeviceConfig
-from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopologyBuilder
-from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
+from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.constants import PI, PI_OVER_2
 from qoala.sim.qdevice import (
     NonInitializedQubitError,

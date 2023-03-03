@@ -1,9 +1,7 @@
 # Low-level Hardware Info. Expressed using NetSquid concepts and objects.
 from abc import ABC, abstractmethod
-from ast import Mult
 from dataclasses import dataclass
-from inspect import isclass
-from typing import Any, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, List, Optional, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,

@@ -6,8 +6,6 @@ import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
 from netsquid.components.instructions import (
     INSTR_CNOT,
-    INSTR_CXDIR,
-    INSTR_CYDIR,
     INSTR_H,
     INSTR_I,
     INSTR_INIT,
@@ -26,12 +24,11 @@ from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 
 from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
-from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
+from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess

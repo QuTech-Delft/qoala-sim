@@ -59,6 +59,7 @@ def run(
     sim_data = GlobalSimData()
     sim_data.set_network(network)
     context = SimulationContext(global_env=rte, global_sim_data=sim_data)
+    print(context)
 
     for name, program_list in programs.items():
         for program in program_list:

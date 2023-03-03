@@ -49,7 +49,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import GlobalEnvironment
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
+from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
 

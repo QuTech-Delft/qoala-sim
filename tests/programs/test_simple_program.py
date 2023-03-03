@@ -6,12 +6,7 @@ from typing import List
 import netsquid as ns
 
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
-from qoala.runtime.config import (
-    GenericQDeviceConfig,
-    ProcNodeConfig,
-    ProcNodeNetworkConfig,
-    TopologyConfig,
-)
+from qoala.runtime.config import ProcNodeConfig, ProcNodeNetworkConfig, TopologyConfig
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, ProgramInput
 from qoala.runtime.schedule import NaiveSolver, ProgramTaskList, TaskBuilder

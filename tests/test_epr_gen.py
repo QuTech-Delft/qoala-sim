@@ -29,7 +29,6 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaProgram, ProgramMeta
-from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
     GlobalEnvironment,
     GlobalNodeInfo,

@@ -1,4 +1,3 @@
-import itertools
 import os
 
 from netsquid.components.instructions import (

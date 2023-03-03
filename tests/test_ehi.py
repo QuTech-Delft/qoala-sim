@@ -1,7 +1,7 @@
 from typing import List
 
-from netqasm.lang.instr import core, nv, vanilla
-from netqasm.lang.instr.flavour import Flavour, NVFlavour
+from netqasm.lang.instr import core, nv
+from netqasm.lang.instr.flavour import NVFlavour
 
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import (

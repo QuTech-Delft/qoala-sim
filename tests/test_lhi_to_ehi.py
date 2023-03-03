@@ -1,29 +1,18 @@
-from netqasm.lang.instr import core, nv, vanilla
-from netqasm.lang.instr.flavour import Flavour, NVFlavour
+from netqasm.lang.instr import core, nv
+from netqasm.lang.instr.flavour import NVFlavour
 from netsquid.components.instructions import (
-    INSTR_CNOT,
     INSTR_CXDIR,
-    INSTR_CYDIR,
-    INSTR_CZ,
-    INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,
     INSTR_ROT_Y,
     INSTR_ROT_Z,
-    INSTR_X,
-    INSTR_Y,
-    INSTR_Z,
 )
 
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import ExposedGateInfo, ExposedQubitInfo
-from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import (
-    LhiConverter,
-    NativeToFlavourInterface,
-    NvToNvInterface,
-)
+from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 
 
 def test1():

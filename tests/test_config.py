@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import os
-from operator import is_
 from typing import Any, Dict, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
-    INSTR_CZ,
     INSTR_H,
-    INSTR_INIT,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -23,7 +20,6 @@ from netsquid.components.models.qerrormodels import (
 from qoala.lang.common import MultiQubit
 from qoala.runtime.config import (
     BaseModel,
-    DepolariseLinkConfig,
     GateConfig,
     GateConfigRegistry,
     GateDepolariseConfig,
@@ -491,45 +487,6 @@ def test_topology_config_multi_gate_perfect_star():
             "depolar_rate": 0,
             "time_independent": True,
         }
-
-
-def test_topology_config_file_multi_gate():
-    cfg = TopologyConfig.from_file(relative_path("configs/topology_cfg_3.yaml"))
-
-    for i in [0, 1]:
-        assert cfg.qubits[i].qubit_id == i
-        assert cfg.qubits[i].qubit_config.to_is_communication()
-        assert cfg.qubits[i].qubit_config.to_error_model() == T1T2NoiseModel
-        assert cfg.qubits[i].qubit_config.to_error_model_kwargs() == {
-            "T1": 1e6,
-            "T2": 3e6,
-        }
-
-    assert cfg.multi_gates[0].qubit_ids == [0, 1]
-    assert cfg.multi_gates[0].gate_configs[0].to_instruction() == INSTR_CNOT
-    assert cfg.multi_gates[0].gate_configs[0].to_duration() == 4e3
-    assert cfg.multi_gates[0].gate_configs[0].to_error_model() == DepolarNoiseModel
-    assert cfg.multi_gates[0].gate_configs[0].to_error_model_kwargs() == {
-        "depolar_rate": 0.2,
-        "time_independent": True,
-    }
-
-    # check interface
-    for i in [0, 1]:
-        assert cfg.get_qubit_configs()[i].to_is_communication()
-        assert cfg.get_qubit_configs()[i].to_error_model() == T1T2NoiseModel
-        assert cfg.get_qubit_configs()[i].to_error_model_kwargs() == {
-            "T1": 1e6,
-            "T2": 3e6,
-        }
-    q01 = MultiQubit([0, 1])
-    assert cfg.get_multi_gate_configs()[q01][0].to_instruction() == INSTR_CNOT
-    assert cfg.get_multi_gate_configs()[q01][0].to_duration() == 4e3
-    assert cfg.get_multi_gate_configs()[q01][0].to_error_model() == DepolarNoiseModel
-    assert cfg.get_multi_gate_configs()[q01][0].to_error_model_kwargs() == {
-        "depolar_rate": 0.2,
-        "time_independent": True,
-    }
 
 
 def test_topology_config_file_multi_gate():
