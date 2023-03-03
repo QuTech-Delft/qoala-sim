@@ -10,6 +10,7 @@ from qoala.runtime.config import (
     GenericQDeviceConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
+    TopologyConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, ProgramInput
@@ -29,15 +30,11 @@ def create_global_env() -> GlobalEnvironment:
 
 
 def get_config() -> ProcNodeConfig:
-    qdevice_cfg = GenericQDeviceConfig.perfect_config(1)
-    qdevice_cfg.T1 = 1
-    qdevice_cfg.T2 = 1
-    # qdevice_cfg.single_qubit_gate_depolar_prob = 1
+    topology = TopologyConfig.perfect_config_uniform_default_params(1)
     return ProcNodeConfig(
         name="alice",
         node_id=0,
-        qdevice_typ="generic",
-        qdevice_cfg=qdevice_cfg,
+        qdevice_cfg=topology,
         instr_latency=1000,
     )
 
