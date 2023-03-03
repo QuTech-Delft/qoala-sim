@@ -40,12 +40,32 @@ def create_global_env(
     return env
 
 
+def topology_config(num_qubits: int) -> TopologyConfig:
+    return TopologyConfig.perfect_config_uniform(
+        num_qubits,
+        single_instructions=[
+            "INSTR_INIT",
+            "INSTR_ROT_X",
+            "INSTR_ROT_Y",
+            "INSTR_ROT_Z",
+            "INSTR_X",
+            "INSTR_Y",
+            "INSTR_Z",
+            "INSTR_H",
+            "INSTR_MEASURE",
+        ],
+        single_duration=1e3,
+        two_instructions=["INSTR_CNOT", "INSTR_CZ"],
+        two_duration=100e3,
+    )
+
+
 def get_client_config(id: int) -> ProcNodeConfig:
     # client only needs 1 qubit
     return ProcNodeConfig(
         name=f"client_{id}",
         node_id=id,
-        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(1),
+        qdevice_cfg=topology_config(1),
         instr_latency=1000,
     )
 
@@ -54,7 +74,7 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         name="server",
         node_id=id,
-        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(1),
+        qdevice_cfg=topology_config(num_qubits),
         instr_latency=1000,
     )
 
@@ -489,7 +509,7 @@ def compute_succ_prob_computation(
 
 
 def test_bqc():
-    LogManager.set_log_level("DEBUG")
+    # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("logs/test_computation.log")
 
     num_clients = 3
