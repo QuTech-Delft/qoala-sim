@@ -1,0 +1,53 @@
+qubit_noise_1: &qubit_noise_1
+  T1: 1_000_000
+  T2: 3_000_000
+
+qubit_noise_2: &qubit_noise_2
+  T1: 2_000_000
+  T2: 4_000_000
+
+qubits:
+  - qubit_id: 0
+    qubit_config:
+      is_communication: true
+      noise_config_cls: "QubitT1T2Config"
+      noise_config:
+        <<: *qubit_noise_1
+  - qubit_id: 1
+    qubit_config:
+      is_communication: false
+      noise_config_cls: "QubitT1T2Config"
+      noise_config:
+        <<: *qubit_noise_2
+
+gate_noise_1: &gate_noise_1
+  duration: 2_000
+  depolarise_prob: 0.2
+
+gate_noise_2: &gate_noise_2
+  duration: 4_000
+  depolarise_prob: 0.4
+
+gate_noise_3: &gate_noise_3
+  duration: 6_000
+  depolarise_prob: 0.6
+
+single_gates:
+  - qubit_id: 0
+    gate_configs:
+    - name: "INSTR_X"
+      noise_config_cls: "GateDepolariseConfig"
+      noise_config:
+        <<: *gate_noise_1
+    - name: "INSTR_Y"
+      noise_config_cls: "GateDepolariseConfig"
+      noise_config:
+        <<: *gate_noise_2
+  - qubit_id: 1
+    gate_configs:
+    - name: "INSTR_Z"
+      noise_config_cls: "GateDepolariseConfig"
+      noise_config:
+        <<: *gate_noise_3
+
+multi_gates: {}

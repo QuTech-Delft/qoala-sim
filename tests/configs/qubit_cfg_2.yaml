@@ -1,0 +1,8 @@
+qubit_noise: &qubit_noise
+  T1: 1_000_000
+  T2: 3_000_000
+
+is_communication: true
+noise_config_cls: "QubitT1T2Config"
+noise_config:
+  <<: *qubit_noise

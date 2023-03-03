@@ -819,7 +819,7 @@ class NVProcessor(QnosProcessor):
         # Check if comm qubit is already used by this process:
         if memmgr.phys_id_for(pid, 0) is not None:
             # Comm qubit is already allocated. Try to move it to a free mem qubit.
-            mem_virt_id = memmgr.get_unmapped_mem_qubit(pid)
+            mem_virt_id = memmgr.get_unmapped_non_comm_qubit(pid)
             memmgr.allocate(pid, mem_virt_id)
             mem_phys_id = memmgr.phys_id_for(mem_virt_id)
 

@@ -15,10 +15,10 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
 from qoala.runtime.config import (
-    GenericQDeviceConfig,
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
+    TopologyConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
@@ -37,7 +37,6 @@ from qoala.sim.egp import EgpProtocol
 def create_global_env(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
@@ -66,14 +65,19 @@ def create_server_tasks(
     # ql_dur = 1e4
     qc_dur = 1e6
 
-    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
+    topology_cfg: TopologyConfig = cfg.qdevice_cfg
+
+    single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
+    two_qubit_gate_time = list(topology_cfg.get_multi_gate_configs().values())[0][
+        0
+    ].to_duration()
 
     set_dur = cfg.instr_latency
-    rot_dur = qdevice_cfg.single_qubit_gate_time
-    h_dur = qdevice_cfg.single_qubit_gate_time
-    meas_dur = qdevice_cfg.measure_time
+    rot_dur = single_qubit_gate_time
+    h_dur = single_qubit_gate_time
+    meas_dur = single_qubit_gate_time
     free_dur = cfg.instr_latency
-    cphase_dur = qdevice_cfg.two_qubit_gate_time
+    cphase_dur = two_qubit_gate_time
 
     # csocket = assign_cval() : 0
     tasks.append(TaskBuilder.CL(cl_dur, 0))
@@ -126,12 +130,14 @@ def create_client_tasks(
     # ql_dur = 1e3
     qc_dur = 1e6
 
-    qdevice_cfg: GenericQDeviceConfig = cfg.qdevice_cfg
+    topology_cfg: TopologyConfig = cfg.qdevice_cfg
+
+    single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
 
     set_dur = cfg.instr_latency
-    rot_dur = qdevice_cfg.single_qubit_gate_time
-    h_dur = qdevice_cfg.single_qubit_gate_time
-    meas_dur = qdevice_cfg.measure_time
+    rot_dur = single_qubit_gate_time
+    h_dur = single_qubit_gate_time
+    meas_dur = single_qubit_gate_time
     free_dur = cfg.instr_latency
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
@@ -246,15 +252,13 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     server_node_cfg = ProcNodeConfig(
         name="server",
         node_id=server_id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         instr_latency=1000,
     )
     client_node_cfg = ProcNodeConfig(
         name="client",
         node_id=client_id,
-        qdevice_typ="generic",
-        qdevice_cfg=GenericQDeviceConfig.perfect_config(num_qubits),
+        qdevice_cfg=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         instr_latency=1000,
     )
     link_cfg = LinkConfig.perfect_config("server", "client")
@@ -385,7 +389,6 @@ def expected_rsp_state(theta: int, p: int, dummy: bool):
 
 
 def test_bqc():
-
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome

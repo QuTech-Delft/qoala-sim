@@ -18,18 +18,19 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
 from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
-from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.build import build_generic_qprocessor
+from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.hostinterface import HostInterface
-from qoala.sim.logging import LogManager
-from qoala.sim.memory import ProgramMemory, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
+from qoala.sim.qmem import UnitModule
 from qoala.util.tests import has_state
 
 
@@ -66,15 +67,9 @@ def create_process(
     return process
 
 
-def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    return build_generic_qprocessor(name=f"{name}_processor", cfg=cfg)
-
-
 def create_global_env(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
@@ -89,13 +84,16 @@ def create_procnode(
     asynchronous: bool = False,
     pid: int = 0,
 ) -> ProcNode:
-    alice_qprocessor = create_qprocessor(name, num_qubits)
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
+    qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
 
     node_id = env.get_node_id(name)
     procnode = procnode_cls(
         name=name,
         global_env=env,
-        qprocessor=alice_qprocessor,
+        qprocessor=qprocessor,
+        qdevice_topology=topology,
+        ntf_interface=GenericToVanillaInterface(),
         node_id=node_id,
         asynchronous=asynchronous,
         pid=pid,
@@ -116,12 +114,22 @@ def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProt
 
 class BqcProcNode(ProcNode):
     def __init__(
-        self, name, global_env, qprocessor, node_id, asynchronous, pid
+        self,
+        name: str,
+        global_env: GlobalEnvironment,
+        qprocessor: QuantumProcessor,
+        qdevice_topology: LhiTopology,
+        ntf_interface: NativeToFlavourInterface,
+        node_id: Optional[int] = None,
+        asynchronous: bool = False,
+        pid: int = 0,
     ) -> None:
         super().__init__(
             name=name,
             global_env=global_env,
             qprocessor=qprocessor,
+            qdevice_topology=qdevice_topology,
+            ntf_interface=ntf_interface,
             node_id=node_id,
             asynchronous=asynchronous,
         )
@@ -288,7 +296,6 @@ def run_bqc(
     server_pid: int = 0,
 ):
     num_qubits = 3
-    unit_module = UnitModule.default_generic(num_qubits)
     global_env = create_global_env(num_qubits, names=["client", "server"])
     server_id = global_env.get_node_id("server")
     client_id = global_env.get_node_id("client")
@@ -301,10 +308,11 @@ def run_bqc(
     server_procnode = create_procnode(
         "server", global_env, num_qubits, procnode_cls=server_prot, pid=server_pid
     )
+    server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
         pid=server_pid,
         program=server_program,
-        unit_module=unit_module,
+        unit_module=UnitModule.from_full_ehi(server_ehi),
         host_interface=server_procnode.host._interface,
         inputs={"client_id": client_id},
     )
@@ -318,10 +326,11 @@ def run_bqc(
     client_procnode = create_procnode(
         "client", global_env, num_qubits, procnode_cls=client_prot, pid=client_pid
     )
+    client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
         pid=client_pid,
         program=client_program,
-        unit_module=unit_module,
+        unit_module=UnitModule.from_full_ehi(client_ehi),
         host_interface=client_procnode.host._interface,
         inputs={
             "server_id": server_id,
@@ -479,7 +488,7 @@ def test_bqc_1():
         (8, 8, 0, 0),
     ]
 
-    for (alpha, beta, theta1, theta2) in alpha_beta_theta1_theta2:
+    for alpha, beta, theta1, theta2 in alpha_beta_theta1_theta2:
         for _ in range(10):
             result = run_bqc(
                 ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
@@ -594,7 +603,7 @@ def test_bqc_2():
         (8, 8, 0, 0),
     ]
 
-    for (alpha, beta, theta1, theta2) in alpha_beta_theta1_theta2:
+    for alpha, beta, theta1, theta2 in alpha_beta_theta1_theta2:
         for _ in range(10):
             result = run_bqc(
                 ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
@@ -614,15 +623,14 @@ def test_bqc_2():
 
 
 def test_bqc():
-
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome
 
     # angles are in multiples of pi/16
 
-    LogManager.set_log_level("DEBUG")
-    LogManager.log_to_file("test_bqc.log")
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("test_bqc.log")
 
     def check(alpha, beta, theta1, theta2, expected):
         results = [
@@ -642,9 +650,9 @@ def test_bqc():
         assert all(m2 == expected for m2 in m2s)
 
     check(alpha=8, beta=8, theta1=0, theta2=0, expected=0)
-    # check(alpha=8, beta=24, theta1=0, theta2=0, expected=1)
-    # check(alpha=8, beta=8, theta1=13, theta2=27, expected=0)
-    # check(alpha=8, beta=24, theta1=2, theta2=22, expected=1)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1)
 
 
 if __name__ == "__main__":

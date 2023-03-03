@@ -40,6 +40,12 @@ from qoala.runtime.environment import (
     GlobalNodeInfo,
     LocalEnvironment,
 )
+from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import (
+    GenericToVanillaInterface,
+    LhiConverter,
+    NativeToFlavourInterface,
+)
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
@@ -47,17 +53,13 @@ from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.hostinterface import HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory, SharedMemory, Topology, UnitModule
+from qoala.sim.memory import ProgramMemory, SharedMemory
 from qoala.sim.message import Message
 from qoala.sim.netstackinterface import NetstackInterface
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
-from qoala.sim.qdevice import (
-    PhysicalQuantumMemory,
-    QDevice,
-    QDeviceCommand,
-    QDeviceType,
-)
+from qoala.sim.qdevice import QDevice, QDeviceCommand
+from qoala.sim.qmem import UnitModule
 from qoala.sim.qnosinterface import QnosInterface
 from qoala.sim.requests import (
     EprCreateType,
@@ -139,14 +141,10 @@ class MockNetstackInterface(NetstackInterface):
 
 
 class MockQDevice(QDevice):
-    def __init__(self, topology: Topology) -> None:
-        self._memory = PhysicalQuantumMemory(topology.comm_ids, topology.mem_ids)
+    def __init__(self, topology: LhiTopology) -> None:
+        self._topology = topology
 
         self._executed_commands: List[QDeviceCommand] = []
-
-    @property
-    def typ(self) -> QDeviceType:
-        return QDeviceType.GENERIC
 
     def set_mem_pos_in_use(self, id: int, in_use: bool) -> None:
         pass
@@ -323,7 +321,6 @@ def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
 def create_global_env(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
 ) -> GlobalEnvironment:
-
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
@@ -334,6 +331,8 @@ def create_procnode(
     name: str,
     env: GlobalEnvironment,
     num_qubits: int,
+    topology: LhiTopology,
+    ntf_interface: NativeToFlavourInterface,
     procnode_cls: Type[ProcNode] = ProcNode,
     asynchronous: bool = False,
 ) -> ProcNode:
@@ -344,6 +343,8 @@ def create_procnode(
         name=name,
         global_env=env,
         qprocessor=alice_qprocessor,
+        qdevice_topology=topology,
+        ntf_interface=ntf_interface,
         node_id=node_id,
         asynchronous=asynchronous,
     )
@@ -370,13 +371,38 @@ def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProt
     return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
 
 
+def generic_topology(num_qubits: int) -> LhiTopology:
+    # Instructions and durations are not needed for these tests.
+    return LhiTopologyBuilder.perfect_uniform(
+        num_qubits=num_qubits,
+        single_instructions=[],
+        single_duration=0,
+        two_instructions=[],
+        two_duration=0,
+    )
+
+
+def star_topology(num_qubits: int) -> LhiTopology:
+    # Instructions and durations are not needed for these tests.
+    return LhiTopologyBuilder.perfect_star(
+        num_qubits=num_qubits,
+        comm_instructions=[],
+        comm_duration=0,
+        mem_instructions=[],
+        mem_duration=0,
+        two_instructions=[],
+        two_duration=0,
+    )
+
+
 def test_initialize():
     num_qubits = 3
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(num_qubits)
+    ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
     local_env = LocalEnvironment(global_env, global_env.get_node_id("alice"))
-    procnode = create_procnode("alice", global_env, num_qubits)
+    procnode = create_procnode("alice", global_env, num_qubits, topology, ntf)
     procnode.qdevice = MockQDevice(topology)
 
     procnode.host.interface = MockHostInterface()
@@ -390,7 +416,8 @@ def test_initialize():
     qnos_processor = procnode.qnos.processor
     netstack_processor = procnode.netstack.processor
 
-    unit_module = UnitModule.default_generic(num_qubits)
+    ehi = LhiConverter.to_ehi(topology, ntf)
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     instrs = [AssignCValueOp("x", 3)]
     subrt1 = simple_subroutine(
@@ -439,10 +466,11 @@ def test_initialize():
 
 def test_2():
     num_qubits = 3
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(num_qubits)
+    ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
-    procnode = create_procnode("alice", global_env, num_qubits)
+    procnode = create_procnode("alice", global_env, num_qubits, topology, ntf)
     procnode.qdevice = MockQDevice(topology)
 
     # procnode.host.interface = MockHostInterface()
@@ -455,7 +483,8 @@ def test_2():
     host_processor = procnode.host.processor
     qnos_processor = procnode.qnos.processor
 
-    unit_module = UnitModule.default_generic(num_qubits)
+    ehi = LhiConverter.to_ehi(topology, ntf)
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     instrs = [RunSubroutineOp(None, IqoalaVector([]), "subrt1")]
     subroutines = parse_iqoala_subroutines(
@@ -493,16 +522,20 @@ SUBROUTINE subrt1
 
 def test_2_async():
     num_qubits = 3
-    topology = Topology(comm_ids={0, 1, 2}, mem_ids={0, 1, 2})
+    topology = generic_topology(num_qubits)
+    ntf = GenericToVanillaInterface()
 
     global_env = create_global_env(num_qubits)
-    procnode = create_procnode("alice", global_env, num_qubits, asynchronous=True)
+    procnode = create_procnode(
+        "alice", global_env, num_qubits, topology, ntf, asynchronous=True
+    )
     procnode.qdevice = MockQDevice(topology)
 
     host_processor = procnode.host.processor
     qnos_processor = procnode.qnos.processor
 
-    unit_module = UnitModule.default_generic(num_qubits)
+    ehi = LhiConverter.to_ehi(topology, ntf)
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     instrs = [RunSubroutineOp(None, IqoalaVector([]), "subrt1")]
     subroutines = parse_iqoala_subroutines(
@@ -550,6 +583,9 @@ SUBROUTINE subrt1
 def test_classical_comm():
     num_qubits = 3
 
+    topology = generic_topology(num_qubits)
+    ntf = GenericToVanillaInterface()
+
     global_env = create_global_env(num_qubits)
 
     class TestProcNode(ProcNode):
@@ -558,16 +594,17 @@ def test_classical_comm():
             yield from self.host.processor.assign(process, 0)
 
     alice_procnode = create_procnode(
-        "alice", global_env, num_qubits, procnode_cls=TestProcNode
+        "alice", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
     )
     bob_procnode = create_procnode(
-        "bob", global_env, num_qubits, procnode_cls=TestProcNode
+        "bob", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
     )
 
     alice_host_processor = alice_procnode.host.processor
     bob_host_processor = bob_procnode.host.processor
 
-    unit_module = UnitModule.default_generic(num_qubits)
+    ehi = LhiConverter.to_ehi(topology, ntf)
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_instrs = [SendCMsgOp("csocket_id", "message")]
     alice_meta = ProgramMeta(
@@ -617,6 +654,9 @@ def test_classical_comm():
 def test_classical_comm_three_nodes():
     num_qubits = 3
 
+    topology = generic_topology(num_qubits)
+    ntf = GenericToVanillaInterface()
+
     global_env = create_global_env(num_qubits)
 
     class SenderProcNode(ProcNode):
@@ -631,20 +671,21 @@ def test_classical_comm_three_nodes():
             yield from self.host.processor.assign(process, 1)
 
     alice_procnode = create_procnode(
-        "alice", global_env, num_qubits, procnode_cls=SenderProcNode
+        "alice", global_env, num_qubits, topology, ntf, procnode_cls=SenderProcNode
     )
     bob_procnode = create_procnode(
-        "bob", global_env, num_qubits, procnode_cls=SenderProcNode
+        "bob", global_env, num_qubits, topology, ntf, procnode_cls=SenderProcNode
     )
     charlie_procnode = create_procnode(
-        "charlie", global_env, num_qubits, procnode_cls=ReceiverProcNode
+        "charlie", global_env, num_qubits, topology, ntf, procnode_cls=ReceiverProcNode
     )
 
     alice_host_processor = alice_procnode.host.processor
     bob_host_processor = bob_procnode.host.processor
     charlie_host_processor = charlie_procnode.host.processor
 
-    unit_module = UnitModule.default_generic(num_qubits)
+    ehi = LhiConverter.to_ehi(topology, ntf)
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_instrs = [SendCMsgOp("csocket_id", "message")]
     alice_meta = ProgramMeta(
@@ -719,6 +760,9 @@ def test_classical_comm_three_nodes():
 def test_epr():
     num_qubits = 3
 
+    topology = generic_topology(num_qubits)
+    ntf = GenericToVanillaInterface()
+
     global_env = create_global_env(num_qubits)
     alice_id = global_env.get_node_id("alice")
     bob_id = global_env.get_node_id("bob")
@@ -730,16 +774,17 @@ def test_epr():
             yield from self.netstack.processor.assign(process, request)
 
     alice_procnode = create_procnode(
-        "alice", global_env, num_qubits, procnode_cls=TestProcNode
+        "alice", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
     )
     bob_procnode = create_procnode(
-        "bob", global_env, num_qubits, procnode_cls=TestProcNode
+        "bob", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
     )
 
     alice_host_processor = alice_procnode.host.processor
     bob_host_processor = bob_procnode.host.processor
 
-    unit_module = UnitModule.default_generic(num_qubits)
+    ehi = LhiConverter.to_ehi(topology, ntf)
+    unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_instrs = [SendCMsgOp("csocket_id", "message")]
     alice_meta = ProgramMeta(
@@ -855,7 +900,10 @@ REQUEST req1
     server_program = IqoalaParser(server_text).parse()
 
     num_qubits = 3
-    unit_module = UnitModule.default_generic(num_qubits)
+    topology = generic_topology(num_qubits)
+    ntf = GenericToVanillaInterface()
+    ehi = LhiConverter.to_ehi(topology, ntf)
+    unit_module = UnitModule.from_full_ehi(ehi)
     global_env = create_global_env(num_qubits, names=["client", "server"])
     server_id = global_env.get_node_id("server")
     client_id = global_env.get_node_id("client")
@@ -887,7 +935,7 @@ REQUEST req1
             # yield from self.netstack.processor.assign(process, request)
 
     server_procnode = create_procnode(
-        "server", global_env, num_qubits, procnode_cls=TestProcNode
+        "server", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
     )
     server_process = create_process(
         pid=0,
@@ -932,7 +980,7 @@ REQUEST req1
     """
     client_program = IqoalaParser(client_text).parse()
     client_procnode = create_procnode(
-        "client", global_env, num_qubits, procnode_cls=TestProcNode
+        "client", global_env, num_qubits, topology, ntf, procnode_cls=TestProcNode
     )
     client_process = create_process(
         pid=0,

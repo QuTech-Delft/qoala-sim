@@ -17,7 +17,11 @@ from netsquid.components.instructions import (
     INSTR_Y,
     INSTR_Z,
 )
-from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
+from netsquid.components.models.qerrormodels import (
+    DepolarNoiseModel,
+    QuantumErrorModel,
+    T1T2NoiseModel,
+)
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
 from netsquid.qubits.operators import Operator
 from netsquid_magic.link_layer import (
@@ -44,6 +48,8 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment
+from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
 
@@ -51,6 +57,53 @@ from qoala.sim.procnode import ProcNode
 # TODO: move this to somewhere else
 def fidelity_to_prob_max_mixed(fid: float) -> float:
     return (1 - fid) * 4.0 / 3.0
+
+
+def build_qprocessor_from_topology(
+    name: str, topology: LhiTopology
+) -> QuantumProcessor:
+    num_qubits = len(topology.qubit_infos)
+
+    mem_noise_models: List[QuantumErrorModel] = []
+    for i in range(num_qubits):
+        info = topology.qubit_infos[i]
+        noise_model = info.error_model(**info.error_model_kwargs)
+        mem_noise_models.append(noise_model)
+
+    phys_instructions: List[PhysicalInstruction] = []
+    # single-qubit gates
+    for qubit_id, gate_infos in topology.single_gate_infos.items():
+        for gate_info in gate_infos:
+            phys_instr = PhysicalInstruction(
+                instruction=gate_info.instruction,
+                duration=gate_info.duration,
+                topology=[qubit_id],
+                quantum_noise_model=gate_info.error_model(
+                    **gate_info.error_model_kwargs
+                ),
+            )
+            phys_instructions.append(phys_instr)
+
+    # multi-qubit gates
+    for multi_qubit, gate_infos in topology.multi_gate_infos.items():
+        qubit_ids = tuple(multi_qubit.qubit_ids)
+        for gate_info in gate_infos:
+            phys_instr = PhysicalInstruction(
+                instruction=gate_info.instruction,
+                duration=gate_info.duration,
+                topology=[qubit_ids],
+                quantum_noise_model=gate_info.error_model(
+                    **gate_info.error_model_kwargs
+                ),
+            )
+            phys_instructions.append(phys_instr)
+
+    return QuantumProcessor(
+        name=name,
+        num_positions=num_qubits,
+        mem_noise_models=mem_noise_models,
+        phys_instructions=phys_instructions,
+    )
 
 
 def build_generic_qprocessor(name: str, cfg: GenericQDeviceConfig) -> QuantumProcessor:
@@ -67,7 +120,6 @@ def build_generic_qprocessor(name: str, cfg: GenericQDeviceConfig) -> QuantumPro
     phys_instructions.append(
         PhysicalInstruction(
             INSTR_INIT,
-            parallel=False,
             duration=cfg.init_time,
         )
     )
@@ -84,9 +136,7 @@ def build_generic_qprocessor(name: str, cfg: GenericQDeviceConfig) -> QuantumPro
         phys_instructions.append(
             PhysicalInstruction(
                 instr,
-                parallel=False,
                 quantum_noise_model=single_qubit_gate_noise,
-                apply_q_noise_after=True,
                 duration=cfg.single_qubit_gate_time,
             )
         )
@@ -95,16 +145,13 @@ def build_generic_qprocessor(name: str, cfg: GenericQDeviceConfig) -> QuantumPro
         phys_instructions.append(
             PhysicalInstruction(
                 instr,
-                parallel=False,
                 quantum_noise_model=two_qubit_gate_noise,
-                apply_q_noise_after=True,
                 duration=cfg.two_qubit_gate_time,
             )
         )
 
     phys_instr_measure = PhysicalInstruction(
         INSTR_MEASURE,
-        parallel=False,
         duration=cfg.measure_time,
     )
     phys_instructions.append(phys_instr_measure)
@@ -121,7 +168,6 @@ def build_generic_qprocessor(name: str, cfg: GenericQDeviceConfig) -> QuantumPro
 
 
 def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
-
     # noise models for single- and multi-qubit operations
     electron_init_noise = DepolarNoiseModel(
         depolar_rate=cfg.electron_init_depolar_prob, time_independent=True
@@ -157,25 +203,21 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     phys_instructions.append(
         PhysicalInstruction(
             INSTR_INIT,
-            parallel=False,
             topology=carbon_positions,
             quantum_noise_model=carbon_init_noise,
-            apply_q_noise_after=True,
             duration=cfg.carbon_init,
         )
     )
 
-    for (instr, dur) in zip(
+    for instr, dur in zip(
         [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z],
         [cfg.carbon_rot_x, cfg.carbon_rot_y, cfg.carbon_rot_z],
     ):
         phys_instructions.append(
             PhysicalInstruction(
                 instr,
-                parallel=False,
                 topology=carbon_positions,
                 quantum_noise_model=carbon_z_rot_noise,
-                apply_q_noise_after=True,
                 duration=dur,
             )
         )
@@ -183,25 +225,21 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     phys_instructions.append(
         PhysicalInstruction(
             INSTR_INIT,
-            parallel=False,
             topology=[electron_position],
             quantum_noise_model=electron_init_noise,
-            apply_q_noise_after=True,
             duration=cfg.electron_init,
         )
     )
 
-    for (instr, dur) in zip(
+    for instr, dur in zip(
         [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z],
         [cfg.electron_rot_x, cfg.electron_rot_y, cfg.electron_rot_z],
     ):
         phys_instructions.append(
             PhysicalInstruction(
                 instr,
-                parallel=False,
                 topology=[electron_position],
                 quantum_noise_model=electron_single_qubit_noise,
-                apply_q_noise_after=True,
                 duration=dur,
             )
         )
@@ -212,10 +250,8 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     phys_instructions.append(
         PhysicalInstruction(
             INSTR_CXDIR,
-            parallel=False,
             topology=electron_carbon_topologies,
             quantum_noise_model=ec_noise,
-            apply_q_noise_after=True,
             duration=cfg.ec_controlled_dir_x,
         )
     )
@@ -223,10 +259,8 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     phys_instructions.append(
         PhysicalInstruction(
             INSTR_CYDIR,
-            parallel=False,
             topology=electron_carbon_topologies,
             quantum_noise_model=ec_noise,
-            apply_q_noise_after=True,
             duration=cfg.ec_controlled_dir_y,
         )
     )
@@ -243,7 +277,6 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 
     phys_instr_measure = PhysicalInstruction(
         INSTR_MEASURE,
-        parallel=False,
         topology=[electron_position],
         quantum_noise_model=None,
         duration=cfg.measure,
@@ -265,34 +298,45 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 
 
 def build_procnode(cfg: ProcNodeConfig, global_env: GlobalEnvironment) -> ProcNode:
-    if cfg.qdevice_typ == "nv":
-        qdevice_cfg = cfg.qdevice_cfg
-        if not isinstance(qdevice_cfg, NVQDeviceConfig):
-            qdevice_cfg = NVQDeviceConfig(**cfg.qdevice_cfg)
-        qprocessor = build_nv_qprocessor(f"qdevice_{cfg.name}", cfg=qdevice_cfg)
-        procnode = ProcNode(
-            cfg.name,
-            global_env=global_env,
-            qprocessor=qprocessor,
-            qdevice_type="nv",
-            node_id=cfg.node_id,
-        )
-    elif cfg.qdevice_typ == "generic":
-        qdevice_cfg = cfg.qdevice_cfg
-        if not isinstance(qdevice_cfg, GenericQDeviceConfig):
-            qdevice_cfg = GenericQDeviceConfig(**cfg.qdevice_cfg)
-        qprocessor = build_generic_qprocessor(f"qdevice_{cfg.name}", cfg=qdevice_cfg)
-        procnode = ProcNode(
-            cfg.name,
-            global_env=global_env,
-            qprocessor=qprocessor,
-            qdevice_type="generic",
-            node_id=cfg.node_id,
-        )
-        # TODO: do this in constructor?
-        procnode.qnos.processor.instr_latency = cfg.instr_latency
-        procnode.host.processor.instr_latency = cfg.instr_latency
-        procnode.host.processor.receive_latency = cfg.receive_latency
+    topology = LhiTopologyBuilder.from_config(cfg.qdevice_cfg)
+    qprocessor = build_qprocessor_from_topology(name=cfg.name, topology=topology)
+    procnode = ProcNode(
+        cfg.name,
+        global_env=global_env,
+        qprocessor=qprocessor,
+        qdevice_topology=topology,
+        ntf_interface=GenericToVanillaInterface(),  # TODO: make configurable
+        node_id=cfg.node_id,
+    )
+
+    # if cfg.qdevice_typ == "nv":
+    #     qdevice_cfg = cfg.qdevice_cfg
+    #     if not isinstance(qdevice_cfg, NVQDeviceConfig):
+    #         qdevice_cfg = NVQDeviceConfig(**cfg.qdevice_cfg)
+    #     qprocessor = build_nv_qprocessor(f"qdevice_{cfg.name}", cfg=qdevice_cfg)
+    #     procnode = ProcNode(
+    #         cfg.name,
+    #         global_env=global_env,
+    #         qprocessor=qprocessor,
+    #         qdevice_type="nv",
+    #         node_id=cfg.node_id,
+    #     )
+    # elif cfg.qdevice_typ == "generic":
+    #     qdevice_cfg = cfg.qdevice_cfg
+    #     if not isinstance(qdevice_cfg, GenericQDeviceConfig):
+    #         qdevice_cfg = GenericQDeviceConfig(**cfg.qdevice_cfg)
+    #     qprocessor = build_generic_qprocessor(f"qdevice_{cfg.name}", cfg=qdevice_cfg)
+    #     procnode = ProcNode(
+    #         cfg.name,
+    #         global_env=global_env,
+    #         qprocessor=qprocessor,
+    #         qdevice_type="generic",
+    #         node_id=cfg.node_id,
+    #     )
+    # TODO: do this in constructor?
+    procnode.qnos.processor.instr_latency = cfg.instr_latency
+    procnode.host.processor.instr_latency = cfg.instr_latency
+    procnode.host.processor.receive_latency = cfg.receive_latency
     return procnode
 
 

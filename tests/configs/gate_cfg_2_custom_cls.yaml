@@ -1,0 +1,7 @@
+gate_noise: &gate_noise
+  my_noise_param: 1337
+
+name: "INSTR_X"
+noise_config_cls: "MyLeetNoise"
+noise_config:
+  <<: *gate_noise

@@ -4,25 +4,28 @@ from typing import List, Set, Tuple
 
 import pytest
 
+from qoala.lang.ehi import EhiBuilder
 from qoala.lang.iqoala import IqoalaProgram, ProgramMeta
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import CommQubitTrait, MemQubitTrait, ProgramMemory, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
+from qoala.sim.qmem import UnitModule
 
 
 class MockQDevice(QDevice):
     def __init__(self) -> None:
         pass
 
-    @property
-    def comm_qubit_ids(self) -> Set[int]:
+    def get_all_qubit_ids(self) -> Set[int]:
+        return {0, 1}
+
+    def get_comm_qubit_ids(self) -> Set[int]:
         return {0}
 
-    @property
-    def mem_qubit_ids(self) -> Set[int]:
+    def get_non_comm_qubit_ids(self) -> Set[int]:
         return {1}
 
     def set_mem_pos_in_use(self, id: int, in_use: bool) -> None:
@@ -53,15 +56,24 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     return process
 
 
+def create_unit_module() -> UnitModule:
+    ehi = EhiBuilder.perfect_star(
+        num_qubits=2,
+        flavour=None,
+        comm_instructions=[],
+        comm_duration=0,
+        mem_instructions=[],
+        mem_duration=0,
+        two_instructions=[],
+        two_duration=0,
+    )
+    return UnitModule.from_full_ehi(ehi)
+
+
 def setup_manager() -> Tuple[int, MemoryManager]:
     qdevice = MockQDevice()
     mgr = MemoryManager("alice", qdevice)
-
-    um = UnitModule(
-        qubit_ids=[0, 1],
-        qubit_traits={0: [CommQubitTrait], 1: [MemQubitTrait]},
-        gate_traits={},
-    )
+    um = create_unit_module()
 
     process = create_process(0, um)
     mgr.add_process(process)
@@ -75,12 +87,7 @@ def setup_manager_multiple_processes(
 ) -> Tuple[List[int], MemoryManager]:
     qdevice = MockQDevice()
     mgr = MemoryManager("alice", qdevice)
-
-    um = UnitModule(
-        qubit_ids=[0, 1],
-        qubit_traits={0: [CommQubitTrait], 1: [MemQubitTrait]},
-        gate_traits={},
-    )
+    um = create_unit_module()
 
     pids: List[int] = []
 
@@ -160,14 +167,14 @@ def test_free_alreay_freed():
 def test_get_unmapped_qubit():
     pid, mgr = setup_manager()
 
-    assert mgr.get_unmapped_mem_qubit(pid) == 1
+    assert mgr.get_unmapped_non_comm_qubit(pid) == 1
     mgr.allocate(pid, 0)
-    assert mgr.get_unmapped_mem_qubit(pid) == 1
+    assert mgr.get_unmapped_non_comm_qubit(pid) == 1
     mgr.allocate(pid, 1)
     with pytest.raises(AllocError):
-        mgr.get_unmapped_mem_qubit(pid)
+        mgr.get_unmapped_non_comm_qubit(pid)
     mgr.free(pid, 1)
-    assert mgr.get_unmapped_mem_qubit(pid) == 1
+    assert mgr.get_unmapped_non_comm_qubit(pid) == 1
 
 
 def test_alloc_multiple_processes():

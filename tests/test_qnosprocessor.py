@@ -7,14 +7,17 @@ import pytest
 from netqasm.lang.parsing import parse_text_subroutine
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import UnitModule
 from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory, Topology, UnitModule
+from qoala.sim.memory import ProgramMemory
 from qoala.sim.message import Message
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import PhysicalQuantumMemory, QDevice
+from qoala.sim.qdevice import QDevice
 from qoala.sim.qnosinterface import QnosInterface
 from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor
 from qoala.util.tests import yield_from
@@ -41,8 +44,8 @@ class SignalEvent:
 
 
 class MockQDevice(QDevice):
-    def __init__(self, topology: Topology) -> None:
-        self._memory = PhysicalQuantumMemory(topology.comm_ids, topology.mem_ids)
+    def __init__(self, topology: LhiTopology) -> None:
+        self._topology = topology
 
     def set_mem_pos_in_use(self, id: int, in_use: bool) -> None:
         pass
@@ -187,15 +190,24 @@ def execute_multiple_processes(
 
 
 def setup_components(
-    topology: Topology,
+    topology: LhiTopology,
     netstack_result: Optional[MockNetstackResultInfo] = None,
     asynchronous: bool = False,
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = MockQDevice(topology)
-    unit_module = UnitModule.from_topology(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=NvToNvInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
     interface = MockQnosInterface(qdevice, netstack_result)
     processor = QnosProcessor(interface, asynchronous)
     return (processor, unit_module)
+
+
+def uniform_topology(num_qubits: int) -> LhiTopology:
+    return LhiTopologyBuilder.perfect_uniform(num_qubits, [], 0, [], 0)
+
+
+def star_topology(num_qubits: int) -> LhiTopology:
+    return LhiTopologyBuilder.perfect_star(num_qubits, [], 0, [], 0, [], 0)
 
 
 def verify_native(subrt_text: str, num_instr: int) -> bool:
@@ -206,7 +218,7 @@ def verify_native(subrt_text: str, num_instr: int) -> bool:
 
 
 def test_set_reg():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set R0 17
@@ -218,7 +230,7 @@ def test_set_reg():
 
 
 def test_add():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set R0 2
@@ -232,7 +244,7 @@ def test_add():
 
 
 def test_alloc_qubit():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set Q0 0
@@ -247,7 +259,7 @@ def test_alloc_qubit():
 
 
 def test_free_qubit():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set Q0 0
@@ -263,7 +275,7 @@ def test_free_qubit():
 
 
 def test_free_non_allocated():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set Q0 0
@@ -277,7 +289,7 @@ def test_free_non_allocated():
 
 
 def test_alloc_multiple():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set Q0 0
@@ -294,7 +306,7 @@ def test_alloc_multiple():
 
 
 def test_alloc_multiprocess():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt0 = """
     set Q0 0
@@ -320,7 +332,7 @@ def test_alloc_multiprocess():
 
 
 def test_alloc_multiprocess_same_virt_id():
-    processor, unit_module = setup_components(Topology(comm_ids={0, 1}, mem_ids={0, 1}))
+    processor, unit_module = setup_components(uniform_topology(2))
 
     subrt0 = """
     set Q0 0
@@ -347,7 +359,7 @@ def test_alloc_multiprocess_same_virt_id():
 
 
 def test_alloc_multiprocess_same_virt_id_trait_not_available():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={0, 1}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt0 = """
     set Q0 0
@@ -368,7 +380,7 @@ def test_alloc_multiprocess_same_virt_id_trait_not_available():
 
 
 def test_no_branch():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={0}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set R3 3
@@ -389,7 +401,7 @@ LABEL1:
 
 
 def test_branch():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={0}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set R3 3
@@ -410,7 +422,7 @@ LABEL1:
 
 
 def test_array():
-    processor, unit_module = setup_components(Topology(comm_ids={0}, mem_ids={0}))
+    processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
     set C10 10
@@ -601,9 +613,7 @@ def test_wait_all():
         pid=pid, array_id=array_id, start_idx=start_idx, end_idx=end_idx
     )
 
-    processor, unit_module = setup_components(
-        Topology(comm_ids={0}, mem_ids={0}), netstack_result
-    )
+    processor, unit_module = setup_components(uniform_topology(1), netstack_result)
 
     subrt = f"""
     array 10 @{array_id}
