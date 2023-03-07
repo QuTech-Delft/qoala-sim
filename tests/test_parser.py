@@ -21,6 +21,7 @@ from qoala.lang.parse import (
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta
 from qoala.lang.request import IqoalaRequest
+from qoala.lang.routine import RoutineMetadata
 from qoala.sim.requests import (
     EprCreateRole,
     EprCreateType,
@@ -181,6 +182,8 @@ def test_parse_subrt():
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses:
+    keeps:
     request: 
   NETQASM_START
     set Q0 {my_value}
@@ -199,6 +202,7 @@ SUBROUTINE subrt1
     assert subrt == LocalRoutine(
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        metadata=RoutineMetadata.frees_all([0]),
         return_map={"m": IqoalaSharedMemLoc("M0")},
     )
 

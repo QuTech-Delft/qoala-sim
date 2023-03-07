@@ -1,10 +1,26 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 from netqasm.lang.subroutine import Subroutine
 
 from qoala.lang.hostlang import IqoalaSharedMemLoc
+
+
+@dataclass
+class RoutineMetadata:
+    # IDs in unit module of virtual qubits that are
+    # used in this routine
+    qubit_use: List[int]
+
+    # IDs in unit module of virtual qubits that still have a state
+    # that should be kept after finishing this routine
+    qubit_keep: List[int]
+
+    @classmethod
+    def frees_all(cls, ids: List[int]) -> RoutineMetadata:
+        return RoutineMetadata(ids, [])
 
 
 class LocalRoutine:
@@ -13,6 +29,7 @@ class LocalRoutine:
         name: str,
         subrt: Subroutine,
         return_map: Dict[str, IqoalaSharedMemLoc],
+        metadata: RoutineMetadata,
         request_name: Optional[str] = None,
     ) -> None:
         self._name = name

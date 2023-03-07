@@ -22,6 +22,8 @@ from qoala.lang.hostlang import (
 )
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.request import IqoalaRequest
+from qoala.lang.routine import RoutineMetadata
+from qoala.sim.memory import RegisterMeta
 from qoala.sim.requests import (
     EprCreateRole,
     EprCreateType,
@@ -258,6 +260,13 @@ class LocalRoutineParser:
         # TODO: use params line?
         return_map_line = self._parse_subrt_meta_line("returns", self._read_line())
         return_map = self._parse_nqasm_return_mapping(return_map_line)
+
+        uses_line = self._parse_subrt_meta_line("uses", self._read_line())
+        uses = [int(u) for u in uses_line]
+        keeps_line = self._parse_subrt_meta_line("keeps", self._read_line())
+        keeps = [int(k) for k in keeps_line]
+        metadata = RoutineMetadata(qubit_use=uses, qubit_keep=keeps)
+
         request_line = self._parse_subrt_meta_line("request", self._read_line())
         assert len(request_line) in [0, 1]
         request_name = None if len(request_line) == 0 else request_line[0]
@@ -279,7 +288,7 @@ class LocalRoutineParser:
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
             raise IqoalaParseError
-        return LocalRoutine(name, subrt, return_map, request_name)
+        return LocalRoutine(name, subrt, return_map, metadata, request_name)
 
     def parse(self) -> Dict[str, LocalRoutine]:
         subroutines: Dict[str, LocalRoutine] = {}
