@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict
 
-from qoala.lang.program import IqoalaRequest, IqoalaSubroutine
+from qoala.lang.program import IqoalaRequest, LocalRoutine
 from qoala.runtime.program import ProgramInstance, ProgramResult
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.eprsocket import EprSocket
@@ -19,7 +19,7 @@ class IqoalaProcess:
     # Immutable
     csockets: Dict[int, ClassicalSocket]
     epr_sockets: Dict[int, EprSocket]
-    local_routines: Dict[str, IqoalaSubroutine]
+    local_routines: Dict[str, LocalRoutine]
     requests: Dict[str, IqoalaRequest]
 
     @property

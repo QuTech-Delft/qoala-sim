@@ -22,7 +22,7 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.csocket import ClassicalSocket
@@ -77,7 +77,7 @@ class MockHostInterface(HostInterface):
 
 def create_program(
     instrs: Optional[List[ClassicalIqoalaOp]] = None,
-    subroutines: Optional[Dict[str, IqoalaSubroutine]] = None,
+    subroutines: Optional[Dict[str, LocalRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
 ) -> IqoalaProgram:
     if instrs is None:
@@ -302,7 +302,7 @@ def test_run_subroutine():
     processor = HostProcessor(interface, HostLatencies.all_zero())
 
     subrt = Subroutine()
-    iqoala_subrt = IqoalaSubroutine("subrt1", subrt, return_map={})
+    iqoala_subrt = LocalRoutine("subrt1", subrt, return_map={})
 
     program = create_program(
         instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
@@ -324,7 +324,7 @@ def test_run_subroutine_async():
     processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
     subrt = Subroutine()
-    iqoala_subrt = IqoalaSubroutine("subrt1", subrt, return_map={})
+    iqoala_subrt = LocalRoutine("subrt1", subrt, return_map={})
 
     program = create_program(
         instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
@@ -350,7 +350,7 @@ def test_run_subroutine_async_2():
     ret_reg R0
     """
     subrt = parse_text_subroutine(subrt_text)
-    iqoala_subrt = IqoalaSubroutine(
+    iqoala_subrt = LocalRoutine(
         "subrt1", subrt, return_map={"m": IqoalaSharedMemLoc("R0")}
     )
 

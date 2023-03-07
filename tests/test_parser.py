@@ -17,9 +17,9 @@ from qoala.lang.parse import (
     IqoalaParseError,
     IqoalaParser,
     IQoalaRequestParser,
-    IQoalaSubroutineParser,
+    LocalRoutineParser,
 )
-from qoala.lang.program import IqoalaSubroutine, ProgramMeta
+from qoala.lang.program import LocalRoutine, ProgramMeta
 from qoala.lang.request import IqoalaRequest
 from qoala.sim.requests import (
     EprCreateRole,
@@ -187,7 +187,7 @@ SUBROUTINE subrt1
   NETQASM_END
     """
 
-    parsed = IQoalaSubroutineParser(text).parse()
+    parsed = LocalRoutineParser(text).parse()
     assert len(parsed) == 1
     assert "subrt1" in parsed
     subrt = parsed["subrt1"]
@@ -196,7 +196,7 @@ SUBROUTINE subrt1
         SetInstruction(reg=Register.from_str("Q0"), imm=Template("my_value"))
     ]
     expected_args = ["my_value"]
-    assert subrt == IqoalaSubroutine(
+    assert subrt == LocalRoutine(
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
         return_map={"m": IqoalaSharedMemLoc("M0")},
@@ -217,7 +217,7 @@ SUBROUTINE my_subroutine
   NETQASM_END
     """
 
-    parsed = IQoalaSubroutineParser(text).parse()
+    parsed = LocalRoutineParser(text).parse()
     assert len(parsed) == 1
     assert "my_subroutine" in parsed
     subrt = parsed["my_subroutine"]
@@ -229,7 +229,7 @@ SUBROUTINE my_subroutine
         MeasInstruction(reg0=Register.from_str("Q1"), reg1=Register.from_str("M6")),
     ]
     expected_args = ["param1", "param2"]
-    assert subrt == IqoalaSubroutine(
+    assert subrt == LocalRoutine(
         name="my_subroutine",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
         return_map={
@@ -259,7 +259,7 @@ SUBROUTINE subrt2
   NETQASM_END
     """
 
-    parsed = IQoalaSubroutineParser(text).parse()
+    parsed = LocalRoutineParser(text).parse()
     assert len(parsed) == 2
     assert "subrt1" in parsed
     assert "subrt2" in parsed
@@ -276,14 +276,14 @@ SUBROUTINE subrt2
     ]
     expected_args_2 = ["theta"]
 
-    assert subrt1 == IqoalaSubroutine(
+    assert subrt1 == LocalRoutine(
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs_1, arguments=expected_args_1),
         return_map={
             "m": IqoalaSharedMemLoc("M0"),
         },
     )
-    assert subrt2 == IqoalaSubroutine(
+    assert subrt2 == LocalRoutine(
         name="subrt2",
         subrt=Subroutine(instructions=expected_instrs_2, arguments=expected_args_2),
         return_map={},
@@ -302,7 +302,7 @@ SUBROUTINE my_subroutine
     """
 
     with pytest.raises(IqoalaParseError):
-        IQoalaSubroutineParser(text).parse()
+        LocalRoutineParser(text).parse()
 
 
 def test_parse_request():

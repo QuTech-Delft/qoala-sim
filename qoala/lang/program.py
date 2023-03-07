@@ -12,7 +12,7 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
 )
 from qoala.lang.request import IqoalaRequest
-from qoala.lang.routine import IqoalaSubroutine
+from qoala.lang.routine import LocalRoutine
 
 
 @dataclass
@@ -55,12 +55,12 @@ class IqoalaProgram:
     def __init__(
         self,
         instructions: List[ClassicalIqoalaOp],
-        local_routines: Dict[str, IqoalaSubroutine],
+        local_routines: Dict[str, LocalRoutine],
         meta: ProgramMeta,
         requests: Optional[Dict[str, IqoalaRequest]] = None,
     ) -> None:
         self._instructions: List[ClassicalIqoalaOp] = instructions
-        self._local_routines: Dict[str, IqoalaSubroutine] = local_routines
+        self._local_routines: Dict[str, LocalRoutine] = local_routines
         self._meta: ProgramMeta = meta
 
         if requests is None:
@@ -94,11 +94,11 @@ class IqoalaProgram:
         return sigs
 
     @property
-    def local_routines(self) -> Dict[str, IqoalaSubroutine]:
+    def local_routines(self) -> Dict[str, LocalRoutine]:
         return self._local_routines
 
     @local_routines.setter
-    def local_routines(self, new_local_routines: Dict[str, IqoalaSubroutine]) -> None:
+    def local_routines(self, new_local_routines: Dict[str, LocalRoutine]) -> None:
         self._local_routines = new_local_routines
 
     @property

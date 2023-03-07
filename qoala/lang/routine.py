@@ -7,7 +7,7 @@ from netqasm.lang.subroutine import Subroutine
 from qoala.lang.hostlang import IqoalaSharedMemLoc
 
 
-class IqoalaSubroutine:
+class LocalRoutine:
     def __init__(
         self,
         name: str,
@@ -56,7 +56,7 @@ class IqoalaSubroutine:
         return s
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, IqoalaSubroutine):
+        if not isinstance(other, LocalRoutine):
             return NotImplemented
         return (
             self.name == other.name

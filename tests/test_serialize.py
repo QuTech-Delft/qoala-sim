@@ -13,7 +13,7 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.util.tests import text_equal
 
 
@@ -93,7 +93,7 @@ SUBROUTINE subrt1
 
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
-    subrt = IqoalaSubroutine(
+    subrt = LocalRoutine(
         name="subrt1",
         subrt=Subroutine(
             instructions=[
@@ -135,7 +135,7 @@ SUBROUTINE subrt2
     R0 = Register.from_str("R0")
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
-    subrt1 = IqoalaSubroutine(
+    subrt1 = LocalRoutine(
         name="subrt1",
         subrt=Subroutine(
             instructions=[
@@ -146,7 +146,7 @@ SUBROUTINE subrt2
         ),
         return_map={"m": IqoalaSharedMemLoc("M0")},
     )
-    subrt2 = IqoalaSubroutine(
+    subrt2 = LocalRoutine(
         name="subrt2",
         subrt=Subroutine(
             instructions=[
@@ -206,7 +206,7 @@ SUBROUTINE subrt1
     ]
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
-    subrt = IqoalaSubroutine(
+    subrt = LocalRoutine(
         name="subrt1",
         subrt=Subroutine(
             instructions=[

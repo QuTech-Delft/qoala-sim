@@ -20,7 +20,7 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.request import IqoalaRequest
 from qoala.sim.requests import (
     EprCreateRole,
@@ -207,7 +207,7 @@ class IqoalaInstrParser:
         return instructions
 
 
-class IQoalaSubroutineParser:
+class LocalRoutineParser:
     def __init__(self, text: str) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
@@ -249,7 +249,7 @@ class IQoalaSubroutineParser:
             result_dict[key_value[1]] = IqoalaSharedMemLoc(key_value[0])
         return result_dict
 
-    def _parse_subroutine(self) -> IqoalaSubroutine:
+    def _parse_subroutine(self) -> LocalRoutine:
         return_map: Dict[str, IqoalaSharedMemLoc] = {}
         name_line = self._read_line()
         assert name_line.startswith("SUBROUTINE ")
@@ -279,10 +279,10 @@ class IQoalaSubroutineParser:
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
             raise IqoalaParseError
-        return IqoalaSubroutine(name, subrt, return_map, request_name)
+        return LocalRoutine(name, subrt, return_map, request_name)
 
-    def parse(self) -> Dict[str, IqoalaSubroutine]:
-        subroutines: Dict[str, IqoalaSubroutine] = {}
+    def parse(self) -> Dict[str, LocalRoutine]:
+        subroutines: Dict[str, LocalRoutine] = {}
         try:
             while True:
                 subrt = self._parse_subroutine()
@@ -439,7 +439,7 @@ class IqoalaParser:
         self._req_text = req_text
         self._meta_parser = IqoalaMetaParser(meta_text)
         self._instr_parser = IqoalaInstrParser(instr_text)
-        self._subrt_parser = IQoalaSubroutineParser(subrt_text)
+        self._subrt_parser = LocalRoutineParser(subrt_text)
         self._req_parser = IQoalaRequestParser(req_text)
 
     def _split_text(self, text: str) -> Tuple[str, str, str, str]:

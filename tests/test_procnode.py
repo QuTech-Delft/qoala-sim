@@ -28,8 +28,8 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.parse import IqoalaParser, IQoalaSubroutineParser
-from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.parse import IqoalaParser, LocalRoutineParser
+from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.request import IqoalaRequest
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
@@ -259,7 +259,7 @@ class MockHostInterface(HostInterface):
 
 def create_program(
     instrs: Optional[List[ClassicalIqoalaOp]] = None,
-    subroutines: Optional[Dict[str, IqoalaSubroutine]] = None,
+    subroutines: Optional[Dict[str, LocalRoutine]] = None,
     requests: Optional[Dict[str, IqoalaRequest]] = None,
     meta: Optional[ProgramMeta] = None,
 ) -> IqoalaProgram:
@@ -351,13 +351,13 @@ def create_procnode(
     return procnode
 
 
-def simple_subroutine(name: str, subrt_text: str) -> IqoalaSubroutine:
+def simple_subroutine(name: str, subrt_text: str) -> LocalRoutine:
     subrt = parse_text_subroutine(subrt_text)
-    return IqoalaSubroutine(name, subrt, return_map={})
+    return LocalRoutine(name, subrt, return_map={})
 
 
-def parse_iqoala_subroutines(subrt_text: str) -> IqoalaSubroutine:
-    return IQoalaSubroutineParser(subrt_text).parse()
+def parse_iqoala_subroutines(subrt_text: str) -> LocalRoutine:
+    return LocalRoutineParser(subrt_text).parse()
 
 
 def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
