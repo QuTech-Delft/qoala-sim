@@ -19,7 +19,11 @@ class RoutineMetadata:
     qubit_keep: List[int]
 
     @classmethod
-    def frees_all(cls, ids: List[int]) -> RoutineMetadata:
+    def use_none(cls) -> RoutineMetadata:
+        return RoutineMetadata([], [])
+
+    @classmethod
+    def free_all(cls, ids: List[int]) -> RoutineMetadata:
         return RoutineMetadata(ids, [])
 
 
@@ -35,6 +39,7 @@ class LocalRoutine:
         self._name = name
         self._subrt = subrt
         self._return_map = return_map
+        self._metadata = metadata
         self._request_name = request_name
 
     @property
@@ -48,6 +53,10 @@ class LocalRoutine:
     @property
     def return_map(self) -> Dict[str, IqoalaSharedMemLoc]:
         return self._return_map
+
+    @property
+    def metadata(self) -> RoutineMetadata:
+        return self._metadata
 
     @property
     def request_name(self) -> Optional[str]:
@@ -78,5 +87,6 @@ class LocalRoutine:
         return (
             self.name == other.name
             and self.subroutine == other.subroutine
+            and self.metadata == other.metadata
             and self.return_map == other.return_map
         )

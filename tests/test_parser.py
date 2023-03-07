@@ -1,4 +1,5 @@
 import os
+from curses import meta
 
 import pytest
 from netqasm.lang.instr.core import MeasInstruction, SetInstruction
@@ -182,7 +183,7 @@ def test_parse_subrt():
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
-    uses:
+    uses: 
     keeps:
     request: 
   NETQASM_START
@@ -202,7 +203,7 @@ SUBROUTINE subrt1
     assert subrt == LocalRoutine(
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
-        metadata=RoutineMetadata.frees_all([0]),
+        metadata=RoutineMetadata.use_none(),
         return_map={"m": IqoalaSharedMemLoc("M0")},
     )
 
@@ -212,6 +213,8 @@ def test_parse_subrt_2():
 SUBROUTINE my_subroutine
     params: param1, param2
     returns: M5 -> result1, M6 -> result2
+    uses: 0, 1
+    keeps: 
     request: 
   NETQASM_START
     set R0 {param1}
@@ -236,6 +239,7 @@ SUBROUTINE my_subroutine
     assert subrt == LocalRoutine(
         name="my_subroutine",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        metadata=RoutineMetadata.free_all([0, 1]),
         return_map={
             "result1": IqoalaSharedMemLoc("M5"),
             "result2": IqoalaSharedMemLoc("M6"),
