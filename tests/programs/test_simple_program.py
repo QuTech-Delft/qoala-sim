@@ -5,7 +5,8 @@ from typing import List
 
 import netsquid as ns
 
-from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
+from qoala.lang.parse import IqoalaParser
+from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     ProcNodeConfig,

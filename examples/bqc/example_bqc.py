@@ -6,7 +6,8 @@ from typing import Dict, List
 
 import netsquid as ns
 
-from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
+from qoala.lang.parse import IqoalaParser
+from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
     DepolariseLinkConfig,
     GenericQDeviceConfig,

@@ -9,7 +9,7 @@ from netqasm.lang.parsing import parse_text_subroutine
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
-from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult

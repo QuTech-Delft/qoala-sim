@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict
 
-from qoala.lang.iqoala import IqoalaRequest, IqoalaSubroutine
+from qoala.lang.program import IqoalaRequest, IqoalaSubroutine
 from qoala.runtime.program import ProgramInstance, ProgramResult
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.eprsocket import EprSocket

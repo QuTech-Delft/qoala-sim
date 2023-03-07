@@ -7,7 +7,7 @@ from netqasm.lang.operand import Register
 from netqasm.lang.parsing.text import NetQASMSyntaxError, parse_register
 
 from pydynaa import EventExpression
-from qoala.lang import iqoala
+from qoala.lang import hostlang
 from qoala.sim.hostinterface import HostInterface, HostLatencies
 from qoala.sim.logging import LogManager
 from qoala.sim.message import Message
@@ -50,32 +50,32 @@ class HostProcessor:
         instr = program.instructions[instr_idx]
 
         self._logger.info(f"Interpreting LHR instruction {instr}")
-        if isinstance(instr, iqoala.AssignCValueOp):
+        if isinstance(instr, hostlang.AssignCValueOp):
             value = instr.attributes[0]
             loc = instr.results[0]
             self._logger.info(f"writing {value} to {loc}")
             host_mem.write(loc, value)
-        elif isinstance(instr, iqoala.SendCMsgOp):
+        elif isinstance(instr, hostlang.SendCMsgOp):
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
             value = host_mem.read(instr.arguments[1])
             self._logger.info(f"sending msg {value}")
             csck.send_int(value)
-        elif isinstance(instr, iqoala.ReceiveCMsgOp):
+        elif isinstance(instr, hostlang.ReceiveCMsgOp):
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
             msg = yield from csck.recv_int()
             yield from self._interface.wait(self._latencies.host_peer_latency)
             host_mem.write(instr.results[0], msg)
             self._logger.info(f"received msg {msg}")
-        elif isinstance(instr, iqoala.AddCValueOp):
+        elif isinstance(instr, hostlang.AddCValueOp):
             arg0 = host_mem.read(instr.arguments[0])
             arg1 = host_mem.read(instr.arguments[1])
             loc = instr.results[0]
             result = arg0 + arg1
             self._logger.info(f"computing {loc} = {arg0} + {arg1} = {result}")
             host_mem.write(loc, result)
-        elif isinstance(instr, iqoala.MultiplyConstantCValueOp):
+        elif isinstance(instr, hostlang.MultiplyConstantCValueOp):
             arg0 = host_mem.read(instr.arguments[0])
             const = instr.attributes[0]
             assert isinstance(const, int)
@@ -83,7 +83,7 @@ class HostProcessor:
             result = arg0 * const
             self._logger.info(f"computing {loc} = {arg0} * {const} = {result}")
             host_mem.write(loc, result)
-        elif isinstance(instr, iqoala.BitConditionalMultiplyConstantCValueOp):
+        elif isinstance(instr, hostlang.BitConditionalMultiplyConstantCValueOp):
             arg0 = host_mem.read(instr.arguments[0])
             cond = host_mem.read(instr.arguments[1])
             const = instr.attributes[0]
@@ -95,8 +95,8 @@ class HostProcessor:
                 result = arg0
             self._logger.info(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
             host_mem.write(loc, result)
-        elif isinstance(instr, iqoala.RunSubroutineOp):
-            arg_vec: iqoala.IqoalaVector = instr.arguments[0]
+        elif isinstance(instr, hostlang.RunSubroutineOp):
+            arg_vec: hostlang.IqoalaVector = instr.arguments[0]
             args = arg_vec.values
             subrt_name = instr.attributes[0]
             assert isinstance(subrt_name, str)
@@ -122,7 +122,7 @@ class HostProcessor:
                 # results to the Host memory.
                 pass
 
-        elif isinstance(instr, iqoala.ReturnResultOp):
+        elif isinstance(instr, hostlang.ReturnResultOp):
             loc = instr.arguments[0]
             value = host_mem.read(loc)
             self._logger.info(f"returning {loc} = {value}")

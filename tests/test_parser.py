@@ -5,21 +5,22 @@ from netqasm.lang.instr.core import MeasInstruction, SetInstruction
 from netqasm.lang.operand import Register, Template
 from netqasm.lang.subroutine import Subroutine
 
-from qoala.lang.iqoala import (
+from qoala.lang.hostlang import (
     AssignCValueOp,
+    IqoalaSharedMemLoc,
+    IqoalaVector,
+    RunSubroutineOp,
+)
+from qoala.lang.parse import (
     IqoalaInstrParser,
     IqoalaMetaParser,
     IqoalaParseError,
     IqoalaParser,
-    IqoalaRequest,
     IQoalaRequestParser,
-    IqoalaSharedMemLoc,
-    IqoalaSubroutine,
     IQoalaSubroutineParser,
-    IqoalaVector,
-    ProgramMeta,
-    RunSubroutineOp,
 )
+from qoala.lang.program import IqoalaSubroutine, ProgramMeta
+from qoala.lang.request import IqoalaRequest
 from qoala.sim.requests import (
     EprCreateRole,
     EprCreateType,

@@ -9,22 +9,20 @@ from netqasm.lang.subroutine import Subroutine
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiBuilder
-from qoala.lang.iqoala import (
+from qoala.lang.hostlang import (
     AddCValueOp,
     AssignCValueOp,
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
-    IqoalaProgram,
     IqoalaSharedMemLoc,
-    IqoalaSubroutine,
     IqoalaVector,
     MultiplyConstantCValueOp,
-    ProgramMeta,
     ReceiveCMsgOp,
     ReturnResultOp,
     RunSubroutineOp,
     SendCMsgOp,
 )
+from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.csocket import ClassicalSocket

@@ -23,7 +23,7 @@ from netsquid.components.qprogram import QuantumProgram
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 
-from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult

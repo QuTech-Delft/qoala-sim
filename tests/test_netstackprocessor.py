@@ -19,7 +19,7 @@ from qlink_interface import (
 from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
-from qoala.lang.iqoala import IqoalaProgram, ProgramMeta
+from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,

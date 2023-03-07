@@ -2,7 +2,7 @@ import abc
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from qoala.lang.iqoala import IqoalaProgram
+from qoala.lang.program import IqoalaProgram
 from qoala.runtime.schedule import ProgramTaskList
 
 

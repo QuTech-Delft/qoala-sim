@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional, Tuple, Union
 
-from qoala.lang.iqoala import IqoalaProgram
+from qoala.lang.program import IqoalaProgram
 
 
 class ProcessorType(Enum):

@@ -20,20 +20,17 @@ from qlink_interface import ReqCreateBase, ResCreateAndKeep
 from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
-from qoala.lang.iqoala import (
+from qoala.lang.hostlang import (
     AssignCValueOp,
     ClassicalIqoalaOp,
-    IqoalaParser,
-    IqoalaProgram,
-    IqoalaRequest,
-    IqoalaSubroutine,
-    IQoalaSubroutineParser,
     IqoalaVector,
-    ProgramMeta,
     ReceiveCMsgOp,
     RunSubroutineOp,
     SendCMsgOp,
 )
+from qoala.lang.parse import IqoalaParser, IQoalaSubroutineParser
+from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.request import IqoalaRequest
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
     GlobalEnvironment,

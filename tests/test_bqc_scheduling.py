@@ -16,7 +16,8 @@ from netsquid_magic.link_layer import (
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
-from qoala.lang.iqoala import IqoalaParser, IqoalaProgram
+from qoala.lang.parse import IqoalaParser
+from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder

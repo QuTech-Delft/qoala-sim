@@ -3,19 +3,17 @@ from netqasm.lang.instr.vanilla import RotZInstruction
 from netqasm.lang.operand import Register, Template
 from netqasm.lang.subroutine import Subroutine
 
-from qoala.lang.iqoala import (
+from qoala.lang.hostlang import (
     AddCValueOp,
     AssignCValueOp,
-    IqoalaProgram,
     IqoalaSharedMemLoc,
-    IqoalaSubroutine,
     IqoalaVector,
-    ProgramMeta,
     ReceiveCMsgOp,
     ReturnResultOp,
     RunSubroutineOp,
     SendCMsgOp,
 )
+from qoala.lang.program import IqoalaProgram, IqoalaSubroutine, ProgramMeta
 from qoala.util.tests import text_equal
 
 
