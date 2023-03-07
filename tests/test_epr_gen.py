@@ -112,7 +112,7 @@ def perfect_nv_star_qdevice(node_name: str, num_qubits: int) -> QDevice:
 
 def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     program = IqoalaProgram(
-        instructions=[], subroutines={}, meta=ProgramMeta.empty("prog")
+        instructions=[], local_routines={}, meta=ProgramMeta.empty("prog")
     )
     instance = ProgramInstance(
         pid=pid,
@@ -127,7 +127,7 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
         prog_memory=mem,
         csockets={},
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
+        local_routines=program.local_routines,
         requests={},
         result=ProgramResult(values={}),
     )

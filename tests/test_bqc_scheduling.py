@@ -68,7 +68,7 @@ def create_process(
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
+        local_routines=program.local_routines,
         requests=program.requests,
         result=ProgramResult(values={}),
     )
@@ -127,7 +127,7 @@ class BqcProcNode(ProcNode):
     def run_epr_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        subrt = process.subroutines[subrt_name]
+        subrt = process.local_routines[subrt_name]
         epr_instr_idx = None
         for i, instr in enumerate(subrt.subroutine.instructions):
             if isinstance(instr, CreateEPRInstruction) or isinstance(
@@ -156,7 +156,7 @@ class BqcProcNode(ProcNode):
     def run_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        subrt = process.subroutines[subrt_name]
+        subrt = process.local_routines[subrt_name]
         num_instrs = len(subrt.subroutine.instructions)
 
         for i in range(num_instrs):

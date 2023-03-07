@@ -19,7 +19,7 @@ class IqoalaProcess:
     # Immutable
     csockets: Dict[int, ClassicalSocket]
     epr_sockets: Dict[int, EprSocket]
-    subroutines: Dict[str, IqoalaSubroutine]
+    local_routines: Dict[str, IqoalaSubroutine]
     requests: Dict[str, IqoalaRequest]
 
     @property

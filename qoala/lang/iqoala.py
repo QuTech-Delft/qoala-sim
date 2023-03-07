@@ -458,12 +458,12 @@ class IqoalaProgram:
     def __init__(
         self,
         instructions: List[ClassicalIqoalaOp],
-        subroutines: Dict[str, IqoalaSubroutine],
+        local_routines: Dict[str, IqoalaSubroutine],
         meta: ProgramMeta,
         requests: Optional[Dict[str, IqoalaRequest]] = None,
     ) -> None:
         self._instructions: List[ClassicalIqoalaOp] = instructions
-        self._subroutines: Dict[str, IqoalaSubroutine] = subroutines
+        self._local_routines: Dict[str, IqoalaSubroutine] = local_routines
         self._meta: ProgramMeta = meta
 
         if requests is None:
@@ -497,12 +497,12 @@ class IqoalaProgram:
         return sigs
 
     @property
-    def subroutines(self) -> Dict[str, IqoalaSubroutine]:
-        return self._subroutines
+    def local_routines(self) -> Dict[str, IqoalaSubroutine]:
+        return self._local_routines
 
-    @subroutines.setter
-    def subroutines(self, new_subroutines: Dict[str, IqoalaSubroutine]) -> None:
-        self._subroutines = new_subroutines
+    @local_routines.setter
+    def local_routines(self, new_local_routines: Dict[str, IqoalaSubroutine]) -> None:
+        self._local_routines = new_local_routines
 
     @property
     def requests(self) -> Dict[str, IqoalaRequest]:
@@ -531,7 +531,7 @@ class IqoalaProgram:
         return "\n".join("  " + str(i) for i in self.instructions)
 
     def serialize_subroutines(self) -> str:
-        return "\n".join(s.serialize() for s in self.subroutines.values())
+        return "\n".join(s.serialize() for s in self.local_routines.values())
 
     def serialize(self) -> str:
         return (

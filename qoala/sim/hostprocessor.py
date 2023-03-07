@@ -101,7 +101,7 @@ class HostProcessor:
             subrt_name = instr.attributes[0]
             assert isinstance(subrt_name, str)
 
-            iqoala_subrt = process.subroutines[subrt_name]
+            iqoala_subrt = process.local_routines[subrt_name]
             self._logger.info(f"executing subroutine {iqoala_subrt}")
 
             arg_values = {arg: host_mem.read(arg) for arg in args}
@@ -131,7 +131,7 @@ class HostProcessor:
         yield from self._interface.wait(self._latencies.host_instr_time)
 
     def copy_subroutine_results(self, process: IqoalaProcess, subrt_name: str) -> None:
-        iqoala_subrt = process.subroutines[subrt_name]
+        iqoala_subrt = process.local_routines[subrt_name]
 
         for key, mem_loc in iqoala_subrt.return_map.items():
             try:

@@ -93,7 +93,7 @@ def create_program(
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(instructions=[], subroutines=subroutines, meta=meta)
+    return IqoalaProgram(instructions=[], local_routines=subroutines, meta=meta)
 
 
 def create_process(
@@ -112,7 +112,7 @@ def create_process(
         prog_memory=mem,
         csockets={},
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
+        local_routines=program.local_routines,
         requests={},
         result=ProgramResult(values={}),
     )
@@ -133,11 +133,11 @@ def create_process_with_subrt(
 def set_new_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
     subrt = parse_text_subroutine(subrt_text)
     iqoala_subrt = IqoalaSubroutine("subrt", subrt, return_map={})
-    process.subroutines["subrt"] = iqoala_subrt
+    process.local_routines["subrt"] = iqoala_subrt
 
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
-    subroutines = process.prog_instance.program.subroutines
+    subroutines = process.prog_instance.program.local_routines
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0

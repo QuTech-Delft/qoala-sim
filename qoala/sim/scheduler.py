@@ -193,12 +193,12 @@ class Scheduler(Protocol):
 
                 result = ProgramResult(values={})
 
-                # Important: create a deep copy of the subroutines for each process,
-                # since each process should be able to instantiate their subroutines
-                # without affecting the subroutines of other processes.
-                subroutines = {
+                # Important: create a deep copy of the local_routines for each process,
+                # since each process should be able to instantiate their local_routines
+                # without affecting the local_routines of other processes.
+                local_routines = {
                     name: deepcopy(subrt)
-                    for name, subrt in prog_instance.program.subroutines.items()
+                    for name, subrt in prog_instance.program.local_routines.items()
                 }
 
                 # Same holds for requests.
@@ -212,7 +212,7 @@ class Scheduler(Protocol):
                     prog_memory=prog_memory,
                     csockets=csockets,
                     epr_sockets=epr_sockets,
-                    subroutines=subroutines,
+                    local_routines=local_routines,
                     requests=requests,
                     result=result,
                 )
@@ -243,7 +243,7 @@ class Scheduler(Protocol):
             process, task.subrt_name, task.instr_index
         )
         # TODO: improve this
-        subrt = process.subroutines[task.subrt_name]
+        subrt = process.local_routines[task.subrt_name]
         if task.instr_index == (len(subrt.subroutine.instructions) - 1):
             # subroutine finished -> return results to host
             self.host.processor.copy_subroutine_results(process, task.subrt_name)
@@ -251,7 +251,7 @@ class Scheduler(Protocol):
     def run_epr_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        subrt = process.subroutines[subrt_name]
+        subrt = process.local_routines[subrt_name]
         epr_instr_idx: Optional[int] = None
         for i, instr in enumerate(subrt.subroutine.instructions):
             if isinstance(instr, CreateEPRInstruction) or isinstance(

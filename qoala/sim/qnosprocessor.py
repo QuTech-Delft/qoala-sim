@@ -75,7 +75,7 @@ class QnosProcessor:
     def assign(
         self, process: IqoalaProcess, subrt_name: str, instr_idx: int
     ) -> Generator[EventExpression, None, int]:
-        iqoala_subrt = process.subroutines[subrt_name]
+        iqoala_subrt = process.local_routines[subrt_name]
         pid = process.prog_instance.pid
 
         self._current_prog_mem = process.prog_memory

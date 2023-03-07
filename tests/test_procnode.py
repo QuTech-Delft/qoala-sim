@@ -276,7 +276,7 @@ def create_program(
     if meta is None:
         meta = ProgramMeta.empty("prog")
     return IqoalaProgram(
-        instructions=instrs, subroutines=subroutines, meta=meta, requests=requests
+        instructions=instrs, local_routines=subroutines, meta=meta, requests=requests
     )
 
 
@@ -306,7 +306,7 @@ def create_process(
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
+        local_routines=program.local_routines,
         requests=program.requests,
         result=ProgramResult(values={}),
     )
@@ -968,7 +968,7 @@ REQUEST req1
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
 
-            subrt1 = process.subroutines["subrt1"]
+            subrt1 = process.local_routines["subrt1"]
             epr_instr_idx = None
             for i, instr in enumerate(subrt1.subroutine.instructions):
                 if isinstance(instr, CreateEPRInstruction) or isinstance(

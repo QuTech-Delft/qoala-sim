@@ -75,7 +75,7 @@ return_result(m)
         ReturnResultOp("m"),
     ]
     program = IqoalaProgram(
-        instructions=instructions, subroutines={}, meta=ProgramMeta.empty("alice")
+        instructions=instructions, local_routines={}, meta=ProgramMeta.empty("alice")
     )
     assert text_equal(program.serialize_instructions(), expected)
 
@@ -109,7 +109,9 @@ SUBROUTINE subrt1
         return_map={"m": IqoalaSharedMemLoc("M0")},
     )
     program = IqoalaProgram(
-        instructions=[], subroutines={"subrt1": subrt}, meta=ProgramMeta.empty("alice")
+        instructions=[],
+        local_routines={"subrt1": subrt},
+        meta=ProgramMeta.empty("alice"),
     )
     assert text_equal(program.serialize_subroutines(), expected)
 
@@ -158,7 +160,7 @@ SUBROUTINE subrt2
     )
     program = IqoalaProgram(
         instructions=[],
-        subroutines={"subrt1": subrt1, "subrt2": subrt2},
+        local_routines={"subrt1": subrt1, "subrt2": subrt2},
         meta=ProgramMeta.empty("alice"),
     )
     assert text_equal(program.serialize_subroutines(), expected)
@@ -221,7 +223,7 @@ SUBROUTINE subrt1
     )
 
     program = IqoalaProgram(
-        instructions=instructions, subroutines={"subrt1": subrt}, meta=meta
+        instructions=instructions, local_routines={"subrt1": subrt}, meta=meta
     )
 
     assert text_equal(program.serialize(), expected)

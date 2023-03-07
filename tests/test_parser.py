@@ -543,7 +543,7 @@ REQUEST req1
         req_text=req_text,
     ).parse()
     assert len(parsed_program.instructions) == 8
-    assert "subrt1" in parsed_program.subroutines
+    assert "subrt1" in parsed_program.local_routines
     assert len(parsed_program.requests) == 1
     assert "req1" in parsed_program.requests
 
@@ -592,7 +592,7 @@ SUBROUTINE subrt1
         req_text=req_text,
     ).parse()
     assert len(parsed_program.instructions) == 8
-    assert "subrt1" in parsed_program.subroutines
+    assert "subrt1" in parsed_program.local_routines
     assert len(parsed_program.requests) == 0
 
 
@@ -773,7 +773,7 @@ SUBROUTINE subrt1
 
     parsed_program = IqoalaParser(text).parse()
     assert len(parsed_program.instructions) == 8
-    assert "subrt1" in parsed_program.subroutines
+    assert "subrt1" in parsed_program.local_routines
 
 
 def test_parse_file():
@@ -782,15 +782,15 @@ def test_parse_file():
         text = file.read()
     parsed_program = IqoalaParser(text).parse()
     assert len(parsed_program.instructions) == 11
-    assert "create_epr_0" in parsed_program.subroutines
-    assert "create_epr_1" in parsed_program.subroutines
-    assert "local_cphase" in parsed_program.subroutines
-    assert "meas_qubit_0" in parsed_program.subroutines
-    assert "meas_qubit_1" in parsed_program.subroutines
+    assert "create_epr_0" in parsed_program.local_routines
+    assert "create_epr_1" in parsed_program.local_routines
+    assert "local_cphase" in parsed_program.local_routines
+    assert "meas_qubit_0" in parsed_program.local_routines
+    assert "meas_qubit_1" in parsed_program.local_routines
     assert "req0" in parsed_program.requests
     assert "req1" in parsed_program.requests
-    assert parsed_program.subroutines["create_epr_0"].request_name == "req0"
-    assert parsed_program.subroutines["create_epr_1"].request_name == "req1"
+    assert parsed_program.local_routines["create_epr_0"].request_name == "req0"
+    assert parsed_program.local_routines["create_epr_1"].request_name == "req1"
 
 
 def test_parse_file_2():
@@ -799,14 +799,14 @@ def test_parse_file_2():
         text = file.read()
     parsed_program = IqoalaParser(text).parse()
     assert len(parsed_program.instructions) == 19
-    assert "create_epr_0" in parsed_program.subroutines
-    assert "post_epr_0" in parsed_program.subroutines
-    assert "create_epr_1" in parsed_program.subroutines
-    assert "post_epr_1" in parsed_program.subroutines
+    assert "create_epr_0" in parsed_program.local_routines
+    assert "post_epr_0" in parsed_program.local_routines
+    assert "create_epr_1" in parsed_program.local_routines
+    assert "post_epr_1" in parsed_program.local_routines
     assert "req0" in parsed_program.requests
     assert "req1" in parsed_program.requests
-    assert parsed_program.subroutines["create_epr_0"].request_name == "req0"
-    assert parsed_program.subroutines["create_epr_1"].request_name == "req1"
+    assert parsed_program.local_routines["create_epr_0"].request_name == "req0"
+    assert parsed_program.local_routines["create_epr_1"].request_name == "req1"
 
 
 if __name__ == "__main__":

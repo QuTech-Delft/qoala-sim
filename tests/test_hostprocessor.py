@@ -88,7 +88,7 @@ def create_program(
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(instructions=instrs, subroutines=subroutines, meta=meta)
+    return IqoalaProgram(instructions=instrs, local_routines=subroutines, meta=meta)
 
 
 def create_process(
@@ -124,7 +124,7 @@ def create_process(
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
+        local_routines=program.local_routines,
         requests={},
         result=ProgramResult(values={}),
     )
