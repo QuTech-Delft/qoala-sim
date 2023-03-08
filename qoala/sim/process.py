@@ -45,18 +45,19 @@ class IqoalaProcess:
     def get_all_requests(self) -> Dict[str, IqoalaRequest]:
         return self.prog_instance.program.requests
 
-    def instantiate_routine(
-        self, name: str, pid: int, arguments: Dict[str, int]
-    ) -> None:
+    def instantiate_routine(self, name: str, arguments: Dict[str, int]) -> None:
         routine = self.get_local_routine(name)
 
         # Create a copy of the routine in which we can resolve templates.
         instance = RoutineInstance(deepcopy(routine), arguments)
-        instance.routine.subroutine.instantiate(pid, arguments)
+        instance.routine.subroutine.instantiate(self.pid, arguments)
         self.active_routines[name] = instance
 
     def get_active_routine(self, name: str) -> RoutineInstance:
         return self.active_routines[name]
+
+    def get_all_active_routines(self) -> Dict[str, RoutineInstance]:
+        return self.active_routines
 
     @property
     def pid(self) -> int:

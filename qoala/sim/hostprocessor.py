@@ -108,7 +108,7 @@ class HostProcessor:
             arg_values = {arg: host_mem.read(arg) for arg in args}
 
             self._logger.info(f"instantiating subroutine with values {arg_values}")
-            process.instantiate_routine(subrt_name, pid, arg_values)
+            process.instantiate_routine(subrt_name, arg_values)
 
             if self._asynchronous:
                 # Send a message to Qnos asking it to execute the subroutine.

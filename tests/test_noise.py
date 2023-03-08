@@ -141,7 +141,7 @@ def set_new_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     subroutines = process.prog_instance.program.local_routines
-    process.instantiate_routine("subrt", 0, {})
+    process.instantiate_routine("subrt", {})
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0

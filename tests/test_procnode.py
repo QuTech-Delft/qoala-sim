@@ -456,7 +456,7 @@ def test_initialize():
     )
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
-    process.instantiate_routine("subrt1", 0, {})
+    process.instantiate_routine("subrt1", {})
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
@@ -975,7 +975,7 @@ REQUEST req1
             self.scheduler.initialize_process(process)
 
             subrt1 = process.get_local_routine("subrt1")
-            process.instantiate_routine("subrt1", 0, {})
+            process.instantiate_routine("subrt1", {})
             epr_instr_idx = None
             for i, instr in enumerate(subrt1.subroutine.instructions):
                 if isinstance(instr, CreateEPRInstruction) or isinstance(

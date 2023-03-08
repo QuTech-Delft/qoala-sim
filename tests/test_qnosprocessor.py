@@ -170,7 +170,7 @@ def create_process_with_subrt(
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     subroutines = process.prog_instance.program.local_routines
-    process.instantiate_routine("subrt", 0, {})
+    process.instantiate_routine("subrt", {})
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0
@@ -188,7 +188,7 @@ def execute_process_with_latencies(
     processor: GenericProcessor, process: IqoalaProcess
 ) -> int:
     subroutines = process.prog_instance.program.local_routines
-    process.instantiate_routine("subrt", 0, {})
+    process.instantiate_routine("subrt", {})
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0
@@ -207,7 +207,7 @@ def execute_multiple_processes(
 ) -> None:
     for proc in processes:
         subroutines = proc.prog_instance.program.local_routines
-        proc.instantiate_routine("subrt", 0, {})
+        proc.instantiate_routine("subrt", {})
         netqasm_instructions = subroutines["subrt"].subroutine.instructions
         for i in range(len(netqasm_instructions)):
             yield_from(processor.assign_routine_instr(proc, "subrt", i))
