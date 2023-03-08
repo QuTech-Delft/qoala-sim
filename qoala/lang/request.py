@@ -1,15 +1,26 @@
 from __future__ import annotations
 
+from typing import Dict
+
 from qoala.sim.requests import EprCreateRole, T_NetstackRequest
+
+
+class RequestMemoryUsage:
+    mapping: Dict[int, int]  # pair index -> virt qubit ID
 
 
 class IqoalaRequest:
     def __init__(
-        self, name: str, role: EprCreateRole, request: T_NetstackRequest
+        self,
+        name: str,
+        role: EprCreateRole,
+        request: T_NetstackRequest,
+        mem_usage: RequestMemoryUsage,
     ) -> None:
         self._name = name
         self._role = role
         self._request = request
+        self._mem_usage = mem_usage
 
     @property
     def name(self) -> str:
