@@ -23,7 +23,6 @@ from qoala.lang.hostlang import (
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.request import IqoalaRequest
 from qoala.lang.routine import RoutineMetadata
-from qoala.sim.memory import RegisterMeta
 from qoala.sim.requests import (
     EprCreateRole,
     EprCreateType,
@@ -294,8 +293,11 @@ class LocalRoutineParser:
         subroutines: Dict[str, LocalRoutine] = {}
         try:
             while True:
-                subrt = self._parse_subroutine()
-                subroutines[subrt.name] = subrt
+                try:
+                    subrt = self._parse_subroutine()
+                    subroutines[subrt.name] = subrt
+                except AssertionError:
+                    raise IqoalaParseError
         except EndOfTextException:
             return subroutines
 

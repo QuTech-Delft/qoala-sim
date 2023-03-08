@@ -24,6 +24,7 @@ from netsquid.nodes import Node
 from netsquid.qubits import ketstates
 
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -130,7 +131,8 @@ def create_process_with_subrt(
     pid: int, subrt_text: str, unit_module: UnitModule, flavour: Flavour
 ) -> IqoalaProcess:
     subrt = parse_text_subroutine(subrt_text, flavour=flavour)
-    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={})
+    metadata = RoutineMetadata.use_none()
+    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
     program = create_program(subroutines={"subrt": iqoala_subrt}, meta=meta)
@@ -153,7 +155,8 @@ def set_new_subroutine(
     process: IqoalaProcess, subrt_text: str, flavour: Flavour
 ) -> None:
     subrt = parse_text_subroutine(subrt_text, flavour=flavour)
-    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={})
+    metadata = RoutineMetadata.use_none()
+    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     process.local_routines["subrt"] = iqoala_subrt
 
 

@@ -14,6 +14,7 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -83,6 +84,8 @@ def test_serialize_subroutines_1():
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps: 
   NETQASM_START
     set Q0 0
     rot_z Q0 {my_value} 4
@@ -105,6 +108,7 @@ SUBROUTINE subrt1
             arguments=["my_value"],
         ),
         return_map={"m": IqoalaSharedMemLoc("M0")},
+        metadata=RoutineMetadata.free_all([0]),
     )
     program = IqoalaProgram(
         instructions=[],
@@ -119,6 +123,8 @@ def test_serialize_subroutines_2():
 SUBROUTINE subrt1
     params: param1
     returns: M0 -> m
+    uses: 0
+    keeps: 
   NETQASM_START
     set R0 {param1}
     meas Q0 M0
@@ -127,6 +133,8 @@ SUBROUTINE subrt1
 SUBROUTINE subrt2
     params: theta
     returns: 
+    uses:
+    keeps: 
   NETQASM_START
     set R0 {theta}
   NETQASM_END
@@ -145,6 +153,7 @@ SUBROUTINE subrt2
             arguments=["param1"],
         ),
         return_map={"m": IqoalaSharedMemLoc("M0")},
+        metadata=RoutineMetadata.free_all([0]),
     )
     subrt2 = LocalRoutine(
         name="subrt2",
@@ -155,6 +164,7 @@ SUBROUTINE subrt2
             arguments=["theta"],
         ),
         return_map={},
+        metadata=RoutineMetadata.use_none(),
     )
     program = IqoalaProgram(
         instructions=[],
@@ -185,6 +195,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps: 
   NETQASM_START
     set Q0 0
     rot_z Q0 {my_value} 4
@@ -218,6 +230,7 @@ SUBROUTINE subrt1
             arguments=["my_value"],
         ),
         return_map={"m": IqoalaSharedMemLoc("M0")},
+        metadata=RoutineMetadata.free_all([0]),
     )
 
     program = IqoalaProgram(

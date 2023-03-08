@@ -67,6 +67,8 @@ class LocalRoutine:
         s += f"\nparams: {', '.join(self.subroutine.arguments)}"
         rm = self.return_map  # just to make next line fit on one line
         s += f"\nreturns: {', '.join(f'{v} -> {k}' for k, v in rm.items())}"
+        s += f"\nuses: {', '.join(str(q) for q in self.metadata.qubit_use)}"
+        s += f"\nkeeps: {', '.join(str(q) for q in self.metadata.qubit_keep)}"
         s += "\nNETQASM_START\n"
         s += self.subroutine.print_instructions()
         s += "\nNETQASM_END"

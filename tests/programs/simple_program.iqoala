@@ -13,6 +13,8 @@ return_result(m)
 SUBROUTINE subrt0
     params:
     returns:
+    uses: 0
+    keeps: 0
     request: 
   NETQASM_START
     set Q0 0
@@ -24,6 +26,8 @@ SUBROUTINE subrt0
 SUBROUTINE subrt1
     params:
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     meas Q0 M0

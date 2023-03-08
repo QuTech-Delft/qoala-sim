@@ -64,6 +64,8 @@ return_result(m2)
 SUBROUTINE create_epr_0
     params:
     returns:
+    uses: 0
+    keeps: 0
     request: req0
   NETQASM_START
     array 10 @0
@@ -74,6 +76,8 @@ SUBROUTINE create_epr_0
 SUBROUTINE post_epr_0
     params: theta2, epr0_rot_y, epr0_rot_z
     returns: M0 -> p2
+    uses: 0
+    keeps:
     request:
   NETQASM_START
     set Q0 0
@@ -87,6 +91,8 @@ SUBROUTINE post_epr_0
 SUBROUTINE create_epr_1
     params: 
     returns:
+    uses: 0
+    keeps: 0
     request: req1
   NETQASM_START
     array 10 @1
@@ -97,6 +103,8 @@ SUBROUTINE create_epr_1
 SUBROUTINE post_epr_1
     params: theta1, epr1_rot_y, epr1_rot_z
     returns: M1 -> p1
+    uses: 0
+    keeps:
     request:
   NETQASM_START
     set Q0 0

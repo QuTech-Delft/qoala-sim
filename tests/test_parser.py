@@ -1,5 +1,4 @@
 import os
-from curses import meta
 
 import pytest
 from netqasm.lang.instr.core import MeasInstruction, SetInstruction
@@ -252,6 +251,8 @@ def test_parse_multiple_subrt():
 SUBROUTINE subrt1
     params: param1
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set R0 {param1}
@@ -261,6 +262,8 @@ SUBROUTINE subrt1
 SUBROUTINE subrt2
     params: theta
     returns: 
+    uses: 
+    keeps:
     request: 
   NETQASM_START
     set R0 {theta}
@@ -287,6 +290,7 @@ SUBROUTINE subrt2
     assert subrt1 == LocalRoutine(
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs_1, arguments=expected_args_1),
+        metadata=RoutineMetadata.free_all([0]),
         return_map={
             "m": IqoalaSharedMemLoc("M0"),
         },
@@ -294,6 +298,7 @@ SUBROUTINE subrt2
     assert subrt2 == LocalRoutine(
         name="subrt2",
         subrt=Subroutine(instructions=expected_instrs_2, arguments=expected_args_2),
+        metadata=RoutineMetadata.use_none(),
         return_map={},
     )
 
@@ -524,6 +529,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set Q0 0
@@ -582,6 +589,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set Q0 0
@@ -661,6 +670,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 
+    keeps:
     request: 
   NETQASM_START
     set R0 0
@@ -728,6 +739,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: 
     returns: 
+    uses:
+    keeps:
     request: 
   NETQASM_START
     set Q0 0
@@ -736,6 +749,8 @@ SUBROUTINE subrt1
 SUBROUTINE subrt2
     params: 
     returns: 
+    uses:
+    keeps:
     request: 
   NETQASM_START
     set Q7 7
@@ -771,6 +786,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set Q0 0

@@ -23,6 +23,7 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.csocket import ClassicalSocket
@@ -302,11 +303,12 @@ def test_run_subroutine():
     processor = HostProcessor(interface, HostLatencies.all_zero())
 
     subrt = Subroutine()
-    iqoala_subrt = LocalRoutine("subrt1", subrt, return_map={})
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine("subrt1", subrt, return_map={}, metadata=metadata)
 
     program = create_program(
         instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
-        subroutines={"subrt1": iqoala_subrt},
+        subroutines={"subrt1": routine},
     )
     process = create_process(program, interface)
     processor.initialize(process)
@@ -324,11 +326,12 @@ def test_run_subroutine_async():
     processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
     subrt = Subroutine()
-    iqoala_subrt = LocalRoutine("subrt1", subrt, return_map={})
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine("subrt1", subrt, return_map={}, metadata=metadata)
 
     program = create_program(
         instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
-        subroutines={"subrt1": iqoala_subrt},
+        subroutines={"subrt1": routine},
     )
     process = create_process(program, interface)
     processor.initialize(process)
@@ -350,8 +353,11 @@ def test_run_subroutine_async_2():
     ret_reg R0
     """
     subrt = parse_text_subroutine(subrt_text)
-    iqoala_subrt = LocalRoutine(
-        "subrt1", subrt, return_map={"m": IqoalaSharedMemLoc("R0")}
+    routine = LocalRoutine(
+        "subrt1",
+        subrt,
+        return_map={"m": IqoalaSharedMemLoc("R0")},
+        metadata=RoutineMetadata.use_none(),
     )
 
     program = create_program(
@@ -359,7 +365,7 @@ def test_run_subroutine_async_2():
             AssignCValueOp("my_value", 16),
             RunSubroutineOp(None, IqoalaVector(["my_value"]), "subrt1"),
         ],
-        subroutines={"subrt1": iqoala_subrt},
+        subroutines={"subrt1": routine},
     )
     process = create_process(program, interface)
 

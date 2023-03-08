@@ -31,6 +31,7 @@ from qoala.lang.hostlang import (
 from qoala.lang.parse import IqoalaParser, LocalRoutineParser
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.request import IqoalaRequest
+from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
     GlobalEnvironment,
@@ -353,7 +354,7 @@ def create_procnode(
 
 def simple_subroutine(name: str, subrt_text: str) -> LocalRoutine:
     subrt = parse_text_subroutine(subrt_text)
-    return LocalRoutine(name, subrt, return_map={})
+    return LocalRoutine(name, subrt, return_map={}, metadata=RoutineMetadata.use_none())
 
 
 def parse_iqoala_subroutines(subrt_text: str) -> LocalRoutine:
@@ -497,6 +498,8 @@ def test_2():
 SUBROUTINE subrt1
     params: 
     returns: R5 -> result
+    uses: 
+    keeps: 
     request:
   NETQASM_START
     set R5 42
@@ -549,6 +552,8 @@ def test_2_async():
 SUBROUTINE subrt1
     params: 
     returns: R5 -> result
+    uses: 
+    keeps: 
     request:
   NETQASM_START
     set R5 42
@@ -931,6 +936,8 @@ run_subroutine(vec<remote_id>) : subrt1
 SUBROUTINE subrt1
     params: remote_id
     returns:
+    uses: 0
+    keeps: 0
     request: req1
   NETQASM_START
     array 10 @0
@@ -1018,6 +1025,8 @@ run_subroutine(vec<remote_id>) : subrt1
 SUBROUTINE subrt1
     params: remote_id
     returns:
+    uses: 0
+    keeps: 0
     request: req1
   NETQASM_START
     set C10 10

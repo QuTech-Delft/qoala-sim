@@ -26,6 +26,8 @@ send_cmsg(csocket, m2)
 SUBROUTINE create_epr_0
     params: 
     returns:
+    uses: 0, 1
+    keeps: 1
     request: req0
   NETQASM_START
     array 10 @0
@@ -36,6 +38,8 @@ SUBROUTINE create_epr_0
 SUBROUTINE create_epr_1
     params: 
     returns:
+    uses: 0
+    keeps: 0
     request: req1
   NETQASM_START
     array 10 @1
@@ -46,6 +50,8 @@ SUBROUTINE create_epr_1
 SUBROUTINE local_cphase
     params: 
     returns: 
+    uses: 0, 1
+    keeps: 0, 1
     request: 
   NETQASM_START
     set Q0 1
@@ -56,6 +62,8 @@ SUBROUTINE local_cphase
 SUBROUTINE meas_qubit_1
     params: delta1
     returns: M0 -> m1
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set Q1 1
@@ -68,6 +76,8 @@ SUBROUTINE meas_qubit_1
 SUBROUTINE meas_qubit_0
     params: delta2
     returns: M0 -> m2
+    uses: 0, 1
+    keeps:
     request: 
   NETQASM_START
     set Q0 0

@@ -10,6 +10,7 @@ from netqasm.lang.parsing import parse_text_subroutine
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
@@ -160,7 +161,8 @@ def create_process_with_subrt(
     pid: int, subrt_text: str, unit_module: UnitModule
 ) -> IqoalaProcess:
     subrt = parse_text_subroutine(subrt_text)
-    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={})
+    metadata = RoutineMetadata.use_none()
+    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
     program = create_program(subroutines={"subrt": iqoala_subrt}, meta=meta)
