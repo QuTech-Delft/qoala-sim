@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns

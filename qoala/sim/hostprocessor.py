@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from typing import Generator
 
 from netqasm.lang.operand import Register
@@ -12,7 +11,7 @@ from qoala.lang import hostlang
 from qoala.sim.hostinterface import HostInterface, HostLatencies
 from qoala.sim.logging import LogManager
 from qoala.sim.message import Message
-from qoala.sim.process import IqoalaProcess, RoutineInstance
+from qoala.sim.process import IqoalaProcess
 
 
 class HostProcessor:
@@ -45,7 +44,6 @@ class HostProcessor:
     ) -> Generator[EventExpression, None, None]:
         csockets = process.csockets
         host_mem = process.prog_memory.host_mem
-        pid = process.prog_instance.pid
         program = process.prog_instance.program
 
         instr = program.instructions[instr_idx]
