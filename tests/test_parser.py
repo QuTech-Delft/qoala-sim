@@ -803,7 +803,7 @@ SUBROUTINE subrt1
 
 
 def test_parse_file():
-    path = os.path.join(os.path.dirname(__file__), "test_bqc_server.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "bqc_server_source.iqoala")
     with open(path) as file:
         text = file.read()
     parsed_program = IqoalaParser(text).parse()
@@ -820,7 +820,7 @@ def test_parse_file():
 
 
 def test_parse_file_2():
-    path = os.path.join(os.path.dirname(__file__), "test_bqc_client.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "bqc_client_source.iqoala")
     with open(path) as file:
         text = file.read()
     parsed_program = IqoalaParser(text).parse()

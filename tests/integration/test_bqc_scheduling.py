@@ -69,9 +69,8 @@ def create_process(
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
-        local_routines=program.local_routines,
-        requests=program.requests,
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 
@@ -128,7 +127,7 @@ class BqcProcNode(ProcNode):
     def run_epr_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        subrt = process.local_routines[subrt_name]
+        subrt = process.get_local_routine(subrt_name)
         epr_instr_idx = None
         for i, instr in enumerate(subrt.subroutine.instructions):
             if isinstance(instr, CreateEPRInstruction) or isinstance(
@@ -139,17 +138,19 @@ class BqcProcNode(ProcNode):
 
         # Set up arrays
         for i in range(epr_instr_idx):
-            yield from self.qnos.processor.assign(process, subrt_name, i)
+            yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
 
         request_name = subrt.request_name
         assert request_name is not None
-        request = process.requests[request_name].request
+        request = process.get_request(request_name).request
 
         # Handle request
         yield from self.netstack.processor.assign(process, request)
 
         # Execute wait instruction
-        yield from self.qnos.processor.assign(process, subrt_name, epr_instr_idx + 1)
+        yield from self.qnos.processor.assign_routine_instr(
+            process, subrt_name, epr_instr_idx + 1
+        )
 
         # Return subroutine results
         self.host.processor.copy_subroutine_results(process, subrt_name)
@@ -157,11 +158,11 @@ class BqcProcNode(ProcNode):
     def run_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        subrt = process.local_routines[subrt_name]
+        subrt = process.get_local_routine(subrt_name)
         num_instrs = len(subrt.subroutine.instructions)
 
         for i in range(num_instrs):
-            yield from self.qnos.processor.assign(process, subrt_name, i)
+            yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
 
         # Return subroutine results
         self.host.processor.copy_subroutine_results(process, subrt_name)

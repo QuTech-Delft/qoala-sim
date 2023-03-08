@@ -123,9 +123,8 @@ def create_process(
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
-        local_routines=program.local_routines,
-        requests={},
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 

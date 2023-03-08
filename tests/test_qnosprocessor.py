@@ -150,9 +150,8 @@ def create_process(
         prog_memory=mem,
         csockets={},
         epr_sockets=program.meta.epr_sockets,
-        local_routines=program.local_routines,
-        requests={},
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 
@@ -171,6 +170,7 @@ def create_process_with_subrt(
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     subroutines = process.prog_instance.program.local_routines
+    process.instantiate_routine("subrt", 0, {})
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0
@@ -178,7 +178,9 @@ def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     instr_idx = 0
     while instr_idx < len(netqasm_instructions):
         instr_count += 1
-        instr_idx = yield_from(processor.assign(process, "subrt", instr_idx))
+        instr_idx = yield_from(
+            processor.assign_routine_instr(process, "subrt", instr_idx)
+        )
     return instr_count
 
 
@@ -186,6 +188,7 @@ def execute_process_with_latencies(
     processor: GenericProcessor, process: IqoalaProcess
 ) -> int:
     subroutines = process.prog_instance.program.local_routines
+    process.instantiate_routine("subrt", 0, {})
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0
@@ -193,7 +196,9 @@ def execute_process_with_latencies(
     instr_idx = 0
     while instr_idx < len(netqasm_instructions):
         instr_count += 1
-        instr_idx = netsquid_run(processor.assign(process, "subrt", instr_idx))
+        instr_idx = netsquid_run(
+            processor.assign_routine_instr(process, "subrt", instr_idx)
+        )
     return instr_count
 
 
@@ -202,9 +207,10 @@ def execute_multiple_processes(
 ) -> None:
     for proc in processes:
         subroutines = proc.prog_instance.program.local_routines
+        proc.instantiate_routine("subrt", 0, {})
         netqasm_instructions = subroutines["subrt"].subroutine.instructions
         for i in range(len(netqasm_instructions)):
-            yield_from(processor.assign(proc, "subrt", i))
+            yield_from(processor.assign_routine_instr(proc, "subrt", i))
 
 
 def setup_components(
@@ -582,7 +588,7 @@ def test_array():
 #         result_array_addr=result_array,
 #     )
 
-#     assert process.prog_memory.requests[0] == expected_request
+#     assert process.prog_memory.get_request(0) == expected_request
 
 #     mem = process.prog_memory.shared_mem
 #     assert mem.get_array_value(qubit_array, 0) == qubit_id
@@ -685,7 +691,7 @@ def test_array():
 #         result_array_addr=result_array,
 #     )
 
-#     assert process.prog_memory.requests[0] == expected_request
+#     assert process.prog_memory.get_request(0) == expected_request
 
 #     mem = process.prog_memory.shared_mem
 #     assert mem.get_array_value(qubit_array, 0) == qubit_id

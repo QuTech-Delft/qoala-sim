@@ -304,9 +304,8 @@ def create_process(
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
-        local_routines=program.local_routines,
-        requests=program.requests,
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 
@@ -457,7 +456,8 @@ def test_initialize():
     )
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
-    netsquid_run(qnos_processor.assign(process, "subrt1", 0))
+    process.instantiate_routine("subrt1", 0, {})
+    netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
     netsquid_run(netstack_processor.assign(process, request))
@@ -521,7 +521,7 @@ SUBROUTINE subrt1
     host_processor.initialize(process)
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
-    netsquid_run(qnos_processor.assign(process, "subrt1", 0))
+    netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
     host_processor.copy_subroutine_results(process, "subrt1")
 
     assert process.host_mem.read("result") == 42
@@ -578,7 +578,7 @@ SUBROUTINE subrt1
         yield from host_processor.assign(process, instr_idx=0)
 
     def qnos_run() -> Generator[EventExpression, None, None]:
-        yield from qnos_processor.assign(process, "subrt1", 0)
+        yield from qnos_processor.assign_routine_instr(process, "subrt1", 0)
         # Mock sending signal back to Host that subroutine has finished.
         qnos_processor._interface.send_host_msg(Message(None))
 
@@ -814,7 +814,7 @@ def test_epr():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            request = process.requests["req"]
+            request = process.get_request("req")
             yield from self.netstack.processor.assign(process, request)
 
     alice_procnode = create_procnode(
@@ -842,41 +842,6 @@ def test_epr():
     ehi = LhiConverter.to_ehi(topology, ntf)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    alice_instrs = [SendCMsgOp("csocket_id", "message")]
-    alice_meta = ProgramMeta(
-        name="alice",
-        parameters=["csocket_id", "message"],
-        csockets={0: "bob"},
-        epr_sockets={},
-    )
-    alice_program = create_program(instrs=alice_instrs, meta=alice_meta)
-    alice_process = create_process(
-        pid=0,
-        program=alice_program,
-        unit_module=unit_module,
-        host_interface=alice_procnode.host._interface,
-        inputs={"csocket_id": 0, "message": 1337},
-    )
-    alice_procnode.add_process(alice_process)
-    alice_host_processor.initialize(alice_process)
-
-    bob_instrs = [ReceiveCMsgOp("csocket_id", "result")]
-    bob_meta = ProgramMeta(
-        name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
-    )
-    bob_program = create_program(instrs=bob_instrs, meta=bob_meta)
-    bob_process = create_process(
-        pid=0,
-        program=bob_program,
-        unit_module=unit_module,
-        host_interface=bob_procnode.host._interface,
-        inputs={"csocket_id": 0},
-    )
-    bob_procnode.add_process(bob_process)
-    bob_host_processor.initialize(bob_process)
-
-    alice_procnode.connect_to(bob_procnode)
-
     alice_request = NetstackCreateRequest(
         remote_id=bob_id,
         epr_socket_id=0,
@@ -897,11 +862,48 @@ def test_epr():
         result_array_addr=0,
     )
 
+    alice_instrs = [SendCMsgOp("csocket_id", "message")]
+    alice_meta = ProgramMeta(
+        name="alice",
+        parameters=["csocket_id", "message"],
+        csockets={0: "bob"},
+        epr_sockets={},
+    )
+    alice_program = create_program(
+        instrs=alice_instrs, requests={"req": alice_request}, meta=alice_meta
+    )
+    alice_process = create_process(
+        pid=0,
+        program=alice_program,
+        unit_module=unit_module,
+        host_interface=alice_procnode.host._interface,
+        inputs={"csocket_id": 0, "message": 1337},
+    )
+    alice_procnode.add_process(alice_process)
+    alice_host_processor.initialize(alice_process)
+
+    bob_instrs = [ReceiveCMsgOp("csocket_id", "result")]
+    bob_meta = ProgramMeta(
+        name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
+    )
+    bob_program = create_program(
+        instrs=bob_instrs, requests={"req": bob_request}, meta=bob_meta
+    )
+    bob_process = create_process(
+        pid=0,
+        program=bob_program,
+        unit_module=unit_module,
+        host_interface=bob_procnode.host._interface,
+        inputs={"csocket_id": 0},
+    )
+    bob_procnode.add_process(bob_process)
+    bob_host_processor.initialize(bob_process)
+
+    alice_procnode.connect_to(bob_procnode)
+
     alice_egp, bob_egp = create_egp_protocols(alice_procnode.node, bob_procnode.node)
     alice_procnode.egpmgr.add_egp(bob_id, alice_egp)
     bob_procnode.egpmgr.add_egp(alice_id, bob_egp)
-    alice_process.requests = {"req": alice_request}
-    bob_process.requests = {"req": bob_request}
 
     alice_process.shared_mem.init_new_array(0, 10)
     bob_process.shared_mem.init_new_array(0, 10)
@@ -972,7 +974,8 @@ REQUEST req1
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
 
-            subrt1 = process.local_routines["subrt1"]
+            subrt1 = process.get_local_routine("subrt1")
+            process.instantiate_routine("subrt1", 0, {})
             epr_instr_idx = None
             for i, instr in enumerate(subrt1.subroutine.instructions):
                 if isinstance(instr, CreateEPRInstruction) or isinstance(
@@ -982,14 +985,18 @@ REQUEST req1
                     break
 
             for i in range(epr_instr_idx):
-                yield from self.qnos.processor.assign(process, "subrt1", i)
+                yield from self.qnos.processor.assign_routine_instr(
+                    process, "subrt1", i
+                )
 
-            request = process.requests["req1"].request
+            request = process.get_request("req1").request
             print("hello 1?")
             yield from self.netstack.processor.assign(process, request)
 
             # wait instr
-            yield from self.qnos.processor.assign(process, "subrt1", epr_instr_idx + 1)
+            yield from self.qnos.processor.assign_routine_instr(
+                process, "subrt1", epr_instr_idx + 1
+            )
             print("hello 2?")
             # yield from self.netstack.processor.assign(process, request)
 

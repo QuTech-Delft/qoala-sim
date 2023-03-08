@@ -72,10 +72,26 @@ class QnosProcessor:
     def qdevice(self) -> QDevice:
         return self._interface.qdevice
 
-    def assign(
+    def assign_local_routine(
+        self, process: IqoalaProcess, routine_name: str
+    ) -> Generator[EventExpression, None, int]:
+        routine = process.get_local_routine(routine_name)
+        netqasm_instrs = routine.subroutine.instructions
+
+        instr_idx = 0
+        while instr_idx < len(netqasm_instrs):
+            instr_idx = yield from self.assign_routine_instr(
+                process, routine_name, instr_idx
+            )
+
+    def assign_routine_instr(
         self, process: IqoalaProcess, subrt_name: str, instr_idx: int
     ) -> Generator[EventExpression, None, int]:
-        iqoala_subrt = process.local_routines[subrt_name]
+        """Assign the processor to one specific instruction in a local routine."""
+        # TODO: use arguments from RoutineInstance
+        # (currently the RoutineInstance.routine is already instantiated so we don't
+        # need the RoutineInstance.arguments)
+        iqoala_subrt = process.get_active_routine(subrt_name).routine
         pid = process.prog_instance.pid
 
         self._current_prog_mem = process.prog_memory

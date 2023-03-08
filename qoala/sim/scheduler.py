@@ -196,25 +196,28 @@ class Scheduler(Protocol):
                 # Important: create a deep copy of the local_routines for each process,
                 # since each process should be able to instantiate their local_routines
                 # without affecting the local_routines of other processes.
-                local_routines = {
-                    name: deepcopy(subrt)
-                    for name, subrt in prog_instance.program.local_routines.items()
-                }
 
-                # Same holds for requests.
-                requests = {
-                    name: deepcopy(req)
-                    for name, req in prog_instance.program.requests.items()
-                }
+                # TODO: Check if commented-out lines are not needed anymore and if so,
+                # remove completely.
+
+                # local_routines = {
+                #     name: deepcopy(subrt)
+                #     for name, subrt in prog_instance.program.local_routines.items()
+                # }
+
+                # # Same holds for requests.
+                # requests = {
+                #     name: deepcopy(req)
+                #     for name, req in prog_instance.program.requests.items()
+                # }
 
                 process = IqoalaProcess(
                     prog_instance=prog_instance,
                     prog_memory=prog_memory,
                     csockets=csockets,
                     epr_sockets=epr_sockets,
-                    local_routines=local_routines,
-                    requests=requests,
                     result=result,
+                    active_routines={},
                 )
 
                 self.memmgr.add_process(process)
@@ -239,11 +242,11 @@ class Scheduler(Protocol):
     def execute_qnos_task(
         self, process: IqoalaProcess, task: QnosTask
     ) -> Generator[EventExpression, None, None]:
-        yield from self.qnos.processor.assign(
+        yield from self.qnos.processor.assign_routine_instr(
             process, task.subrt_name, task.instr_index
         )
         # TODO: improve this
-        subrt = process.local_routines[task.subrt_name]
+        subrt = process.get_local_routine(task.subrt_name)
         if task.instr_index == (len(subrt.subroutine.instructions) - 1):
             # subroutine finished -> return results to host
             self.host.processor.copy_subroutine_results(process, task.subrt_name)
@@ -251,7 +254,7 @@ class Scheduler(Protocol):
     def run_epr_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        subrt = process.local_routines[subrt_name]
+        subrt = process.get_local_routine(subrt_name)
         epr_instr_idx: Optional[int] = None
         for i, instr in enumerate(subrt.subroutine.instructions):
             if isinstance(instr, CreateEPRInstruction) or isinstance(
@@ -264,17 +267,19 @@ class Scheduler(Protocol):
 
         # Set up arrays
         for i in range(epr_instr_idx):
-            yield from self.qnos.processor.assign(process, subrt_name, i)
+            yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
 
         request_name = subrt.request_name
         assert request_name is not None
-        request = process.requests[request_name].request
+        request = process.get_request(request_name).request
 
         # Handle request
         yield from self.netstack.processor.assign(process, request)
 
         # Execute wait instruction
-        yield from self.qnos.processor.assign(process, subrt_name, epr_instr_idx + 1)
+        yield from self.qnos.processor.assign_routine_instr(
+            process, subrt_name, epr_instr_idx + 1
+        )
 
         # Return subroutine results
         self.host.processor.copy_subroutine_results(process, subrt_name)
@@ -312,7 +317,7 @@ class Scheduler(Protocol):
         self.host.processor.initialize(process)
 
         inputs = process.prog_instance.inputs
-        for req in process.requests.values():
+        for req in process.get_all_requests().values():
             # TODO: support for other request parameters being templates?
             remote_id = req.request.remote_id
             if isinstance(remote_id, Template):

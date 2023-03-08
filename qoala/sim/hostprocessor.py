@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from typing import Generator
 
 from netqasm.lang.operand import Register
@@ -11,7 +12,7 @@ from qoala.lang import hostlang
 from qoala.sim.hostinterface import HostInterface, HostLatencies
 from qoala.sim.logging import LogManager
 from qoala.sim.message import Message
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import IqoalaProcess, RoutineInstance
 
 
 class HostProcessor:
@@ -101,13 +102,13 @@ class HostProcessor:
             subrt_name = instr.attributes[0]
             assert isinstance(subrt_name, str)
 
-            iqoala_subrt = process.local_routines[subrt_name]
-            self._logger.info(f"executing subroutine {iqoala_subrt}")
+            routine = process.get_local_routine(subrt_name)
+            self._logger.info(f"executing subroutine {routine}")
 
             arg_values = {arg: host_mem.read(arg) for arg in args}
 
             self._logger.info(f"instantiating subroutine with values {arg_values}")
-            iqoala_subrt.subroutine.instantiate(pid, arg_values)
+            process.instantiate_routine(subrt_name, pid, arg_values)
 
             if self._asynchronous:
                 # Send a message to Qnos asking it to execute the subroutine.
@@ -131,9 +132,9 @@ class HostProcessor:
         yield from self._interface.wait(self._latencies.host_instr_time)
 
     def copy_subroutine_results(self, process: IqoalaProcess, subrt_name: str) -> None:
-        iqoala_subrt = process.local_routines[subrt_name]
+        routine = process.get_local_routine(subrt_name)
 
-        for key, mem_loc in iqoala_subrt.return_map.items():
+        for key, mem_loc in routine.return_map.items():
             try:
                 reg: Register = parse_register(mem_loc.loc)
                 value = process.shared_mem.get_register(reg)

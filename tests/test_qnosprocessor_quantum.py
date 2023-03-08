@@ -120,9 +120,8 @@ def create_process(
         prog_memory=mem,
         csockets={},
         epr_sockets=program.meta.epr_sockets,
-        local_routines=program.local_routines,
-        requests={},
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 
@@ -157,7 +156,8 @@ def set_new_subroutine(
     subrt = parse_text_subroutine(subrt_text, flavour=flavour)
     metadata = RoutineMetadata.use_none()
     iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
-    process.local_routines["subrt"] = iqoala_subrt
+    program = process.prog_instance.program
+    program.local_routines["subrt"] = iqoala_subrt
 
 
 def set_new_vanilla_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
@@ -170,6 +170,7 @@ def set_new_nv_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     subroutines = process.prog_instance.program.local_routines
+    process.instantiate_routine("subrt", 0, {})
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0
@@ -177,7 +178,9 @@ def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     instr_idx = 0
     while instr_idx < len(netqasm_instructions):
         instr_count += 1
-        instr_idx = netsquid_run(processor.assign(process, "subrt", instr_idx))
+        instr_idx = netsquid_run(
+            processor.assign_routine_instr(process, "subrt", instr_idx)
+        )
     return instr_count
 
 
@@ -186,9 +189,10 @@ def execute_multiple_processes(
 ) -> None:
     for proc in processes:
         subroutines = proc.prog_instance.program.local_routines
+        proc.instantiate_routine("subrt", 0, {})
         netqasm_instructions = subroutines["subrt"].subroutine.instructions
         for i in range(len(netqasm_instructions)):
-            netsquid_run(processor.assign(proc, "subrt", i))
+            netsquid_run(processor.assign_routine_instr(proc, "subrt", i))
 
 
 def setup_components_generic(
