@@ -23,3 +23,5 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 report.xml
+
+.pydeps
