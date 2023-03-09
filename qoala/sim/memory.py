@@ -6,7 +6,8 @@ from netqasm.lang import operand
 from netqasm.lang.encoding import RegisterName
 from netqasm.sdk.shared_memory import Arrays, RegisterGroup, setup_registers
 
-from qoala.sim.qmem import QuantumMemory, UnitModule
+from qoala.lang.ehi import UnitModule
+from qoala.sim.qmem import QuantumMemory
 
 
 class RegisterMeta:

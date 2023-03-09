@@ -2,7 +2,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict
 
-from qoala.lang.program import IqoalaRequest, LocalRoutine
+from qoala.lang.request import IqoalaRequest
+from qoala.lang.routine import LocalRoutine
 from qoala.runtime.program import ProgramInstance, ProgramResult
 from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.eprsocket import EprSocket

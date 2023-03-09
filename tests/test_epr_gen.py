@@ -232,7 +232,7 @@ def create_netstack_receive_request(remote_id: int) -> NetstackReceiveRequest:
     )
 
 
-def test_1():
+def test_single_pair():
     alice_processor, bob_processor = setup_components_nv(num_qubits=2)
 
     alice_topology = alice_processor.qdevice.topology
@@ -324,7 +324,7 @@ def test_1():
     assert bob.memmgr.phys_id_for(bob.pid, 0) == 0
 
 
-def test_2():
+def test_handle_ck_request():
     alice_processor, bob_processor = setup_components_nv(num_qubits=2)
 
     alice_topology = alice_processor.qdevice.topology
@@ -445,7 +445,7 @@ def test_2():
     assert has_multi_state([alice_qubit, bob_qubit], ketstates.b00)
 
 
-def test_3():
+def test_two_requests():
     alice_processor, bob_processor = setup_components_generic(num_qubits=3)
 
     alice_topology = alice_processor.qdevice.topology
@@ -578,7 +578,7 @@ def test_3():
     assert bob_qubit is None
 
 
-def test_4():
+def test_handle_request():
     alice_processor, bob_processor = setup_components_generic(num_qubits=3)
 
     alice_topology = alice_processor.qdevice.topology
@@ -806,8 +806,8 @@ def test_4_with_latencies():
 
 
 if __name__ == "__main__":
-    test_1()
-    test_2()
-    test_3()
-    test_4()
+    test_single_pair()
+    test_handle_ck_request()
+    test_two_requests()
+    test_handle_request()
     test_4_with_latencies()

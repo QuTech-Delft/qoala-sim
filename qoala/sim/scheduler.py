@@ -9,6 +9,7 @@ from netqasm.lang.operand import Template
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import UnitModule
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.program import (
     BatchInfo,
@@ -42,7 +43,6 @@ from qoala.sim.memmgr import MemoryManager
 from qoala.sim.memory import ProgramMemory
 from qoala.sim.netstack import Netstack
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qmem import UnitModule
 from qoala.sim.qnos import Qnos
 
 

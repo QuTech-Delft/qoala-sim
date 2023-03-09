@@ -18,7 +18,8 @@ from qoala.sim.host import Host
 from qoala.sim.hostcomp import HostComponent
 from qoala.sim.hostinterface import HostLatencies
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.netstack import Netstack, NetstackComponent
+from qoala.sim.netstack import Netstack
+from qoala.sim.netstackcomp import NetstackComponent
 from qoala.sim.netstackinterface import NetstackLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
