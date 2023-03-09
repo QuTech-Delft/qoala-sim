@@ -5,8 +5,8 @@ from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.sim.logging import LogManager
-from qoala.sim.message import Message
+from qoala.runtime.message import Message
+from qoala.util.logging import LogManager
 
 
 class PortListener(Protocol):

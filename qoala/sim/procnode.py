@@ -14,19 +14,13 @@ from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.schedule import Schedule, ScheduleSolver
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
-from qoala.sim.host import Host
-from qoala.sim.hostcomp import HostComponent
-from qoala.sim.hostinterface import HostLatencies
+from qoala.sim.host import Host, HostComponent, HostLatencies
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.netstack import Netstack
-from qoala.sim.netstackcomp import NetstackComponent
-from qoala.sim.netstackinterface import NetstackLatencies
+from qoala.sim.netstack import Netstack, NetstackComponent, NetstackLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
 from qoala.sim.qdevice import QDevice
-from qoala.sim.qnos import Qnos
-from qoala.sim.qnoscomp import QnosComponent
-from qoala.sim.qnosinterface import QnosLatencies
+from qoala.sim.qnos import Qnos, QnosComponent, QnosLatencies
 from qoala.sim.scheduler import Scheduler
 
 

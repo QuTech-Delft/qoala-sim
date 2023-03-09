@@ -11,6 +11,7 @@ from netsquid.protocols import Protocol
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.runtime.environment import LocalEnvironment
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
     BatchInfo,
     BatchResult,
@@ -34,16 +35,14 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     SingleProgramTask,
 )
-from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.host import Host
-from qoala.sim.logging import LogManager
+from qoala.sim.host import ClassicalSocket, Host
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.memory import ProgramMemory
 from qoala.sim.netstack import Netstack
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qnos import Qnos
+from qoala.util.logging import LogManager
 
 
 class Scheduler(Protocol):

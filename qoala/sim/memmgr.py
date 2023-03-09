@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
-from qoala.sim.logging import LogManager
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
+from qoala.util.logging import LogManager
 
 
 class AllocError(Exception):

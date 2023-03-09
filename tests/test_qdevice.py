@@ -21,13 +21,13 @@ from netsquid.qubits import ketstates
 
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
-from qoala.sim.constants import PI, PI_OVER_2
 from qoala.sim.qdevice import (
     NonInitializedQubitError,
     QDevice,
     QDeviceCommand,
     UnsupportedQDeviceCommandError,
 )
+from qoala.util.constants import PI, PI_OVER_2
 from qoala.util.tests import has_state, netsquid_run
 
 

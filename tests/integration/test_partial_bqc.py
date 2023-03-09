@@ -17,21 +17,20 @@ from netsquid_magic.link_layer import (
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_qprocessor_from_topology
-from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
-from qoala.sim.hostinterface import HostInterface
-from qoala.sim.memory import ProgramMemory
+from qoala.sim.host import ClassicalSocket, HostInterface
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
-from qoala.sim.qmem import UnitModule
 from qoala.util.tests import has_state
 
 

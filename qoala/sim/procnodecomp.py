@@ -7,9 +7,9 @@ from netsquid.components.component import Port
 from netsquid.nodes import Node
 
 from qoala.runtime.environment import GlobalEnvironment
-from qoala.sim.hostcomp import HostComponent
-from qoala.sim.netstackcomp import NetstackComponent
-from qoala.sim.qnoscomp import QnosComponent
+from qoala.sim.host import HostComponent
+from qoala.sim.netstack import NetstackComponent
+from qoala.sim.qnos import QnosComponent
 
 
 class ProcNodeComponent(Node):

@@ -4,15 +4,14 @@ from typing import List, Set, Tuple
 
 import pytest
 
-from qoala.lang.ehi import EhiBuilder
+from qoala.lang.ehi import EhiBuilder, UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.sim.qmem import UnitModule
 
 
 class MockQDevice(QDevice):

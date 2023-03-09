@@ -23,21 +23,25 @@ from netsquid.components.qprogram import QuantumProgram
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 
+from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.sim.qmem import UnitModule
-from qoala.sim.qnoscomp import QnosComponent
-from qoala.sim.qnosinterface import QnosInterface, QnosLatencies
-from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor
+from qoala.sim.qnos import (
+    GenericProcessor,
+    QnosComponent,
+    QnosInterface,
+    QnosLatencies,
+    QnosProcessor,
+)
 from qoala.util.tests import has_max_mixed_state, has_state, netsquid_run, netsquid_wait
 
 

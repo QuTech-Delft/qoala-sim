@@ -4,10 +4,10 @@ from typing import Dict
 
 from qoala.lang.request import IqoalaRequest
 from qoala.lang.routine import LocalRoutine
+from qoala.runtime.memory import HostMemory, ProgramMemory, SharedMemory
 from qoala.runtime.program import ProgramInstance, ProgramResult
-from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.eprsocket import EprSocket
-from qoala.sim.memory import HostMemory, ProgramMemory, SharedMemory
+from qoala.sim.host import ClassicalSocket
 
 
 @dataclass

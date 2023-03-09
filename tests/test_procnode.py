@@ -20,6 +20,7 @@ from qlink_interface import ReqCreateBase, ResCreateAndKeep
 from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import UnitModule
 from qoala.lang.hostlang import (
     AssignCValueOp,
     ClassicalIqoalaOp,
@@ -44,21 +45,19 @@ from qoala.runtime.lhi_to_ehi import (
     LhiConverter,
     NativeToFlavourInterface,
 )
+from qoala.runtime.memory import ProgramMemory, SharedMemory
+from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
-from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
-from qoala.sim.hostinterface import HostInterface
+from qoala.sim.host import ClassicalSocket, HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory, SharedMemory
-from qoala.sim.message import Message
-from qoala.sim.netstackinterface import NetstackInterface
+from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.qmem import UnitModule
-from qoala.sim.qnosinterface import QnosInterface
+from qoala.sim.qnos import QnosInterface
 from qoala.sim.requests import (
     EprCreateType,
     NetstackCreateRequest,
