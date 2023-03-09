@@ -509,9 +509,9 @@ class QnosProcessor:
         # raw_args = shared_mem.get_array(arg_array_addr)
         # raw_typ = raw_args[SER_CREATE_IDX_TYPE]
         # typ = {
-        #     0: EprCreateType.CREATE_KEEP,
-        #     1: EprCreateType.MEASURE_DIRECTLY,
-        #     2: EprCreateType.REMOTE_STATE_PREP,
+        #     0: EprType.CREATE_KEEP,
+        #     1: EprType.MEASURE_DIRECTLY,
+        #     2: EprType.REMOTE_STATE_PREP,
         # }[raw_typ]
         # num_pairs = raw_args[SER_CREATE_IDX_NUMBER]
 

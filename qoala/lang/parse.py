@@ -21,14 +21,8 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
-from qoala.lang.request import IqoalaRequest
+from qoala.lang.request import EprRole, EprType, IqoalaRequest
 from qoala.lang.routine import RoutineMetadata
-from qoala.sim.requests import (
-    EprCreateRole,
-    EprCreateType,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
-)
 
 LHR_OP_NAMES: Dict[str, ClassicalIqoalaOp] = {
     cls.OP_NAME: cls  # type: ignore
@@ -362,7 +356,7 @@ class IQoalaRequestParser:
         if len(strings) != 1:
             raise IqoalaParseError
         try:
-            return EprCreateRole[strings[0].upper()]
+            return EprRole[strings[0].upper()]
         except KeyError:
             raise IqoalaParseError
 
@@ -371,7 +365,7 @@ class IQoalaRequestParser:
         if len(strings) != 1:
             raise IqoalaParseError
         try:
-            return EprCreateType[strings[0].upper()]
+            return EprType[strings[0].upper()]
         except KeyError:
             raise IqoalaParseError
 
@@ -381,42 +375,32 @@ class IQoalaRequestParser:
             raise IqoalaParseError
         name = name_line[len("REQUEST") + 1 :]
 
-        role = self._parse_epr_create_role_value("role", self._read_line())
         remote_id = self._parse_single_int_value(
             "remote_id", self._read_line(), allow_template=True
         )
         epr_socket_id = self._parse_single_int_value("epr_socket_id", self._read_line())
-        typ = self._parse_epr_create_type_value("typ", self._read_line())
         num_pairs = self._parse_single_int_value("num_pairs", self._read_line())
+        virt_ids = self._parse_int_list_value("virt_ids", self._read_line())
+        timeout = self._parse_single_float_value("timeout", self._read_line())
         fidelity = self._parse_single_float_value("fidelity", self._read_line())
-        virt_qubit_ids = self._parse_int_list_value("virt_qubit_ids", self._read_line())
+        typ = self._parse_epr_create_type_value("typ", self._read_line())
+        role = self._parse_epr_create_role_value("role", self._read_line())
         result_array_addr = self._parse_single_int_value(
             "result_array_addr", self._read_line()
         )
 
-        if role == EprCreateRole.CREATE:
-            request = NetstackCreateRequest(
-                remote_id=remote_id,
-                epr_socket_id=epr_socket_id,
-                typ=typ,
-                num_pairs=num_pairs,
-                fidelity=fidelity,
-                virt_qubit_ids=virt_qubit_ids,
-                result_array_addr=result_array_addr,
-            )
-        else:
-            assert role == EprCreateRole.RECEIVE
-            request = NetstackReceiveRequest(
-                remote_id=remote_id,
-                epr_socket_id=epr_socket_id,
-                typ=typ,
-                num_pairs=num_pairs,
-                fidelity=fidelity,
-                virt_qubit_ids=virt_qubit_ids,
-                result_array_addr=result_array_addr,
-            )
-
-        return IqoalaRequest(name=name, role=role, request=request)
+        return IqoalaRequest(
+            name=name,
+            remote_id=remote_id,
+            epr_socket_id=epr_socket_id,
+            num_pairs=num_pairs,
+            virt_ids=virt_ids,
+            timeout=timeout,
+            fidelity=fidelity,
+            typ=typ,
+            role=role,
+            result_array_addr=result_array_addr,
+        )
 
     def parse(self) -> Dict[str, IqoalaRequest]:
         requests: Dict[str, IqoalaRequest] = {}

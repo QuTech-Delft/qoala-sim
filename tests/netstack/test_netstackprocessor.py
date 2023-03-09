@@ -35,11 +35,7 @@ from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.requests import (
-    EprCreateType,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
-)
+from qoala.sim.requests import EprType, NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.constants import PI
 from qoala.util.tests import netsquid_run
 
@@ -169,7 +165,7 @@ def test_create_link_layer_create_request():
     request_ck = NetstackCreateRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[0],
@@ -185,7 +181,7 @@ def test_create_link_layer_create_request():
     request_md = NetstackCreateRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.MEASURE_DIRECTLY,
+        typ=EprType.MEASURE_DIRECTLY,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[0],
@@ -201,7 +197,7 @@ def test_create_link_layer_create_request():
     request_rsp = NetstackCreateRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.REMOTE_STATE_PREP,
+        typ=EprType.REMOTE_STATE_PREP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[0],
@@ -234,7 +230,7 @@ def test_create_single_pair_1():
     request = NetstackCreateRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[1],
@@ -321,7 +317,7 @@ def test_create_single_pair_2():
     request = NetstackCreateRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[1],
@@ -449,7 +445,7 @@ def test_handle_create_ck_request():
     request = NetstackCreateRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[0, 1, 2],
@@ -486,7 +482,7 @@ def test_handle_create_ck_request_invalid_virt_ids():
     request = NetstackCreateRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[0, 0, 0],
@@ -523,7 +519,7 @@ def test_receive_single_pair_1():
     request = NetstackReceiveRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[1],
@@ -605,7 +601,7 @@ def test_receive_single_pair_2():
     request = NetstackReceiveRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[1],
@@ -682,7 +678,7 @@ def test_handle_receive_ck_request():
     request = NetstackReceiveRequest(
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
         fidelity=fidelity,
         virt_qubit_ids=[0, 1, 2],

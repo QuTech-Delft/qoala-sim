@@ -20,14 +20,9 @@ from qoala.lang.parse import (
     LocalRoutineParser,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta
-from qoala.lang.request import IqoalaRequest
+from qoala.lang.request import EprRole, EprType, IqoalaRequest
 from qoala.lang.routine import RoutineMetadata
-from qoala.sim.requests import (
-    EprCreateRole,
-    EprCreateType,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
-)
+from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.tests import text_equal
 
 
@@ -321,13 +316,14 @@ SUBROUTINE my_subroutine
 def test_parse_request():
     text = """
 REQUEST req1
-  role: create
   remote_id: 1
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 5
+  virt_ids: 0, 0, 0, 0, 0
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 0, 0, 0, 0, 0
+  typ: create_keep
+  role: create
   result_array_addr: 3
     """
 
@@ -338,29 +334,29 @@ REQUEST req1
 
     assert request == IqoalaRequest(
         name="req1",
-        role=EprCreateRole.CREATE,
-        request=NetstackCreateRequest(
-            remote_id=1,
-            epr_socket_id=0,
-            typ=EprCreateType.CREATE_KEEP,
-            num_pairs=5,
-            fidelity=0.65,
-            virt_qubit_ids=[0, 0, 0, 0, 0],
-            result_array_addr=3,
-        ),
+        remote_id=1,
+        epr_socket_id=0,
+        num_pairs=5,
+        virt_ids=[0, 0, 0, 0, 0],
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+        result_array_addr=3,
     )
 
 
 def test_parse_request_2():
     text = """
 REQUEST req1
-  role: receive
   remote_id: 1
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: 1, 2, 3
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 
@@ -371,29 +367,29 @@ REQUEST req1
 
     assert request == IqoalaRequest(
         name="req1",
-        role=EprCreateRole.RECEIVE,
-        request=NetstackReceiveRequest(
-            remote_id=1,
-            epr_socket_id=0,
-            typ=EprCreateType.MEASURE_DIRECTLY,
-            num_pairs=3,
-            fidelity=0.65,
-            virt_qubit_ids=[1, 2, 3],
-            result_array_addr=0,
-        ),
+        remote_id=1,
+        epr_socket_id=0,
+        num_pairs=3,
+        virt_ids=[1, 2, 3],
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.RECEIVE,
+        result_array_addr=0,
     )
 
 
 def test_parse_request_with_template():
     text = """
 REQUEST req1
-  role: receive
   remote_id: {client_id}
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: 1, 2, 3
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 
@@ -404,16 +400,15 @@ REQUEST req1
 
     assert request == IqoalaRequest(
         name="req1",
-        role=EprCreateRole.RECEIVE,
-        request=NetstackReceiveRequest(
-            remote_id=Template("client_id"),
-            epr_socket_id=0,
-            typ=EprCreateType.MEASURE_DIRECTLY,
-            num_pairs=3,
-            fidelity=0.65,
-            virt_qubit_ids=[1, 2, 3],
-            result_array_addr=0,
-        ),
+        remote_id=Template("client_id"),
+        epr_socket_id=0,
+        num_pairs=3,
+        virt_ids=[1, 2, 3],
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.RECEIVE,
+        result_array_addr=0,
     )
 
 
@@ -449,11 +444,11 @@ REQUEST req2
 
     assert req1 == IqoalaRequest(
         name="req1",
-        role=EprCreateRole.CREATE,
+        role=EprRole.CREATE,
         request=NetstackCreateRequest(
             remote_id=1,
             epr_socket_id=0,
-            typ=EprCreateType.CREATE_KEEP,
+            typ=EprType.CREATE_KEEP,
             num_pairs=5,
             fidelity=0.65,
             virt_qubit_ids=[0, 0, 0, 0, 0],
@@ -462,11 +457,11 @@ REQUEST req2
     )
     assert req2 == IqoalaRequest(
         name="req2",
-        role=EprCreateRole.RECEIVE,
+        role=EprRole.RECEIVE,
         request=NetstackReceiveRequest(
             remote_id=1,
             epr_socket_id=0,
-            typ=EprCreateType.MEASURE_DIRECTLY,
+            typ=EprType.MEASURE_DIRECTLY,
             num_pairs=3,
             fidelity=0.65,
             virt_qubit_ids=[1, 2, 3],

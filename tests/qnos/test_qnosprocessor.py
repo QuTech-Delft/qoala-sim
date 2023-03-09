@@ -580,7 +580,7 @@ def test_array():
 #     expected_request = NetstackCreateRequest(
 #         remote_id=remote_id,
 #         epr_socket_id=epr_sck_id,
-#         typ=EprCreateType.REMOTE_STATE_PREP,
+#         typ=EprType.REMOTE_STATE_PREP,
 #         num_pairs=epr_count,
 #         fidelity=1.0,  # TODO: fix hardcoded only allowed value
 #         virt_qubit_ids=[8],
@@ -636,7 +636,7 @@ def test_array():
 #     expected_request = NetstackCreateRequest(
 #         remote_id=remote_id,
 #         epr_socket_id=epr_sck_id,
-#         typ=EprCreateType.REMOTE_STATE_PREP,
+#         typ=EprType.REMOTE_STATE_PREP,
 #         num_pairs=epr_count,
 #         fidelity=1.0,  # TODO: fix hardcoded only allowed value
 #         virt_qubit_ids=[8],

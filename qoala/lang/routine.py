@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import Dict, List, Optional
 
 from netqasm.lang.subroutine import Subroutine
 
 from qoala.lang.hostlang import IqoalaSharedMemLoc
-from qoala.lang.request import IqoalaRequest
 
 
 @dataclass
@@ -94,15 +92,3 @@ class LocalRoutine:
             and self.metadata == other.metadata
             and self.return_map == other.return_map
         )
-
-
-class CallbackType(Enum):
-    SEQUENTIAL = 0
-    WAIT_ALL = auto()
-
-
-@dataclass
-class RequestRoutine:
-    request: IqoalaRequest
-    callback_type: CallbackType
-    callback: Optional[LocalRoutine]

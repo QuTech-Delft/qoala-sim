@@ -58,11 +58,7 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos import QnosInterface
-from qoala.sim.requests import (
-    EprCreateType,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
-)
+from qoala.sim.requests import EprType, NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.tests import has_multi_state, netsquid_run
 
 MOCK_MESSAGE = Message(content=42)
@@ -447,7 +443,7 @@ def test_initialize():
     request = NetstackCreateRequest(
         remote_id=1,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=1,
         fidelity=1.0,
         virt_qubit_ids=[0],
@@ -844,7 +840,7 @@ def test_epr():
     alice_request = NetstackCreateRequest(
         remote_id=bob_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=1,
         fidelity=1.0,
         virt_qubit_ids=[0],
@@ -854,7 +850,7 @@ def test_epr():
     bob_request = NetstackReceiveRequest(
         remote_id=alice_id,
         epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
+        typ=EprType.CREATE_KEEP,
         num_pairs=1,
         fidelity=1.0,
         virt_qubit_ids=[0],

@@ -30,7 +30,7 @@ from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLate
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.requests import (
-    EprCreateType,
+    EprType,
     NetstackBreakpointCreateRequest,
     NetstackBreakpointReceiveRequest,
     NetstackCreateRequest,
@@ -83,19 +83,19 @@ class NetstackProcessor:
         :return: link layer request object
         """
 
-        if request.typ == EprCreateType.CREATE_KEEP:
+        if request.typ == EprType.CREATE_KEEP:
             ll_request = ReqCreateAndKeep(
                 remote_node_id=request.remote_id,
                 number=request.num_pairs,
                 minimum_fidelity=request.fidelity,
             )
-        elif request.typ == EprCreateType.MEASURE_DIRECTLY:
+        elif request.typ == EprType.MEASURE_DIRECTLY:
             ll_request = ReqMeasureDirectly(
                 remote_node_id=request.remote_id,
                 number=request.num_pairs,
                 minimum_fidelity=request.fidelity,
             )
-        elif request.typ == EprCreateType.REMOTE_STATE_PREP:
+        elif request.typ == EprType.REMOTE_STATE_PREP:
             ll_request = ReqRemoteStatePrep(
                 remote_node_id=request.remote_id,
                 number=request.num_pairs,
@@ -141,9 +141,9 @@ class NetstackProcessor:
         self._logger.debug(f"received peer msg: {peer_msg}")
 
         # Handle the request.
-        if req.typ == EprCreateType.CREATE_KEEP:
+        if req.typ == EprType.CREATE_KEEP:
             yield from self.handle_create_ck_request(process, req)
-        elif req.typ == EprCreateType.MEASURE_DIRECTLY:
+        elif req.typ == EprType.MEASURE_DIRECTLY:
             yield from self.handle_create_md_request(process, req)
         else:
             raise RuntimeError
@@ -558,9 +558,9 @@ class NetstackProcessor:
         self._logger.debug("sending 'ready' to peer")
         self._interface.send_peer_msg(peer, Message(content="ready"))
 
-        if req.typ == EprCreateType.CREATE_KEEP:
+        if req.typ == EprType.CREATE_KEEP:
             yield from self.handle_receive_ck_request(process, req)
-        elif req.typ == EprCreateType.MEASURE_DIRECTLY:
+        elif req.typ == EprType.MEASURE_DIRECTLY:
             yield from self.handle_receive_md_request(process, req)
         else:
             raise RuntimeError
