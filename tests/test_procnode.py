@@ -31,7 +31,7 @@ from qoala.lang.hostlang import (
 )
 from qoala.lang.parse import IqoalaParser, LocalRoutineParser
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
-from qoala.lang.request import IqoalaRequest
+from qoala.lang.request import EprType, IqoalaRequest
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
@@ -58,7 +58,7 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos import QnosInterface
-from qoala.sim.requests import EprType, NetstackCreateRequest, NetstackReceiveRequest
+from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.tests import has_multi_state, netsquid_run
 
 MOCK_MESSAGE = Message(content=42)
@@ -524,6 +524,8 @@ SUBROUTINE subrt1
 
 
 def test_2_async():
+    ns.sim_reset()
+
     num_qubits = 3
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
@@ -587,6 +589,8 @@ SUBROUTINE subrt1
 
 
 def test_classical_comm():
+    ns.sim_reset()
+
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
@@ -671,6 +675,8 @@ def test_classical_comm():
 
 
 def test_classical_comm_three_nodes():
+    ns.sim_reset()
+
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
@@ -796,6 +802,8 @@ def test_classical_comm_three_nodes():
 
 
 def test_epr():
+    ns.sim_reset()
+
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
@@ -919,6 +927,8 @@ def test_epr():
 
 
 def test_whole_program():
+    ns.sim_reset()
+
     server_text = """
 META_START
     name: server
@@ -943,13 +953,14 @@ SUBROUTINE subrt1
   NETQASM_END
 
 REQUEST req1
-  role: receive
   remote_id: {client_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 0
+  timeout:1000
   fidelity: 1.0
-  virt_qubit_ids: 0
+  typ: create_keep
+  role: receive
   result_array_addr: 0
     """
     server_program = IqoalaParser(server_text).parse()
@@ -1038,13 +1049,14 @@ SUBROUTINE subrt1
   NETQASM_END
 
 REQUEST req1
-  role: create
   remote_id: {server_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 1.0
-  virt_qubit_ids: 0
+  typ: create_keep
+  role: create
   result_array_addr: 0
     """
     client_program = IqoalaParser(client_text).parse()

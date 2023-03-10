@@ -246,6 +246,8 @@ class BqcResult:
 
 
 def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
+    ns.sim_reset()
+
     num_qubits = 3
     global_env = create_global_env(num_qubits, names=["client", "server"])
     server_id = global_env.get_node_id("server")

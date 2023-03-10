@@ -345,11 +345,18 @@ class IQoalaRequestParser:
         strings = self._parse_request_line(key, line)
         return [int(s) for s in strings]
 
-    def _parse_single_float_value(self, key: str, line: str) -> int:
+    def _parse_single_float_value(
+        self, key: str, line: str, allow_template: bool = False
+    ) -> int:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise IqoalaParseError
-        return float(strings[0])
+        value = strings[0]
+        if allow_template:
+            if value.startswith("{") and value.endswith("}"):
+                value = value.strip("{}").strip()
+                return Template(value)
+        return float(value)
 
     def _parse_epr_create_role_value(self, key: str, line: str) -> int:
         strings = self._parse_request_line(key, line)
@@ -385,12 +392,20 @@ class IQoalaRequestParser:
         remote_id = self._parse_single_int_value(
             "remote_id", self._read_line(), allow_template=True
         )
-        epr_socket_id = self._parse_single_int_value("epr_socket_id", self._read_line())
-        num_pairs = self._parse_single_int_value("num_pairs", self._read_line())
+        epr_socket_id = self._parse_single_int_value(
+            "epr_socket_id", self._read_line(), allow_template=True
+        )
+        num_pairs = self._parse_single_int_value(
+            "num_pairs", self._read_line(), allow_template=True
+        )
         # virt_ids = self._parse_int_list_value("virt_ids", self._read_line())
         virt_ids = self._parse_virt_ids("virt_ids", self._read_line())
-        timeout = self._parse_single_float_value("timeout", self._read_line())
-        fidelity = self._parse_single_float_value("fidelity", self._read_line())
+        timeout = self._parse_single_int_value(
+            "timeout", self._read_line(), allow_template=True
+        )
+        fidelity = self._parse_single_float_value(
+            "fidelity", self._read_line(), allow_template=True
+        )
         typ = self._parse_epr_create_type_value("typ", self._read_line())
         role = self._parse_epr_create_role_value("role", self._read_line())
         result_array_addr = self._parse_single_int_value(

@@ -71,6 +71,8 @@ def test_many_other_nodes():
 
 
 def test_connection():
+    ns.sim_reset()
+
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     env = GlobalEnvironment()
@@ -105,6 +107,8 @@ def test_connection():
 
 
 def test_three_way_connection():
+    ns.sim_reset()
+
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)

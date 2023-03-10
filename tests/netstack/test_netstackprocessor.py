@@ -21,6 +21,7 @@ from qlink_interface.interface import ResCreate
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.lang.request import EprType
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -35,7 +36,7 @@ from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.requests import EprType, NetstackCreateRequest, NetstackReceiveRequest
+from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.constants import PI
 from qoala.util.tests import netsquid_run
 

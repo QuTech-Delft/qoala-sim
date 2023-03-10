@@ -1,12 +1,7 @@
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import List, Optional, Union
 
-
-class EprType(Enum):
-    CREATE_KEEP = 0
-    MEASURE_DIRECTLY = auto()
-    REMOTE_STATE_PREP = auto()
+from qoala.lang.request import EprType
 
 
 @dataclass

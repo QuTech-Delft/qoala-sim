@@ -364,6 +364,8 @@ def run_bqc(
     global_schedule: List[int],
     timeslot_len: int,
 ):
+    ns.sim_reset()
+
     # server needs to have 2 qubits per client
     server_num_qubits = num_clients * 2
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)

@@ -23,6 +23,7 @@ from qlink_interface import (
 )
 
 from pydynaa import EventExpression
+from qoala.lang.request import EprType
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
 from qoala.sim.memmgr import AllocError
@@ -30,7 +31,6 @@ from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLate
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.requests import (
-    EprType,
     NetstackBreakpointCreateRequest,
     NetstackBreakpointReceiveRequest,
     NetstackCreateRequest,

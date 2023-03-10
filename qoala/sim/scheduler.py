@@ -314,12 +314,13 @@ class Scheduler(Protocol):
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
 
-        inputs = process.prog_instance.inputs
-        for req in process.get_all_requests().values():
-            # TODO: support for other request parameters being templates?
-            remote_id = req.request.remote_id
-            if isinstance(remote_id, Template):
-                req.request.remote_id = inputs.values[remote_id.name]
+        # TODO: rethink how and when Requests are instantiated
+        # inputs = process.prog_instance.inputs
+        # for req in process.get_all_requests().values():
+        #     # TODO: support for other request parameters being templates?
+        #     remote_id = req.request.remote_id
+        #     if isinstance(remote_id, Template):
+        #         req.request.remote_id = inputs.values[remote_id.name]
 
     def install_schedule(self, schedule: Schedule) -> None:
         self._schedule = schedule

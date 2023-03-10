@@ -30,6 +30,7 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.lang.request import EprType
 from qoala.runtime.environment import (
     GlobalEnvironment,
     GlobalNodeInfo,
@@ -57,7 +58,7 @@ from qoala.sim.netstack import (
 )
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.sim.requests import EprType, NetstackCreateRequest, NetstackReceiveRequest
+from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.tests import has_multi_state
 
 
@@ -232,6 +233,8 @@ def create_netstack_receive_request(remote_id: int) -> NetstackReceiveRequest:
 
 
 def test_single_pair():
+    ns.sim_reset()
+
     alice_processor, bob_processor = setup_components_nv(num_qubits=2)
 
     alice_topology = alice_processor.qdevice.topology
@@ -324,6 +327,8 @@ def test_single_pair():
 
 
 def test_handle_ck_request():
+    ns.sim_reset()
+
     alice_processor, bob_processor = setup_components_nv(num_qubits=2)
 
     alice_topology = alice_processor.qdevice.topology
@@ -445,6 +450,8 @@ def test_handle_ck_request():
 
 
 def test_two_requests():
+    ns.sim_reset()
+
     alice_processor, bob_processor = setup_components_generic(num_qubits=3)
 
     alice_topology = alice_processor.qdevice.topology
@@ -578,6 +585,8 @@ def test_two_requests():
 
 
 def test_handle_request():
+    ns.sim_reset()
+
     alice_processor, bob_processor = setup_components_generic(num_qubits=3)
 
     alice_topology = alice_processor.qdevice.topology
@@ -709,6 +718,8 @@ def test_handle_request():
 
 
 def test_4_with_latencies():
+    ns.sim_reset()
+
     ns.sim_reset()
     netstack_peer_latency = 200e3
     epr_creation_duration = 100e3
