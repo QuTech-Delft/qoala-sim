@@ -4,7 +4,8 @@ from typing import Generator, List, Optional, Tuple
 
 from pydynaa import EventExpression
 from qoala.runtime.message import Message
-from qoala.sim.host import ClassicalSocket, HostInterface
+from qoala.sim.host.csocket import ClassicalSocket
+from qoala.sim.host.hostinterface import HostInterface
 from qoala.util.tests import yield_from
 
 

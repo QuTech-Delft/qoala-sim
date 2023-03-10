@@ -34,7 +34,8 @@ from qoala.runtime.schedule import (
 )
 from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
 from qoala.sim.egp import EgpProtocol
-from qoala.sim.host import ClassicalSocket, HostInterface
+from qoala.sim.host.csocket import ClassicalSocket
+from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 

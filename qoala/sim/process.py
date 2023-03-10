@@ -7,7 +7,7 @@ from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import HostMemory, ProgramMemory, SharedMemory
 from qoala.runtime.program import ProgramInstance, ProgramResult
 from qoala.sim.eprsocket import EprSocket
-from qoala.sim.host import ClassicalSocket
+from qoala.sim.host.csocket import ClassicalSocket
 
 
 @dataclass

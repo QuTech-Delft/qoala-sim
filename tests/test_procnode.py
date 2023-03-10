@@ -51,7 +51,8 @@ from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
 from qoala.sim.egp import EgpProtocol
-from qoala.sim.host import ClassicalSocket, HostInterface
+from qoala.sim.host.csocket import ClassicalSocket
+from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import IqoalaProcess

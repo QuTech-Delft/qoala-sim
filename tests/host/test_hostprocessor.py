@@ -28,7 +28,9 @@ from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.host import ClassicalSocket, HostInterface, HostLatencies, HostProcessor
+from qoala.sim.host.csocket import ClassicalSocket
+from qoala.sim.host.hostinterface import HostInterface, HostLatencies
+from qoala.sim.host.hostprocessor import HostProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.util.tests import netsquid_run, yield_from
 

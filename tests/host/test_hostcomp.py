@@ -12,7 +12,8 @@ from qoala.runtime.environment import (
     LocalEnvironment,
 )
 from qoala.runtime.message import Message
-from qoala.sim.host import HostComponent, HostInterface
+from qoala.sim.host.hostcomp import HostComponent
+from qoala.sim.host.hostinterface import HostInterface
 
 
 def create_hostcomp(num_other_nodes: int) -> HostComponent:

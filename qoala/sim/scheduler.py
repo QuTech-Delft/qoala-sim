@@ -37,7 +37,8 @@ from qoala.runtime.schedule import (
 )
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.host import ClassicalSocket, Host
+from qoala.sim.host.csocket import ClassicalSocket
+from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import Netstack
 from qoala.sim.process import IqoalaProcess

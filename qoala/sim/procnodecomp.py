@@ -7,7 +7,7 @@ from netsquid.components.component import Port
 from netsquid.nodes import Node
 
 from qoala.runtime.environment import GlobalEnvironment
-from qoala.sim.host import HostComponent
+from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.netstack import NetstackComponent
 from qoala.sim.qnos import QnosComponent
 
