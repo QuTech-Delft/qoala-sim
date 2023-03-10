@@ -21,7 +21,7 @@ from qlink_interface.interface import ResCreate
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
-from qoala.lang.request import EprType
+from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -163,13 +163,16 @@ def test_create_link_layer_create_request():
     fidelity = 0.75
     result_array = 5
 
-    request_ck = NetstackCreateRequest(
+    request_ck = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=result_array,
     )
 
@@ -179,13 +182,16 @@ def test_create_link_layer_create_request():
         remote_node_id=remote_id, minimum_fidelity=fidelity, number=num_pairs
     )
 
-    request_md = NetstackCreateRequest(
+    request_md = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.MEASURE_DIRECTLY,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0],
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
         result_array_addr=result_array,
     )
 
@@ -195,13 +201,16 @@ def test_create_link_layer_create_request():
         remote_node_id=remote_id, minimum_fidelity=fidelity, number=num_pairs
     )
 
-    request_rsp = NetstackCreateRequest(
+    request_rsp = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.REMOTE_STATE_PREP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0],
+        typ=EprType.REMOTE_STATE_PREP,
+        role=EprRole.CREATE,
         result_array_addr=result_array,
     )
 
@@ -228,13 +237,16 @@ def test_create_single_pair_1():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = NetstackCreateRequest(
+    request = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 1"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[1],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=result_array_addr,
     )
 
@@ -315,13 +327,16 @@ def test_create_single_pair_2():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = NetstackCreateRequest(
+    request = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 1"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[1],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=result_array_addr,
     )
 

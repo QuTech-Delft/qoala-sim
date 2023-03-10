@@ -23,7 +23,7 @@ from qlink_interface import (
 )
 
 from pydynaa import EventExpression
-from qoala.lang.request import EprType
+from qoala.lang.request import EprType, IqoalaRequest
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
 from qoala.sim.memmgr import AllocError
@@ -71,9 +71,7 @@ class NetstackProcessor:
         return prog_mem.shared_mem
 
     def _create_link_layer_create_request(
-        # self, remote_id: int, args: List[int], epr_socket: EprSocket
-        self,
-        request: NetstackCreateRequest,
+        self, request: IqoalaRequest
     ) -> ReqCreateBase:
         """Construct a link layer request from application request info.
 
@@ -204,7 +202,7 @@ class NetstackProcessor:
     def create_single_pair(
         self,
         process: IqoalaProcess,
-        request: NetstackCreateRequest,
+        request: IqoalaRequest,
         virt_id: int,
         wait_for_free: bool = False,
     ) -> Generator[EventExpression, None, ResCreateAndKeep]:
