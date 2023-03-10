@@ -20,7 +20,7 @@ from qoala.lang.parse import (
     LocalRoutineParser,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta
-from qoala.lang.request import EprRole, EprType, IqoalaRequest
+from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
 from qoala.lang.routine import RoutineMetadata
 from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.tests import text_equal
@@ -319,7 +319,7 @@ REQUEST req1
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 5
-  virt_ids: 0, 0, 0, 0, 0
+  virt_ids: all 0
   timeout: 1000
   fidelity: 0.65
   typ: create_keep
@@ -337,7 +337,7 @@ REQUEST req1
         remote_id=1,
         epr_socket_id=0,
         num_pairs=5,
-        virt_ids=[0, 0, 0, 0, 0],
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
         timeout=1000,
         fidelity=0.65,
         typ=EprType.CREATE_KEEP,
@@ -352,7 +352,7 @@ REQUEST req1
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
-  virt_ids: 1, 2, 3
+  virt_ids: custom 1, 2, 3
   timeout: 1000
   fidelity: 0.65
   typ: measure_directly
@@ -370,7 +370,7 @@ REQUEST req1
         remote_id=1,
         epr_socket_id=0,
         num_pairs=3,
-        virt_ids=[1, 2, 3],
+        virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
         timeout=1000,
         fidelity=0.65,
         typ=EprType.MEASURE_DIRECTLY,
@@ -385,7 +385,7 @@ REQUEST req1
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 3
-  virt_ids: 1, 2, 3
+  virt_ids: custom 1, 2, 3
   timeout: 1000
   fidelity: 0.65
   typ: measure_directly
@@ -403,7 +403,7 @@ REQUEST req1
         remote_id=Template("client_id"),
         epr_socket_id=0,
         num_pairs=3,
-        virt_ids=[1, 2, 3],
+        virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
         timeout=1000,
         fidelity=0.65,
         typ=EprType.MEASURE_DIRECTLY,
@@ -415,23 +415,25 @@ REQUEST req1
 def test_parse_multiple_request():
     text = """
 REQUEST req1
-  role: create
   remote_id: 1
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 5
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 0, 0, 0, 0, 0
+  typ: create_keep
+  role: create
   result_array_addr: 3
 
 REQUEST req2
-  role: receive
   remote_id: 1
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: increment 1
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 
@@ -444,42 +446,41 @@ REQUEST req2
 
     assert req1 == IqoalaRequest(
         name="req1",
+        remote_id=1,
+        epr_socket_id=0,
+        num_pairs=5,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.CREATE_KEEP,
         role=EprRole.CREATE,
-        request=NetstackCreateRequest(
-            remote_id=1,
-            epr_socket_id=0,
-            typ=EprType.CREATE_KEEP,
-            num_pairs=5,
-            fidelity=0.65,
-            virt_qubit_ids=[0, 0, 0, 0, 0],
-            result_array_addr=3,
-        ),
+        result_array_addr=3,
     )
     assert req2 == IqoalaRequest(
         name="req2",
+        remote_id=1,
+        epr_socket_id=0,
+        num_pairs=3,
+        virt_ids=RequestVirtIdMapping.from_str("increment 1"),
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.MEASURE_DIRECTLY,
         role=EprRole.RECEIVE,
-        request=NetstackReceiveRequest(
-            remote_id=1,
-            epr_socket_id=0,
-            typ=EprType.MEASURE_DIRECTLY,
-            num_pairs=3,
-            fidelity=0.65,
-            virt_qubit_ids=[1, 2, 3],
-            result_array_addr=0,
-        ),
+        result_array_addr=0,
     )
 
 
 def test_parse_invalid_request():
     text = """
 REQUEST req1
-  role: receive
   remote_id: 1
   epr_socket_id: 0
-  typ: measure
   num_pairs: 3
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: invalid
+  role: receive
   result_array_addr: 0
     """
 
@@ -537,13 +538,14 @@ SUBROUTINE subrt1
 
     req_text = """
 REQUEST req1
-  role: receive
   remote_id: 1
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: increment 1
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 

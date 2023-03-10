@@ -21,7 +21,7 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
-from qoala.lang.request import EprRole, EprType, IqoalaRequest
+from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
 from qoala.lang.routine import RoutineMetadata
 
 LHR_OP_NAMES: Dict[str, ClassicalIqoalaOp] = {
@@ -369,6 +369,13 @@ class IQoalaRequestParser:
         except KeyError:
             raise IqoalaParseError
 
+    def _parse_virt_ids(self, key: str, line: str) -> RequestVirtIdMapping:
+        split = line.split(":")
+        assert len(split) >= 1
+        assert split[0] == key
+        value = split[1].strip()
+        return RequestVirtIdMapping.from_str(value)
+
     def _parse_request(self) -> IqoalaRequest:
         name_line = self._read_line()
         if not name_line.startswith("REQUEST "):
@@ -380,7 +387,8 @@ class IQoalaRequestParser:
         )
         epr_socket_id = self._parse_single_int_value("epr_socket_id", self._read_line())
         num_pairs = self._parse_single_int_value("num_pairs", self._read_line())
-        virt_ids = self._parse_int_list_value("virt_ids", self._read_line())
+        # virt_ids = self._parse_int_list_value("virt_ids", self._read_line())
+        virt_ids = self._parse_virt_ids("virt_ids", self._read_line())
         timeout = self._parse_single_float_value("timeout", self._read_line())
         fidelity = self._parse_single_float_value("fidelity", self._read_line())
         typ = self._parse_epr_create_type_value("typ", self._read_line())
