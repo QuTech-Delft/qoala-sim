@@ -88,6 +88,3 @@ class GlobalEntanglementDistributor(Protocol):
         node2_mem.put(
             qubits=epr[1], positions=node2_phys_id, replace=True, check_positions=True
         )
-
-        node1_mem.mem_positions[node1_phys_id].in_use = False
-        node2_mem.mem_positions[node2_phys_id].in_use = False

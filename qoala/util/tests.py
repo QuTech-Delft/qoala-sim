@@ -19,6 +19,15 @@ S01_DENS = np.outer(ketstates.s01, ketstates.s01)
 S10_DENS = np.outer(ketstates.s10, ketstates.s10)
 S11_DENS = np.outer(ketstates.s11, ketstates.s11)
 
+TWO_MAX_MIXED = np.array(
+    [
+        [0.25, 0, 0, 0],
+        [0, 0.25, 0, 0],
+        [0, 0, 0.25, 0],
+        [0, 0, 0, 0.25],
+    ]
+)
+
 
 def yield_from(generator: Generator):
     try:
