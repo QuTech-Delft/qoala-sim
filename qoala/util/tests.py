@@ -3,11 +3,21 @@ from typing import Generator, List
 import netsquid as ns
 import numpy as np
 from netsquid.protocols import Protocol
-from netsquid.qubits import qubitapi
+from netsquid.qubits import ketstates, qubitapi
 from netsquid.qubits.qubit import Qubit
 
 from pydynaa import EventExpression
 from qoala.sim.events import EVENT_WAIT
+
+B00_DENS = np.outer(ketstates.b00, ketstates.b00)
+B01_DENS = np.outer(ketstates.b01, ketstates.b01)
+B10_DENS = np.outer(ketstates.b10, ketstates.b10)
+B11_DENS = np.outer(ketstates.b11, ketstates.b11)
+
+S00_DENS = np.outer(ketstates.s00, ketstates.s00)
+S01_DENS = np.outer(ketstates.s01, ketstates.s01)
+S10_DENS = np.outer(ketstates.s10, ketstates.s10)
+S11_DENS = np.outer(ketstates.s11, ketstates.s11)
 
 
 def yield_from(generator: Generator):
