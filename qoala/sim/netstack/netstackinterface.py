@@ -19,6 +19,7 @@ from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.qdevice import QDevice
 from qoala.sim.signals import (
+    SIGNAL_ENTD_NSTK_MSG,
     SIGNAL_MEMORY_FREED,
     SIGNAL_PEER_NSTK_MSG,
     SIGNAL_PROC_NSTK_MSG,
@@ -70,6 +71,11 @@ class NetstackInterface(ComponentProtocol):
             PortListener(self._comp.qnos_mem_in_port, SIGNAL_MEMORY_FREED),
         )
 
+        self.add_listener(
+            "entdist",
+            PortListener(self._comp.entdist_in_port, SIGNAL_ENTD_NSTK_MSG),
+        )
+
         for peer in self._local_env.get_all_other_node_names():
             self.add_listener(
                 f"peer_{peer}",
@@ -86,6 +92,15 @@ class NetstackInterface(ComponentProtocol):
         """Receive a message from the processor. Block until there is at least one
         message."""
         return (yield from self._receive_msg("qnos", SIGNAL_PROC_NSTK_MSG))
+
+    def send_entdist_msg(self, msg: Message) -> None:
+        """Send a message to the Entdist."""
+        self._comp.entdist_out_port.tx_output(msg)
+
+    def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
+        """Receive a message from the Entdist. Block until there is at least one
+        message."""
+        return (yield from self._receive_msg("entdist", SIGNAL_PROC_NSTK_MSG))
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         """Send a message to the network stack of the other node.

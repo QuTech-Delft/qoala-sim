@@ -61,6 +61,9 @@ class GlobalEnvironment:
                 return id
         raise ValueError
 
+    def get_all_node_names(self) -> List[str]:
+        return [info.name for info in self.get_nodes().values()]
+
     def set_nodes(self, nodes: Dict[int, GlobalNodeInfo]) -> None:
         self._nodes = nodes
 

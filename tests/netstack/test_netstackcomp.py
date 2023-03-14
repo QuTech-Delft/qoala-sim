@@ -37,23 +37,27 @@ def create_netstackcomp(num_other_nodes: int) -> NetstackComponent:
 def test_no_other_nodes():
     comp = create_netstackcomp(num_other_nodes=0)
 
-    # should have qnos_in, qnos_out, qnos_mem_in, qnos_mem_out ports
-    assert len(comp.ports) == 4
-    assert "qnos_in" in comp.ports
-    assert "qnos_out" in comp.ports
-    assert "qnos_mem_in" in comp.ports
-    assert "qnos_mem_out" in comp.ports
-
-
-def test_one_other_node():
-    comp = create_netstackcomp(num_other_nodes=1)
-
-    # should have 4 qnos ports + 2 peer ports
+    # should have qnos_{in|out}, qnos_mem_{in|out}, entdist_{in|out} ports
     assert len(comp.ports) == 6
     assert "qnos_in" in comp.ports
     assert "qnos_out" in comp.ports
     assert "qnos_mem_in" in comp.ports
     assert "qnos_mem_out" in comp.ports
+    assert "entdist_in" in comp.ports
+    assert "entdist_out" in comp.ports
+
+
+def test_one_other_node():
+    comp = create_netstackcomp(num_other_nodes=1)
+
+    # should have 4 qnos ports + 2 entdist ports + 2 peer ports
+    assert len(comp.ports) == 8
+    assert "qnos_in" in comp.ports
+    assert "qnos_out" in comp.ports
+    assert "qnos_mem_in" in comp.ports
+    assert "qnos_mem_out" in comp.ports
+    assert "entdist_in" in comp.ports
+    assert "entdist_out" in comp.ports
 
     assert "peer_node_1_in" in comp.ports
     assert "peer_node_1_out" in comp.ports
@@ -66,12 +70,14 @@ def test_one_other_node():
 def test_many_other_nodes():
     comp = create_netstackcomp(num_other_nodes=5)
 
-    # should have 4 qnos ports + 5 * 2 peer ports
-    assert len(comp.ports) == 14
+    # should have 4 qnos ports + 2 entdist ports + 5 * 2 peer ports
+    assert len(comp.ports) == 16
     assert "qnos_in" in comp.ports
     assert "qnos_out" in comp.ports
     assert "qnos_mem_in" in comp.ports
     assert "qnos_mem_out" in comp.ports
+    assert "entdist_in" in comp.ports
+    assert "entdist_out" in comp.ports
 
     for i in range(1, 6):
         assert f"peer_node_{i}_in" in comp.ports

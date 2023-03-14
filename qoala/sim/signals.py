@@ -7,4 +7,7 @@ SIGNAL_PROC_NSTK_MSG = "EvProcNstkMsg"
 SIGNAL_NSTK_PROC_MSG = "EvNstkProcMsg"
 SIGNAL_PEER_NSTK_MSG = "EvPeerNstkMsg"
 
+SIGNAL_NSTK_ENTD_MSG = "EvNstkEntdMsg"
+SIGNAL_ENTD_NSTK_MSG = "EvEntdNstkMsg"
+
 SIGNAL_MEMORY_FREED = "EvMemoryFreed"
