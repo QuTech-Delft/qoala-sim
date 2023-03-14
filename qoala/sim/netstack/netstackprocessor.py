@@ -26,6 +26,7 @@ from pydynaa import EventExpression
 from qoala.lang.request import EprType, IqoalaRequest
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
+from qoala.sim.entdist.entdist import GEDRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import IqoalaProcess
@@ -647,3 +648,8 @@ class NetstackProcessor:
 
         # Notify the processor that we are done.
         self._interface.send_qnos_msg(Message(content="breakpoint finished"))
+
+    def execute_ged_request(
+        self, request: GEDRequest
+    ) -> Generator[EventExpression, None, None]:
+        self._interface.send_entdist_msg(Message(request))

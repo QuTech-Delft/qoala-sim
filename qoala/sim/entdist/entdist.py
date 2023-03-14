@@ -236,4 +236,7 @@ class EntDist(Protocol):
         while True:
             # Wait for a new message.
             msg = yield from self._interface.receive_msg()
-            self._logger.debug(f"received new msg from processor: {msg}")
+            self._logger.debug(f"received new msg from node: {msg}")
+            request: GEDRequest = msg.content
+            self.put_request(request)
+            yield from self.serve_all_requests()
