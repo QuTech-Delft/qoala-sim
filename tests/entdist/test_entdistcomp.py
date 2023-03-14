@@ -32,7 +32,7 @@ def create_entdistcomp(num_nodes: int) -> EntDistComponent:
 def test_one_node():
     comp = create_entdistcomp(num_nodes=1)
 
-    # should have 2 ndoe ports
+    # should have 2 node ports
     assert len(comp.ports) == 2
     assert "node_node_0_in" in comp.ports
     assert "node_node_0_out" in comp.ports

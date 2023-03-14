@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
@@ -15,7 +16,11 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from pydynaa import EventExpression
+from qoala.runtime.environment import GlobalEnvironment
+from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.sim.entdist.entdistinterface import EntDistInterface
 from qoala.sim.events import EPR_DELIVERY
+from qoala.util.logging import LogManager
 
 
 @dataclass(eq=True, frozen=True)
@@ -47,7 +52,18 @@ class EprDeliverySample:
 
 
 class EntDist(Protocol):
-    def __init__(self, nodes: List[Node]) -> None:
+    def __init__(
+        self, nodes: List[Node], global_env: GlobalEnvironment, comp: EntDistComponent
+    ) -> None:
+        super().__init__(name=f"{comp.name}_protocol")
+
+        # References to objects.
+        self._global_env = global_env
+        self._comp = comp
+
+        # Owned objects.
+        self._interface = EntDistInterface(comp, global_env)
+
         # Node ID -> Node
         self._nodes: Dict[int, Node] = {node.ID: node for node in nodes}
 
@@ -56,6 +72,10 @@ class EntDist(Protocol):
 
         # Node ID -> list of requests
         self._requests: Dict[int, List[GEDRequest]] = {node.ID: [] for node in nodes}
+
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}(EntDist)"
+        )
 
     def add_sampler(
         self,
@@ -191,3 +211,19 @@ class EntDist(Protocol):
             node2_phys_id=request.node2_qubit_id,
             state_delay=1000,
         )
+
+    def start(self) -> None:
+        assert self._interface is not None
+        super().start()
+        self._interface.start()
+
+    def stop(self) -> None:
+        self._interface.stop()
+        super().stop()
+
+    def run(self) -> Generator[EventExpression, None, None]:
+        # Loop forever acting on messages from the nodes.
+        while True:
+            # Wait for a new message.
+            msg = yield from self._interface.receive_msg()
+            self._logger.debug(f"received new msg from processor: {msg}")

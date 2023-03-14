@@ -14,6 +14,7 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
+from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import (
@@ -22,6 +23,7 @@ from qoala.sim.entdist.entdist import (
     GEDRequest,
     JointRequest,
 )
+from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.util.tests import (
     B00_DENS,
     B01_DENS,
@@ -60,10 +62,19 @@ def create_joint_request(
     )
 
 
+def create_entdist(nodes: List[Node]) -> EntDist:
+    env = GlobalEnvironment()
+    for node in nodes:
+        node_info = GlobalNodeInfo(node.name, node.ID)
+        env.add_node(node.ID, node_info)
+    comp = EntDistComponent(env)
+    return EntDist(nodes=nodes, global_env=env, comp=comp)
+
+
 def test_add_sampler():
     alice, bob = create_n_nodes(2)
 
-    ged = EntDist(nodes=[alice, bob])
+    ged = create_entdist(nodes=[alice, bob])
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     ged.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
@@ -76,7 +87,7 @@ def test_add_sampler_many_nodes():
     n = 10
     nodes = create_n_nodes(n)
 
-    ged = EntDist(nodes=nodes)
+    ged = create_entdist(nodes=nodes)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     ged.add_sampler(nodes[0].ID, nodes[1].ID, factory, kwargs=kwargs)
@@ -131,7 +142,7 @@ def test_sample_depolar():
 
 def test_create_epr_pair_with_state():
     alice, bob = create_n_nodes(2)
-    ged = EntDist(nodes=[alice, bob])
+    ged = create_entdist(nodes=[alice, bob])
 
     q0, q1 = ged.create_epr_pair_with_state(B00_DENS)
     assert has_multi_state([q0, q1], B00_DENS)
@@ -143,7 +154,7 @@ def test_create_epr_pair_with_state():
 def test_deliver_perfect():
     alice, bob = create_n_nodes(2)
 
-    ged = EntDist(nodes=[alice, bob])
+    ged = create_entdist(nodes=[alice, bob])
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     ged.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
@@ -169,7 +180,7 @@ def test_deliver_perfect():
 def test_deliver_depolar():
     alice, bob = create_n_nodes(2)
 
-    ged = EntDist(nodes=[alice, bob])
+    ged = create_entdist(nodes=[alice, bob])
     factory = DepolariseWithFailureStateSamplerFactory()
     kwargs = {"cycle_time": 10, "prob_max_mixed": 0.2, "prob_success": 1}
     ged.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
@@ -198,7 +209,7 @@ def test_deliver_depolar():
 def test_put_request():
     alice, bob = create_n_nodes(2)
 
-    ged = EntDist(nodes=[alice, bob])
+    ged = create_entdist(nodes=[alice, bob])
 
     assert len(ged._requests) == 2
     assert len(ged.get_requests(alice.ID)) == 0
@@ -216,7 +227,7 @@ def test_put_request_many_nodes():
     n = 10
     nodes = create_n_nodes(n)
 
-    ged = EntDist(nodes=nodes)
+    ged = create_entdist(nodes=nodes)
 
     assert len(ged._requests) == n
 
@@ -240,7 +251,7 @@ def test_put_request_many_nodes():
 
 def test_get_remote_request_for():
     alice, bob, charlie = create_n_nodes(3)
-    ged = EntDist(nodes=[alice, bob, charlie])
+    ged = create_entdist(nodes=[alice, bob, charlie])
 
     request_alice = create_request(alice.ID, bob.ID)
     ged.put_request(request_alice)
@@ -280,7 +291,7 @@ def test_get_remote_request_for():
 
 def test_get_next_joint_request():
     alice, bob = create_n_nodes(2)
-    ged = EntDist(nodes=[alice, bob])
+    ged = create_entdist(nodes=[alice, bob])
 
     request_alice = create_request(alice.ID, bob.ID)
     ged.put_request(request_alice)
@@ -309,7 +320,7 @@ def test_get_next_joint_request():
 
 def test_get_next_joint_request_2():
     alice, bob, charlie = create_n_nodes(3)
-    ged = EntDist(nodes=[alice, bob, charlie])
+    ged = create_entdist(nodes=[alice, bob, charlie])
 
     request_ab = create_request(alice.ID, bob.ID)
     request_ac = create_request(alice.ID, charlie.ID)
@@ -349,7 +360,7 @@ def test_get_next_joint_request_2():
 def test_deliver_request():
     alice, bob = create_n_nodes(2, num_qubits=2)
 
-    ged = EntDist(nodes=[alice, bob])
+    ged = create_entdist(nodes=[alice, bob])
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     ged.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
@@ -384,7 +395,7 @@ def test_deliver_request():
 def test_deliver_request_multiple_nodes():
     alice, bob, charlie, david = create_n_nodes(4, num_qubits=2)
 
-    ged = EntDist(nodes=[alice, bob, charlie, david])
+    ged = create_entdist(nodes=[alice, bob, charlie, david])
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     for (node1, node2) in itertools.combinations([alice, bob, charlie, david], 2):

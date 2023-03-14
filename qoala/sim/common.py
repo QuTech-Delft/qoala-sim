@@ -63,6 +63,59 @@ class ComponentProtocol(Protocol):
             yield self.await_signal(sender=listener, signal_label=wake_up_signal)
         return listener.buffer.pop(0)
 
+    def _receive_msg_any_source(
+        self, listener_names: List[str], wake_up_signals: List[str]
+    ) -> Generator[EventExpression, None, Message]:
+        # TODO rewrite two separate lists as function arguments
+
+        # First check if there is any listener with messages in their buffer.
+        for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
+            listener = self._listeners[listener_name]
+            if len(listener.buffer) != 0:
+                return listener.buffer.pop(0)
+
+        # Else, get an EventExpression for each listener.
+        expressions: List[EventExpression] = []
+
+        for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
+            listener = self._listeners[listener_name]
+            assert len(listener.buffer) == 0  # already checked this above
+            ev_expr = self.await_signal(sender=listener, signal_label=wake_up_signal)
+            expressions.append(ev_expr)
+
+        # Create a union of all expressoins.
+        assert len(expressions) > 0
+        union = expressions[0]
+        for i in range(1, len(expressions)):
+            union = union | expressions[i]
+
+        # Yield until at least one of the listeners got a message.
+        yield union
+
+        # Count the messages in listener's buffers.
+        msg_count = 0
+        msg_to_return = None
+        for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
+            listener = self._listeners[listener_name]
+
+            # Count the number of new messages.
+            msg_count += len(listener.buffer)
+
+            # Only the first buffered message we encounter is actually popped
+            # and returned. The others messages will get returned in a new call
+            # to `_receive_msg_any_source`.
+            if len(listener.buffer) != 0 and msg_to_return is None:
+                msg_to_return = listener.buffer.pop(0)
+
+        # There *must* be at least one since we yielded.
+        assert msg_count > 0
+        # "Flush away" the events that were also in the union.
+        # We already yielded on one (above), but need to yield on the rest.
+        for _ in range(msg_count - 1):
+            yield union
+
+        return msg_to_return
+
     def start(self) -> None:
         super().start()
         for listener in self._listeners.values():
