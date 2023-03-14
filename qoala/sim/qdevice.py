@@ -37,6 +37,11 @@ class QDevice:
         return self._node.qmemory
 
     @property
+    def node(self) -> Node:
+        """Get the NetSquid `Node` object of this QDevice."""
+        return self._node
+
+    @property
     def topology(self) -> LhiTopology:
         return self._topology
 

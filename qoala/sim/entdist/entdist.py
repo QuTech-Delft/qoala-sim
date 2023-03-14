@@ -201,7 +201,7 @@ class EntDist(Protocol):
         # No joint requests found
         return None
 
-    def deliver_request(
+    def serve_request(
         self, request: JointRequest
     ) -> Generator[EventExpression, None, None]:
         yield from self.deliver(
@@ -211,6 +211,16 @@ class EntDist(Protocol):
             node2_phys_id=request.node2_qubit_id,
             state_delay=1000,
         )
+
+    def serve_all_requests(self) -> Generator[EventExpression, None, None]:
+        while request := self.get_next_joint_request():
+            yield from self.deliver(
+                node1_id=request.node1_id,
+                node1_phys_id=request.node1_qubit_id,
+                node2_id=request.node2_id,
+                node2_phys_id=request.node2_qubit_id,
+                state_delay=1000,
+            )
 
     def start(self) -> None:
         assert self._interface is not None

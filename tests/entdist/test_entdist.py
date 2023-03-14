@@ -357,7 +357,7 @@ def test_get_next_joint_request_2():
     assert ged.get_next_joint_request() == create_joint_request(bob.ID, charlie.ID)
 
 
-def test_deliver_request():
+def test_serve_request():
     alice, bob = create_n_nodes(2, num_qubits=2)
 
     ged = create_entdist(nodes=[alice, bob])
@@ -374,7 +374,7 @@ def test_deliver_request():
 
     ns.sim_reset()
     assert ns.sim_time() == 0
-    netsquid_run(ged.deliver_request(joint_request))
+    netsquid_run(ged.serve_request(joint_request))
     assert ns.sim_time() == 1000
 
     alice_qubit = alice.qmemory.peek([0])[0]
@@ -384,7 +384,7 @@ def test_deliver_request():
     alice_mem = 1
     bob_mem = 1
     joint_request = create_joint_request(alice.ID, bob.ID, alice_mem, bob_mem)
-    netsquid_run(ged.deliver_request(joint_request))
+    netsquid_run(ged.serve_request(joint_request))
     assert ns.sim_time() == 2000
 
     alice_qubit = alice.qmemory.peek([1])[0]
@@ -392,7 +392,7 @@ def test_deliver_request():
     assert has_multi_state([alice_qubit, bob_qubit], B00_DENS)
 
 
-def test_deliver_request_multiple_nodes():
+def test_serve_request_multiple_nodes():
     alice, bob, charlie, david = create_n_nodes(4, num_qubits=2)
 
     ged = create_entdist(nodes=[alice, bob, charlie, david])
@@ -408,10 +408,10 @@ def test_deliver_request_multiple_nodes():
 
     ns.sim_reset()
     assert ns.sim_time() == 0
-    netsquid_run(ged.deliver_request(req_ab))
-    netsquid_run(ged.deliver_request(req_ac))
-    netsquid_run(ged.deliver_request(req_dc))
-    netsquid_run(ged.deliver_request(req_bd))
+    netsquid_run(ged.serve_request(req_ab))
+    netsquid_run(ged.serve_request(req_ac))
+    netsquid_run(ged.serve_request(req_dc))
+    netsquid_run(ged.serve_request(req_bd))
     assert ns.sim_time() == 4000
 
     alice_qubits = alice.qmemory.peek([0, 1])
@@ -437,5 +437,5 @@ if __name__ == "__main__":
     test_get_remote_request_for()
     test_get_next_joint_request()
     test_get_next_joint_request_2()
-    test_deliver_request()
-    test_deliver_request_multiple_nodes()
+    test_serve_request()
+    test_serve_request_multiple_nodes()
