@@ -712,6 +712,59 @@ def test_handle_receive_ck_request():
     assert memmgr.phys_id_for(pid=0, virt_id=2) == 2
 
 
+def create_simple_request(
+    remote_id: int, num_pairs: int, virt_ids: RequestVirtIdMapping
+) -> IqoalaRequest:
+    return IqoalaRequest(
+        name="req",
+        remote_id=remote_id,
+        epr_socket_id=0,
+        num_pairs=num_pairs,
+        virt_ids=virt_ids,
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+        result_array_addr=3,
+    )
+
+
+def test_allocate_for_pair():
+    topology = generic_topology(5)
+    qdevice = MockQDevice(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
+    memmgr = MemoryManager("alice", qdevice)
+
+    process = create_process(0, unit_module)
+    memmgr.add_process(process)
+
+    interface = MockNetstackInterface(qdevice, memmgr, None)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
+
+    request = create_simple_request(
+        remote_id=1, num_pairs=5, virt_ids=RequestVirtIdMapping.from_str("all 0")
+    )
+
+    assert memmgr.phys_id_for(process.pid, 0) is None
+    assert processor.allocate_for_pair(process, request, 0) == 0
+    assert memmgr.phys_id_for(process.pid, 0) == 0
+
+    assert memmgr.phys_id_for(process.pid, 1) is None
+    with pytest.raises(AllocError):
+        # Index 1 also requires virt ID but it's already alloacted
+        processor.allocate_for_pair(process, request, 1)
+
+    request2 = create_simple_request(
+        remote_id=1, num_pairs=2, virt_ids=RequestVirtIdMapping.from_str("increment 1")
+    )
+    assert processor.allocate_for_pair(process, request2, index=0) == 1
+    assert memmgr.phys_id_for(process.pid, virt_id=1) == 1
+    assert processor.allocate_for_pair(process, request2, index=1) == 2
+    assert memmgr.phys_id_for(process.pid, virt_id=2) == 2
+
+
 if __name__ == "__main__":
     test_create_link_layer_create_request()
     test_create_single_pair_1()
@@ -722,3 +775,4 @@ if __name__ == "__main__":
     test_receive_single_pair_1()
     test_receive_single_pair_2()
     test_handle_receive_ck_request()
+    test_allocate_for_pair()

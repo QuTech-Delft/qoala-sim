@@ -45,6 +45,14 @@ class RequestVirtIdMapping:
     single_value: Optional[Union[Template, int]]
     custom_values: Optional[List[int]]
 
+    def get_id(self, index: int) -> int:
+        if self.typ == VirtIdMappingType.EQUAL:
+            return self.single_value
+        elif self.typ == VirtIdMappingType.INCREMENT:
+            return self.single_value + index
+        elif self.typ == VirtIdMappingType.CUSTOM:
+            return self.custom_values[index]
+
     def __str__(self) -> str:
         if self.typ == VirtIdMappingType.EQUAL:
             return f"all {self.single_value}"

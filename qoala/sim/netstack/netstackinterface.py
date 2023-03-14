@@ -160,6 +160,10 @@ class NetstackInterface(ComponentProtocol):
         return self._qdevice
 
     @property
+    def node_id(self) -> int:
+        return self._qdevice.node.ID
+
+    @property
     def memmgr(self) -> MemoryManager:
         return self._memmgr
 

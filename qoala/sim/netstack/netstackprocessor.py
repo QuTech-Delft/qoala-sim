@@ -23,7 +23,7 @@ from qlink_interface import (
 )
 
 from pydynaa import EventExpression
-from qoala.lang.request import EprType, IqoalaRequest
+from qoala.lang.request import CallbackType, EprType, IqoalaRequest, RequestRoutine
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdist import GEDRequest
@@ -653,3 +653,41 @@ class NetstackProcessor:
         self, request: GEDRequest
     ) -> Generator[EventExpression, None, None]:
         self._interface.send_entdist_msg(Message(request))
+
+    def allocate_for_pair(
+        self, process: IqoalaProcess, request: IqoalaRequest, index: int
+    ) -> int:
+        memmgr = self._interface.memmgr
+        pid = process.pid
+
+        virt_id = request.virt_ids.get_id(index)
+        memmgr.allocate(pid, virt_id)
+
+        return virt_id
+
+    def create_ged_request(
+        self, process: IqoalaProcess, request: IqoalaRequest, virt_id: int
+    ) -> GEDRequest:
+        memmgr = self._interface.memmgr
+        pid = process.pid
+        phys_id = memmgr.phys_id_for(pid, virt_id)
+
+        return GEDRequest(
+            local_node_id=self._interface.node_id,
+            remote_node_id=request.remote_id,
+            local_qubit_id=phys_id,
+        )
+
+    def assign_request_routine(
+        self, process: IqoalaProcess, routine: RequestRoutine
+    ) -> Generator[EventExpression, None, None]:
+        request = routine.request
+        num_pairs = request.num_pairs
+
+        if routine.callback_type == CallbackType.SEQUENTIAL:
+            for i in range(num_pairs):
+                virt_id = self.allocate_for_pair(process, request, i)
+                ged_req = self.create_ged_request(process, request, virt_id)
+                yield from self.execute_ged_request(ged_req)
+        else:
+            raise NotImplementedError
