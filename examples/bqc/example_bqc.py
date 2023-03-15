@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 import netsquid as ns
+from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
@@ -27,6 +28,8 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
+from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 
 INSTR_LATENCY = 1e5
@@ -148,62 +151,51 @@ def create_server_tasks(
     free_dur = task_durations.instr_latency
     cphase_dur = task_durations.two_gate
 
+    # csocket = assign_cval() : 0
+    tasks.append(TaskBuilder.CL(cl_dur, 0))
+
     # run_subroutine(vec<client_id>) : create_epr_0
-    task0 = TaskBuilder.CL(cl_dur, 0)
-    task1 = TaskBuilder.QC(qc_dur, "create_epr_0")
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 1))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+
     # run_subroutine(vec<client_id>) : create_epr_1
-    task2 = TaskBuilder.CL(cl_dur, 1)
-    task3 = TaskBuilder.QC(qc_dur, "create_epr_1")
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 2))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
 
     # run_subroutine(vec<client_id>) : local_cphase
-    task4 = TaskBuilder.CL(cl_dur, 2)
-    task5 = TaskBuilder.QL(set_dur, "local_cphase", 0)
-    task6 = TaskBuilder.QL(set_dur, "local_cphase", 1)
-    task7 = TaskBuilder.QL(cphase_dur, "local_cphase", 2)
-
-    # csocket = assign_cval() : 0
-    task8 = TaskBuilder.CL(cl_dur, 3)
+    tasks.append(TaskBuilder.CL(cl_dur, 3))
+    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
+    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 1))
+    tasks.append(TaskBuilder.QL(cphase_dur, "local_cphase", 2))
     # delta1 = recv_cmsg(client_id)
-    task9 = TaskBuilder.CC(cc_dur, 4)
-
+    tasks.append(TaskBuilder.CC(cc_dur, 4))
     # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-    task10 = TaskBuilder.CL(cl_dur, 5)
-    task11 = TaskBuilder.QL(set_dur, "meas_qubit_1", 0)
-    task12 = TaskBuilder.QL(rot_dur, "meas_qubit_1", 1)
-    task13 = TaskBuilder.QL(h_dur, "meas_qubit_1", 2)
-    task14 = TaskBuilder.QL(meas_dur, "meas_qubit_1", 3)
-    task15 = TaskBuilder.QL(free_dur, "meas_qubit_1", 4)
-
+    tasks.append(TaskBuilder.CL(cl_dur, 5))
+    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_1", 0))
+    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_1", 1))
+    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_1", 2))
+    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_1", 3))
+    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_1", 4))
     # send_cmsg(csocket, m1)
-    task16 = TaskBuilder.CC(cc_dur, 6)
-
+    tasks.append(TaskBuilder.CC(cc_dur, 6))
     # delta2 = recv_cmsg(csocket)
-    task17 = TaskBuilder.CC(cc_dur, 7)
-
+    tasks.append(TaskBuilder.CC(cc_dur, 7))
     # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-    task18 = TaskBuilder.CL(cl_dur, 8)
-    task19 = TaskBuilder.QL(set_dur, "meas_qubit_0", 0)
-    task20 = TaskBuilder.QL(rot_dur, "meas_qubit_0", 1)
-    task21 = TaskBuilder.QL(h_dur, "meas_qubit_0", 2)
-    task22 = TaskBuilder.QL(meas_dur, "meas_qubit_0", 3)
-    task23 = TaskBuilder.QL(free_dur, "meas_qubit_0", 4)
+    tasks.append(TaskBuilder.CL(cl_dur, 8))
+    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_0", 0))
+    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_0", 1))
+    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_0", 2))
+    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_0", 3))
+    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_0", 4))
 
     # send_cmsg(csocket, m2)
-    task24 = TaskBuilder.CC(cc_dur, 9)
-
-    tasks.append(TaskBuilder.QC_group([task0, task1]))
-    tasks.append(TaskBuilder.QC_group([task2, task3]))
-    tasks.append(task4)
-    tasks.append(TaskBuilder.QL_group([task5, task6, task7]))
-    tasks.append(task8)
-    tasks.append(task9)
-    tasks.append(task10)
-    tasks.append(TaskBuilder.QL_group([task11, task12, task13, task14, task15]))
-    tasks.append(task16)
-    tasks.append(task17)
-    tasks.append(task18)
-    tasks.append(TaskBuilder.QL_group([task19, task20, task21, task22, task23]))
-    tasks.append(task24)
+    tasks.append(TaskBuilder.CC(cc_dur, 9))
 
     return ProgramTaskList(server_program, {i: task for i, task in enumerate(tasks)})
 
@@ -244,9 +236,12 @@ def create_client_tasks(
         tasks.append(TaskBuilder.CL(cl_dur, c.next()))
 
     # run_subroutine(vec<>) : create_epr_0
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    # vec<p2> = run_subroutine(vec<theta2>) : post_epr_0
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, c.next()))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # NEW
+    c.next()
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
 
     tasks.append(TaskBuilder.CL(cl_dur, c.next()))
     tasks.append(TaskBuilder.QL(set_dur, "post_epr_0", 0))
@@ -256,8 +251,13 @@ def create_client_tasks(
     tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 4))
     tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 5))
 
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, c.next()))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # NEW
+    c.next()
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+
     tasks.append(TaskBuilder.CL(cl_dur, c.next()))
     tasks.append(TaskBuilder.QL(set_dur, "post_epr_1", 0))
     tasks.append(TaskBuilder.QL(rot_dur, "post_epr_1", 1))
@@ -462,6 +462,15 @@ def run_bqc(
 
     server_procnode = network.nodes["server"]
 
+    global_env = server_procnode._global_env
+
+    gedcomp = EntDistComponent(global_env)
+    nodes = [node.node for node in network.nodes.values()]
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+
+    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
+
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
         index = client_id - 1
@@ -512,7 +521,21 @@ def run_bqc(
         client_procnode.initialize_processes()
         client_procnode.initialize_schedule(NoTimeSolver)
 
+        client_procnode.node.entdist_out_port.connect(
+            gedcomp.node_in_port(f"client_{client_id}")
+        )
+        client_procnode.node.entdist_in_port.connect(
+            gedcomp.node_out_port(f"client_{client_id}")
+        )
+
+        factory = PerfectStateSamplerFactory()
+        kwargs = {"cycle_time": 1000}
+        ged.add_sampler(
+            client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+        )
+
     network.start_all_nodes()
+    ged.start()
     start_time = ns.sim_time()
     ns.sim_run()
     end_time = ns.sim_time()

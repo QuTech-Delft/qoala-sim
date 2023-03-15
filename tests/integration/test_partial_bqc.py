@@ -668,7 +668,7 @@ def test_bqc_2():
             delta2 = result.client_process.host_mem.read("delta2")
 
             q0 = result.server_procnode.qdevice.get_local_qubit(0)
-            # print(q0.qstate)
+            print(q0.qstate)
 
             assert delta1 == alpha - theta1 + p1 * 16
             assert delta2 == math.pow(-1, m1) * beta - theta2 + p2 * 16

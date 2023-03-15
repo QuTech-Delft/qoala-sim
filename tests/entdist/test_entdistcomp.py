@@ -1,22 +1,7 @@
 from __future__ import annotations
 
-from typing import Generator
-
-import netsquid as ns
-from netsquid.nodes import Node
-
-from pydynaa import EventExpression
-from qoala.runtime.environment import (
-    GlobalEnvironment,
-    GlobalNodeInfo,
-    LocalEnvironment,
-)
-from qoala.runtime.message import Message
+from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.sim.entdist.entdistcomp import EntDistComponent
-from qoala.sim.host.hostcomp import HostComponent
-from qoala.sim.host.hostinterface import HostInterface
-from qoala.sim.netstack.netstackcomp import NetstackComponent
-from qoala.sim.netstack.netstackinterface import NetstackInterface
 
 
 def create_entdistcomp(num_nodes: int) -> EntDistComponent:

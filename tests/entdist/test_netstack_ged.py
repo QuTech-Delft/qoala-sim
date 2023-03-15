@@ -1,27 +1,8 @@
-import itertools
-from asyncio import proactor_events
 from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
-import pytest
-from netqasm.sdk.build_epr import (
-    SER_RESPONSE_KEEP_IDX_BELL_STATE,
-    SER_RESPONSE_KEEP_IDX_GOODNESS,
-    SER_RESPONSE_KEEP_LEN,
-)
-from netsquid.components.instructions import INSTR_ROT_X
 from netsquid.nodes import Node
-from netsquid.qubits.ketstates import BellIndex
 from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
-from qlink_interface import (
-    ReqCreateAndKeep,
-    ReqCreateBase,
-    ReqMeasureDirectly,
-    ReqReceive,
-    ReqRemoteStatePrep,
-    ResCreateAndKeep,
-)
-from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiBuilder, UnitModule
@@ -40,12 +21,7 @@ from qoala.runtime.environment import (
     GlobalNodeInfo,
     LocalEnvironment,
 )
-from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import (
-    GenericToVanillaInterface,
-    LhiConverter,
-    NvToNvInterface,
-)
+from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
@@ -54,26 +30,13 @@ from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.entdist.entdist import EntDist, GEDRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
-from qoala.sim.entdist.entdistinterface import EntDistInterface
-from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
+from qoala.sim.memmgr import MemoryManager
+from qoala.sim.netstack import NetstackInterface, NetstackLatencies
 from qoala.sim.netstack.netstack import Netstack
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
-from qoala.util.constants import PI
-from qoala.util.tests import (
-    B00_DENS,
-    B01_DENS,
-    B10_DENS,
-    S00_DENS,
-    S10_DENS,
-    TWO_MAX_MIXED,
-    density_matrices_equal,
-    has_multi_state,
-    netsquid_run,
-)
+from qoala.sim.qdevice import QDevice
+from qoala.util.tests import B00_DENS, has_multi_state
 
 
 class MockNetstackInterface(NetstackInterface):
@@ -104,8 +67,8 @@ def create_alice_bob_qdevices(
 ) -> Tuple[QDevice, QDevice]:
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
 
-    alice_qproc = build_qprocessor_from_topology(name=f"qproc_alice", topology=topology)
-    bob_qproc = build_qprocessor_from_topology(name=f"qproc_bob", topology=topology)
+    alice_qproc = build_qprocessor_from_topology(name="qproc_alice", topology=topology)
+    bob_qproc = build_qprocessor_from_topology(name="qproc_bob", topology=topology)
 
     alice_node = Node(name="alice", qmemory=alice_qproc, ID=alice_id)
     bob_node = Node(name="bob", qmemory=bob_qproc, ID=bob_id)

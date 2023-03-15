@@ -11,12 +11,8 @@ from qoala.runtime.environment import (
     GlobalNodeInfo,
     LocalEnvironment,
 )
-from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
-from qoala.sim.events import EVENT_WAIT
-from qoala.sim.host.hostcomp import HostComponent
-from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.netstack.netstackinterface import NetstackInterface
 

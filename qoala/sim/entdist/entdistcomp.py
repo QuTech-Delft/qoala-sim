@@ -3,14 +3,13 @@ from __future__ import annotations
 from typing import Dict
 
 from netsquid.components.component import Component, Port
-from netsquid.nodes import Node
 
 from qoala.runtime.environment import GlobalEnvironment
 
 
 class EntDistComponent(Component):
     def __init__(self, global_env: GlobalEnvironment) -> None:
-        super().__init__(f"global_entanglement_distributor")
+        super().__init__("global_entanglement_distributor")
 
         self._node_in_ports: Dict[str, str] = {}  # node name -> port name
         self._node_out_ports: Dict[str, str] = {}  # node name -> port name

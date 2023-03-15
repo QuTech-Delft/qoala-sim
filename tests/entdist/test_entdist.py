@@ -1,12 +1,11 @@
 import itertools
-from typing import List, Tuple
+from typing import List
 
 import netsquid as ns
 import numpy as np
 import pytest
 from netsquid import QFormalism
 from netsquid.nodes import Node
-from netsquid.qubits import ketstates
 from netsquid_magic.state_delivery_sampler import (
     DeliverySample,
     DepolariseWithFailureStateSamplerFactory,
@@ -26,9 +25,6 @@ from qoala.sim.entdist.entdist import (
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.util.tests import (
     B00_DENS,
-    B01_DENS,
-    B10_DENS,
-    S00_DENS,
     S10_DENS,
     TWO_MAX_MIXED,
     density_matrices_equal,

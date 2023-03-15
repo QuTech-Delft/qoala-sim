@@ -11,17 +11,7 @@ from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist, GEDRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.qdevice import QDevice
-from qoala.util.tests import (
-    B00_DENS,
-    B01_DENS,
-    B10_DENS,
-    S00_DENS,
-    S10_DENS,
-    TWO_MAX_MIXED,
-    density_matrices_equal,
-    has_multi_state,
-    netsquid_run,
-)
+from qoala.util.tests import B00_DENS, has_multi_state, netsquid_run
 
 
 def create_n_qdevices(n: int, num_qubits: int = 1) -> List[QDevice]:

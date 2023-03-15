@@ -5,11 +5,12 @@ META_START
     epr_sockets: 0 -> client
 META_END
 
+csocket = assign_cval() : 0
+
 run_subroutine(vec<>) : create_epr_0
 run_subroutine(vec<>) : create_epr_1
 run_subroutine(vec<>) : local_cphase
 
-csocket = assign_cval() : 0
 delta1 = recv_cmsg(csocket)
 
 vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
@@ -87,21 +88,27 @@ SUBROUTINE meas_qubit_0
   NETQASM_END
 
 REQUEST req0
-  role: receive
+  callback_type: wait_all
+  callback: 
   remote_id: {client_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 1.0
-  virt_qubit_ids: 0
+  typ: create_keep
+  role: receive
   result_array_addr: 0
 
 REQUEST req1
-  role: receive
+  callback_type: wait_all
+  callback: 
   remote_id: {client_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
   fidelity: 1.0
-  virt_qubit_ids: 1
+  typ: create_keep
+  role: receive
   result_array_addr: 1

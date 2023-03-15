@@ -18,7 +18,7 @@ jobs:
         make install-dev
         make lint
 
-  tests:
+  unit-tests:
     name: Run tests  
     runs-on: ubuntu-latest
     steps:
@@ -31,7 +31,22 @@ jobs:
           NETSQUIDPYPI_PWD: ${{ secrets.NETSQUIDPYPI_PWD }}
       run: |
         make install-dev
-        make tests
+        make unit-tests
+
+  integration-tests:
+    name: Run tests  
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions/setup-python@master
+      with:
+        python-version: 3.8
+    - env:
+          NETSQUIDPYPI_USER: ${{ secrets.NETSQUIDPYPI_USER }}
+          NETSQUIDPYPI_PWD: ${{ secrets.NETSQUIDPYPI_PWD }}
+      run: |
+        make install-dev
+        make integration-tests
 
   examples:
     name: Run examples

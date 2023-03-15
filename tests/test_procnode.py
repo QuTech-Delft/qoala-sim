@@ -69,7 +69,6 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos import QnosInterface
-from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.tests import has_multi_state, netsquid_run
 
 MOCK_MESSAGE = Message(content=42)
@@ -138,10 +137,21 @@ class MockNetstackInterface(NetstackInterface):
         return None
         yield  # to make this behave as a generator
 
+    def send_entdist_msg(self, msg: Message) -> None:
+        return None
+
+    def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
+        return Message("done")
+        yield  # to make this behave as a generator
+
     def reset(self) -> None:
         self._requests_put = {}
         self._awaited_result_ck = []
         self._awaited_mem_free_sig_count = 0
+
+    @property
+    def node_id(self) -> int:
+        return 0
 
 
 class MockQDevice(QDevice):
@@ -454,14 +464,22 @@ def test_initialize():
     assert host_mem.read("theta") == 3.14
     assert host_mem.read("name") == "alice"
 
-    request = NetstackCreateRequest(
-        remote_id=1,
-        epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
-        num_pairs=1,
-        fidelity=1.0,
-        virt_qubit_ids=[0],
-        result_array_addr=0,
+    request_routine = RequestRoutine(
+        name="req1",
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
+            remote_id=1,
+            epr_socket_id=0,
+            num_pairs=1,
+            virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+            timeout=1000,
+            fidelity=1.0,
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.CREATE,
+            result_array_addr=0,
+        ),
     )
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
@@ -469,7 +487,7 @@ def test_initialize():
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
-    netsquid_run(netstack_processor.assign(process, request))
+    netsquid_run(netstack_processor.assign_request_routine(process, request_routine))
 
     assert process.host_mem.read("x") == 3
     assert process.shared_mem.get_reg_value("R5") == 42

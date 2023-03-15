@@ -41,7 +41,6 @@ from qoala.runtime.config import (
     GenericQDeviceConfig,
     HeraldedLinkConfig,
     LinkConfig,
-    NVLinkConfig,
     NVQDeviceConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,

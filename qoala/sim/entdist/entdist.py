@@ -148,11 +148,11 @@ class EntDist(Protocol):
         self._interface.send_node_msg(node2, Message("done"))
 
     def put_request(self, request: GEDRequest) -> None:
-        if not request.local_node_id in self._nodes:
+        if request.local_node_id not in self._nodes:
             raise ValueError(
                 f"Invalid request: node ID {request.local_node_id} not registered in GED."
             )
-        if not request.remote_node_id in self._nodes:
+        if request.remote_node_id not in self._nodes:
             raise ValueError(
                 f"Invalid request: node ID {request.remote_node_id} not registered in GED."
             )

@@ -1,4 +1,3 @@
-
 META_START
     name: client
     parameters: server_id, alpha, beta, theta1, theta2, dummy0, dummy1
@@ -116,21 +115,27 @@ SUBROUTINE post_epr_1
   NETQASM_END
 
 REQUEST req1
-  role: create
+  callback_type: wait_all
+  callback: 
   remote_id: {server_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 1.0
-  virt_qubit_ids: 0
+  typ: create_keep
+  role: create
   result_array_addr: 1
 
 REQUEST req0
-  role: create
+  callback_type: wait_all
+  callback: 
   remote_id: {server_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 1.0
-  virt_qubit_ids: 0
+  typ: create_keep
+  role: create
   result_array_addr: 0

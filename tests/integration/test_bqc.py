@@ -37,7 +37,6 @@ from qoala.sim.build import build_network
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
-from qoala.util.logging import LogManager
 
 
 def create_global_env(

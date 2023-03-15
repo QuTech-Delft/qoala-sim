@@ -5,7 +5,6 @@ from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
 from netqasm.lang.instr.core import CreateEPRInstruction, RecvEPRInstruction
-from netqasm.lang.operand import Template
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression

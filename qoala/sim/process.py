@@ -2,7 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict
 
-from qoala.lang.request import IqoalaRequest, RequestRoutine
+from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import HostMemory, ProgramMemory, SharedMemory
 from qoala.runtime.program import ProgramInstance, ProgramResult
