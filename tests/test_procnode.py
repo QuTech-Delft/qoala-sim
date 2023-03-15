@@ -16,6 +16,7 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
+from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 from qlink_interface import ReqCreateBase, ResCreateAndKeep
 from qlink_interface.interface import ResCreate
 
@@ -31,7 +32,14 @@ from qoala.lang.hostlang import (
 )
 from qoala.lang.parse import IqoalaParser, LocalRoutineParser
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
-from qoala.lang.request import EprType, IqoalaRequest, RequestRoutine
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    IqoalaRequest,
+    RequestRoutine,
+    RequestVirtIdMapping,
+)
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
@@ -51,6 +59,8 @@ from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
 from qoala.sim.egp import EgpProtocol
+from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
@@ -822,7 +832,7 @@ def test_epr():
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
             request = process.get_request_routine("req")
-            yield from self.netstack.processor.assign(process, request)
+            yield from self.netstack.processor.assign_request_routine(process, request)
 
     alice_procnode = create_procnode(
         "alice",
@@ -849,24 +859,40 @@ def test_epr():
     ehi = LhiConverter.to_ehi(topology, ntf)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    alice_request = NetstackCreateRequest(
-        remote_id=bob_id,
-        epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
-        num_pairs=1,
-        fidelity=1.0,
-        virt_qubit_ids=[0],
-        result_array_addr=0,
+    alice_request_routine = RequestRoutine(
+        name="req1",
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
+            remote_id=bob_id,
+            epr_socket_id=0,
+            num_pairs=1,
+            virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+            timeout=1000,
+            fidelity=1.0,
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.CREATE,
+            result_array_addr=0,
+        ),
     )
 
-    bob_request = NetstackReceiveRequest(
-        remote_id=alice_id,
-        epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
-        num_pairs=1,
-        fidelity=1.0,
-        virt_qubit_ids=[0],
-        result_array_addr=0,
+    bob_request_routine = RequestRoutine(
+        name="req1",
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
+            remote_id=alice_id,
+            epr_socket_id=0,
+            num_pairs=1,
+            virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+            timeout=1000,
+            fidelity=1.0,
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.RECEIVE,
+            result_array_addr=0,
+        ),
     )
 
     alice_instrs = [SendCMsgOp("csocket_id", "message")]
@@ -877,7 +903,9 @@ def test_epr():
         epr_sockets={},
     )
     alice_program = create_program(
-        instrs=alice_instrs, req_routines={"req": alice_request}, meta=alice_meta
+        instrs=alice_instrs,
+        req_routines={"req": alice_request_routine},
+        meta=alice_meta,
     )
     alice_process = create_process(
         pid=0,
@@ -894,7 +922,7 @@ def test_epr():
         name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
     )
     bob_program = create_program(
-        instrs=bob_instrs, req_routines={"req": bob_request}, meta=bob_meta
+        instrs=bob_instrs, req_routines={"req": bob_request_routine}, meta=bob_meta
     )
     bob_process = create_process(
         pid=0,
@@ -915,11 +943,25 @@ def test_epr():
     alice_process.shared_mem.init_new_array(0, 10)
     bob_process.shared_mem.init_new_array(0, 10)
 
+    nodes = [alice_procnode.node, bob_procnode.node]
+    gedcomp = EntDistComponent(global_env)
+    alice_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("alice"))
+    alice_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("alice"))
+    bob_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("bob"))
+    bob_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("bob"))
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    factory = PerfectStateSamplerFactory()
+    kwargs = {"cycle_time": 1000}
+    ged.add_sampler(
+        alice_procnode.node.ID, bob_procnode.node.ID, factory, kwargs=kwargs
+    )
+
     # First start Bob, since Alice won't yield on anything (she only does a Send
     # instruction) and therefore calling 'start()' on alice completes her whole
     # protocol while Bob's interface has not even been started.
     bob_procnode.start()
     alice_procnode.start()
+    ged.start()
     ns.sim_run()
 
     assert alice_procnode.memmgr.phys_id_for(pid=0, virt_id=0) == 0
@@ -1096,9 +1138,23 @@ REQUEST req1
 
     client_procnode.connect_to(server_procnode)
 
+    nodes = [client_procnode.node, server_procnode.node]
+    gedcomp = EntDistComponent(global_env)
+    client_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("client"))
+    client_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("client"))
+    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    factory = PerfectStateSamplerFactory()
+    kwargs = {"cycle_time": 1000}
+    ged.add_sampler(
+        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+    )
+
     # client_egp._ll_prot.start()
     server_procnode.start()
     client_procnode.start()
+    ged.start()
     ns.sim_run()
 
     assert client_procnode.memmgr.phys_id_for(pid=0, virt_id=0) == 0

@@ -79,6 +79,8 @@ def test_string_to_virt_id_mapping():
 def test_instantiate():
     text = """
 REQUEST req1
+  callback_type: wait_all
+  callback: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: {num_pairs}
@@ -90,7 +92,8 @@ REQUEST req1
   result_array_addr: 0
     """
 
-    request = RequestRoutineParser(text).parse()["req1"]
+    request_routine = RequestRoutineParser(text).parse()["req1"]
+    request = request_routine.request
     assert request.remote_id == Template(name="client_id")
     assert request.num_pairs == Template(name="num_pairs")
 

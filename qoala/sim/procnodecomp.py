@@ -62,6 +62,11 @@ class ProcNodeComponent(Node):
         self._host_peer_in_ports: Dict[str, str] = {}  # peer name -> port name
         self._host_peer_out_ports: Dict[str, str] = {}  # peer name -> port name
 
+        # Ports for communicating with the GED
+        self.add_ports(["entdist_out", "entdist_in"])
+        self.netstack_comp.entdist_out_port.forward_output(self.entdist_out_port)
+        self.entdist_in_port.forward_input(self.netstack_comp.entdist_in_port)
+
         for other_node in global_env.get_nodes().values():
             if other_node.name == self.name:
                 continue
@@ -128,3 +133,11 @@ class ProcNodeComponent(Node):
     def netstack_peer_out_port(self, name: str) -> Port:
         port_name = self._netstack_peer_out_ports[name]
         return self.ports[port_name]
+
+    @property
+    def entdist_in_port(self) -> Port:
+        return self.ports["entdist_in"]
+
+    @property
+    def entdist_out_port(self) -> Port:
+        return self.ports["entdist_out"]

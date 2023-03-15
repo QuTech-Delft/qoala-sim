@@ -687,6 +687,10 @@ class NetstackProcessor:
         request = routine.request
         num_pairs = request.num_pairs
 
+        # TODO: refactor when implementing proper shared memory
+        inputs = process.prog_instance.inputs.values
+        request.instantiate(inputs)
+
         if routine.callback_type == CallbackType.SEQUENTIAL:
             raise NotImplementedError
         else:

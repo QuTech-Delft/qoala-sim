@@ -397,7 +397,7 @@ class RequestRoutineParser:
         value = split[1].strip()
         return RequestVirtIdMapping.from_str(value)
 
-    def _parse_request(self) -> IqoalaRequest:
+    def _parse_request(self) -> RequestRoutine:
         name_line = self._read_line()
         if not name_line.startswith("REQUEST "):
             raise IqoalaParseError
@@ -446,7 +446,7 @@ class RequestRoutineParser:
         )
         return RequestRoutine(name, request, callback_type, callback)
 
-    def parse(self) -> Dict[str, IqoalaRequest]:
+    def parse(self) -> Dict[str, RequestRoutine]:
         requests: Dict[str, IqoalaRequest] = {}
         try:
             while True:

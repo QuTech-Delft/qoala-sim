@@ -323,6 +323,8 @@ def test_single_pair_full_netstack():
 
 
 def test_multiple_pairs_full_netstack():
+    ns.sim_reset()
+
     alice_id = 0
     bob_id = 1
 
@@ -346,7 +348,7 @@ def test_multiple_pairs_full_netstack():
                 yield from self.processor.execute_ged_request(request)
 
     alice_netstack, bob_netstack, ged = setup_components_full_netstack(
-        2, alice_id, bob_id, AliceNetstack, BobNetstack
+        3, alice_id, bob_id, AliceNetstack, BobNetstack
     )
 
     alice_netstack.start()
@@ -420,7 +422,10 @@ def test_single_pair_qoala_request():
         virt_ids=RequestVirtIdMapping.from_str("increment 0"),
     )
     routine_alice = RequestRoutine(
-        request=request_alice, callback_type=CallbackType.WAIT_ALL, callback=None
+        name="req1",
+        request=request_alice,
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
     )
 
     requests_bob = [
@@ -459,8 +464,8 @@ def test_single_pair_qoala_request():
 
 
 if __name__ == "__main__":
-    # test_single_pair_only_netstack_interface()
-    # test_multiple_pairs_only_netstack_interface()
-    # test_single_pair_full_netstack()
-    # test_multiple_pairs_full_netstack()
+    test_single_pair_only_netstack_interface()
+    test_multiple_pairs_only_netstack_interface()
+    test_single_pair_full_netstack()
+    test_multiple_pairs_full_netstack()
     test_single_pair_qoala_request()
