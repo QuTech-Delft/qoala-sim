@@ -19,7 +19,7 @@ jobs:
         make lint
 
   unit-tests:
-    name: Run tests  
+    name: Run unit tests  
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
@@ -34,7 +34,7 @@ jobs:
         make unit-tests
 
   integration-tests:
-    name: Run tests  
+    name: Run integration tests  
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
