@@ -286,7 +286,9 @@ class Scheduler(Protocol):
     def execute_netstack_task(
         self, process: IqoalaProcess, task: NetstackTask
     ) -> Generator[EventExpression, None, None]:
-        yield from self.run_epr_subroutine(process, task.subrt_name)
+        # yield from self.run_epr_subroutine(process, task.request_routine_name)
+        routine = process.get_request_routine(task.request_routine_name)
+        yield from self.netstack.processor.assign_request_routine(process, routine)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask

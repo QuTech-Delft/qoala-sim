@@ -107,7 +107,7 @@ REQUEST req1
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
-  virt_ids: 1
+  virt_ids: all 1
   timeout: 1000
   fidelity: 1.0
   typ: create_keep

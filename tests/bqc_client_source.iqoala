@@ -88,7 +88,7 @@ REQUEST req1
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1
-  virt_ids: 0
+  virt_ids: all 0
   timeout: 1000
   fidelity: 1.0
   typ: create_keep
@@ -101,7 +101,7 @@ REQUEST req0
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1
-  virt_ids: 0
+  virt_ids: all 0
   timeout: 1000
   fidelity: 1.0
   typ: create_keep

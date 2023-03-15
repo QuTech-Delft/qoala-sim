@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 import netsquid as ns
+from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
@@ -25,6 +26,8 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
+from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 
 
@@ -130,12 +133,21 @@ def create_server_tasks(
 
     # csocket = assign_cval() : 0
     tasks.append(TaskBuilder.CL(cl_dur, 0))
+
     # run_subroutine(vec<client_id>) : create_epr_0
-    tasks.append(TaskBuilder.CL(cl_dur, 1))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 1))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+
     # run_subroutine(vec<client_id>) : create_epr_1
-    tasks.append(TaskBuilder.CL(cl_dur, 2))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 2))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+
     # run_subroutine(vec<client_id>) : local_cphase
     tasks.append(TaskBuilder.CL(cl_dur, 3))
     tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
@@ -205,10 +217,14 @@ def create_client_tasks(
         tasks.append(TaskBuilder.CL(cl_dur, c.next()))
 
     # run_subroutine(vec<>) : create_epr_0
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    # vec<p2> = run_subroutine(vec<theta2>) : post_epr_0
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, c.next()))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # NEW
+    c.next()
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
 
+    # vec<p2> = run_subroutine(vec<theta2>) : post_epr_0
     tasks.append(TaskBuilder.CL(cl_dur, c.next()))
     tasks.append(TaskBuilder.QL(set_dur, "post_epr_0", 0))
     tasks.append(TaskBuilder.QL(rot_dur, "post_epr_0", 1))
@@ -217,8 +233,13 @@ def create_client_tasks(
     tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 4))
     tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 5))
 
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, c.next()))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # NEW
+    c.next()
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+
     tasks.append(TaskBuilder.CL(cl_dur, c.next()))
     tasks.append(TaskBuilder.QL(set_dur, "post_epr_1", 0))
     tasks.append(TaskBuilder.QL(rot_dur, "post_epr_1", 1))
@@ -377,6 +398,15 @@ def run_bqc(
 
     server_procnode = network.nodes["server"]
 
+    global_env = server_procnode._global_env
+
+    gedcomp = EntDistComponent(global_env)
+    nodes = [node.node for node in network.nodes.values()]
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+
+    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
+
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
         index = client_id - 1
@@ -425,7 +455,21 @@ def run_bqc(
         client_procnode.initialize_processes()
         client_procnode.initialize_schedule(NoTimeSolver)
 
+        client_procnode.node.entdist_out_port.connect(
+            gedcomp.node_in_port(f"client_{client_id}")
+        )
+        client_procnode.node.entdist_in_port.connect(
+            gedcomp.node_out_port(f"client_{client_id}")
+        )
+
+        factory = PerfectStateSamplerFactory()
+        kwargs = {"cycle_time": 1000}
+        ged.add_sampler(
+            client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+        )
+
     network.start_all_nodes()
+    ged.start()
     start_time = ns.sim_time()
     ns.sim_run()
     end_time = ns.sim_time()

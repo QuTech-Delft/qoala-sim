@@ -14,6 +14,7 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
+from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
@@ -34,6 +35,8 @@ from qoala.runtime.schedule import (
 )
 from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
 from qoala.sim.egp import EgpProtocol
+from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import IqoalaProcess
@@ -177,10 +180,19 @@ def create_server_tasks(server_program: IqoalaProgram) -> ProgramTaskList:
     qc_dur = 1e6
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
-    tasks.append(TaskBuilder.CL(cl_dur, 1))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
-    tasks.append(TaskBuilder.CL(cl_dur, 2))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+
+    # OLD:
+    # tasks.append(TaskBuilder.CL(cl_dur, 1))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # NEW:
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+
+    # OLD:
+    # tasks.append(TaskBuilder.CL(cl_dur, 2))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # NEW:
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+
     tasks.append(TaskBuilder.CL(cl_dur, 3))
     tasks.append(TaskBuilder.QL(ql_dur, "local_cphase", 0))
     tasks.append(TaskBuilder.QL(ql_dur, "local_cphase", 1))
@@ -215,8 +227,13 @@ def create_client_tasks(client_program: IqoalaProgram) -> ProgramTaskList:
     qc_dur = 1e6
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
-    tasks.append(TaskBuilder.CL(cl_dur, 1))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 1))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+
     tasks.append(TaskBuilder.CL(cl_dur, 2))
     tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 0))
     tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 1))
@@ -224,8 +241,12 @@ def create_client_tasks(client_program: IqoalaProgram) -> ProgramTaskList:
     tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 3))
     tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 4))
 
-    tasks.append(TaskBuilder.CL(cl_dur, 3))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 3))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+
     tasks.append(TaskBuilder.CL(cl_dur, 4))
     tasks.append(TaskBuilder.QL(ql_dur, "post_epr_1", 0))
     tasks.append(TaskBuilder.QL(ql_dur, "post_epr_1", 1))
@@ -360,8 +381,22 @@ def run_bqc(
 
     client_procnode.connect_to(server_procnode)
 
+    nodes = [client_procnode.node, server_procnode.node]
+    gedcomp = EntDistComponent(global_env)
+    client_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("client"))
+    client_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("client"))
+    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    factory = PerfectStateSamplerFactory()
+    kwargs = {"cycle_time": 1000}
+    ged.add_sampler(
+        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+    )
+
     server_procnode.start()
     client_procnode.start()
+    ged.start()
     ns.sim_run()
 
     return BqcResult(
@@ -448,6 +483,8 @@ def test_bqc():
             )
             for _ in range(1)
         ]
+        assert all(len(result.client_process.result.values) > 0 for result in results)
+        assert all(len(result.server_process.result.values) > 0 for result in results)
         m2s = [result.server_process.result.values["m2"] for result in results]
         assert all(m2 == expected for m2 in m2s)
 

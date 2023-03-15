@@ -33,8 +33,7 @@ class QnosTask:
 
 @dataclass
 class NetstackTask:
-    # request_name: str  # TODO: needed?
-    subrt_name: str
+    request_routine_name: str
 
 
 @dataclass

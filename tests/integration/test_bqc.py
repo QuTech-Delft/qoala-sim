@@ -12,6 +12,7 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
+from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
@@ -34,6 +35,9 @@ from qoala.runtime.schedule import (
 )
 from qoala.sim.build import build_network
 from qoala.sim.egp import EgpProtocol
+from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.util.logging import LogManager
 
 
 def create_global_env(
@@ -83,12 +87,25 @@ def create_server_tasks(
 
     # csocket = assign_cval() : 0
     tasks.append(TaskBuilder.CL(cl_dur, 0))
+
+    # OLD:
     # run_subroutine(vec<client_id>) : create_epr_0
-    tasks.append(TaskBuilder.CL(cl_dur, 1))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 1))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+
+    # NEW:
+    # run_subroutine(vec<client_id>) : create_epr_0
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+
+    # OLD:
     # run_subroutine(vec<client_id>) : create_epr_1
-    tasks.append(TaskBuilder.CL(cl_dur, 2))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 2))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+
+    # NEW:
+    # run_subroutine(vec<client_id>) : create_epr_1
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+
     # run_subroutine(vec<client_id>) : local_cphase
     tasks.append(TaskBuilder.CL(cl_dur, 3))
     tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
@@ -143,8 +160,14 @@ def create_client_tasks(
     free_dur = cfg.latencies.qnos_instr_time
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
-    tasks.append(TaskBuilder.CL(cl_dur, 1))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 1))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
+
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+
     tasks.append(TaskBuilder.CL(cl_dur, 2))
     tasks.append(TaskBuilder.QL(set_dur, "post_epr_0", 0))
     tasks.append(TaskBuilder.QL(rot_dur, "post_epr_0", 1))
@@ -152,8 +175,13 @@ def create_client_tasks(
     tasks.append(TaskBuilder.QL(meas_dur, "post_epr_0", 3))
     tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 4))
 
-    tasks.append(TaskBuilder.CL(cl_dur, 3))
-    tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+    # OLD
+    # tasks.append(TaskBuilder.CL(cl_dur, 3))
+    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
+
+    # NEW
+    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+
     tasks.append(TaskBuilder.CL(cl_dur, 4))
     tasks.append(TaskBuilder.QL(set_dur, "post_epr_1", 0))
     tasks.append(TaskBuilder.QL(rot_dur, "post_epr_1", 1))
@@ -324,8 +352,22 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     client_procnode.initialize_processes()
     client_procnode.initialize_schedule(NoTimeSolver)
 
+    nodes = [client_procnode.node, server_procnode.node]
+    gedcomp = EntDistComponent(global_env)
+    client_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("client"))
+    client_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("client"))
+    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    factory = PerfectStateSamplerFactory()
+    kwargs = {"cycle_time": 1000}
+    ged.add_sampler(
+        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+    )
+
     server_procnode.start()
     client_procnode.start()
+    ged.start()
     ns.sim_run()
 
     client_results = client_procnode.scheduler.get_batch_results()
@@ -407,6 +449,8 @@ def test_bqc():
         bqc_result = run_bqc(
             alpha=alpha, beta=beta, theta1=theta1, theta2=theta2, num_iterations=20
         )
+        assert len(bqc_result.client_results) > 0
+        assert len(bqc_result.server_results) > 0
 
         server_batch_results = bqc_result.server_results
         for batch_id, batch_results in server_batch_results.items():
