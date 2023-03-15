@@ -1,6 +1,6 @@
 from netqasm.lang.operand import Template
 
-from qoala.lang.parse import IQoalaRequestParser
+from qoala.lang.parse import RequestRoutineParser
 from qoala.lang.request import RequestVirtIdMapping, VirtIdMappingType
 
 
@@ -90,7 +90,7 @@ REQUEST req1
   result_array_addr: 0
     """
 
-    request = IQoalaRequestParser(text).parse()["req1"]
+    request = RequestRoutineParser(text).parse()["req1"]
     assert request.remote_id == Template(name="client_id")
     assert request.num_pairs == Template(name="num_pairs")
 

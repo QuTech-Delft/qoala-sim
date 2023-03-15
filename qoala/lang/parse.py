@@ -21,7 +21,14 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
-from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    IqoalaRequest,
+    RequestRoutine,
+    RequestVirtIdMapping,
+)
 from qoala.lang.routine import RoutineMetadata
 
 LHR_OP_NAMES: Dict[str, ClassicalIqoalaOp] = {
@@ -296,7 +303,7 @@ class LocalRoutineParser:
             return subroutines
 
 
-class IQoalaRequestParser:
+class RequestRoutineParser:
     def __init__(self, text: str) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
@@ -340,6 +347,13 @@ class IQoalaRequestParser:
                 value = value.strip("{}").strip()
                 return Template(value)
         return int(value)
+
+    def _parse_optional_str_value(self, key: str, line: str) -> Optional[str]:
+        strings = self._parse_request_line(key, line)
+        if len(strings) == 0:
+            return None
+        assert len(strings) == 1
+        return strings[0]
 
     def _parse_int_list_value(self, key: str, line: str) -> int:
         strings = self._parse_request_line(key, line)
@@ -389,6 +403,12 @@ class IQoalaRequestParser:
             raise IqoalaParseError
         name = name_line[len("REQUEST") + 1 :]
 
+        raw_callback_type = self._parse_request_line("callback_type", self._read_line())
+        assert len(raw_callback_type) == 1
+        callback_type = CallbackType[raw_callback_type[0].upper()]
+
+        callback = self._parse_optional_str_value("callback", self._read_line())
+
         remote_id = self._parse_single_int_value(
             "remote_id", self._read_line(), allow_template=True
         )
@@ -412,7 +432,7 @@ class IQoalaRequestParser:
             "result_array_addr", self._read_line()
         )
 
-        return IqoalaRequest(
+        request = IqoalaRequest(
             name=name,
             remote_id=remote_id,
             epr_socket_id=epr_socket_id,
@@ -424,6 +444,7 @@ class IQoalaRequestParser:
             role=role,
             result_array_addr=result_array_addr,
         )
+        return RequestRoutine(name, request, callback_type, callback)
 
     def parse(self) -> Dict[str, IqoalaRequest]:
         requests: Dict[str, IqoalaRequest] = {}
@@ -458,7 +479,7 @@ class IqoalaParser:
         self._meta_parser = IqoalaMetaParser(meta_text)
         self._instr_parser = IqoalaInstrParser(instr_text)
         self._subrt_parser = LocalRoutineParser(subrt_text)
-        self._req_parser = IQoalaRequestParser(req_text)
+        self._req_parser = RequestRoutineParser(req_text)
 
     def _split_text(self, text: str) -> Tuple[str, str, str, str]:
         lines = [line.strip() for line in text.split("\n")]

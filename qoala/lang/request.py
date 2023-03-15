@@ -93,7 +93,7 @@ class RequestVirtIdMapping:
 
 @dataclass(eq=True)
 class IqoalaRequest:
-    name: str
+    name: str  # TODO: remove?
     remote_id: Union[int, Template]
     epr_socket_id: Union[int, Template]
     num_pairs: Union[int, Template]
@@ -139,6 +139,7 @@ class IqoalaRequest:
 
 @dataclass
 class RequestRoutine:
+    name: str
     request: IqoalaRequest
     callback_type: CallbackType
     callback: Optional[str]  # Local Routine name

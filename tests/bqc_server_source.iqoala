@@ -89,6 +89,8 @@ SUBROUTINE meas_qubit_0
   NETQASM_END
 
 REQUEST req0
+  callback_type: wait_all
+  callback: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -100,6 +102,8 @@ REQUEST req0
   result_array_addr: 0
 
 REQUEST req1
+  callback_type: wait_all
+  callback: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
