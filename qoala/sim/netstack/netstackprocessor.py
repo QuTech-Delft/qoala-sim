@@ -653,6 +653,9 @@ class NetstackProcessor:
         self, request: GEDRequest
     ) -> Generator[EventExpression, None, None]:
         self._interface.send_entdist_msg(Message(request))
+        result = yield from self._interface.receive_entdist_msg()
+        if result.content != "done":
+            raise RuntimeError("Request was not served")
 
     def allocate_for_pair(
         self, process: IqoalaProcess, request: IqoalaRequest, index: int
@@ -685,9 +688,9 @@ class NetstackProcessor:
         num_pairs = request.num_pairs
 
         if routine.callback_type == CallbackType.SEQUENTIAL:
+            raise NotImplementedError
+        else:
             for i in range(num_pairs):
                 virt_id = self.allocate_for_pair(process, request, i)
                 ged_req = self.create_ged_request(process, request, virt_id)
                 yield from self.execute_ged_request(ged_req)
-        else:
-            raise NotImplementedError

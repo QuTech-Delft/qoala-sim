@@ -100,7 +100,7 @@ class NetstackInterface(ComponentProtocol):
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
         """Receive a message from the Entdist. Block until there is at least one
         message."""
-        return (yield from self._receive_msg("entdist", SIGNAL_PROC_NSTK_MSG))
+        return (yield from self._receive_msg("entdist", SIGNAL_ENTD_NSTK_MSG))
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         """Send a message to the network stack of the other node.

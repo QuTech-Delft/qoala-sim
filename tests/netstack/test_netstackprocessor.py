@@ -32,6 +32,7 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.sim.entdist.entdist import GEDRequest
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
 from qoala.sim.process import IqoalaProcess
@@ -81,6 +82,10 @@ class MockNetstackInterface(NetstackInterface):
         self._requests_put = {}
         self._awaited_result_ck = []
         self._awaited_mem_free_sig_count = 0
+
+    @property
+    def node_id(self) -> int:
+        return 0
 
 
 class MockQDevice(QDevice):
@@ -765,6 +770,30 @@ def test_allocate_for_pair():
     assert memmgr.phys_id_for(process.pid, virt_id=2) == 2
 
 
+def test_create_ged_request():
+    topology = generic_topology(5)
+    qdevice = MockQDevice(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    unit_module = UnitModule.from_full_ehi(ehi)
+    memmgr = MemoryManager("alice", qdevice)
+
+    process = create_process(0, unit_module)
+    memmgr.add_process(process)
+
+    interface = MockNetstackInterface(qdevice, memmgr, None)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
+
+    request = create_simple_request(
+        remote_id=1, num_pairs=5, virt_ids=RequestVirtIdMapping.from_str("all 0")
+    )
+
+    phys_id = memmgr.allocate(process.pid, 3)
+    assert processor.create_ged_request(process, request, 3) == GEDRequest(
+        local_node_id=interface.node_id, remote_node_id=1, local_qubit_id=phys_id
+    )
+
+
 if __name__ == "__main__":
     test_create_link_layer_create_request()
     test_create_single_pair_1()
@@ -776,3 +805,4 @@ if __name__ == "__main__":
     test_receive_single_pair_2()
     test_handle_receive_ck_request()
     test_allocate_for_pair()
+    test_create_ged_request()

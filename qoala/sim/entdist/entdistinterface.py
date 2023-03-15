@@ -30,6 +30,10 @@ class EntDistInterface(ComponentProtocol):
                 ),
             )
 
+    def remote_id_to_peer_name(self, remote_id: int) -> str:
+        node_info = self._global_env.get_nodes()[remote_id]
+        return node_info.name
+
     def send_node_msg(self, node: str, msg: Message) -> None:
         self._comp.node_out_port(node).tx_output(msg)
 

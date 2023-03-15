@@ -34,7 +34,6 @@ from netsquid_magic.magic_distributor import (
     DoubleClickMagicDistributor,
     PerfectStateMagicDistributor,
 )
-from netsquid_nv.magic_distributor import NVSingleClickMagicDistributor
 from netsquid_physlayer.heralded_connection import MiddleHeraldedConnection
 
 from qoala.runtime.config import (
@@ -335,18 +334,19 @@ def build_ll_protocol(
             prob_success=link_cfg.prob_success,
             t_cycle=link_cfg.t_cycle,
         )
-    elif config.typ == "nv":
-        link_cfg = config.cfg
-        if not isinstance(link_cfg, NVLinkConfig):
-            link_cfg = NVLinkConfig(**config.cfg)
-        link_dist = NVSingleClickMagicDistributor(
-            nodes=[proc_node1.node, proc_node2.node],
-            length_A=link_cfg.length_A,
-            length_B=link_cfg.length_B,
-            full_cycle=link_cfg.full_cycle,
-            cycle_time=link_cfg.cycle_time,
-            alpha=link_cfg.alpha,
-        )
+    # TODO: decide whether this is still wanted/needed
+    # elif config.typ == "nv":
+    #     link_cfg = config.cfg
+    #     if not isinstance(link_cfg, NVLinkConfig):
+    #         link_cfg = NVLinkConfig(**config.cfg)
+    #     link_dist = NVSingleClickMagicDistributor(
+    #         nodes=[proc_node1.node, proc_node2.node],
+    #         length_A=link_cfg.length_A,
+    #         length_B=link_cfg.length_B,
+    #         full_cycle=link_cfg.full_cycle,
+    #         cycle_time=link_cfg.cycle_time,
+    #         alpha=link_cfg.alpha,
+    #     )
     elif config.typ == "heralded":
         link_cfg = config.cfg
         if not isinstance(link_cfg, HeraldedLinkConfig):

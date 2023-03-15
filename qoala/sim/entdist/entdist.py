@@ -17,6 +17,7 @@ from netsquid_magic.state_delivery_sampler import (
 
 from pydynaa import EventExpression
 from qoala.runtime.environment import GlobalEnvironment
+from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
 from qoala.sim.events import EPR_DELIVERY
@@ -139,6 +140,12 @@ class EntDist(Protocol):
 
         node1_mem.put(qubits=epr[0], positions=node1_phys_id)
         node2_mem.put(qubits=epr[1], positions=node2_phys_id)
+
+        # Send messages to the nodes indictating a request has been delivered.
+        node1 = self._interface.remote_id_to_peer_name(node1_id)
+        node2 = self._interface.remote_id_to_peer_name(node2_id)
+        self._interface.send_node_msg(node1, Message("done"))
+        self._interface.send_node_msg(node2, Message("done"))
 
     def put_request(self, request: GEDRequest) -> None:
         if not request.local_node_id in self._nodes:
