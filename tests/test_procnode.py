@@ -31,7 +31,7 @@ from qoala.lang.hostlang import (
 )
 from qoala.lang.parse import IqoalaParser, LocalRoutineParser
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
-from qoala.lang.request import EprType, IqoalaRequest
+from qoala.lang.request import EprType, IqoalaRequest, RequestRoutine
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
@@ -257,7 +257,7 @@ class MockHostInterface(HostInterface):
 def create_program(
     instrs: Optional[List[ClassicalIqoalaOp]] = None,
     subroutines: Optional[Dict[str, LocalRoutine]] = None,
-    requests: Optional[Dict[str, IqoalaRequest]] = None,
+    req_routines: Optional[Dict[str, RequestRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
 ) -> IqoalaProgram:
     if instrs is None:
@@ -265,12 +265,15 @@ def create_program(
     if subroutines is None:
         subroutines = {}
 
-    if requests is None:
-        requests = {}
+    if req_routines is None:
+        req_routines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
     return IqoalaProgram(
-        instructions=instrs, local_routines=subroutines, meta=meta, requests=requests
+        instructions=instrs,
+        local_routines=subroutines,
+        meta=meta,
+        request_routines=req_routines,
     )
 
 
@@ -874,7 +877,7 @@ def test_epr():
         epr_sockets={},
     )
     alice_program = create_program(
-        instrs=alice_instrs, requests={"req": alice_request}, meta=alice_meta
+        instrs=alice_instrs, req_routines={"req": alice_request}, meta=alice_meta
     )
     alice_process = create_process(
         pid=0,
