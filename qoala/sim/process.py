@@ -2,7 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict
 
-from qoala.lang.request import IqoalaRequest
+from qoala.lang.request import IqoalaRequest, RequestRoutine
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import HostMemory, ProgramMemory, SharedMemory
 from qoala.runtime.program import ProgramInstance, ProgramResult
@@ -40,11 +40,11 @@ class IqoalaProcess:
     def get_all_local_routines(self) -> Dict[str, LocalRoutine]:
         return self.prog_instance.program.local_routines
 
-    def get_request(self, name: str) -> IqoalaRequest:
-        return self.prog_instance.program.requests[name]
+    def get_request_routine(self, name: str) -> RequestRoutine:
+        return self.prog_instance.program.request_routines[name]
 
-    def get_all_requests(self) -> Dict[str, IqoalaRequest]:
-        return self.prog_instance.program.requests
+    def get_all_request_routines(self) -> Dict[str, RequestRoutine]:
+        return self.prog_instance.program.request_routines
 
     def instantiate_routine(self, name: str, arguments: Dict[str, int]) -> None:
         routine = self.get_local_routine(name)

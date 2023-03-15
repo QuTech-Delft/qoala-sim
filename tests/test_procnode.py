@@ -821,7 +821,7 @@ def test_epr():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            request = process.get_request("req")
+            request = process.get_request_routine("req")
             yield from self.netstack.processor.assign(process, request)
 
     alice_procnode = create_procnode(
@@ -894,7 +894,7 @@ def test_epr():
         name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
     )
     bob_program = create_program(
-        instrs=bob_instrs, requests={"req": bob_request}, meta=bob_meta
+        instrs=bob_instrs, req_routines={"req": bob_request}, meta=bob_meta
     )
     bob_process = create_process(
         pid=0,
@@ -957,6 +957,8 @@ SUBROUTINE subrt1
   NETQASM_END
 
 REQUEST req1
+  callback_type: wait_all
+  callback:
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -999,9 +1001,11 @@ REQUEST req1
                     process, "subrt1", i
                 )
 
-            request = process.get_request("req1").request
+            request_routine = process.get_request_routine("req1")
             print("hello 1?")
-            yield from self.netstack.processor.assign(process, request)
+            yield from self.netstack.processor.assign_request_routine(
+                process, request_routine
+            )
 
             # wait instr
             yield from self.qnos.processor.assign_routine_instr(
@@ -1053,6 +1057,8 @@ SUBROUTINE subrt1
   NETQASM_END
 
 REQUEST req1
+  callback_type: wait_all
+  callback:
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1
