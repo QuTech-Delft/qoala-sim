@@ -1,4 +1,4 @@
-from qoala.sim.memory import SharedMemory
+from qoala.runtime.memory import SharedMemory
 
 
 def test_register_setup():

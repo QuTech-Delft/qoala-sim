@@ -4,15 +4,14 @@ from typing import List, Set, Tuple
 
 import pytest
 
-from qoala.lang.ehi import EhiBuilder
-from qoala.lang.iqoala import IqoalaProgram, ProgramMeta
+from qoala.lang.ehi import EhiBuilder, UnitModule
+from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.sim.qmem import UnitModule
 
 
 class MockQDevice(QDevice):
@@ -34,7 +33,7 @@ class MockQDevice(QDevice):
 
 def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     program = IqoalaProgram(
-        instructions=[], subroutines={}, meta=ProgramMeta.empty("prog")
+        instructions=[], local_routines={}, meta=ProgramMeta.empty("prog")
     )
     instance = ProgramInstance(
         pid=pid,
@@ -49,9 +48,8 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
         prog_memory=mem,
         csockets={},
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
-        requests={},
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 

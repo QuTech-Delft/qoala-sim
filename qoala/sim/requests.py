@@ -1,17 +1,7 @@
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import List, Optional, Union
 
-
-class EprCreateType(Enum):
-    CREATE_KEEP = 0
-    MEASURE_DIRECTLY = auto()
-    REMOTE_STATE_PREP = auto()
-
-
-class EprCreateRole(Enum):
-    CREATE = 0
-    RECEIVE = auto()
+from qoala.lang.request import EprType
 
 
 @dataclass
@@ -19,7 +9,7 @@ class NetstackCreateRequest:
     # Request parameters.
     remote_id: int
     epr_socket_id: int
-    typ: EprCreateType
+    typ: EprType
     num_pairs: int
     fidelity: float
     virt_qubit_ids: List[int]
@@ -33,7 +23,7 @@ class NetstackReceiveRequest:
     # Request parameters.
     remote_id: int
     epr_socket_id: int
-    typ: Optional[EprCreateType]  # not knowable from recv_epr instruction! TODO
+    typ: Optional[EprType]  # not knowable from recv_epr instruction! TODO
     num_pairs: Optional[int]  # not knowable from recv_epr instruction! TODO
     fidelity: float
     virt_qubit_ids: List[int]

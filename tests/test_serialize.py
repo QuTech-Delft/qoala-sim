@@ -3,19 +3,18 @@ from netqasm.lang.instr.vanilla import RotZInstruction
 from netqasm.lang.operand import Register, Template
 from netqasm.lang.subroutine import Subroutine
 
-from qoala.lang.iqoala import (
+from qoala.lang.hostlang import (
     AddCValueOp,
     AssignCValueOp,
-    IqoalaProgram,
     IqoalaSharedMemLoc,
-    IqoalaSubroutine,
     IqoalaVector,
-    ProgramMeta,
     ReceiveCMsgOp,
     ReturnResultOp,
     RunSubroutineOp,
     SendCMsgOp,
 )
+from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -75,7 +74,7 @@ return_result(m)
         ReturnResultOp("m"),
     ]
     program = IqoalaProgram(
-        instructions=instructions, subroutines={}, meta=ProgramMeta.empty("alice")
+        instructions=instructions, local_routines={}, meta=ProgramMeta.empty("alice")
     )
     assert text_equal(program.serialize_instructions(), expected)
 
@@ -85,6 +84,8 @@ def test_serialize_subroutines_1():
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps: 
   NETQASM_START
     set Q0 0
     rot_z Q0 {my_value} 4
@@ -95,7 +96,7 @@ SUBROUTINE subrt1
 
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
-    subrt = IqoalaSubroutine(
+    subrt = LocalRoutine(
         name="subrt1",
         subrt=Subroutine(
             instructions=[
@@ -107,9 +108,12 @@ SUBROUTINE subrt1
             arguments=["my_value"],
         ),
         return_map={"m": IqoalaSharedMemLoc("M0")},
+        metadata=RoutineMetadata.free_all([0]),
     )
     program = IqoalaProgram(
-        instructions=[], subroutines={"subrt1": subrt}, meta=ProgramMeta.empty("alice")
+        instructions=[],
+        local_routines={"subrt1": subrt},
+        meta=ProgramMeta.empty("alice"),
     )
     assert text_equal(program.serialize_subroutines(), expected)
 
@@ -119,6 +123,8 @@ def test_serialize_subroutines_2():
 SUBROUTINE subrt1
     params: param1
     returns: M0 -> m
+    uses: 0
+    keeps: 
   NETQASM_START
     set R0 {param1}
     meas Q0 M0
@@ -127,6 +133,8 @@ SUBROUTINE subrt1
 SUBROUTINE subrt2
     params: theta
     returns: 
+    uses:
+    keeps: 
   NETQASM_START
     set R0 {theta}
   NETQASM_END
@@ -135,7 +143,7 @@ SUBROUTINE subrt2
     R0 = Register.from_str("R0")
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
-    subrt1 = IqoalaSubroutine(
+    subrt1 = LocalRoutine(
         name="subrt1",
         subrt=Subroutine(
             instructions=[
@@ -145,8 +153,9 @@ SUBROUTINE subrt2
             arguments=["param1"],
         ),
         return_map={"m": IqoalaSharedMemLoc("M0")},
+        metadata=RoutineMetadata.free_all([0]),
     )
-    subrt2 = IqoalaSubroutine(
+    subrt2 = LocalRoutine(
         name="subrt2",
         subrt=Subroutine(
             instructions=[
@@ -155,10 +164,11 @@ SUBROUTINE subrt2
             arguments=["theta"],
         ),
         return_map={},
+        metadata=RoutineMetadata.use_none(),
     )
     program = IqoalaProgram(
         instructions=[],
-        subroutines={"subrt1": subrt1, "subrt2": subrt2},
+        local_routines={"subrt1": subrt1, "subrt2": subrt2},
         meta=ProgramMeta.empty("alice"),
     )
     assert text_equal(program.serialize_subroutines(), expected)
@@ -185,6 +195,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps: 
   NETQASM_START
     set Q0 0
     rot_z Q0 {my_value} 4
@@ -206,7 +218,7 @@ SUBROUTINE subrt1
     ]
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
-    subrt = IqoalaSubroutine(
+    subrt = LocalRoutine(
         name="subrt1",
         subrt=Subroutine(
             instructions=[
@@ -218,10 +230,11 @@ SUBROUTINE subrt1
             arguments=["my_value"],
         ),
         return_map={"m": IqoalaSharedMemLoc("M0")},
+        metadata=RoutineMetadata.free_all([0]),
     )
 
     program = IqoalaProgram(
-        instructions=instructions, subroutines={"subrt1": subrt}, meta=meta
+        instructions=instructions, local_routines={"subrt1": subrt}, meta=meta
     )
 
     assert text_equal(program.serialize(), expected)

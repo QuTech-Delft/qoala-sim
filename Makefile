@@ -45,8 +45,14 @@ lint-mypy:
 # lint: lint-black lint-flake8 lint-mypy
 lint: lint-isort lint-black lint-flake8
 
-tests:
+all-tests:
 	coverage run -m pytest tests
+
+unit-tests:
+	coverage run -m pytest tests --ignore=tests/integration
+
+integration-tests:
+	coverage run -m pytest tests/integration
 
 test-report:
 	coverage report --omit="tests/*"

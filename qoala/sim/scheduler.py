@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
 from netqasm.lang.instr.core import CreateEPRInstruction, RecvEPRInstruction
-from netqasm.lang.operand import Template
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import UnitModule
 from qoala.runtime.environment import LocalEnvironment
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
     BatchInfo,
     BatchResult,
@@ -34,17 +34,15 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     SingleProgramTask,
 )
-from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.host import Host
-from qoala.sim.logging import LogManager
+from qoala.sim.host.csocket import ClassicalSocket
+from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.memory import ProgramMemory
 from qoala.sim.netstack import Netstack
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qmem import UnitModule
 from qoala.sim.qnos import Qnos
+from qoala.util.logging import LogManager
 
 
 class Scheduler(Protocol):
@@ -193,28 +191,31 @@ class Scheduler(Protocol):
 
                 result = ProgramResult(values={})
 
-                # Important: create a deep copy of the subroutines for each process,
-                # since each process should be able to instantiate their subroutines
-                # without affecting the subroutines of other processes.
-                subroutines = {
-                    name: deepcopy(subrt)
-                    for name, subrt in prog_instance.program.subroutines.items()
-                }
+                # Important: create a deep copy of the local_routines for each process,
+                # since each process should be able to instantiate their local_routines
+                # without affecting the local_routines of other processes.
 
-                # Same holds for requests.
-                requests = {
-                    name: deepcopy(req)
-                    for name, req in prog_instance.program.requests.items()
-                }
+                # TODO: Check if commented-out lines are not needed anymore and if so,
+                # remove completely.
+
+                # local_routines = {
+                #     name: deepcopy(subrt)
+                #     for name, subrt in prog_instance.program.local_routines.items()
+                # }
+
+                # # Same holds for requests.
+                # requests = {
+                #     name: deepcopy(req)
+                #     for name, req in prog_instance.program.requests.items()
+                # }
 
                 process = IqoalaProcess(
                     prog_instance=prog_instance,
                     prog_memory=prog_memory,
                     csockets=csockets,
                     epr_sockets=epr_sockets,
-                    subroutines=subroutines,
-                    requests=requests,
                     result=result,
+                    active_routines={},
                 )
 
                 self.memmgr.add_process(process)
@@ -239,11 +240,11 @@ class Scheduler(Protocol):
     def execute_qnos_task(
         self, process: IqoalaProcess, task: QnosTask
     ) -> Generator[EventExpression, None, None]:
-        yield from self.qnos.processor.assign(
+        yield from self.qnos.processor.assign_routine_instr(
             process, task.subrt_name, task.instr_index
         )
         # TODO: improve this
-        subrt = process.subroutines[task.subrt_name]
+        subrt = process.get_local_routine(task.subrt_name)
         if task.instr_index == (len(subrt.subroutine.instructions) - 1):
             # subroutine finished -> return results to host
             self.host.processor.copy_subroutine_results(process, task.subrt_name)
@@ -251,7 +252,7 @@ class Scheduler(Protocol):
     def run_epr_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        subrt = process.subroutines[subrt_name]
+        subrt = process.get_local_routine(subrt_name)
         epr_instr_idx: Optional[int] = None
         for i, instr in enumerate(subrt.subroutine.instructions):
             if isinstance(instr, CreateEPRInstruction) or isinstance(
@@ -264,17 +265,19 @@ class Scheduler(Protocol):
 
         # Set up arrays
         for i in range(epr_instr_idx):
-            yield from self.qnos.processor.assign(process, subrt_name, i)
+            yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
 
         request_name = subrt.request_name
         assert request_name is not None
-        request = process.requests[request_name].request
+        request = process.get_request(request_name).request
 
         # Handle request
         yield from self.netstack.processor.assign(process, request)
 
         # Execute wait instruction
-        yield from self.qnos.processor.assign(process, subrt_name, epr_instr_idx + 1)
+        yield from self.qnos.processor.assign_routine_instr(
+            process, subrt_name, epr_instr_idx + 1
+        )
 
         # Return subroutine results
         self.host.processor.copy_subroutine_results(process, subrt_name)
@@ -282,7 +285,9 @@ class Scheduler(Protocol):
     def execute_netstack_task(
         self, process: IqoalaProcess, task: NetstackTask
     ) -> Generator[EventExpression, None, None]:
-        yield from self.run_epr_subroutine(process, task.subrt_name)
+        # yield from self.run_epr_subroutine(process, task.request_routine_name)
+        routine = process.get_request_routine(task.request_routine_name)
+        yield from self.netstack.processor.assign_request_routine(process, routine)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask
@@ -311,12 +316,13 @@ class Scheduler(Protocol):
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
 
-        inputs = process.prog_instance.inputs
-        for req in process.requests.values():
-            # TODO: support for other request parameters being templates?
-            remote_id = req.request.remote_id
-            if isinstance(remote_id, Template):
-                req.request.remote_id = inputs.values[remote_id.name]
+        # TODO: rethink how and when Requests are instantiated
+        # inputs = process.prog_instance.inputs
+        # for req in process.get_all_requests().values():
+        #     # TODO: support for other request parameters being templates?
+        #     remote_id = req.request.remote_id
+        #     if isinstance(remote_id, Template):
+        #         req.request.remote_id = inputs.values[remote_id.name]
 
     def install_schedule(self, schedule: Schedule) -> None:
         self._schedule = schedule

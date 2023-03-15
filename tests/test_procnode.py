@@ -16,24 +16,31 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
+from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 from qlink_interface import ReqCreateBase, ResCreateAndKeep
 from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
-from qoala.lang.iqoala import (
+from qoala.lang.ehi import UnitModule
+from qoala.lang.hostlang import (
     AssignCValueOp,
     ClassicalIqoalaOp,
-    IqoalaParser,
-    IqoalaProgram,
-    IqoalaRequest,
-    IqoalaSubroutine,
-    IQoalaSubroutineParser,
     IqoalaVector,
-    ProgramMeta,
     ReceiveCMsgOp,
     RunSubroutineOp,
     SendCMsgOp,
 )
+from qoala.lang.parse import IqoalaParser, LocalRoutineParser
+from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    IqoalaRequest,
+    RequestRoutine,
+    RequestVirtIdMapping,
+)
+from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import (
     GlobalEnvironment,
@@ -46,26 +53,22 @@ from qoala.runtime.lhi_to_ehi import (
     LhiConverter,
     NativeToFlavourInterface,
 )
+from qoala.runtime.memory import ProgramMemory, SharedMemory
+from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
-from qoala.sim.csocket import ClassicalSocket
 from qoala.sim.egp import EgpProtocol
-from qoala.sim.hostinterface import HostInterface
+from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.sim.host.csocket import ClassicalSocket
+from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.memory import ProgramMemory, SharedMemory
-from qoala.sim.message import Message
-from qoala.sim.netstackinterface import NetstackInterface
+from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.qmem import UnitModule
-from qoala.sim.qnosinterface import QnosInterface
-from qoala.sim.requests import (
-    EprCreateType,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
-)
+from qoala.sim.qnos import QnosInterface
 from qoala.util.tests import has_multi_state, netsquid_run
 
 MOCK_MESSAGE = Message(content=42)
@@ -134,10 +137,21 @@ class MockNetstackInterface(NetstackInterface):
         return None
         yield  # to make this behave as a generator
 
+    def send_entdist_msg(self, msg: Message) -> None:
+        return None
+
+    def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
+        return Message("done")
+        yield  # to make this behave as a generator
+
     def reset(self) -> None:
         self._requests_put = {}
         self._awaited_result_ck = []
         self._awaited_mem_free_sig_count = 0
+
+    @property
+    def node_id(self) -> int:
+        return 0
 
 
 class MockQDevice(QDevice):
@@ -262,8 +276,8 @@ class MockHostInterface(HostInterface):
 
 def create_program(
     instrs: Optional[List[ClassicalIqoalaOp]] = None,
-    subroutines: Optional[Dict[str, IqoalaSubroutine]] = None,
-    requests: Optional[Dict[str, IqoalaRequest]] = None,
+    subroutines: Optional[Dict[str, LocalRoutine]] = None,
+    req_routines: Optional[Dict[str, RequestRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
 ) -> IqoalaProgram:
     if instrs is None:
@@ -271,12 +285,15 @@ def create_program(
     if subroutines is None:
         subroutines = {}
 
-    if requests is None:
-        requests = {}
+    if req_routines is None:
+        req_routines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
     return IqoalaProgram(
-        instructions=instrs, subroutines=subroutines, meta=meta, requests=requests
+        instructions=instrs,
+        local_routines=subroutines,
+        meta=meta,
+        request_routines=req_routines,
     )
 
 
@@ -306,9 +323,8 @@ def create_process(
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
-        requests=program.requests,
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 
@@ -354,13 +370,13 @@ def create_procnode(
     return procnode
 
 
-def simple_subroutine(name: str, subrt_text: str) -> IqoalaSubroutine:
+def simple_subroutine(name: str, subrt_text: str) -> LocalRoutine:
     subrt = parse_text_subroutine(subrt_text)
-    return IqoalaSubroutine(name, subrt, return_map={})
+    return LocalRoutine(name, subrt, return_map={}, metadata=RoutineMetadata.use_none())
 
 
-def parse_iqoala_subroutines(subrt_text: str) -> IqoalaSubroutine:
-    return IQoalaSubroutineParser(subrt_text).parse()
+def parse_iqoala_subroutines(subrt_text: str) -> LocalRoutine:
+    return LocalRoutineParser(subrt_text).parse()
 
 
 def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
@@ -448,21 +464,30 @@ def test_initialize():
     assert host_mem.read("theta") == 3.14
     assert host_mem.read("name") == "alice"
 
-    request = NetstackCreateRequest(
-        remote_id=1,
-        epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
-        num_pairs=1,
-        fidelity=1.0,
-        virt_qubit_ids=[0],
-        result_array_addr=0,
+    request_routine = RequestRoutine(
+        name="req1",
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
+            remote_id=1,
+            epr_socket_id=0,
+            num_pairs=1,
+            virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+            timeout=1000,
+            fidelity=1.0,
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.CREATE,
+            result_array_addr=0,
+        ),
     )
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
-    netsquid_run(qnos_processor.assign(process, "subrt1", 0))
+    process.instantiate_routine("subrt1", {})
+    netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
-    netsquid_run(netstack_processor.assign(process, request))
+    netsquid_run(netstack_processor.assign_request_routine(process, request_routine))
 
     assert process.host_mem.read("x") == 3
     assert process.shared_mem.get_reg_value("R5") == 42
@@ -500,6 +525,8 @@ def test_2():
 SUBROUTINE subrt1
     params: 
     returns: R5 -> result
+    uses: 
+    keeps: 
     request:
   NETQASM_START
     set R5 42
@@ -521,7 +548,7 @@ SUBROUTINE subrt1
     host_processor.initialize(process)
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
-    netsquid_run(qnos_processor.assign(process, "subrt1", 0))
+    netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
     host_processor.copy_subroutine_results(process, "subrt1")
 
     assert process.host_mem.read("result") == 42
@@ -529,6 +556,8 @@ SUBROUTINE subrt1
 
 
 def test_2_async():
+    ns.sim_reset()
+
     num_qubits = 3
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
@@ -552,6 +581,8 @@ def test_2_async():
 SUBROUTINE subrt1
     params: 
     returns: R5 -> result
+    uses: 
+    keeps: 
     request:
   NETQASM_START
     set R5 42
@@ -576,7 +607,7 @@ SUBROUTINE subrt1
         yield from host_processor.assign(process, instr_idx=0)
 
     def qnos_run() -> Generator[EventExpression, None, None]:
-        yield from qnos_processor.assign(process, "subrt1", 0)
+        yield from qnos_processor.assign_routine_instr(process, "subrt1", 0)
         # Mock sending signal back to Host that subroutine has finished.
         qnos_processor._interface.send_host_msg(Message(None))
 
@@ -590,6 +621,8 @@ SUBROUTINE subrt1
 
 
 def test_classical_comm():
+    ns.sim_reset()
+
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
@@ -674,6 +707,8 @@ def test_classical_comm():
 
 
 def test_classical_comm_three_nodes():
+    ns.sim_reset()
+
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
@@ -799,6 +834,8 @@ def test_classical_comm_three_nodes():
 
 
 def test_epr():
+    ns.sim_reset()
+
     num_qubits = 3
 
     topology = generic_topology(num_qubits)
@@ -812,8 +849,8 @@ def test_epr():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            request = process.requests["req"]
-            yield from self.netstack.processor.assign(process, request)
+            request = process.get_request_routine("req")
+            yield from self.netstack.processor.assign_request_routine(process, request)
 
     alice_procnode = create_procnode(
         "alice",
@@ -840,6 +877,42 @@ def test_epr():
     ehi = LhiConverter.to_ehi(topology, ntf)
     unit_module = UnitModule.from_full_ehi(ehi)
 
+    alice_request_routine = RequestRoutine(
+        name="req1",
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
+            remote_id=bob_id,
+            epr_socket_id=0,
+            num_pairs=1,
+            virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+            timeout=1000,
+            fidelity=1.0,
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.CREATE,
+            result_array_addr=0,
+        ),
+    )
+
+    bob_request_routine = RequestRoutine(
+        name="req1",
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
+            remote_id=alice_id,
+            epr_socket_id=0,
+            num_pairs=1,
+            virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+            timeout=1000,
+            fidelity=1.0,
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.RECEIVE,
+            result_array_addr=0,
+        ),
+    )
+
     alice_instrs = [SendCMsgOp("csocket_id", "message")]
     alice_meta = ProgramMeta(
         name="alice",
@@ -847,7 +920,11 @@ def test_epr():
         csockets={0: "bob"},
         epr_sockets={},
     )
-    alice_program = create_program(instrs=alice_instrs, meta=alice_meta)
+    alice_program = create_program(
+        instrs=alice_instrs,
+        req_routines={"req": alice_request_routine},
+        meta=alice_meta,
+    )
     alice_process = create_process(
         pid=0,
         program=alice_program,
@@ -862,7 +939,9 @@ def test_epr():
     bob_meta = ProgramMeta(
         name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
     )
-    bob_program = create_program(instrs=bob_instrs, meta=bob_meta)
+    bob_program = create_program(
+        instrs=bob_instrs, req_routines={"req": bob_request_routine}, meta=bob_meta
+    )
     bob_process = create_process(
         pid=0,
         program=bob_program,
@@ -875,40 +954,32 @@ def test_epr():
 
     alice_procnode.connect_to(bob_procnode)
 
-    alice_request = NetstackCreateRequest(
-        remote_id=bob_id,
-        epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
-        num_pairs=1,
-        fidelity=1.0,
-        virt_qubit_ids=[0],
-        result_array_addr=0,
-    )
-
-    bob_request = NetstackReceiveRequest(
-        remote_id=alice_id,
-        epr_socket_id=0,
-        typ=EprCreateType.CREATE_KEEP,
-        num_pairs=1,
-        fidelity=1.0,
-        virt_qubit_ids=[0],
-        result_array_addr=0,
-    )
-
     alice_egp, bob_egp = create_egp_protocols(alice_procnode.node, bob_procnode.node)
     alice_procnode.egpmgr.add_egp(bob_id, alice_egp)
     bob_procnode.egpmgr.add_egp(alice_id, bob_egp)
-    alice_process.requests = {"req": alice_request}
-    bob_process.requests = {"req": bob_request}
 
     alice_process.shared_mem.init_new_array(0, 10)
     bob_process.shared_mem.init_new_array(0, 10)
+
+    nodes = [alice_procnode.node, bob_procnode.node]
+    gedcomp = EntDistComponent(global_env)
+    alice_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("alice"))
+    alice_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("alice"))
+    bob_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("bob"))
+    bob_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("bob"))
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    factory = PerfectStateSamplerFactory()
+    kwargs = {"cycle_time": 1000}
+    ged.add_sampler(
+        alice_procnode.node.ID, bob_procnode.node.ID, factory, kwargs=kwargs
+    )
 
     # First start Bob, since Alice won't yield on anything (she only does a Send
     # instruction) and therefore calling 'start()' on alice completes her whole
     # protocol while Bob's interface has not even been started.
     bob_procnode.start()
     alice_procnode.start()
+    ged.start()
     ns.sim_run()
 
     assert alice_procnode.memmgr.phys_id_for(pid=0, virt_id=0) == 0
@@ -920,6 +991,8 @@ def test_epr():
 
 
 def test_whole_program():
+    ns.sim_reset()
+
     server_text = """
 META_START
     name: server
@@ -934,6 +1007,8 @@ run_subroutine(vec<remote_id>) : subrt1
 SUBROUTINE subrt1
     params: remote_id
     returns:
+    uses: 0
+    keeps: 0
     request: req1
   NETQASM_START
     array 10 @0
@@ -942,13 +1017,16 @@ SUBROUTINE subrt1
   NETQASM_END
 
 REQUEST req1
-  role: receive
+  callback_type: wait_all
+  callback:
   remote_id: {client_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 0
+  timeout:1000
   fidelity: 1.0
-  virt_qubit_ids: 0
+  typ: create_keep
+  role: receive
   result_array_addr: 0
     """
     server_program = IqoalaParser(server_text).parse()
@@ -968,7 +1046,8 @@ REQUEST req1
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
 
-            subrt1 = process.subroutines["subrt1"]
+            subrt1 = process.get_local_routine("subrt1")
+            process.instantiate_routine("subrt1", {})
             epr_instr_idx = None
             for i, instr in enumerate(subrt1.subroutine.instructions):
                 if isinstance(instr, CreateEPRInstruction) or isinstance(
@@ -978,14 +1057,20 @@ REQUEST req1
                     break
 
             for i in range(epr_instr_idx):
-                yield from self.qnos.processor.assign(process, "subrt1", i)
+                yield from self.qnos.processor.assign_routine_instr(
+                    process, "subrt1", i
+                )
 
-            request = process.requests["req1"].request
+            request_routine = process.get_request_routine("req1")
             print("hello 1?")
-            yield from self.netstack.processor.assign(process, request)
+            yield from self.netstack.processor.assign_request_routine(
+                process, request_routine
+            )
 
             # wait instr
-            yield from self.qnos.processor.assign(process, "subrt1", epr_instr_idx + 1)
+            yield from self.qnos.processor.assign_routine_instr(
+                process, "subrt1", epr_instr_idx + 1
+            )
             print("hello 2?")
             # yield from self.netstack.processor.assign(process, request)
 
@@ -1021,6 +1106,8 @@ run_subroutine(vec<remote_id>) : subrt1
 SUBROUTINE subrt1
     params: remote_id
     returns:
+    uses: 0
+    keeps: 0
     request: req1
   NETQASM_START
     set C10 10
@@ -1030,13 +1117,16 @@ SUBROUTINE subrt1
   NETQASM_END
 
 REQUEST req1
-  role: create
+  callback_type: wait_all
+  callback:
   remote_id: {server_id}
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 1.0
-  virt_qubit_ids: 0
+  typ: create_keep
+  role: create
   result_array_addr: 0
     """
     client_program = IqoalaParser(client_text).parse()
@@ -1066,9 +1156,23 @@ REQUEST req1
 
     client_procnode.connect_to(server_procnode)
 
+    nodes = [client_procnode.node, server_procnode.node]
+    gedcomp = EntDistComponent(global_env)
+    client_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("client"))
+    client_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("client"))
+    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
+    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    factory = PerfectStateSamplerFactory()
+    kwargs = {"cycle_time": 1000}
+    ged.add_sampler(
+        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+    )
+
     # client_egp._ll_prot.start()
     server_procnode.start()
     client_procnode.start()
+    ged.start()
     ns.sim_run()
 
     assert client_procnode.memmgr.phys_id_for(pid=0, virt_id=0) == 0

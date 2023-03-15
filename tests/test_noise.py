@@ -23,20 +23,25 @@ from netsquid.components.qprogram import QuantumProgram
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 
-from qoala.lang.iqoala import IqoalaProgram, IqoalaSubroutine, ProgramMeta
+from qoala.lang.ehi import UnitModule
+from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.memory import ProgramMemory
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.sim.qmem import UnitModule
-from qoala.sim.qnoscomp import QnosComponent
-from qoala.sim.qnosinterface import QnosInterface, QnosLatencies
-from qoala.sim.qnosprocessor import GenericProcessor, QnosProcessor
+from qoala.sim.qnos import (
+    GenericProcessor,
+    QnosComponent,
+    QnosInterface,
+    QnosLatencies,
+    QnosProcessor,
+)
 from qoala.util.tests import has_max_mixed_state, has_state, netsquid_run, netsquid_wait
 
 
@@ -86,14 +91,14 @@ def setup_noisy_components(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
 
 
 def create_program(
-    subroutines: Optional[Dict[str, IqoalaSubroutine]] = None,
+    subroutines: Optional[Dict[str, LocalRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
 ) -> IqoalaProgram:
     if subroutines is None:
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(instructions=[], subroutines=subroutines, meta=meta)
+    return IqoalaProgram(instructions=[], local_routines=subroutines, meta=meta)
 
 
 def create_process(
@@ -112,9 +117,8 @@ def create_process(
         prog_memory=mem,
         csockets={},
         epr_sockets=program.meta.epr_sockets,
-        subroutines=program.subroutines,
-        requests={},
         result=ProgramResult(values={}),
+        active_routines={},
     )
     return process
 
@@ -123,7 +127,8 @@ def create_process_with_subrt(
     pid: int, subrt_text: str, unit_module: UnitModule
 ) -> IqoalaProcess:
     subrt = parse_text_subroutine(subrt_text)
-    iqoala_subrt = IqoalaSubroutine("subrt", subrt, return_map={})
+    metadata = RoutineMetadata.use_none()
+    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
     program = create_program(subroutines={"subrt": iqoala_subrt}, meta=meta)
@@ -132,12 +137,15 @@ def create_process_with_subrt(
 
 def set_new_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
     subrt = parse_text_subroutine(subrt_text)
-    iqoala_subrt = IqoalaSubroutine("subrt", subrt, return_map={})
-    process.subroutines["subrt"] = iqoala_subrt
+    metadata = RoutineMetadata.use_none()
+    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
+    program = process.prog_instance.program
+    program.local_routines["subrt"] = iqoala_subrt
 
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
-    subroutines = process.prog_instance.program.subroutines
+    subroutines = process.prog_instance.program.local_routines
+    process.instantiate_routine("subrt", {})
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0
@@ -145,7 +153,9 @@ def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     instr_idx = 0
     while instr_idx < len(netqasm_instructions):
         instr_count += 1
-        instr_idx = netsquid_run(processor.assign(process, "subrt", instr_idx))
+        instr_idx = netsquid_run(
+            processor.assign_routine_instr(process, "subrt", instr_idx)
+        )
     return instr_count
 
 

@@ -21,13 +21,13 @@ from netsquid.qubits import ketstates
 
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
-from qoala.sim.constants import PI, PI_OVER_2
 from qoala.sim.qdevice import (
     NonInitializedQubitError,
     QDevice,
     QDeviceCommand,
     UnsupportedQDeviceCommandError,
 )
+from qoala.util.constants import PI, PI_OVER_2
 from qoala.util.tests import has_state, netsquid_run
 
 
@@ -113,6 +113,8 @@ def test_static_nv():
 
 
 def test_initalize_generic():
+    ns.sim_reset()
+
     num_qubits = 3
     qdevice = perfect_uniform_qdevice(num_qubits)
 
@@ -161,6 +163,8 @@ def test_initalize_generic():
 
 
 def test_initalize_nv():
+    ns.sim_reset()
+
     num_qubits = 3
     qdevice = perfect_nv_star_qdevice(num_qubits)
 
@@ -219,6 +223,8 @@ def test_initalize_nv():
 
 
 def test_rotations_generic():
+    ns.sim_reset()
+
     num_qubits = 3
     qdevice = perfect_uniform_qdevice(num_qubits)
 
@@ -263,6 +269,8 @@ def test_rotations_generic():
 
 
 def test_rotations_nv():
+    ns.sim_reset()
+
     num_qubits = 3
     qdevice = perfect_nv_star_qdevice(num_qubits)
 
@@ -412,6 +420,8 @@ def test_measure_nv():
 
 
 def test_two_qubit_gates_generic():
+    ns.sim_reset()
+
     num_qubits = 3
     qdevice = perfect_uniform_qdevice(num_qubits)
 
@@ -449,6 +459,8 @@ def test_two_qubit_gates_generic():
 
 
 def test_two_qubit_gates_nv():
+    ns.sim_reset()
+
     num_qubits = 3
     qdevice = perfect_nv_star_qdevice(num_qubits)
 

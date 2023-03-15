@@ -5,27 +5,30 @@ from netqasm.lang.instr.core import MeasInstruction, SetInstruction
 from netqasm.lang.operand import Register, Template
 from netqasm.lang.subroutine import Subroutine
 
-from qoala.lang.iqoala import (
+from qoala.lang.hostlang import (
     AssignCValueOp,
+    IqoalaSharedMemLoc,
+    IqoalaVector,
+    RunSubroutineOp,
+)
+from qoala.lang.parse import (
     IqoalaInstrParser,
     IqoalaMetaParser,
     IqoalaParseError,
     IqoalaParser,
+    LocalRoutineParser,
+    RequestRoutineParser,
+)
+from qoala.lang.program import LocalRoutine, ProgramMeta
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
     IqoalaRequest,
-    IQoalaRequestParser,
-    IqoalaSharedMemLoc,
-    IqoalaSubroutine,
-    IQoalaSubroutineParser,
-    IqoalaVector,
-    ProgramMeta,
-    RunSubroutineOp,
+    RequestRoutine,
+    RequestVirtIdMapping,
 )
-from qoala.sim.requests import (
-    EprCreateRole,
-    EprCreateType,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
-)
+from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -180,13 +183,15 @@ def test_parse_subrt():
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 
+    keeps:
     request: 
   NETQASM_START
     set Q0 {my_value}
   NETQASM_END
     """
 
-    parsed = IQoalaSubroutineParser(text).parse()
+    parsed = LocalRoutineParser(text).parse()
     assert len(parsed) == 1
     assert "subrt1" in parsed
     subrt = parsed["subrt1"]
@@ -195,9 +200,10 @@ SUBROUTINE subrt1
         SetInstruction(reg=Register.from_str("Q0"), imm=Template("my_value"))
     ]
     expected_args = ["my_value"]
-    assert subrt == IqoalaSubroutine(
+    assert subrt == LocalRoutine(
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        metadata=RoutineMetadata.use_none(),
         return_map={"m": IqoalaSharedMemLoc("M0")},
     )
 
@@ -207,6 +213,8 @@ def test_parse_subrt_2():
 SUBROUTINE my_subroutine
     params: param1, param2
     returns: M5 -> result1, M6 -> result2
+    uses: 0, 1
+    keeps: 
     request: 
   NETQASM_START
     set R0 {param1}
@@ -216,7 +224,7 @@ SUBROUTINE my_subroutine
   NETQASM_END
     """
 
-    parsed = IQoalaSubroutineParser(text).parse()
+    parsed = LocalRoutineParser(text).parse()
     assert len(parsed) == 1
     assert "my_subroutine" in parsed
     subrt = parsed["my_subroutine"]
@@ -228,9 +236,10 @@ SUBROUTINE my_subroutine
         MeasInstruction(reg0=Register.from_str("Q1"), reg1=Register.from_str("M6")),
     ]
     expected_args = ["param1", "param2"]
-    assert subrt == IqoalaSubroutine(
+    assert subrt == LocalRoutine(
         name="my_subroutine",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        metadata=RoutineMetadata.free_all([0, 1]),
         return_map={
             "result1": IqoalaSharedMemLoc("M5"),
             "result2": IqoalaSharedMemLoc("M6"),
@@ -243,6 +252,8 @@ def test_parse_multiple_subrt():
 SUBROUTINE subrt1
     params: param1
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set R0 {param1}
@@ -252,13 +263,15 @@ SUBROUTINE subrt1
 SUBROUTINE subrt2
     params: theta
     returns: 
+    uses: 
+    keeps:
     request: 
   NETQASM_START
     set R0 {theta}
   NETQASM_END
     """
 
-    parsed = IQoalaSubroutineParser(text).parse()
+    parsed = LocalRoutineParser(text).parse()
     assert len(parsed) == 2
     assert "subrt1" in parsed
     assert "subrt2" in parsed
@@ -275,16 +288,18 @@ SUBROUTINE subrt2
     ]
     expected_args_2 = ["theta"]
 
-    assert subrt1 == IqoalaSubroutine(
+    assert subrt1 == LocalRoutine(
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs_1, arguments=expected_args_1),
+        metadata=RoutineMetadata.free_all([0]),
         return_map={
             "m": IqoalaSharedMemLoc("M0"),
         },
     )
-    assert subrt2 == IqoalaSubroutine(
+    assert subrt2 == LocalRoutine(
         name="subrt2",
         subrt=Subroutine(instructions=expected_instrs_2, arguments=expected_args_2),
+        metadata=RoutineMetadata.use_none(),
         return_map={},
     )
 
@@ -301,37 +316,44 @@ SUBROUTINE my_subroutine
     """
 
     with pytest.raises(IqoalaParseError):
-        IQoalaSubroutineParser(text).parse()
+        LocalRoutineParser(text).parse()
 
 
 def test_parse_request():
     text = """
 REQUEST req1
-  role: create
+  callback_type: wait_all
+  callback: 
   remote_id: 1
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 5
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 0, 0, 0, 0, 0
+  typ: create_keep
+  role: create
   result_array_addr: 3
     """
 
-    parsed = IQoalaRequestParser(text).parse()
+    parsed = RequestRoutineParser(text).parse()
     assert len(parsed) == 1
     assert "req1" in parsed
-    request = parsed["req1"]
+    routine = parsed["req1"]
 
-    assert request == IqoalaRequest(
+    assert routine == RequestRoutine(
         name="req1",
-        role=EprCreateRole.CREATE,
-        request=NetstackCreateRequest(
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
             remote_id=1,
             epr_socket_id=0,
-            typ=EprCreateType.CREATE_KEEP,
             num_pairs=5,
+            virt_ids=RequestVirtIdMapping.from_str("all 0"),
+            timeout=1000,
             fidelity=0.65,
-            virt_qubit_ids=[0, 0, 0, 0, 0],
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.CREATE,
             result_array_addr=3,
         ),
     )
@@ -340,31 +362,38 @@ REQUEST req1
 def test_parse_request_2():
     text = """
 REQUEST req1
-  role: receive
+  callback_type: sequential
+  callback: subrt1
   remote_id: 1
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: custom 1, 2, 3
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 
-    parsed = IQoalaRequestParser(text).parse()
+    parsed = RequestRoutineParser(text).parse()
     assert len(parsed) == 1
     assert "req1" in parsed
-    request = parsed["req1"]
+    routine = parsed["req1"]
 
-    assert request == IqoalaRequest(
+    assert routine == RequestRoutine(
         name="req1",
-        role=EprCreateRole.RECEIVE,
-        request=NetstackReceiveRequest(
+        callback_type=CallbackType.SEQUENTIAL,
+        callback="subrt1",
+        request=IqoalaRequest(
+            name="req1",
             remote_id=1,
             epr_socket_id=0,
-            typ=EprCreateType.MEASURE_DIRECTLY,
             num_pairs=3,
+            virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
+            timeout=1000,
             fidelity=0.65,
-            virt_qubit_ids=[1, 2, 3],
+            typ=EprType.MEASURE_DIRECTLY,
+            role=EprRole.RECEIVE,
             result_array_addr=0,
         ),
     )
@@ -373,31 +402,38 @@ REQUEST req1
 def test_parse_request_with_template():
     text = """
 REQUEST req1
-  role: receive
+  callback_type: wait_all
+  callback: 
   remote_id: {client_id}
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: custom 1, 2, 3
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 
-    parsed = IQoalaRequestParser(text).parse()
+    parsed = RequestRoutineParser(text).parse()
     assert len(parsed) == 1
     assert "req1" in parsed
-    request = parsed["req1"]
+    routine = parsed["req1"]
 
-    assert request == IqoalaRequest(
+    assert routine == RequestRoutine(
         name="req1",
-        role=EprCreateRole.RECEIVE,
-        request=NetstackReceiveRequest(
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
             remote_id=Template("client_id"),
             epr_socket_id=0,
-            typ=EprCreateType.MEASURE_DIRECTLY,
             num_pairs=3,
+            virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
+            timeout=1000,
             fidelity=0.65,
-            virt_qubit_ids=[1, 2, 3],
+            typ=EprType.MEASURE_DIRECTLY,
+            role=EprRole.RECEIVE,
             result_array_addr=0,
         ),
     )
@@ -406,56 +442,70 @@ REQUEST req1
 def test_parse_multiple_request():
     text = """
 REQUEST req1
-  role: create
+  callback_type: wait_all
+  callback: 
   remote_id: 1
   epr_socket_id: 0
-  typ: create_keep
   num_pairs: 5
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 0, 0, 0, 0, 0
+  typ: create_keep
+  role: create
   result_array_addr: 3
 
 REQUEST req2
-  role: receive
+  callback_type: sequential
+  callback: subrt1
   remote_id: 1
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: increment 1
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 
-    parsed = IQoalaRequestParser(text).parse()
+    parsed = RequestRoutineParser(text).parse()
     assert len(parsed) == 2
     assert "req1" in parsed
     assert "req2" in parsed
-    req1 = parsed["req1"]
-    req2 = parsed["req2"]
+    routine1 = parsed["req1"]
+    routine2 = parsed["req2"]
 
-    assert req1 == IqoalaRequest(
+    assert routine1 == RequestRoutine(
         name="req1",
-        role=EprCreateRole.CREATE,
-        request=NetstackCreateRequest(
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=IqoalaRequest(
+            name="req1",
             remote_id=1,
             epr_socket_id=0,
-            typ=EprCreateType.CREATE_KEEP,
             num_pairs=5,
+            virt_ids=RequestVirtIdMapping.from_str("all 0"),
+            timeout=1000,
             fidelity=0.65,
-            virt_qubit_ids=[0, 0, 0, 0, 0],
+            typ=EprType.CREATE_KEEP,
+            role=EprRole.CREATE,
             result_array_addr=3,
         ),
     )
-    assert req2 == IqoalaRequest(
+    assert routine2 == RequestRoutine(
         name="req2",
-        role=EprCreateRole.RECEIVE,
-        request=NetstackReceiveRequest(
+        callback_type=CallbackType.SEQUENTIAL,
+        callback="subrt1",
+        request=IqoalaRequest(
+            name="req2",
             remote_id=1,
             epr_socket_id=0,
-            typ=EprCreateType.MEASURE_DIRECTLY,
             num_pairs=3,
+            virt_ids=RequestVirtIdMapping.from_str("increment 1"),
+            timeout=1000,
             fidelity=0.65,
-            virt_qubit_ids=[1, 2, 3],
+            typ=EprType.MEASURE_DIRECTLY,
+            role=EprRole.RECEIVE,
             result_array_addr=0,
         ),
     )
@@ -464,20 +514,23 @@ REQUEST req2
 def test_parse_invalid_request():
     text = """
 REQUEST req1
-  role: receive
+  callback_type: wait_all
+  callback: 
   remote_id: 1
   epr_socket_id: 0
-  typ: measure
   num_pairs: 3
+  virt_ids: all 0
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: invalid
+  role: receive
   result_array_addr: 0
     """
 
     # invalid 'typ' value
 
     with pytest.raises(IqoalaParseError):
-        IQoalaRequestParser(text).parse()
+        RequestRoutineParser(text).parse()
 
 
 DEFAULT_META = """
@@ -515,6 +568,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set Q0 0
@@ -526,13 +581,16 @@ SUBROUTINE subrt1
 
     req_text = """
 REQUEST req1
-  role: receive
+  callback_type: wait_all
+  callback: 
   remote_id: 1
   epr_socket_id: 0
-  typ: measure_directly
   num_pairs: 3
+  virt_ids: increment 1
+  timeout: 1000
   fidelity: 0.65
-  virt_qubit_ids: 1, 2, 3
+  typ: measure_directly
+  role: receive
   result_array_addr: 0
     """
 
@@ -543,9 +601,9 @@ REQUEST req1
         req_text=req_text,
     ).parse()
     assert len(parsed_program.instructions) == 8
-    assert "subrt1" in parsed_program.subroutines
-    assert len(parsed_program.requests) == 1
-    assert "req1" in parsed_program.requests
+    assert "subrt1" in parsed_program.local_routines
+    assert len(parsed_program.request_routines) == 1
+    assert "req1" in parsed_program.request_routines
 
 
 def test_parse_program_no_requests():
@@ -573,6 +631,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set Q0 0
@@ -592,8 +652,8 @@ SUBROUTINE subrt1
         req_text=req_text,
     ).parse()
     assert len(parsed_program.instructions) == 8
-    assert "subrt1" in parsed_program.subroutines
-    assert len(parsed_program.requests) == 0
+    assert "subrt1" in parsed_program.local_routines
+    assert len(parsed_program.request_routines) == 0
 
 
 def test_parse_program_no_subroutines():
@@ -629,7 +689,7 @@ return_result(m)
         req_text=req_text,
     ).parse()
     assert len(parsed_program.instructions) == 7
-    assert len(parsed_program.requests) == 0
+    assert len(parsed_program.request_routines) == 0
 
 
 def test_parse_program_invalid_subrt_reference():
@@ -652,6 +712,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 
+    keeps:
     request: 
   NETQASM_START
     set R0 0
@@ -719,6 +781,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: 
     returns: 
+    uses:
+    keeps:
     request: 
   NETQASM_START
     set Q0 0
@@ -727,6 +791,8 @@ SUBROUTINE subrt1
 SUBROUTINE subrt2
     params: 
     returns: 
+    uses:
+    keeps:
     request: 
   NETQASM_START
     set Q7 7
@@ -762,6 +828,8 @@ return_result(m)
 SUBROUTINE subrt1
     params: my_value
     returns: M0 -> m
+    uses: 0
+    keeps:
     request: 
   NETQASM_START
     set Q0 0
@@ -773,40 +841,40 @@ SUBROUTINE subrt1
 
     parsed_program = IqoalaParser(text).parse()
     assert len(parsed_program.instructions) == 8
-    assert "subrt1" in parsed_program.subroutines
+    assert "subrt1" in parsed_program.local_routines
 
 
 def test_parse_file():
-    path = os.path.join(os.path.dirname(__file__), "test_bqc_server.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "bqc_server_source.iqoala")
     with open(path) as file:
         text = file.read()
     parsed_program = IqoalaParser(text).parse()
     assert len(parsed_program.instructions) == 11
-    assert "create_epr_0" in parsed_program.subroutines
-    assert "create_epr_1" in parsed_program.subroutines
-    assert "local_cphase" in parsed_program.subroutines
-    assert "meas_qubit_0" in parsed_program.subroutines
-    assert "meas_qubit_1" in parsed_program.subroutines
-    assert "req0" in parsed_program.requests
-    assert "req1" in parsed_program.requests
-    assert parsed_program.subroutines["create_epr_0"].request_name == "req0"
-    assert parsed_program.subroutines["create_epr_1"].request_name == "req1"
+    assert "create_epr_0" in parsed_program.local_routines
+    assert "create_epr_1" in parsed_program.local_routines
+    assert "local_cphase" in parsed_program.local_routines
+    assert "meas_qubit_0" in parsed_program.local_routines
+    assert "meas_qubit_1" in parsed_program.local_routines
+    assert "req0" in parsed_program.request_routines
+    assert "req1" in parsed_program.request_routines
+    assert parsed_program.local_routines["create_epr_0"].request_name == "req0"
+    assert parsed_program.local_routines["create_epr_1"].request_name == "req1"
 
 
 def test_parse_file_2():
-    path = os.path.join(os.path.dirname(__file__), "test_bqc_client.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "bqc_client_source.iqoala")
     with open(path) as file:
         text = file.read()
     parsed_program = IqoalaParser(text).parse()
     assert len(parsed_program.instructions) == 19
-    assert "create_epr_0" in parsed_program.subroutines
-    assert "post_epr_0" in parsed_program.subroutines
-    assert "create_epr_1" in parsed_program.subroutines
-    assert "post_epr_1" in parsed_program.subroutines
-    assert "req0" in parsed_program.requests
-    assert "req1" in parsed_program.requests
-    assert parsed_program.subroutines["create_epr_0"].request_name == "req0"
-    assert parsed_program.subroutines["create_epr_1"].request_name == "req1"
+    assert "create_epr_0" in parsed_program.local_routines
+    assert "post_epr_0" in parsed_program.local_routines
+    assert "create_epr_1" in parsed_program.local_routines
+    assert "post_epr_1" in parsed_program.local_routines
+    assert "req0" in parsed_program.request_routines
+    assert "req1" in parsed_program.request_routines
+    assert parsed_program.local_routines["create_epr_0"].request_name == "req0"
+    assert parsed_program.local_routines["create_epr_1"].request_name == "req1"
 
 
 if __name__ == "__main__":
