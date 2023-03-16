@@ -33,7 +33,7 @@ class MockQDevice(QDevice):
 
 def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     program = IqoalaProgram(
-        instructions=[], local_routines={}, meta=ProgramMeta.empty("prog")
+        blocks=[], local_routines={}, meta=ProgramMeta.empty("prog")
     )
     instance = ProgramInstance(
         pid=pid,

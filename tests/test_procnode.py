@@ -24,6 +24,8 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.hostlang import (
     AssignCValueOp,
+    BasicBlock,
+    BasicBlockType,
     ClassicalIqoalaOp,
     IqoalaVector,
     ReceiveCMsgOp,
@@ -289,8 +291,10 @@ def create_program(
         req_routines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
+    # TODO: split into proper blocks
+    block = BasicBlock("b0", BasicBlockType.HOST, instrs)
     return IqoalaProgram(
-        instructions=instrs,
+        blocks=[block],
         local_routines=subroutines,
         meta=meta,
         request_routines=req_routines,
@@ -1001,8 +1005,10 @@ META_START
     epr_sockets: 0 -> client
 META_END
 
-remote_id = assign_cval() : {client_id}
-run_subroutine(vec<remote_id>) : subrt1
+^b0 {type = host}:
+    remote_id = assign_cval() : {client_id}
+^b1 {type = LR}:
+    run_subroutine(vec<remote_id>) : subrt1
 
 SUBROUTINE subrt1
     params: remote_id
@@ -1100,8 +1106,10 @@ META_START
     epr_sockets: 0 -> server
 META_END
 
-remote_id = assign_cval() : {server_id}
-run_subroutine(vec<remote_id>) : subrt1
+^b0 {type = host}:
+    remote_id = assign_cval() : {server_id}
+^b1 {type = LR}:
+    run_subroutine(vec<remote_id>) : subrt1
 
 SUBROUTINE subrt1
     params: remote_id

@@ -7,11 +7,13 @@ from netqasm.lang.subroutine import Subroutine
 
 from qoala.lang.hostlang import (
     AssignCValueOp,
+    BasicBlockType,
     IqoalaSharedMemLoc,
     IqoalaVector,
     RunSubroutineOp,
 )
 from qoala.lang.parse import (
+    HostCodeParser,
     IqoalaInstrParser,
     IqoalaMetaParser,
     IqoalaParseError,
@@ -175,6 +177,70 @@ vec<m1; m2> = run_subroutine(vec<x; y>) : subrt1
         result=IqoalaVector(["m1", "m2"]),
         values=IqoalaVector(["x", "y"]),
         subrt="subrt1",
+    )
+
+
+def test_parse_block_header():
+    text = "^b0 {type = host}:"
+
+    name, typ = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.HOST
+
+
+def test_parse_block():
+    text = """
+^b0 {type = host}:
+    x = assign_cval() : 1
+    y = assign_cval() : 17
+    """
+
+    block = HostCodeParser("").parse_block(text)
+    assert block.name == "b0"
+    assert block.typ == BasicBlockType.HOST
+    assert len(block.instructions) == 2
+    assert block.instructions[0] == AssignCValueOp(result="x", value=1)
+    assert block.instructions[1] == AssignCValueOp(result="y", value=17)
+
+
+def test_get_block_texts():
+    text = """
+^b0 {type = host}:
+    x = assign_cval() : 1
+    y = assign_cval() : 17
+
+^b1 {type = LR}:
+    run_subroutine(vec<x>) : subrt1
+    """
+
+    block_texts = HostCodeParser(text).get_block_texts()
+    assert len(block_texts) == 2
+
+
+def test_parse_multiple_blocks():
+    text = """
+^b0 {type = host}:
+    x = assign_cval() : 1
+    y = assign_cval() : 17
+
+^b1 {type = LR}:
+    run_subroutine(vec<x>) : subrt1
+    """
+
+    blocks = HostCodeParser(text).parse()
+    assert len(blocks) == 2
+
+    assert blocks[0].name == "b0"
+    assert blocks[0].typ == BasicBlockType.HOST
+    assert len(blocks[0].instructions) == 2
+    assert blocks[0].instructions[0] == AssignCValueOp(result="x", value=1)
+    assert blocks[0].instructions[1] == AssignCValueOp(result="y", value=17)
+
+    assert blocks[1].name == "b1"
+    assert blocks[1].typ == BasicBlockType.LR
+    assert len(blocks[1].instructions) == 1
+    assert blocks[1].instructions[0] == RunSubroutineOp(
+        result=None, values=IqoalaVector(["x"]), subrt="subrt1"
     )
 
 
@@ -554,14 +620,19 @@ META_END
     """
 
     program_text = """
-my_value = assign_cval() : 1
-remote_id = assign_cval() : 0
-send_cmsg(remote_id, my_value)
-received_value = recv_cmsg(remote_id)
-new_value = assign_cval() : 3
-my_value = add_cval_c(new_value, new_value)
-vec<m> = run_subroutine(vec<my_value>) : subrt1
-return_result(m)
+^b0 {type = host}:
+    my_value = assign_cval() : 1
+    remote_id = assign_cval() : 0
+    send_cmsg(remote_id, my_value)
+    received_value = recv_cmsg(remote_id)
+    new_value = assign_cval() : 3
+    my_value = add_cval_c(new_value, new_value)
+
+^b1 {type = LR}:
+    vec<m> = run_subroutine(vec<my_value>) : subrt1
+
+^b2 {type = host}:
+    return_result(m)
     """
 
     subrt_text = """
@@ -596,10 +667,11 @@ REQUEST req1
 
     parsed_program = IqoalaParser(
         meta_text=meta_text,
-        instr_text=program_text,
+        host_text=program_text,
         subrt_text=subrt_text,
         req_text=req_text,
     ).parse()
+    assert len(parsed_program.blocks) == 3
     assert len(parsed_program.instructions) == 8
     assert "subrt1" in parsed_program.local_routines
     assert len(parsed_program.request_routines) == 1
@@ -617,14 +689,19 @@ META_END
     """
 
     program_text = """
-my_value = assign_cval() : 1
-remote_id = assign_cval() : 0
-send_cmsg(remote_id, my_value)
-received_value = recv_cmsg(remote_id)
-new_value = assign_cval() : 3
-my_value = add_cval_c(new_value, new_value)
-vec<m> = run_subroutine(vec<my_value>) : subrt1
-return_result(m)
+^b0 {type = host}:
+    my_value = assign_cval() : 1
+    remote_id = assign_cval() : 0
+    send_cmsg(remote_id, my_value)
+    received_value = recv_cmsg(remote_id)
+    new_value = assign_cval() : 3
+    my_value = add_cval_c(new_value, new_value)
+
+^b1 {type = LR}:
+    vec<m> = run_subroutine(vec<my_value>) : subrt1
+
+^b1 {type = host}:
+    return_result(m)
     """
 
     subrt_text = """
@@ -647,10 +724,11 @@ SUBROUTINE subrt1
 
     parsed_program = IqoalaParser(
         meta_text=meta_text,
-        instr_text=program_text,
+        host_text=program_text,
         subrt_text=subrt_text,
         req_text=req_text,
     ).parse()
+    assert len(parsed_program.blocks) == 3
     assert len(parsed_program.instructions) == 8
     assert "subrt1" in parsed_program.local_routines
     assert len(parsed_program.request_routines) == 0
@@ -667,13 +745,14 @@ META_END
     """
 
     program_text = """
-my_value = assign_cval() : 1
-remote_id = assign_cval() : 0
-send_cmsg(remote_id, my_value)
-received_value = recv_cmsg(remote_id)
-new_value = assign_cval() : 3
-m = add_cval_c(new_value, new_value)
-return_result(m)
+^b0 {type = host}:
+    my_value = assign_cval() : 1
+    remote_id = assign_cval() : 0
+    send_cmsg(remote_id, my_value)
+    received_value = recv_cmsg(remote_id)
+    new_value = assign_cval() : 3
+    m = add_cval_c(new_value, new_value)
+    return_result(m)
     """
 
     subrt_text = """
@@ -684,10 +763,11 @@ return_result(m)
 
     parsed_program = IqoalaParser(
         meta_text=meta_text,
-        instr_text=program_text,
+        host_text=program_text,
         subrt_text=subrt_text,
         req_text=req_text,
     ).parse()
+    assert len(parsed_program.blocks) == 1
     assert len(parsed_program.instructions) == 7
     assert len(parsed_program.request_routines) == 0
 
@@ -703,9 +783,12 @@ META_END
     """
 
     program_text = """
-my_value = assign_cval() : 1
-vec<m> = run_subroutine(vec<my_value>) : non_existing_subrt
-return_result(m)
+^b0 {type = host}:
+    my_value = assign_cval() : 1
+^b1 {type = LR}:
+    vec<m> = run_subroutine(vec<my_value>) : non_existing_subrt
+^b2 {type = host}:
+    return_result(m)
     """
 
     subrt_text = """
@@ -723,7 +806,7 @@ SUBROUTINE subrt1
     with pytest.raises(IqoalaParseError):
         IqoalaParser(
             meta_text=meta_text,
-            instr_text=program_text,
+            host_text=program_text,
             subrt_text=subrt_text,
             req_text="",
         ).parse()
@@ -739,9 +822,10 @@ epr_sockets:
 META_END
     """
 
-    instr_text = """
-m = assign_cval() : 1
-return_result(m)
+    host_text = """
+^b0 {type = host}:
+    m = assign_cval() : 1
+    return_result(m)
     """
 
     subrt_text = """
@@ -754,11 +838,11 @@ SUBROUTINE subrt1
   NETQASM_END
     """
 
-    text = meta_text + instr_text + subrt_text
+    text = meta_text + host_text + subrt_text
     parser = IqoalaParser(text)
 
     assert text_equal(parser._meta_text, meta_text)
-    assert text_equal(parser._instr_text, instr_text)
+    assert text_equal(parser._host_text, host_text)
     assert text_equal(parser._subrt_text, subrt_text)
 
 
@@ -772,9 +856,10 @@ epr_sockets:
 META_END
     """
 
-    instr_text = """
-m = assign_cval() : 1
-return_result(m)
+    host_text = """
+^b0 {type = host}:
+    m = assign_cval() : 1
+    return_result(m)
     """
 
     subrt_text = """
@@ -799,11 +884,11 @@ SUBROUTINE subrt2
   NETQASM_END
     """
 
-    text = meta_text + instr_text + subrt_text
+    text = meta_text + host_text + subrt_text
     parser = IqoalaParser(text)
 
     assert text_equal(parser._meta_text, meta_text)
-    assert text_equal(parser._instr_text, instr_text)
+    assert text_equal(parser._host_text, host_text)
     assert text_equal(parser._subrt_text, subrt_text)
 
 
@@ -816,14 +901,17 @@ csockets: 0 -> bob
 epr_sockets: 
 META_END
 
-my_value = assign_cval() : 1
-remote_id = assign_cval() : 0
-send_cmsg(remote_id, my_value)
-received_value = recv_cmsg(remote_id)
-new_value = assign_cval() : 3
-my_value = add_cval_c(new_value, new_value)
-vec<m> = run_subroutine(vec<my_value>) : subrt1
-return_result(m)
+^b0 {type = host}:
+    my_value = assign_cval() : 1
+    remote_id = assign_cval() : 0
+    send_cmsg(remote_id, my_value)
+    received_value = recv_cmsg(remote_id)
+    new_value = assign_cval() : 3
+    my_value = add_cval_c(new_value, new_value)
+^b1 {type = LR}:
+    vec<m> = run_subroutine(vec<my_value>) : subrt1
+^b2 {type = host}:
+    return_result(m)
 
 SUBROUTINE subrt1
     params: my_value
@@ -840,6 +928,7 @@ SUBROUTINE subrt1
     """
 
     parsed_program = IqoalaParser(text).parse()
+    assert len(parsed_program.blocks) == 3
     assert len(parsed_program.instructions) == 8
     assert "subrt1" in parsed_program.local_routines
 
@@ -849,6 +938,7 @@ def test_parse_file():
     with open(path) as file:
         text = file.read()
     parsed_program = IqoalaParser(text).parse()
+    assert len(parsed_program.blocks) == 9
     assert len(parsed_program.instructions) == 11
     assert "create_epr_0" in parsed_program.local_routines
     assert "create_epr_1" in parsed_program.local_routines
@@ -866,6 +956,7 @@ def test_parse_file_2():
     with open(path) as file:
         text = file.read()
     parsed_program = IqoalaParser(text).parse()
+    assert len(parsed_program.blocks) == 6
     assert len(parsed_program.instructions) == 19
     assert "create_epr_0" in parsed_program.local_routines
     assert "post_epr_0" in parsed_program.local_routines
@@ -889,6 +980,10 @@ if __name__ == "__main__":
     test_parse_vec_2_elements()
     test_parse_vec_2_elements_and_return()
     test_parse_vec_2_elements_and_return_2_elements()
+    test_parse_block_header()
+    test_parse_block()
+    test_get_block_texts()
+    test_parse_multiple_blocks()
     test_parse_subrt()
     test_parse_subrt_2()
     test_parse_multiple_subrt()

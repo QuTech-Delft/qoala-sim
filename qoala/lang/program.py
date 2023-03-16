@@ -3,14 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from netqasm.lang.instr import NetQASMInstruction
-
-from qoala.lang.hostlang import (
-    ClassicalIqoalaOp,
-    IqoalaInstructionSignature,
-    IqoalaInstructionType,
-    RunSubroutineOp,
-)
+from qoala.lang.hostlang import BasicBlock, ClassicalIqoalaOp
 from qoala.lang.request import IqoalaRequest, RequestRoutine
 from qoala.lang.routine import LocalRoutine
 
@@ -36,30 +29,15 @@ class ProgramMeta:
         return s
 
 
-class StaticIqoalaProgramInfo:
-    pass
-
-
-class DynamicIqoalaProgramInfo:
-    pass
-
-
-def netqasm_instr_to_type(instr: NetQASMInstruction) -> IqoalaInstructionType:
-    if instr.mnemonic in ["create_epr", "recv_epr"]:
-        return IqoalaInstructionType.QC
-    else:
-        return IqoalaInstructionType.QL
-
-
 class IqoalaProgram:
     def __init__(
         self,
-        instructions: List[ClassicalIqoalaOp],
-        local_routines: Dict[str, LocalRoutine],
         meta: ProgramMeta,
+        blocks: List[BasicBlock],
+        local_routines: Optional[Dict[str, LocalRoutine]] = None,
         request_routines: Optional[Dict[str, RequestRoutine]] = None,
     ) -> None:
-        self._instructions: List[ClassicalIqoalaOp] = instructions
+        self._blocks: List[BasicBlock] = blocks
         self._local_routines: Dict[str, LocalRoutine] = local_routines
         self._meta: ProgramMeta = meta
 
@@ -73,25 +51,19 @@ class IqoalaProgram:
         return self._meta
 
     @property
+    def blocks(self) -> List[BasicBlock]:
+        return self._blocks
+
+    @blocks.setter
+    def blocks(self, new_blocks) -> None:
+        self._blocks = new_blocks
+
+    @property
     def instructions(self) -> List[ClassicalIqoalaOp]:
-        return self._instructions
-
-    @instructions.setter
-    def instructions(self, new_instrs) -> None:
-        self._instructions = new_instrs
-
-    def get_instr_signatures(self) -> List[IqoalaInstructionSignature]:
-        sigs: List[IqoalaInstructionSignature] = []
-        for instr in self.instructions:
-            if isinstance(instr, RunSubroutineOp):
-                subrt = instr.subroutine
-                for nq_instr in subrt.subroutine.instructions:
-                    typ = netqasm_instr_to_type(nq_instr)
-                    # TODO: add duration
-                    sigs.append(IqoalaInstructionSignature(typ))
-            else:
-                sigs.append(IqoalaInstructionSignature(instr.TYP))
-        return sigs
+        instrs = []
+        for b in self.blocks:
+            instrs.extend(b.instructions)
+        return instrs
 
     @property
     def local_routines(self) -> Dict[str, LocalRoutine]:
@@ -110,22 +82,16 @@ class IqoalaProgram:
         self._request_routines = new_routines
 
     def __str__(self) -> str:
-        # self.me
-        # instrs = [
-        #     f"{str(i)}\n{self.subroutines[i.arguments[0]]}"  # inline subroutine contents
-        #     if isinstance(i, RunSubroutineOp)
-        #     else str(i)
-        #     for i in self.instructions
-        # ]
-
-        # return "\n".join("  " + i for i in instrs)
         return "\n".join("  " + str(i) for i in self.instructions)
 
     def serialize_meta(self) -> str:
         return self.meta.serialize()
 
-    def serialize_instructions(self) -> str:
-        return "\n".join("  " + str(i) for i in self.instructions)
+    def serialize_block(self, block: BasicBlock) -> str:
+        return str(block)
+
+    def serialize_host_code(self) -> str:
+        return "\n\n".join(self.serialize_block(b) for b in self.blocks)
 
     def serialize_subroutines(self) -> str:
         return "\n".join(s.serialize() for s in self.local_routines.values())
@@ -134,7 +100,7 @@ class IqoalaProgram:
         return (
             self.meta.serialize()
             + "\n"
-            + self.serialize_instructions()
+            + self.serialize_host_code()
             + "\n"
             + self.serialize_subroutines()
         )

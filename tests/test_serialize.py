@@ -6,6 +6,8 @@ from netqasm.lang.subroutine import Subroutine
 from qoala.lang.hostlang import (
     AddCValueOp,
     AssignCValueOp,
+    BasicBlock,
+    BasicBlockType,
     IqoalaSharedMemLoc,
     IqoalaVector,
     ReceiveCMsgOp,
@@ -51,32 +53,50 @@ META_END
     assert text_equal(meta.serialize(), expected)
 
 
-def test_serialize_instructions_1():
+def test_serialize_host_code_1():
     expected = """
-my_value = assign_cval() : 1
-remote_id = assign_cval() : 0
-send_cmsg(remote_id, my_value)
-received_value = recv_cmsg(remote_id)
-new_value = assign_cval() : 3
-my_value = add_cval_c(new_value, new_value)
-vec<m> = run_subroutine(vec<my_value>) : subrt1
-return_result(m)
+^b0 {type = HOST}:
+    my_value = assign_cval() : 1
+    remote_id = assign_cval() : 0
+    send_cmsg(remote_id, my_value)
+    received_value = recv_cmsg(remote_id)
+    new_value = assign_cval() : 3
+    my_value = add_cval_c(new_value, new_value)
+^b1 {type = LR}:
+    vec<m> = run_subroutine(vec<my_value>) : subrt1
+^b2 {type = HOST}:
+    return_result(m)
     """
 
-    instructions = [
-        AssignCValueOp("my_value", 1),
-        AssignCValueOp("remote_id", 0),
-        SendCMsgOp("remote_id", "my_value"),
-        ReceiveCMsgOp("remote_id", "received_value"),
-        AssignCValueOp("new_value", 3),
-        AddCValueOp("my_value", "new_value", "new_value"),
-        RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
-        ReturnResultOp("m"),
-    ]
-    program = IqoalaProgram(
-        instructions=instructions, local_routines={}, meta=ProgramMeta.empty("alice")
+    b0 = BasicBlock(
+        "b0",
+        BasicBlockType.HOST,
+        instructions=[
+            AssignCValueOp("my_value", 1),
+            AssignCValueOp("remote_id", 0),
+            SendCMsgOp("remote_id", "my_value"),
+            ReceiveCMsgOp("remote_id", "received_value"),
+            AssignCValueOp("new_value", 3),
+            AddCValueOp("my_value", "new_value", "new_value"),
+        ],
     )
-    assert text_equal(program.serialize_instructions(), expected)
+    b1 = BasicBlock(
+        "b1",
+        BasicBlockType.LR,
+        instructions=[
+            RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
+        ],
+    )
+    b2 = BasicBlock(
+        "b2",
+        BasicBlockType.HOST,
+        instructions=[
+            ReturnResultOp("m"),
+        ],
+    )
+
+    program = IqoalaProgram(meta=ProgramMeta.empty("alice"), blocks=[b0, b1, b2])
+    assert text_equal(program.serialize_host_code(), expected)
 
 
 def test_serialize_subroutines_1():
@@ -111,9 +131,9 @@ SUBROUTINE subrt1
         metadata=RoutineMetadata.free_all([0]),
     )
     program = IqoalaProgram(
-        instructions=[],
-        local_routines={"subrt1": subrt},
         meta=ProgramMeta.empty("alice"),
+        blocks=[],
+        local_routines={"subrt1": subrt},
     )
     assert text_equal(program.serialize_subroutines(), expected)
 
@@ -167,9 +187,9 @@ SUBROUTINE subrt2
         metadata=RoutineMetadata.use_none(),
     )
     program = IqoalaProgram(
-        instructions=[],
-        local_routines={"subrt1": subrt1, "subrt2": subrt2},
         meta=ProgramMeta.empty("alice"),
+        blocks=[],
+        local_routines={"subrt1": subrt1, "subrt2": subrt2},
     )
     assert text_equal(program.serialize_subroutines(), expected)
 
@@ -183,14 +203,17 @@ csockets: 0 -> bob
 epr_sockets: 
 META_END
 
-my_value = assign_cval() : 1
-remote_id = assign_cval() : 0
-send_cmsg(remote_id, my_value)
-received_value = recv_cmsg(remote_id)
-new_value = assign_cval() : 3
-my_value = add_cval_c(new_value, new_value)
-vec<m> = run_subroutine(vec<my_value>) : subrt1
-return_result(m)
+^b0 {type = HOST}:
+    my_value = assign_cval() : 1
+    remote_id = assign_cval() : 0
+    send_cmsg(remote_id, my_value)
+    received_value = recv_cmsg(remote_id)
+    new_value = assign_cval() : 3
+    my_value = add_cval_c(new_value, new_value)
+^b1 {type = LR}:
+    vec<m> = run_subroutine(vec<my_value>) : subrt1
+^b2 {type = HOST}:
+    return_result(m)
 
 SUBROUTINE subrt1
     params: my_value
@@ -206,16 +229,21 @@ SUBROUTINE subrt1
     """
 
     meta = ProgramMeta(name="alice", parameters=[], csockets={0: "bob"}, epr_sockets={})
-    instructions = [
+    b0_instructions = [
         AssignCValueOp("my_value", 1),
         AssignCValueOp("remote_id", 0),
         SendCMsgOp("remote_id", "my_value"),
         ReceiveCMsgOp("remote_id", "received_value"),
         AssignCValueOp("new_value", 3),
         AddCValueOp("my_value", "new_value", "new_value"),
-        RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
-        ReturnResultOp("m"),
     ]
+    b1_instructions = [
+        RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1")
+    ]
+    b2_instructions = [ReturnResultOp("m")]
+    b0 = BasicBlock("b0", BasicBlockType.HOST, b0_instructions)
+    b1 = BasicBlock("b1", BasicBlockType.LR, b1_instructions)
+    b2 = BasicBlock("b2", BasicBlockType.HOST, b2_instructions)
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
     subrt = LocalRoutine(
@@ -234,7 +262,7 @@ SUBROUTINE subrt1
     )
 
     program = IqoalaProgram(
-        instructions=instructions, local_routines={"subrt1": subrt}, meta=meta
+        meta=meta, blocks=[b0, b1, b2], local_routines={"subrt1": subrt}
     )
 
     assert text_equal(program.serialize(), expected)
@@ -243,7 +271,7 @@ SUBROUTINE subrt1
 if __name__ == "__main__":
     test_serialize_meta_1()
     test_serialize_meta_2()
-    test_serialize_instructions_1()
+    test_serialize_host_code_1()
     test_serialize_subroutines_1()
     test_serialize_subroutines_2()
     test_serialize_program()

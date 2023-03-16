@@ -285,3 +285,25 @@ class ReturnResultOp(ClassicalIqoalaOp):
         assert len(args) == 1
         assert attr is None
         return cls(args[0])
+
+
+class BasicBlockType(Enum):
+    HOST = 0
+    LR = auto()
+    RR = auto()
+
+
+@dataclass
+class BasicBlockAnnotations:
+    deadline: int
+
+
+@dataclass
+class BasicBlock:
+    name: str
+    typ: BasicBlockType
+    instructions: List[ClassicalIqoalaOp]
+
+    def __str__(self) -> str:
+        s = f"^{self.name} {{type = {self.typ.name}}}:\n"
+        return s + "\n".join("    " + str(i) for i in self.instructions)
