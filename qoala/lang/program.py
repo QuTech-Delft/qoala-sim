@@ -3,14 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from netqasm.lang.instr import NetQASMInstruction
-
-from qoala.lang.hostlang import (
-    ClassicalIqoalaOp,
-    IqoalaInstructionSignature,
-    IqoalaInstructionType,
-    RunSubroutineOp,
-)
+from qoala.lang.hostlang import ClassicalIqoalaOp
 from qoala.lang.request import IqoalaRequest, RequestRoutine
 from qoala.lang.routine import LocalRoutine
 
@@ -34,21 +27,6 @@ class ProgramMeta:
         s += f"\nepr_sockets: {', '.join(f'{k} -> {v}' for k,v in self.epr_sockets.items())}"
         s += "\nMETA_END"
         return s
-
-
-class StaticIqoalaProgramInfo:
-    pass
-
-
-class DynamicIqoalaProgramInfo:
-    pass
-
-
-def netqasm_instr_to_type(instr: NetQASMInstruction) -> IqoalaInstructionType:
-    if instr.mnemonic in ["create_epr", "recv_epr"]:
-        return IqoalaInstructionType.QC
-    else:
-        return IqoalaInstructionType.QL
 
 
 class IqoalaProgram:
@@ -80,19 +58,6 @@ class IqoalaProgram:
     def instructions(self, new_instrs) -> None:
         self._instructions = new_instrs
 
-    def get_instr_signatures(self) -> List[IqoalaInstructionSignature]:
-        sigs: List[IqoalaInstructionSignature] = []
-        for instr in self.instructions:
-            if isinstance(instr, RunSubroutineOp):
-                subrt = instr.subroutine
-                for nq_instr in subrt.subroutine.instructions:
-                    typ = netqasm_instr_to_type(nq_instr)
-                    # TODO: add duration
-                    sigs.append(IqoalaInstructionSignature(typ))
-            else:
-                sigs.append(IqoalaInstructionSignature(instr.TYP))
-        return sigs
-
     @property
     def local_routines(self) -> Dict[str, LocalRoutine]:
         return self._local_routines
@@ -110,15 +75,6 @@ class IqoalaProgram:
         self._request_routines = new_routines
 
     def __str__(self) -> str:
-        # self.me
-        # instrs = [
-        #     f"{str(i)}\n{self.subroutines[i.arguments[0]]}"  # inline subroutine contents
-        #     if isinstance(i, RunSubroutineOp)
-        #     else str(i)
-        #     for i in self.instructions
-        # ]
-
-        # return "\n".join("  " + i for i in instrs)
         return "\n".join("  " + str(i) for i in self.instructions)
 
     def serialize_meta(self) -> str:
