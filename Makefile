@@ -37,13 +37,11 @@ lint-flake8:
 	$(info Running flake8...)
 	@$(PYTHON3) -m flake8 ${SOURCEDIR} ${TESTDIR} ${EXAMPLEDIR}
 
-lint-mypy:
-	$(info Running mypy...)
-	@$(PYTHON3) -m mypy ${SOURCEDIR} ${TESTDIR}
 
-# TODO: run lint-mypy again
-# lint: lint-black lint-flake8 lint-mypy
 lint: lint-isort lint-black lint-flake8
+
+mypy:
+	@$(PYTHON3) -m mypy ${SOURCEDIR}
 
 all-tests:
 	coverage run -m pytest tests
@@ -69,7 +67,7 @@ install: _check_variables
 install-dev: _check_variables
 	@$(PYTHON3) -m pip install -e .[dev] ${PIP_FLAGS}
 
-verify: clean lint all-tests examples _verified
+verify: clean lint all-tests examples mypy _verified
 
 _verified:
 	@echo "Everything works!"

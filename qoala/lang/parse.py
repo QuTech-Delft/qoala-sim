@@ -88,9 +88,9 @@ class IqoalaMetaParser:
         values = split[1].split(",")
         return [v.strip() for v in values]
 
-    def _parse_meta_mapping(self, value_str: str) -> Dict[int, str]:
+    def _parse_meta_mapping(self, values: List[str]) -> Dict[int, str]:
         result_dict = {}
-        for v in value_str:
+        for v in values:
             key_value = [x.strip() for x in v.split("->")]
             assert len(key_value) == 2
             result_dict[int(key_value[0].strip())] = key_value[1].strip()
@@ -193,7 +193,7 @@ class IqoalaInstrParser:
 
         # print(f"result = {result}, op = {op}, args = {args}, attr = {attr}")
 
-        lhr_op = LHR_OP_NAMES[op].from_generic_args(result, args, attr)
+        lhr_op = LHR_OP_NAMES[op].from_generic_args(result, args, attr)  # type: ignore
         return lhr_op
 
     def parse(self) -> List[ClassicalIqoalaOp]:
@@ -301,10 +301,10 @@ class LocalRoutineParser:
         return [v.strip() for v in values]
 
     def _parse_nqasm_return_mapping(
-        self, value_str: str
+        self, values: List[str]
     ) -> Dict[str, IqoalaSharedMemLoc]:
         result_dict = {}
-        for v in value_str:
+        for v in values:
             key_value = [x.strip() for x in v.split("->")]
             assert len(key_value) == 2
             result_dict[key_value[1]] = IqoalaSharedMemLoc(key_value[0])
@@ -414,13 +414,13 @@ class RequestRoutineParser:
         assert len(strings) == 1
         return strings[0]
 
-    def _parse_int_list_value(self, key: str, line: str) -> int:
+    def _parse_int_list_value(self, key: str, line: str) -> List[int]:
         strings = self._parse_request_line(key, line)
         return [int(s) for s in strings]
 
     def _parse_single_float_value(
         self, key: str, line: str, allow_template: bool = False
-    ) -> int:
+    ) -> Union[float, Template]:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise IqoalaParseError
@@ -431,7 +431,7 @@ class RequestRoutineParser:
                 return Template(value)
         return float(value)
 
-    def _parse_epr_create_role_value(self, key: str, line: str) -> int:
+    def _parse_epr_create_role_value(self, key: str, line: str) -> EprRole:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise IqoalaParseError
@@ -440,7 +440,7 @@ class RequestRoutineParser:
         except KeyError:
             raise IqoalaParseError
 
-    def _parse_epr_create_type_value(self, key: str, line: str) -> int:
+    def _parse_epr_create_type_value(self, key: str, line: str) -> EprType:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise IqoalaParseError
@@ -506,7 +506,7 @@ class RequestRoutineParser:
         return RequestRoutine(name, request, callback_type, callback)
 
     def parse(self) -> Dict[str, RequestRoutine]:
-        requests: Dict[str, IqoalaRequest] = {}
+        requests: Dict[str, RequestRoutine] = {}
         try:
             while True:
                 request = self._parse_request()

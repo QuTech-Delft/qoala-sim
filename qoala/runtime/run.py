@@ -4,7 +4,8 @@ from typing import Any, Dict, List
 
 import netsquid as ns
 
-from qoala.runtime.config import ProcNodeNetworkConfig
+# Ignore type since whole 'config' module is ignored by mypy
+from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.context import SimulationContext
 from qoala.runtime.environment import GlobalEnvironment
 from qoala.runtime.program import ProgramInstance

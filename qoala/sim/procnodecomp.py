@@ -104,15 +104,15 @@ class ProcNodeComponent(Node):
 
     @property
     def host_comp(self) -> HostComponent:
-        return self.subcomponents["host"]
+        return self.subcomponents["host"]  # type: ignore
 
     @property
     def qnos_comp(self) -> QnosComponent:
-        return self.subcomponents["qnos"]
+        return self.subcomponents["qnos"]  # type: ignore
 
     @property
     def netstack_comp(self) -> NetstackComponent:
-        return self.subcomponents["netstack"]
+        return self.subcomponents["netstack"]  # type: ignore
 
     @property
     def qprocessor(self) -> QuantumProcessor:

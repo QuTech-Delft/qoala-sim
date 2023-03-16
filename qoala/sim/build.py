@@ -36,7 +36,8 @@ from netsquid_magic.magic_distributor import (
 )
 from netsquid_physlayer.heralded_connection import MiddleHeraldedConnection
 
-from qoala.runtime.config import (
+# Ignore type since whole 'config' module is ignored by mypy
+from qoala.runtime.config import (  # type: ignore
     DepolariseLinkConfig,
     GenericQDeviceConfig,
     HeraldedLinkConfig,
@@ -309,9 +310,12 @@ def build_procnode(cfg: ProcNodeConfig, global_env: GlobalEnvironment) -> ProcNo
         node_id=cfg.node_id,
     )
 
-    procnode.qnos.processor.instr_latency = cfg.latencies.qnos_instr_time
-    procnode.host.processor.instr_latency = cfg.latencies.host_instr_time
-    procnode.host.processor.receive_latency = cfg.latencies.host_peer_latency
+    # TODO: refactor this hack
+    procnode.qnos.processor._latencies.qnos_instr_time = cfg.latencies.qnos_instr_time
+    procnode.host.processor._latencies.host_instr_time = cfg.latencies.host_instr_time
+    procnode.host.processor._latencies.host_peer_latency = (
+        cfg.latencies.host_peer_latency
+    )
     return procnode
 
 

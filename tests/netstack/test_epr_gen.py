@@ -30,7 +30,7 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
-from qoala.lang.request import EprType
+from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
 from qoala.runtime.environment import (
     GlobalEnvironment,
     GlobalNodeInfo,
@@ -58,7 +58,6 @@ from qoala.sim.netstack import (
 )
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.tests import has_multi_state
 
 
@@ -208,26 +207,32 @@ def create_egp_protocols(
     return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
 
 
-def create_netstack_create_request(remote_id: int) -> NetstackCreateRequest:
-    return NetstackCreateRequest(
+def make_create_request(remote_id: int) -> IqoalaRequest:
+    return IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=1,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=0.75,
-        virt_qubit_ids=[0],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=0,
     )
 
 
-def create_netstack_receive_request(remote_id: int) -> NetstackReceiveRequest:
-    return NetstackReceiveRequest(
+def make_receive_request(remote_id: int) -> IqoalaRequest:
+    return IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=1,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=0.75,
-        virt_qubit_ids=[0],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.RECEIVE,
         result_array_addr=0,
     )
 
@@ -250,22 +255,28 @@ def test_single_pair():
     fidelity = 0.75
     result_array_addr = 0
 
-    alice_request = NetstackCreateRequest(
+    alice_request = IqoalaRequest(
+        name="req",
         remote_id=bob_node.ID,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 1"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[1],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=result_array_addr,
     )
-    bob_request = NetstackReceiveRequest(
+    bob_request = IqoalaRequest(
+        name="req",
         remote_id=alice_node.ID,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 1"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[1],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.RECEIVE,
         result_array_addr=result_array_addr,
     )
 
@@ -344,22 +355,29 @@ def test_handle_ck_request():
     fidelity = 0.75
     result_array_addr = 0
 
-    alice_request = NetstackCreateRequest(
+    alice_request = IqoalaRequest(
+        name="req",
         remote_id=bob_node.ID,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=result_array_addr,
     )
-    bob_request = NetstackReceiveRequest(
+
+    bob_request = IqoalaRequest(
+        name="req",
         remote_id=alice_node.ID,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.RECEIVE,
         result_array_addr=result_array_addr,
     )
 
@@ -466,12 +484,12 @@ def test_two_requests():
     result_array_addr = 0
 
     alice_requests = {
-        0: create_netstack_create_request(remote_id=bob_node.ID),
-        1: create_netstack_create_request(remote_id=bob_node.ID),
+        0: make_create_request(remote_id=bob_node.ID),
+        1: make_create_request(remote_id=bob_node.ID),
     }
     bob_requests = {
-        0: create_netstack_receive_request(remote_id=alice_node.ID),
-        1: create_netstack_receive_request(remote_id=alice_node.ID),
+        0: make_receive_request(remote_id=alice_node.ID),
+        1: make_receive_request(remote_id=alice_node.ID),
     }
 
     alice_memmgr = alice_processor._interface.memmgr
@@ -601,12 +619,12 @@ def test_handle_request():
     result_array_addr = 0
 
     alice_requests = {
-        0: create_netstack_create_request(remote_id=bob_node.ID),
-        1: create_netstack_create_request(remote_id=bob_node.ID),
+        0: make_create_request(remote_id=bob_node.ID),
+        1: make_create_request(remote_id=bob_node.ID),
     }
     bob_requests = {
-        0: create_netstack_receive_request(remote_id=alice_node.ID),
-        1: create_netstack_receive_request(remote_id=alice_node.ID),
+        0: make_receive_request(remote_id=alice_node.ID),
+        1: make_receive_request(remote_id=alice_node.ID),
     }
 
     alice_memmgr = alice_processor._interface.memmgr
@@ -739,10 +757,10 @@ def test_4_with_latencies():
     bob_node = bob_processor._interface._comp.node
 
     alice_requests = {
-        0: create_netstack_create_request(remote_id=bob_node.ID),
+        0: make_create_request(remote_id=bob_node.ID),
     }
     bob_requests = {
-        0: create_netstack_receive_request(remote_id=alice_node.ID),
+        0: make_receive_request(remote_id=alice_node.ID),
     }
 
     alice_memmgr = alice_processor._interface.memmgr

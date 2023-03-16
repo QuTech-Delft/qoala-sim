@@ -153,7 +153,7 @@ class ProcNode(Protocol):
         return self._qdevice
 
     @qdevice.setter
-    def qdevice(self, qdevice) -> QDevice:
+    def qdevice(self, qdevice) -> None:
         self._qdevice = qdevice
         self.qnos.qdevice = qdevice
         self.netstack.qdevice = qdevice

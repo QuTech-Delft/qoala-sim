@@ -155,7 +155,7 @@ class SchedulerInput:
     global_schedule: List[int]
     timeslot_len: int
     num_programs: int
-    deadlines: List[int]
+    deadlines: List[float]
     num_executions: List[int]
     num_instructions: List[int]
     instr_durations: List[List[int]]

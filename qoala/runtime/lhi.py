@@ -91,7 +91,7 @@ class LhiQubitInfo:
 @dataclass
 class LhiGateInfo:
     instruction: Type[NetSquidInstruction]
-    duration: int  # ns
+    duration: float  # ns
     error_model: Type[QuantumErrorModel]
     error_model_kwargs: Dict[str, Any]
 
@@ -186,7 +186,10 @@ class LhiTopologyBuilder:
 
     @classmethod
     def depolar_gates(
-        cls, duration: int, instructions: List[NetSquidInstruction], depolar_rate: float
+        cls,
+        duration: float,
+        instructions: List[NetSquidInstruction],
+        depolar_rate: float,
     ) -> List[LhiGateInfo]:
         return [
             LhiGateInfo(
@@ -200,7 +203,7 @@ class LhiTopologyBuilder:
 
     @classmethod
     def perfect_gates(
-        cls, duration: int, instructions: List[NetSquidInstruction]
+        cls, duration: float, instructions: List[NetSquidInstruction]
     ) -> List[LhiGateInfo]:
         return cls.depolar_gates(
             duration=duration, instructions=instructions, depolar_rate=0
@@ -232,9 +235,9 @@ class LhiTopologyBuilder:
         cls,
         num_qubits,
         single_instructions: List[NetSquidInstruction],
-        single_duration: int,
+        single_duration: float,
         two_instructions: List[NetSquidInstruction],
-        two_duration: int,
+        two_duration: float,
     ) -> LhiTopology:
         return cls.fully_uniform(
             num_qubits=num_qubits,
@@ -266,11 +269,11 @@ class LhiTopologyBuilder:
         cls,
         num_qubits: int,
         comm_instructions: List[NetSquidInstruction],
-        comm_duration: int,
+        comm_duration: float,
         mem_instructions: List[NetSquidInstruction],
-        mem_duration: int,
+        mem_duration: float,
         two_instructions: List[NetSquidInstruction],
-        two_duration: int,
+        two_duration: float,
     ) -> LhiTopology:
         comm_qubit_info = cls.perfect_qubit(is_communication=True)
         mem_qubit_info = cls.perfect_qubit(is_communication=False)
@@ -301,13 +304,13 @@ class LhiTopologyBuilder:
         mem_t1: float,
         mem_t2: float,
         comm_instructions: List[NetSquidInstruction],
-        comm_duration: int,
+        comm_duration: float,
         comm_instr_depolar_rate: float,
         mem_instructions: List[NetSquidInstruction],
-        mem_duration: int,
+        mem_duration: float,
         mem_instr_depolar_rate: float,
         two_instructions: List[NetSquidInstruction],
-        two_duration: int,
+        two_duration: float,
         two_instr_depolar_rate: float,
     ) -> LhiTopology:
         comm_qubit_info = cls.t1t2_qubit(is_communication=True, t1=comm_t1, t2=comm_t2)

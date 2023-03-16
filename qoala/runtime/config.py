@@ -1,3 +1,5 @@
+# type: ignore
+
 from __future__ import annotations
 
 from abc import ABC, abstractclassmethod, abstractmethod
