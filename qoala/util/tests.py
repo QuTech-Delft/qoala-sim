@@ -72,20 +72,22 @@ def text_equal(text1, text2) -> bool:
 
 
 def has_state(qubit: Qubit, state: np.ndarray, margin: float = 0.001) -> bool:
-    return abs(1.0 - qubitapi.fidelity(qubit, state, squared=True)) < margin
+    dist: float = abs(1.0 - qubitapi.fidelity(qubit, state, squared=True))
+    return dist < margin
 
 
 def has_multi_state(
     qubits: List[Qubit], state: np.ndarray, margin: float = 0.001
 ) -> bool:
-    return abs(1.0 - qubitapi.fidelity(qubits, state, squared=True)) < margin
+    dist: float = abs(1.0 - qubitapi.fidelity(qubits, state, squared=True))
+    return dist < margin
 
 
 def density_matrices_equal(
     state1: np.ndarray, state2: np.ndarray, margin: float = 0.001
 ) -> bool:
-    distance = 0.5 * np.linalg.norm(state1 - state2, 1)
-    return abs(distance) < margin
+    distance: float = abs(0.5 * np.linalg.norm(state1 - state2, 1))  # type: ignore
+    return distance < margin
 
 
 def has_max_mixed_state(qubit: Qubit, margin: float = 0.001) -> bool:

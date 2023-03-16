@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import netsquid as ns
-from netqasm.lang.instr.core import CreateEPRInstruction, RecvEPRInstruction
 from netsquid.components import QuantumProcessor
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
@@ -127,37 +126,6 @@ def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProt
 
 
 class BqcProcNode(ProcNode):
-    def run_epr_subroutine(
-        self, process: IqoalaProcess, subrt_name: str
-    ) -> Generator[EventExpression, None, None]:
-        subrt = process.get_local_routine(subrt_name)
-        epr_instr_idx = None
-        for i, instr in enumerate(subrt.subroutine.instructions):
-            if isinstance(instr, CreateEPRInstruction) or isinstance(
-                instr, RecvEPRInstruction
-            ):
-                epr_instr_idx = i
-                break
-
-        # Set up arrays
-        for i in range(epr_instr_idx):
-            yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
-
-        request_name = subrt.request_name
-        assert request_name is not None
-        request = process.get_request(request_name).request
-
-        # Handle request
-        yield from self.netstack.processor.assign(process, request)
-
-        # Execute wait instruction
-        yield from self.qnos.processor.assign_routine_instr(
-            process, subrt_name, epr_instr_idx + 1
-        )
-
-        # Return subroutine results
-        self.host.processor.copy_subroutine_results(process, subrt_name)
-
     def run_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:

@@ -161,7 +161,7 @@ class EntDist(Protocol):
     def get_requests(self, node_id: int) -> List[GEDRequest]:
         return self._requests[node_id]
 
-    def pop_request(self, node_id: int, index: int) -> None:
+    def pop_request(self, node_id: int, index: int) -> GEDRequest:
         return self._requests[node_id].pop(index)
 
     def get_remote_request_for(self, local_request: GEDRequest) -> Optional[int]:

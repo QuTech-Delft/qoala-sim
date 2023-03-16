@@ -47,11 +47,15 @@ class RequestVirtIdMapping:
 
     def get_id(self, index: int) -> int:
         if self.typ == VirtIdMappingType.EQUAL:
+            assert isinstance(self.single_value, int)
             return self.single_value
         elif self.typ == VirtIdMappingType.INCREMENT:
+            assert isinstance(self.single_value, int)
             return self.single_value + index
         elif self.typ == VirtIdMappingType.CUSTOM:
+            assert self.custom_values is not None
             return self.custom_values[index]
+        raise ValueError
 
     def __str__(self) -> str:
         if self.typ == VirtIdMappingType.EQUAL:
@@ -59,27 +63,29 @@ class RequestVirtIdMapping:
         elif self.typ == VirtIdMappingType.INCREMENT:
             return f"increment {self.single_value}"
         elif self.typ == VirtIdMappingType.CUSTOM:
+            assert self.custom_values is not None
             return f"custom {', '.join(str(v) for v in self.custom_values)}"
+        raise ValueError
 
     @classmethod
     def from_str(cls, text: str) -> RequestVirtIdMapping:
         if text.startswith("all "):
-            value = text[4:]
-            if value.startswith("{") and value.endswith("}"):
-                value = value.strip("{}").strip()
-                value = Template(value)
+            value_str = text[4:]
+            if value_str.startswith("{") and value_str.endswith("}"):
+                value_str = value_str.strip("{}").strip()
+                value = Template(value_str)
             else:
-                value = int(value)
+                value = int(value_str)
             return RequestVirtIdMapping(
                 typ=VirtIdMappingType.EQUAL, single_value=value, custom_values=None
             )
         elif text.startswith("increment "):
-            value = text[10:]
-            if value.startswith("{") and value.endswith("}"):
-                value = value.strip("{}").strip()
-                value = Template(value)
+            value_str = text[10:]
+            if value_str.startswith("{") and value_str.endswith("}"):
+                value_str = value_str.strip("{}").strip()
+                value = Template(value_str)
             else:
-                value = int(value)
+                value = int(value_str)
             return RequestVirtIdMapping(
                 typ=VirtIdMappingType.INCREMENT, single_value=value, custom_values=None
             )
@@ -89,6 +95,7 @@ class RequestVirtIdMapping:
             return RequestVirtIdMapping(
                 typ=VirtIdMappingType.CUSTOM, single_value=None, custom_values=ints
             )
+        raise ValueError
 
 
 @dataclass(eq=True)
@@ -114,7 +121,7 @@ class IqoalaRequest:
         if isinstance(self.virt_ids.single_value, Template):
             # Only need to check single_value. If "custom", singe_value is None,
             # and custom values themselves are never Templates.
-            self.virt_ids.single_value = values[self.virt_ids.single_value.name]
+            self.virt_ids.single_value = values[self.virt_ids.single_value.name]  # type: ignore
         if isinstance(self.timeout, Template):
             self.timeout = values[self.timeout.name]
         if isinstance(self.fidelity, Template):
@@ -125,7 +132,7 @@ class IqoalaRequest:
         s += f"remote_id: {self.remote_id}"
         s += f"epr_socket_id: {self.epr_socket_id}"
         s += f"num_pairs: {self.num_pairs}"
-        s += f"virt_ids: {','.join(self.virt_ids)}"
+        s += f"virt_ids: {self.virt_ids}"
         s += f"timeout: {self.timeout}"
         s += f"fidelity: {self.fidelity}"
         s += f"typ: {self.typ.name}"

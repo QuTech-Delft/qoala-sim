@@ -18,8 +18,8 @@ class ExposedQubitInfo:
 @dataclass(eq=True, frozen=True)
 class ExposedGateInfo:
     instruction: Type[NetQASMInstruction]
-    duration: int  # ns
-    decoherence: int  # rate per second, for all qubits
+    duration: float  # ns
+    decoherence: float  # rate per second, for all qubits
 
 
 @dataclass(eq=True, frozen=True)
@@ -55,7 +55,7 @@ class EhiBuilder:
     @classmethod
     def decoherence_gates(
         cls,
-        duration: int,
+        duration: float,
         instructions: List[Type[NetQASMInstruction]],
         decoherence: float,
     ) -> List[ExposedGateInfo]:
@@ -68,7 +68,7 @@ class EhiBuilder:
 
     @classmethod
     def perfect_gates(
-        cls, duration: int, instructions: List[Type[NetQASMInstruction]]
+        cls, duration: float, instructions: List[Type[NetQASMInstruction]]
     ) -> List[ExposedGateInfo]:
         return cls.decoherence_gates(
             duration=duration, instructions=instructions, decoherence=0
@@ -80,9 +80,9 @@ class EhiBuilder:
         num_qubits,
         flavour: Type[Flavour],
         single_instructions: List[Type[NetQASMInstruction]],
-        single_duration: int,
+        single_duration: float,
         two_instructions: List[Type[NetQASMInstruction]],
-        two_duration: int,
+        two_duration: float,
     ) -> ExposedHardwareInfo:
         return cls.fully_uniform(
             num_qubits=num_qubits,
@@ -117,11 +117,11 @@ class EhiBuilder:
         num_qubits: int,
         flavour: Type[Flavour],
         comm_instructions: List[Type[NetQASMInstruction]],
-        comm_duration: int,
+        comm_duration: float,
         mem_instructions: List[Type[NetQASMInstruction]],
-        mem_duration: int,
+        mem_duration: float,
         two_instructions: List[Type[NetQASMInstruction]],
-        two_duration: int,
+        two_duration: float,
     ) -> ExposedHardwareInfo:
         comm_qubit_info = cls.perfect_qubit(is_communication=True)
         mem_qubit_info = cls.perfect_qubit(is_communication=False)
@@ -151,13 +151,13 @@ class EhiBuilder:
         comm_decoherence: float,
         mem_decoherence: float,
         comm_instructions: List[Type[NetQASMInstruction]],
-        comm_duration: int,
+        comm_duration: float,
         comm_instr_decoherence: float,
         mem_instructions: List[Type[NetQASMInstruction]],
-        mem_duration: int,
+        mem_duration: float,
         mem_instr_decoherence: float,
         two_instructions: List[Type[NetQASMInstruction]],
-        two_duration: int,
+        two_duration: float,
         two_instr_decoherence: float,
     ) -> ExposedHardwareInfo:
         comm_qubit_info = cls.decoherence_qubit(
@@ -231,7 +231,7 @@ class UnitModule:
         return cls.from_ehi(ehi, qubit_ids)
 
     def get_all_qubit_ids(self) -> List[int]:
-        return self.info.qubit_infos.keys()
+        return list(self.info.qubit_infos.keys())
 
 
 @dataclass

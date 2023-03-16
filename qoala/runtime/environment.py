@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from qoala.runtime.config import LinkConfig
+# Ignore type since whole 'config' module is ignored by mypy
+from qoala.runtime.config import LinkConfig  # type: ignore
 from qoala.runtime.program import ProgramInstance
 
 

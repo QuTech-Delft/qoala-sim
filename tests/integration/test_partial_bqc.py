@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
-from netqasm.lang.instr.core import CreateEPRInstruction, RecvEPRInstruction
 from netsquid.components import QuantumProcessor
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
@@ -141,37 +140,6 @@ class BqcProcNode(ProcNode):
         )
         self.pid = pid
 
-    def run_epr_subroutine(
-        self, process: IqoalaProcess, subrt_name: str
-    ) -> Generator[EventExpression, None, None]:
-        subrt = process.get_local_routine(subrt_name)
-        epr_instr_idx = None
-        for i, instr in enumerate(subrt.subroutine.instructions):
-            if isinstance(instr, CreateEPRInstruction) or isinstance(
-                instr, RecvEPRInstruction
-            ):
-                epr_instr_idx = i
-                break
-
-        # Set up arrays
-        for i in range(epr_instr_idx):
-            yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
-
-        request_name = subrt.request_name
-        assert request_name is not None
-        request = process.get_request(request_name).request
-
-        # Handle request
-        yield from self.netstack.processor.assign(process, request)
-
-        # Execute wait instruction
-        yield from self.qnos.processor.assign_routine_instr(
-            process, subrt_name, epr_instr_idx + 1
-        )
-
-        # Return subroutine results
-        self.host.processor.copy_subroutine_results(process, subrt_name)
-
     def run_subroutine(
         self, process: IqoalaProcess, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
@@ -196,14 +164,10 @@ class ServerProcNode(BqcProcNode):
         yield from self.host.processor.assign(process, 0)
 
         # run_subroutine(vec<client_id>) : create_epr_0
-        # yield from self.host.processor.assign(process, 1)
-        # yield from self.run_epr_subroutine(process, "create_epr_0")
         routine = process.get_request_routine("req0")
         yield from self.netstack.processor.assign_request_routine(process, routine)
 
         # run_subroutine(vec<client_id>) : create_epr_1
-        # yield from self.host.processor.assign(process, 2)
-        # yield from self.run_epr_subroutine(process, "create_epr_1")
         routine = process.get_request_routine("req1")
         yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -246,8 +210,6 @@ class ClientProcNode(BqcProcNode):
         yield from self.host.processor.assign(process, 0)
 
         # run_subroutine(vec<>) : create_epr_0
-        # yield from self.host.processor.assign(process, 1)
-        # yield from self.run_epr_subroutine(process, "create_epr_0")
         routine = process.get_request_routine("req0")
         yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -256,8 +218,6 @@ class ClientProcNode(BqcProcNode):
         yield from self.run_subroutine(process, "post_epr_0")
 
         # run_subroutine(vec<>) : create_epr_1
-        # yield from self.host.processor.assign(process, 3)
-        # yield from self.run_epr_subroutine(process, "create_epr_1")
         routine = process.get_request_routine("req1")
         yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -470,14 +430,10 @@ def test_bqc_1():
             yield from self.host.processor.assign(process, 0)
 
             # run_subroutine(vec<client_id>) : create_epr_0
-            # yield from self.host.processor.assign(process, 1)
-            # yield from self.run_epr_subroutine(process, "create_epr_0")
             routine = process.get_request_routine("req0")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 
             # run_subroutine(vec<client_id>) : create_epr_1
-            # yield from self.host.processor.assign(process, 2)
-            # yield from self.run_epr_subroutine(process, "create_epr_1")
             routine = process.get_request_routine("req1")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -494,8 +450,6 @@ def test_bqc_1():
             yield from self.host.processor.assign(process, 0)
 
             # run_subroutine(vec<>) : create_epr_0
-            # yield from self.host.processor.assign(process, 1)
-            # yield from self.run_epr_subroutine(process, "create_epr_0")
             routine = process.get_request_routine("req0")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -504,8 +458,6 @@ def test_bqc_1():
             yield from self.run_subroutine(process, "post_epr_0")
 
             # run_subroutine(vec<>) : create_epr_1
-            # yield from self.host.processor.assign(process, 3)
-            # yield from self.run_epr_subroutine(process, "create_epr_1")
             routine = process.get_request_routine("req1")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -567,14 +519,10 @@ def test_bqc_2():
             yield from self.host.processor.assign(process, 0)
 
             # run_subroutine(vec<client_id>) : create_epr_0
-            # yield from self.host.processor.assign(process, 1)
-            # yield from self.run_epr_subroutine(process, "create_epr_0")
             routine = process.get_request_routine("req0")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 
             # run_subroutine(vec<client_id>) : create_epr_1
-            # yield from self.host.processor.assign(process, 2)
-            # yield from self.run_epr_subroutine(process, "create_epr_1")
             routine = process.get_request_routine("req1")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -607,8 +555,6 @@ def test_bqc_2():
             yield from self.host.processor.assign(process, 0)
 
             # run_subroutine(vec<>) : create_epr_0
-            # yield from self.host.processor.assign(process, 1)
-            # yield from self.run_epr_subroutine(process, "create_epr_0")
             routine = process.get_request_routine("req0")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 
@@ -617,8 +563,6 @@ def test_bqc_2():
             yield from self.run_subroutine(process, "post_epr_0")
 
             # run_subroutine(vec<>) : create_epr_1
-            # yield from self.host.processor.assign(process, 3)
-            # yield from self.run_epr_subroutine(process, "create_epr_1")
             routine = process.get_request_routine("req1")
             yield from self.netstack.processor.assign_request_routine(process, routine)
 

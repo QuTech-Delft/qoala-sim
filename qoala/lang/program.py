@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from qoala.lang.hostlang import BasicBlock, ClassicalIqoalaOp
-from qoala.lang.request import IqoalaRequest, RequestRoutine
+from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 
 
@@ -37,14 +37,20 @@ class IqoalaProgram:
         local_routines: Optional[Dict[str, LocalRoutine]] = None,
         request_routines: Optional[Dict[str, RequestRoutine]] = None,
     ) -> None:
-        self._blocks: List[BasicBlock] = blocks
-        self._local_routines: Dict[str, LocalRoutine] = local_routines
         self._meta: ProgramMeta = meta
+        self._blocks: List[BasicBlock] = blocks
+        self._local_routines: Dict[str, LocalRoutine]
+        self._request_routines: Dict[str, RequestRoutine]
+
+        if local_routines is None:
+            self._local_routines = {}
+        else:
+            self._local_routines = local_routines
 
         if request_routines is None:
-            self._request_routines: Dict[str, RequestRoutine] = {}
+            self._request_routines = {}
         else:
-            self._request_routines: Dict[str, RequestRoutine] = request_routines
+            self._request_routines = request_routines
 
     @property
     def meta(self) -> ProgramMeta:
@@ -74,11 +80,11 @@ class IqoalaProgram:
         self._local_routines = new_local_routines
 
     @property
-    def request_routines(self) -> Dict[str, IqoalaRequest]:
+    def request_routines(self) -> Dict[str, RequestRoutine]:
         return self._request_routines
 
     @request_routines.setter
-    def request_routines(self, new_routines: Dict[str, IqoalaRequest]) -> None:
+    def request_routines(self, new_routines: Dict[str, RequestRoutine]) -> None:
         self._request_routines = new_routines
 
     def __str__(self) -> str:

@@ -74,7 +74,7 @@ class QnosProcessor:
 
     def assign_local_routine(
         self, process: IqoalaProcess, routine_name: str
-    ) -> Generator[EventExpression, None, int]:
+    ) -> Generator[EventExpression, None, None]:
         routine = process.get_local_routine(routine_name)
         netqasm_instrs = routine.subroutine.instructions
 
@@ -181,13 +181,14 @@ class QnosProcessor:
             self._logger.info("BREAKPOINT: no action taken")
         elif instr.action.value == 1:
             self._logger.info("BREAKPOINT: dumping local state:")
-            for i in range(self.qdevice.num_positions):
-                if self.qdevice.mem_positions[i].in_use:
-                    q = self.qdevice.peek(i)
+            for i in range(self.qdevice.qprocessor.num_positions):
+                if self.qdevice.qprocessor.mem_positions[i].in_use:
+                    q = self.qdevice.qprocessor.peek(i)
                     qstate = qubitapi.reduced_dm(q)
                     self._logger.info(f"physical qubit {i}:\n{qstate}")
 
-            GlobalSimData.get_quantum_state(save=True)  # TODO: rewrite this
+            # TODO: fix this; GlobalSimData is not static anymore!
+            state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
         elif instr.action.value == 2:
             self._logger.info("BREAKPOINT: dumping global state:")
             if instr.role.value == 0:
@@ -197,7 +198,8 @@ class QnosProcessor:
                 ready = yield from self._interface.receive_netstack_msg()
                 assert ready.content == "breakpoint ready"
 
-                state = GlobalSimData.get_quantum_state(save=True)
+                # TODO: fix this; GlobalSimData is not static anymore!
+                state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
                 self._logger.info(state)
 
                 self._interface.send_netstack_msg(Message(content="breakpoint end"))
@@ -331,7 +333,7 @@ class QnosProcessor:
             core.BranchBinaryInstruction,
             core.JmpInstruction,
         ],
-    ) -> Optional[Generator[EventExpression, None, int]]:
+    ) -> Generator[EventExpression, None, Optional[int]]:
         """Returns line to jump to, or None if no jump happens."""
         shared_mem = self._prog_mem().shared_mem
         a, b = None, None
@@ -674,6 +676,7 @@ class GenericProcessor(QnosProcessor):
 
         commands = [QDeviceCommand(INSTR_MEASURE, [phys_id])]
         outcome = yield from self.qdevice.execute_commands(commands)
+        assert outcome is not None
         shared_mem.set_reg_value(instr.creg, outcome)
         return None
 
@@ -815,6 +818,7 @@ class NVProcessor(QnosProcessor):
         shared_mem = self._prog_mem().shared_mem
         virt_id = shared_mem.get_reg_value(instr.qreg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
+        assert phys_id is not None
 
         # Only the electron (phys ID 0) can be measured.
         # Measuring any other physical qubit (i.e one of the carbons) requires
@@ -842,7 +846,8 @@ class NVProcessor(QnosProcessor):
             # Comm qubit is already allocated. Try to move it to a free mem qubit.
             mem_virt_id = memmgr.get_unmapped_non_comm_qubit(pid)
             memmgr.allocate(pid, mem_virt_id)
-            mem_phys_id = memmgr.phys_id_for(mem_virt_id)
+            mem_phys_id = memmgr.phys_id_for(pid, mem_virt_id)
+            assert mem_phys_id is not None
 
             # Move (temporarily) state from comm qubit to mem qubit.
             yield from self._move_electron_to_carbon(mem_phys_id)
@@ -860,7 +865,7 @@ class NVProcessor(QnosProcessor):
             yield from self._move_carbon_to_electron(mem_phys_id)
 
             # Free mem qubit that was temporarily used.
-            memmgr.free(mem_virt_id)
+            memmgr.free(pid, mem_virt_id)
             self._interface.signal_memory_freed()
         else:  # comm qubit not in use.
             # Allocate comm qubit.

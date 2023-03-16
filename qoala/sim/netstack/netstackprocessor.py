@@ -1,14 +1,11 @@
 import logging
-from typing import Generator, List, Optional
+from typing import Generator, Optional, Union
 
 import netsquid as ns
 from netqasm.sdk.build_epr import (
     SER_RESPONSE_KEEP_IDX_BELL_STATE,
     SER_RESPONSE_KEEP_IDX_GOODNESS,
     SER_RESPONSE_KEEP_LEN,
-    SER_RESPONSE_MEASURE_IDX_MEASUREMENT_BASIS,
-    SER_RESPONSE_MEASURE_IDX_MEASUREMENT_OUTCOME,
-    SER_RESPONSE_MEASURE_LEN,
 )
 from netsquid.components.instructions import INSTR_ROT_X, INSTR_ROT_Z
 from netsquid.qubits.ketstates import BellIndex
@@ -19,11 +16,16 @@ from qlink_interface import (
     ReqReceive,
     ReqRemoteStatePrep,
     ResCreateAndKeep,
-    ResMeasureDirectly,
 )
 
 from pydynaa import EventExpression
-from qoala.lang.request import CallbackType, EprType, IqoalaRequest, RequestRoutine
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    IqoalaRequest,
+    RequestRoutine,
+)
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdist import GEDRequest
@@ -34,8 +36,6 @@ from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.requests import (
     NetstackBreakpointCreateRequest,
     NetstackBreakpointReceiveRequest,
-    NetstackCreateRequest,
-    NetstackReceiveRequest,
     T_NetstackRequest,
 )
 from qoala.util.constants import PI
@@ -105,14 +105,17 @@ class NetstackProcessor:
         return ll_request
 
     def assign(
-        self, process: IqoalaProcess, request: T_NetstackRequest
+        self, process: IqoalaProcess, request: Union[T_NetstackRequest, IqoalaRequest]
     ) -> Generator[EventExpression, None, None]:
-        if isinstance(request, NetstackCreateRequest):
-            yield from self.handle_create_request(process, request)
-            self._logger.debug("create request done")
-        elif isinstance(request, NetstackReceiveRequest):
-            yield from self.handle_receive_request(process, request)
-            self._logger.debug("receive request done")
+        if isinstance(request, IqoalaRequest):
+            if request.role == EprRole.CREATE:
+                yield from self.handle_create_request(process, request)
+                self._logger.debug("create request done")
+            elif request.role == EprRole.RECEIVE:
+                yield from self.handle_receive_request(process, request)
+                self._logger.debug("receive request done")
+            else:
+                raise RuntimeError
         elif isinstance(request, NetstackBreakpointCreateRequest):
             yield from self.handle_breakpoint_create_request(request)
             self._logger.debug("breakpoint create request done")
@@ -123,7 +126,7 @@ class NetstackProcessor:
             raise RuntimeError
 
     def handle_create_request(
-        self, process: IqoalaProcess, req: NetstackCreateRequest
+        self, process: IqoalaProcess, req: IqoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Issue a request to create entanglement with a remote node.
 
@@ -143,12 +146,14 @@ class NetstackProcessor:
         if req.typ == EprType.CREATE_KEEP:
             yield from self.handle_create_ck_request(process, req)
         elif req.typ == EprType.MEASURE_DIRECTLY:
-            yield from self.handle_create_md_request(process, req)
+            raise NotImplementedError
+            # TODO: Fix MD handling
+            # yield from self.handle_create_md_request(process, req)
         else:
             raise RuntimeError
 
     def handle_create_ck_request(
-        self, process: IqoalaProcess, req: NetstackCreateRequest
+        self, process: IqoalaProcess, req: IqoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Handle a Create and Keep request as the initiator/creator, until all
         pairs have been created.
@@ -177,13 +182,13 @@ class NetstackProcessor:
         num_pairs = req.num_pairs
 
         self._logger.info(f"putting CK request to EGP for {num_pairs} pairs")
-        self._logger.info(f"qubit IDs specified by application: {req.virt_qubit_ids}")
+        self._logger.info(f"qubit IDs specified by application: {req.virt_ids}")
         self._logger.info(f"splitting request into {num_pairs} 1-pair requests")
 
         start_time = ns.sim_time()
 
         for pair_index in range(num_pairs):
-            virt_id = req.virt_qubit_ids[pair_index]
+            virt_id = req.virt_ids.get_id(pair_index)
             ll_result = yield from self.create_single_pair(
                 process, req, virt_id, wait_for_free=True
             )
@@ -298,83 +303,83 @@ class NetstackProcessor:
             f"{slice_len * pair_index + slice_len}] for app ID {process.pid}"
         )
 
-    def handle_create_md_request(
-        self, req: NetstackCreateRequest, request: ReqMeasureDirectly
-    ) -> Generator[EventExpression, None, None]:
-        """Handle a Create and Measure request as the initiator/creator, until all
-        pairs have been created and measured.
+    # def handle_create_md_request(
+    #     self, req: NetstackCreateRequest, request: ReqMeasureDirectly
+    # ) -> Generator[EventExpression, None, None]:
+    #     """Handle a Create and Measure request as the initiator/creator, until all
+    #     pairs have been created and measured.
 
-        This method uses the EGP protocol to create EPR pairs with the remote node.
-        It will fully complete the request before returning.
+    #     This method uses the EGP protocol to create EPR pairs with the remote node.
+    #     It will fully complete the request before returning.
 
-        No Bell state corrections are done. This means that application code should
-        use the result information to check, for each pair, the generated Bell state
-        and possibly post-process the measurement outcomes.
+    #     No Bell state corrections are done. This means that application code should
+    #     use the result information to check, for each pair, the generated Bell state
+    #     and possibly post-process the measurement outcomes.
 
-        The method can yield (i.e. give control back to the simulator scheduler) in
-        the following cases:
-        - no communication qubit is available; this method will resume when a
-          SIGNAL_MEMORY_FREED is given (currently only the processor can do this)
-        - when waiting for the EGP protocol to produce the next pair; this method
-          resumes when the pair is delivered
+    #     The method can yield (i.e. give control back to the simulator scheduler) in
+    #     the following cases:
+    #     - no communication qubit is available; this method will resume when a
+    #       SIGNAL_MEMORY_FREED is given (currently only the processor can do this)
+    #     - when waiting for the EGP protocol to produce the next pair; this method
+    #       resumes when the pair is delivered
 
-        This method does not return anything.
-        This method has the side effect that NetQASM array value are written to.
+    #     This method does not return anything.
+    #     This method has the side effect that NetQASM array value are written to.
 
-        :param req: application request info (app ID and NetQASM array IDs)
-        :param request: link layer request object
-        """
+    #     :param req: application request info (app ID and NetQASM array IDs)
+    #     :param request: link layer request object
+    #     """
 
-        # Put the reqeust to the EGP.
-        self._interface.put_request(req.remote_node_id, request)
+    #     # Put the reqeust to the EGP.
+    #     self._interface.put_request(req.remote_node_id, request)
 
-        results: List[ResMeasureDirectly] = []
+    #     results: List[ResMeasureDirectly] = []
 
-        # Wait for all pairs to be created. For each pair, the EGP sends a separate
-        # signal that is awaited here. Only after the last pair, we write the results
-        # to the array. This is done since the whole request (i.e. all pairs) is
-        # expected to finish in a short time anyway. However, writing results for a
-        # pair as soon as they are done may be implemented in the future.
-        for _ in range(request.number):
-            self._interface.memmgr.allocate(req.pid, 0)
+    #     # Wait for all pairs to be created. For each pair, the EGP sends a separate
+    #     # signal that is awaited here. Only after the last pair, we write the results
+    #     # to the array. This is done since the whole request (i.e. all pairs) is
+    #     # expected to finish in a short time anyway. However, writing results for a
+    #     # pair as soon as they are done may be implemented in the future.
+    #     for _ in range(request.number):
+    #         self._interface.memmgr.allocate(req.pid, 0)
 
-            result = yield from self._interface.await_result_measure_directly(
-                req.remote_node_id
-            )
-            self._logger.debug(f"bell index: {result.bell_state}")
-            results.append(result)
-            self._interface.memmgr.free(req.pid, 0)
+    #         result = yield from self._interface.await_result_measure_directly(
+    #             req.remote_node_id
+    #         )
+    #         self._logger.debug(f"bell index: {result.bell_state}")
+    #         results.append(result)
+    #         self._interface.memmgr.free(req.pid, 0)
 
-        shared_mem = self.get_shared_mem(req.pid)
+    #     shared_mem = self.get_shared_mem(req.pid)
 
-        # Length of response array slice for a single pair.
-        slice_len = SER_RESPONSE_MEASURE_LEN
+    #     # Length of response array slice for a single pair.
+    #     slice_len = SER_RESPONSE_MEASURE_LEN
 
-        # Populate results array.
-        for pair_index in range(request.number):
-            result = results[pair_index]
+    #     # Populate results array.
+    #     for pair_index in range(request.number):
+    #         result = results[pair_index]
 
-            for i in range(slice_len):
-                # Write -1 to unused array elements.
-                value = -1
+    #         for i in range(slice_len):
+    #             # Write -1 to unused array elements.
+    #             value = -1
 
-                # Write corresponding result value to the other array elements.
-                if i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_OUTCOME:
-                    value = result.measurement_outcome
-                elif i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_BASIS:
-                    value = result.measurement_basis.value
-                elif i == SER_RESPONSE_KEEP_IDX_BELL_STATE:
-                    value = result.bell_state.value
+    #             # Write corresponding result value to the other array elements.
+    #             if i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_OUTCOME:
+    #                 value = result.measurement_outcome
+    #             elif i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_BASIS:
+    #                 value = result.measurement_basis.value
+    #             elif i == SER_RESPONSE_KEEP_IDX_BELL_STATE:
+    #                 value = result.bell_state.value
 
-                # Calculate array element location.
-                arr_index = slice_len * pair_index + i
+    #             # Calculate array element location.
+    #             arr_index = slice_len * pair_index + i
 
-                shared_mem.set_array_value(req.result_array_addr, arr_index, value)
+    #             shared_mem.set_array_value(req.result_array_addr, arr_index, value)
 
-        self._interface.send_qnos_msg(Message(content="wrote to array"))
+    #     self._interface.send_qnos_msg(Message(content="wrote to array"))
 
     def handle_receive_ck_request(
-        self, process: IqoalaProcess, req: NetstackReceiveRequest
+        self, process: IqoalaProcess, req: IqoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Handle a Create and Keep request as the receiver, until all pairs have
         been created.
@@ -409,7 +414,7 @@ class NetstackProcessor:
         start_time = ns.sim_time()
 
         for pair_index in range(num_pairs):
-            virt_id = req.virt_qubit_ids[pair_index]
+            virt_id = req.virt_ids.get_id(pair_index)
             ll_result = yield from self.receive_single_pair(
                 process, req, virt_id, wait_for_free=True
             )
@@ -424,7 +429,7 @@ class NetstackProcessor:
     def receive_single_pair(
         self,
         process: IqoalaProcess,
-        request: NetstackReceiveRequest,
+        request: IqoalaRequest,
         virt_id: int,
         wait_for_free: bool = False,
     ) -> Generator[EventExpression, None, ResCreateAndKeep]:
@@ -459,79 +464,79 @@ class NetstackProcessor:
 
         return result
 
-    def handle_receive_md_request(
-        self, req: NetstackReceiveRequest, request: ReqMeasureDirectly
-    ) -> Generator[EventExpression, None, None]:
-        """Handle a Create and Measure request as the receiver, until all
-        pairs have been created and measured.
+    # def handle_receive_md_request(
+    #     self, req: NetstackReceiveRequest, request: ReqMeasureDirectly
+    # ) -> Generator[EventExpression, None, None]:
+    #     """Handle a Create and Measure request as the receiver, until all
+    #     pairs have been created and measured.
 
-        This method uses the EGP protocol to create EPR pairs with the remote node.
-        It will fully complete the request before returning.
+    #     This method uses the EGP protocol to create EPR pairs with the remote node.
+    #     It will fully complete the request before returning.
 
-        No Bell state corrections are done. This means that application code should
-        use the result information to check, for each pair, the generated Bell state
-        and possibly post-process the measurement outcomes.
+    #     No Bell state corrections are done. This means that application code should
+    #     use the result information to check, for each pair, the generated Bell state
+    #     and possibly post-process the measurement outcomes.
 
-        The method can yield (i.e. give control back to the simulator scheduler)
-        in the following cases: - no communication qubit is available; this
-        method will resume when a
-          SIGNAL_MEMORY_FREED is given (currently only the processor can do
-          this)
-        - when waiting for the EGP protocol to produce the next pair; this
-          method resumes when the pair is delivered
+    #     The method can yield (i.e. give control back to the simulator scheduler)
+    #     in the following cases: - no communication qubit is available; this
+    #     method will resume when a
+    #       SIGNAL_MEMORY_FREED is given (currently only the processor can do
+    #       this)
+    #     - when waiting for the EGP protocol to produce the next pair; this
+    #       method resumes when the pair is delivered
 
-        This method does not return anything. This method has the side effect
-        that NetQASM array value are written to.
+    #     This method does not return anything. This method has the side effect
+    #     that NetQASM array value are written to.
 
-        :param req: application request info (app ID and NetQASM array IDs)
-        :param request: link layer request object
-        """
-        assert isinstance(request, ReqMeasureDirectly)
+    #     :param req: application request info (app ID and NetQASM array IDs)
+    #     :param request: link layer request object
+    #     """
+    #     assert isinstance(request, ReqMeasureDirectly)
 
-        self._interface.put_request(req.remote_node_id, ReqReceive(req.remote_node_id))
+    #     self._interface.put_request(req.remote_node_id, ReqReceive(req.remote_node_id))
 
-        results: List[ResMeasureDirectly] = []
+    #     results: List[ResMeasureDirectly] = []
 
-        for _ in range(request.number):
-            self._interface.memmgr.allocate(req.pid, 0)
+    #     for _ in range(request.number):
+    #         self._interface.memmgr.allocate(req.pid, 0)
 
-            result = yield from self._interface.await_result_measure_directly(
-                req.remote_node_id
-            )
-            results.append(result)
+    #         result = yield from self._interface.await_result_measure_directly(
+    #             req.remote_node_id
+    #         )
+    #         results.append(result)
 
-            self._interface.memmgr.free(req.pid, 0)
+    #         self._interface.memmgr.free(req.pid, 0)
 
-        shared_mem = self.get_shared_mem(req.pid)
+    #     shared_mem = self.get_shared_mem(req.pid)
 
-        # Length of response array slice for a single pair.
-        slice_len = SER_RESPONSE_MEASURE_LEN
+    #     # Length of response array slice for a single pair.
+    #     slice_len = SER_RESPONSE_MEASURE_LEN
 
-        # Populate results array.
-        for pair_index in range(request.number):
-            result = results[pair_index]
+    #     # Populate results array.
+    #     for pair_index in range(request.number):
+    #         result = results[pair_index]
 
-            for i in range(slice_len):
-                # Write -1 to unused array elements.
-                value = -1
+    #         for i in range(slice_len):
+    #             # Write -1 to unused array elements.
+    #             value = -1
 
-                # Write corresponding result value to the other array elements.
-                if i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_OUTCOME:
-                    value = result.measurement_outcome
-                elif i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_BASIS:
-                    value = result.measurement_basis.value
-                elif i == SER_RESPONSE_KEEP_IDX_BELL_STATE:
-                    value = result.bell_state.value
+    #             # Write corresponding result value to the other array elements.
+    #             if i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_OUTCOME:
+    #                 value = result.measurement_outcome
+    #             elif i == SER_RESPONSE_MEASURE_IDX_MEASUREMENT_BASIS:
+    #                 value = result.measurement_basis.value
+    #             elif i == SER_RESPONSE_KEEP_IDX_BELL_STATE:
+    #                 value = result.bell_state.value
 
-                # Calculate array element location.
-                arr_index = slice_len * pair_index + i
+    #             # Calculate array element location.
+    #             arr_index = slice_len * pair_index + i
 
-                shared_mem.set_array_value(req.result_array_addr, arr_index, value)
+    #             shared_mem.set_array_value(req.result_array_addr, arr_index, value)
 
-            self._interface.send_qnos_msg(Message(content="wrote to array"))
+    #         self._interface.send_qnos_msg(Message(content="wrote to array"))
 
     def handle_receive_request(
-        self, process: IqoalaProcess, req: NetstackReceiveRequest
+        self, process: IqoalaProcess, req: IqoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Issue a request to receive entanglement from a remote node.
 
@@ -560,7 +565,9 @@ class NetstackProcessor:
         if req.typ == EprType.CREATE_KEEP:
             yield from self.handle_receive_ck_request(process, req)
         elif req.typ == EprType.MEASURE_DIRECTLY:
-            yield from self.handle_receive_md_request(process, req)
+            raise NotImplementedError
+            # TODO: Fix MD handling
+            # yield from self.handle_receive_md_request(process, req)
         else:
             raise RuntimeError
 

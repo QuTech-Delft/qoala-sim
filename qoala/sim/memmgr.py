@@ -68,6 +68,7 @@ class MemoryManager:
         raise AllocError
 
     def get_ehi(self) -> ExposedHardwareInfo:
+        assert self._ehi is not None  # TODO: already enforce this in constructor?
         return self._ehi
 
     def add_process(self, process: IqoalaProcess) -> None:

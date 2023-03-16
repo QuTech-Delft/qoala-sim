@@ -161,7 +161,7 @@ class NetstackInterface(ComponentProtocol):
 
     @property
     def node_id(self) -> int:
-        return self._qdevice.node.ID
+        return self._qdevice.node.ID  # type: ignore
 
     @property
     def memmgr(self) -> MemoryManager:
@@ -176,7 +176,7 @@ class NetstackInterface(ComponentProtocol):
         # TODO figure out why mypy does not like this
         return node_info.name  # type: ignore
 
-    def wait(self, delta_time: int) -> Generator[EventExpression, None, None]:
+    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr

@@ -51,16 +51,22 @@ class HostProcessor:
         self._logger.info(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, hostlang.AssignCValueOp):
             value = instr.attributes[0]
-            loc = instr.results[0]
+            assert isinstance(value, int)
+            loc = instr.results[0]  # type: ignore
             self._logger.info(f"writing {value} to {loc}")
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.SendCMsgOp):
+            assert isinstance(instr.arguments[0], str)
+            assert isinstance(instr.arguments[1], str)
+
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
             value = host_mem.read(instr.arguments[1])
             self._logger.info(f"sending msg {value}")
             csck.send_int(value)
         elif isinstance(instr, hostlang.ReceiveCMsgOp):
+            assert isinstance(instr.arguments[0], str)
+            assert isinstance(instr.results, list)
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
             msg = yield from csck.recv_int()
@@ -68,26 +74,31 @@ class HostProcessor:
             host_mem.write(instr.results[0], msg)
             self._logger.info(f"received msg {msg}")
         elif isinstance(instr, hostlang.AddCValueOp):
+            assert isinstance(instr.arguments[0], str)
+            assert isinstance(instr.arguments[1], str)
             arg0 = host_mem.read(instr.arguments[0])
             arg1 = host_mem.read(instr.arguments[1])
-            loc = instr.results[0]
+            loc = instr.results[0]  # type: ignore
             result = arg0 + arg1
             self._logger.info(f"computing {loc} = {arg0} + {arg1} = {result}")
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.MultiplyConstantCValueOp):
+            assert isinstance(instr.arguments[0], str)
             arg0 = host_mem.read(instr.arguments[0])
             const = instr.attributes[0]
             assert isinstance(const, int)
-            loc = instr.results[0]
+            loc = instr.results[0]  # type: ignore
             result = arg0 * const
             self._logger.info(f"computing {loc} = {arg0} * {const} = {result}")
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.BitConditionalMultiplyConstantCValueOp):
+            assert isinstance(instr.arguments[0], str)
+            assert isinstance(instr.arguments[1], str)
             arg0 = host_mem.read(instr.arguments[0])
             cond = host_mem.read(instr.arguments[1])
             const = instr.attributes[0]
             assert isinstance(const, int)
-            loc = instr.results[0]
+            loc = instr.results[0]  # type: ignore
             if cond == 1:
                 result = arg0 * const
             else:
@@ -95,6 +106,7 @@ class HostProcessor:
             self._logger.info(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.RunSubroutineOp):
+            assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
             arg_vec: hostlang.IqoalaVector = instr.arguments[0]
             args = arg_vec.values
             subrt_name = instr.attributes[0]
@@ -122,6 +134,7 @@ class HostProcessor:
                 pass
 
         elif isinstance(instr, hostlang.ReturnResultOp):
+            assert isinstance(instr.arguments[0], str)
             loc = instr.arguments[0]
             value = host_mem.read(loc)
             self._logger.info(f"returning {loc} = {value}")
@@ -141,6 +154,7 @@ class HostProcessor:
                     f"{mem_loc} to variable {key}"
                 )
                 # print(f"subrt result {key} = {value}")
+                assert value is not None
                 process.host_mem.write(key, value)
             except NetQASMSyntaxError:
                 pass  # TODO: needed?

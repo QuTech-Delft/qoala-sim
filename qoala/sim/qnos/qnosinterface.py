@@ -82,7 +82,7 @@ class QnosInterface(ComponentProtocol):
     def memmgr(self) -> MemoryManager:
         return self._memmgr
 
-    def wait(self, delta_time: int) -> Generator[EventExpression, None, None]:
+    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr

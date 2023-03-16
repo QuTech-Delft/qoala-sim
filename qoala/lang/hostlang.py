@@ -63,13 +63,13 @@ class ClassicalIqoalaOp:
     def __init__(
         self,
         arguments: Optional[Union[List[str], List[IqoalaVector]]] = None,
-        results: Optional[List[str]] = None,
+        results: Optional[Union[List[str], IqoalaVector]] = None,
         attributes: Optional[List[IqoalaValue]] = None,
     ) -> None:
         # TODO: support list of strs and vectors
         # currently not needed and confuses mypy
         self._arguments: Union[List[str], List[IqoalaVector]]
-        self._results: List[str]
+        self._results: Union[List[str], IqoalaVector]
         self._attributes: List[IqoalaValue]
 
         if arguments is None:
@@ -79,7 +79,11 @@ class ClassicalIqoalaOp:
 
         if results is None:
             self._results = []
+        elif isinstance(results, list):
+            # List of ints
+            self._results = results
         else:
+            assert isinstance(results, IqoalaVector)
             self._results = results
 
         if attributes is None:
@@ -88,7 +92,11 @@ class ClassicalIqoalaOp:
             self._attributes = attributes
 
     def __str__(self) -> str:
-        results = ", ".join(str(r) for r in self.results)
+        if isinstance(self.results, list):
+            results = ", ".join(str(r) for r in self.results)
+        else:
+            assert isinstance(self.results, IqoalaVector)
+            results = str(self.results)
         args = ", ".join(str(a) for a in self.arguments)
         attrs = ", ".join(str(a) for a in self.attributes)
         s = ""
@@ -125,7 +133,7 @@ class ClassicalIqoalaOp:
         return self._arguments
 
     @property
-    def results(self) -> List[str]:
+    def results(self) -> Union[List[str], IqoalaVector]:
         return self._results
 
     @property
@@ -247,8 +255,10 @@ class RunSubroutineOp(ClassicalIqoalaOp):
     OP_NAME = "run_subroutine"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, result: IqoalaVector, values: IqoalaVector, subrt: str) -> None:
-        super().__init__(results=[result], arguments=[values], attributes=[subrt])
+    def __init__(
+        self, result: Optional[IqoalaVector], values: IqoalaVector, subrt: str
+    ) -> None:
+        super().__init__(results=result, arguments=[values], attributes=[subrt])
 
     @classmethod
     def from_generic_args(

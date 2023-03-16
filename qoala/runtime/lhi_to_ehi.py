@@ -63,7 +63,7 @@ class GenericToVanillaInterface(NativeToFlavourInterface):
     }
 
     def flavour(self) -> Type[Flavour]:
-        return VanillaFlavour
+        return VanillaFlavour  # type: ignore
 
     def map(self, ns_instr: Type[NetSquidInstruction]) -> Type[NetQASMInstruction]:
         """Responsiblity of implementor that return instructions are of the
@@ -83,7 +83,7 @@ class NvToNvInterface(NativeToFlavourInterface):
     }
 
     def flavour(self) -> Type[Flavour]:
-        return NVFlavour
+        return NVFlavour  # type: ignore
 
     def map(self, ns_instr: Type[NetSquidInstruction]) -> Type[NetQASMInstruction]:
         """Responsiblity of implementor that return instructions are of the
@@ -97,9 +97,10 @@ class LhiConverter:
         cls, model: Type[QuantumErrorModel], model_kwargs: Dict[str, Any]
     ) -> float:
         if model == DepolarNoiseModel:
-            return model_kwargs["depolar_rate"]
+            return model_kwargs["depolar_rate"]  # type: ignore
         elif model == T1T2NoiseModel:
-            return model_kwargs["T1"]  # TODO use T2 somehow
+            # TODO use T2 somehow
+            return model_kwargs["T1"]  # type: ignore
         else:
             raise RuntimeError("Unsupported LHI Error model")
 

@@ -37,7 +37,6 @@ from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.requests import NetstackCreateRequest, NetstackReceiveRequest
 from qoala.util.constants import PI
 from qoala.util.tests import netsquid_run
 
@@ -463,13 +462,16 @@ def test_handle_create_ck_request():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = NetstackCreateRequest(
+    request = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0, 1, 2],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=result_array_addr,
     )
 
@@ -500,13 +502,16 @@ def test_handle_create_ck_request_invalid_virt_ids():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = NetstackCreateRequest(
+    request = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0, 0, 0],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
         result_array_addr=result_array_addr,
     )
 
@@ -537,13 +542,16 @@ def test_receive_single_pair_1():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = NetstackReceiveRequest(
+    request = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 1"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[1],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.RECEIVE,
         result_array_addr=result_array_addr,
     )
 
@@ -619,13 +627,16 @@ def test_receive_single_pair_2():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = NetstackReceiveRequest(
+    request = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("all 1"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[1],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.RECEIVE,
         result_array_addr=result_array_addr,
     )
 
@@ -696,13 +707,16 @@ def test_handle_receive_ck_request():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = NetstackReceiveRequest(
+    request = IqoalaRequest(
+        name="req",
         remote_id=remote_id,
         epr_socket_id=0,
-        typ=EprType.CREATE_KEEP,
         num_pairs=num_pairs,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        timeout=1000,
         fidelity=fidelity,
-        virt_qubit_ids=[0, 1, 2],
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.RECEIVE,
         result_array_addr=result_array_addr,
     )
 

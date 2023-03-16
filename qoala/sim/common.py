@@ -87,7 +87,7 @@ class ComponentProtocol(Protocol):
         assert len(expressions) > 0
         union = expressions[0]
         for i in range(1, len(expressions)):
-            union = union | expressions[i]
+            union = union | expressions[i]  # type: ignore
 
         # Yield until at least one of the listeners got a message.
         yield union
@@ -114,6 +114,7 @@ class ComponentProtocol(Protocol):
         for _ in range(msg_count - 1):
             yield union
 
+        assert msg_to_return is not None
         return msg_to_return
 
     def start(self) -> None:
