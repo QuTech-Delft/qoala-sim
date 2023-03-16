@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -57,6 +58,13 @@ class IqoalaProgram:
     @blocks.setter
     def blocks(self, new_blocks) -> None:
         self._blocks = new_blocks
+
+    @property
+    def instructions(self) -> List[ClassicalIqoalaOp]:
+        instrs = []
+        for b in self.blocks:
+            instrs.extend(b.instructions)
+        return instrs
 
     @property
     def local_routines(self) -> Dict[str, LocalRoutine]:

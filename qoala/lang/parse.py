@@ -219,43 +219,53 @@ class HostCodeParser:
         self._lineno: int = 0
 
     def get_block_texts(self) -> List[str]:
-        lines = [line.strip() for line in self._text.split("\n")]
-
         block_start_lines: List[int] = []
 
-        for i, line in enumerate(lines):
+        for i, line in enumerate(self._lines):
             if line.startswith("^"):
                 block_start_lines.append(i)
 
         assert len(block_start_lines) > 0
 
         block_texts: List[str] = []
-        for i in range(len(block_start_lines - 1)):
+        for i in range(len(block_start_lines) - 1):
             start = block_start_lines[i]
             end = block_start_lines[i + 1]
-            text = self._text[start:end]
-            block_texts.append(["\n".join(line) for line in text])
+            text = self._lines[start:end]
+            block_texts.append("\n".join([line for line in text]))
 
         last = block_start_lines[-1]
-        last_text = self._text[last:]
-        block_texts.append(["\n".join(line) for line in last_text])
+        last_text = self._lines[last:]
+        block_texts.append("\n".join([line for line in last_text]))
 
         return block_texts
 
     def _parse_block_header(self, line: str) -> Tuple[str, BasicBlockType]:
         # return (block name, block type)
         assert line.startswith("^")
-        name = line.split(" ")[0]
-        raw_typ = line.split("{")[1].split("}")[0]
+        split_space = line.split(" ")
+        assert len(split_space) > 0
+        name = split_space[0][1:]  # trim '^' at start
+        typ_index = line.find("type =")
+        assert typ_index >= 0
+        typ_end_index = line.find("}")
+        assert typ_end_index >= 0
+        raw_typ = line[typ_index + 7 : typ_end_index]
         typ = BasicBlockType[raw_typ.upper()]
         return name, typ
 
     def parse_block(self, text: str) -> BasicBlock:
         lines = [line.strip() for line in text.split("\n")]
-        self._lines = [line for line in lines if len(line) > 0]
+        lines = [line for line in lines if len(line) > 0]
+        name, typ = self._parse_block_header(lines[0])
+        instr_lines = lines[1:]
+        instrs = IqoalaInstrParser("\n".join(instr_lines)).parse()
+
+        return BasicBlock(name, typ, instrs)
 
     def parse(self) -> List[BasicBlock]:
         block_texts = self.get_block_texts()
+        return [self.parse_block(text) for text in block_texts]
 
 
 class LocalRoutineParser:
@@ -510,23 +520,23 @@ class IqoalaParser:
         self,
         text: Optional[str] = None,
         meta_text: Optional[str] = None,
-        instr_text: Optional[str] = None,
+        host_text: Optional[str] = None,
         subrt_text: Optional[str] = None,
         req_text: Optional[str] = None,
     ) -> None:
         if text is not None:
-            meta_text, instr_text, subrt_text, req_text = self._split_text(text)
+            meta_text, host_text, subrt_text, req_text = self._split_text(text)
         else:
             assert meta_text is not None
-            assert instr_text is not None
+            assert host_text is not None
             assert subrt_text is not None
             assert req_text is not None
         self._meta_text = meta_text
-        self._instr_text = instr_text
+        self._host_text = host_text
         self._subrt_text = subrt_text
         self._req_text = req_text
         self._meta_parser = IqoalaMetaParser(meta_text)
-        self._instr_parser = IqoalaInstrParser(instr_text)
+        self._host_parser = HostCodeParser(host_text)
         self._subrt_parser = LocalRoutineParser(subrt_text)
         self._req_parser = RequestRoutineParser(req_text)
 
@@ -549,7 +559,7 @@ class IqoalaParser:
                 break
 
         meta_text = "\n".join(lines[0 : meta_end_line + 1])
-        instr_text = "\n".join(lines[meta_end_line + 1 : first_subrt_line])
+        host_text = "\n".join(lines[meta_end_line + 1 : first_subrt_line])
         if first_subrt_line is None:
             # no subroutines and no requests
             subrt_text = ""
@@ -563,19 +573,20 @@ class IqoalaParser:
             subrt_text = "\n".join(lines[first_subrt_line:first_req_line])
             req_text = "\n".join(lines[first_req_line:])
 
-        return meta_text, instr_text, subrt_text, req_text
+        return meta_text, host_text, subrt_text, req_text
 
     def parse(self) -> IqoalaProgram:
-        instructions = self._instr_parser.parse()
+        blocks = self._host_parser.parse()
         subroutines = self._subrt_parser.parse()
         requests = self._req_parser.parse()
         meta = self._meta_parser.parse()
 
         # Check that all references to subroutines (in RunSubroutineOp instructions)
         # are valid.
-        for instr in instructions:
-            if isinstance(instr, RunSubroutineOp):
-                subrt_name = instr.subroutine
-                if subrt_name not in subroutines:
-                    raise IqoalaParseError
-        return IqoalaProgram(instructions, subroutines, meta, requests)
+        for block in blocks:
+            for instr in block.instructions:
+                if isinstance(instr, RunSubroutineOp):
+                    subrt_name = instr.subroutine
+                    if subrt_name not in subroutines:
+                        raise IqoalaParseError
+        return IqoalaProgram(meta, blocks, subroutines, requests)
