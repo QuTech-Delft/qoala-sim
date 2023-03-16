@@ -350,7 +350,7 @@ def create_process(
     if routines is None:
         routines = {}
     program = IqoalaProgram(
-        instructions=[], local_routines=routines, meta=ProgramMeta.empty("")
+        blocks=[], local_routines=routines, meta=ProgramMeta.empty("")
     )
 
     instance = ProgramInstance(

@@ -106,7 +106,7 @@ def create_program(
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(instructions=[], local_routines=subroutines, meta=meta)
+    return IqoalaProgram(blocks=[], local_routines=subroutines, meta=meta)
 
 
 def create_process(

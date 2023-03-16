@@ -54,7 +54,7 @@ def test1():
     routine = create_local_routine()
 
     program = IqoalaProgram(
-        instructions=[], local_routines={"subrt1": routine}, meta=ProgramMeta.empty("")
+        blocks=[], local_routines={"subrt1": routine}, meta=ProgramMeta.empty("")
     )
     process = create_process(program)
 

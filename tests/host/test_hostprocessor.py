@@ -12,6 +12,8 @@ from qoala.lang.ehi import EhiBuilder, UnitModule
 from qoala.lang.hostlang import (
     AddCValueOp,
     AssignCValueOp,
+    BasicBlock,
+    BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
     IqoalaSharedMemLoc,
@@ -86,7 +88,9 @@ def create_program(
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(instructions=instrs, local_routines=subroutines, meta=meta)
+    # TODO: split into proper blocks
+    block = BasicBlock("b0", BasicBlockType.HOST, instrs)
+    return IqoalaProgram(blocks=[block], local_routines=subroutines, meta=meta)
 
 
 def create_process(
