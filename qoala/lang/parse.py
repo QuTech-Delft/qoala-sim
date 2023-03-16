@@ -9,6 +9,8 @@ from netqasm.lang.parsing.text import parse_text_subroutine
 from qoala.lang.hostlang import (
     AddCValueOp,
     AssignCValueOp,
+    BasicBlock,
+    BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
     IqoalaSharedMemLoc,
@@ -207,6 +209,53 @@ class IqoalaInstrParser:
             pass
 
         return instructions
+
+
+class HostCodeParser:
+    def __init__(self, text: str) -> None:
+        self._text = text
+        lines = [line.strip() for line in text.split("\n")]
+        self._lines = [line for line in lines if len(line) > 0]
+        self._lineno: int = 0
+
+    def get_block_texts(self) -> List[str]:
+        lines = [line.strip() for line in self._text.split("\n")]
+
+        block_start_lines: List[int] = []
+
+        for i, line in enumerate(lines):
+            if line.startswith("^"):
+                block_start_lines.append(i)
+
+        assert len(block_start_lines) > 0
+
+        block_texts: List[str] = []
+        for i in range(len(block_start_lines - 1)):
+            start = block_start_lines[i]
+            end = block_start_lines[i + 1]
+            text = self._text[start:end]
+            block_texts.append(["\n".join(line) for line in text])
+
+        last = block_start_lines[-1]
+        last_text = self._text[last:]
+        block_texts.append(["\n".join(line) for line in last_text])
+
+        return block_texts
+
+    def _parse_block_header(self, line: str) -> Tuple[str, BasicBlockType]:
+        # return (block name, block type)
+        assert line.startswith("^")
+        name = line.split(" ")[0]
+        raw_typ = line.split("{")[1].split("}")[0]
+        typ = BasicBlockType[raw_typ.upper()]
+        return name, typ
+
+    def parse_block(self, text: str) -> BasicBlock:
+        lines = [line.strip() for line in text.split("\n")]
+        self._lines = [line for line in lines if len(line) > 0]
+
+    def parse(self) -> List[BasicBlock]:
+        block_texts = self.get_block_texts()
 
 
 class LocalRoutineParser:

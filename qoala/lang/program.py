@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from qoala.lang.hostlang import ClassicalIqoalaOp
+from qoala.lang.hostlang import BasicBlock, ClassicalIqoalaOp
 from qoala.lang.request import IqoalaRequest, RequestRoutine
 from qoala.lang.routine import LocalRoutine
 
@@ -32,12 +32,12 @@ class ProgramMeta:
 class IqoalaProgram:
     def __init__(
         self,
-        instructions: List[ClassicalIqoalaOp],
-        local_routines: Dict[str, LocalRoutine],
         meta: ProgramMeta,
+        blocks: List[BasicBlock],
+        local_routines: Optional[Dict[str, LocalRoutine]] = None,
         request_routines: Optional[Dict[str, RequestRoutine]] = None,
     ) -> None:
-        self._instructions: List[ClassicalIqoalaOp] = instructions
+        self._blocks: List[BasicBlock] = blocks
         self._local_routines: Dict[str, LocalRoutine] = local_routines
         self._meta: ProgramMeta = meta
 
@@ -51,12 +51,12 @@ class IqoalaProgram:
         return self._meta
 
     @property
-    def instructions(self) -> List[ClassicalIqoalaOp]:
-        return self._instructions
+    def blocks(self) -> List[BasicBlock]:
+        return self._blocks
 
-    @instructions.setter
-    def instructions(self, new_instrs) -> None:
-        self._instructions = new_instrs
+    @blocks.setter
+    def blocks(self, new_blocks) -> None:
+        self._blocks = new_blocks
 
     @property
     def local_routines(self) -> Dict[str, LocalRoutine]:
