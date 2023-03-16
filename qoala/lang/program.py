@@ -88,8 +88,11 @@ class IqoalaProgram:
     def serialize_meta(self) -> str:
         return self.meta.serialize()
 
-    def serialize_instructions(self) -> str:
-        return "\n".join("  " + str(i) for i in self.instructions)
+    def serialize_block(self, block: BasicBlock) -> str:
+        return str(block)
+
+    def serialize_host_code(self) -> str:
+        return "\n\n".join(self.serialize_block(b) for b in self.blocks)
 
     def serialize_subroutines(self) -> str:
         return "\n".join(s.serialize() for s in self.local_routines.values())
@@ -98,7 +101,7 @@ class IqoalaProgram:
         return (
             self.meta.serialize()
             + "\n"
-            + self.serialize_instructions()
+            + self.serialize_host_code()
             + "\n"
             + self.serialize_subroutines()
         )
