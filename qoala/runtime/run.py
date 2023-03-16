@@ -8,31 +8,26 @@ import netsquid as ns
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.context import SimulationContext
 from qoala.runtime.environment import GlobalEnvironment
-from qoala.runtime.program import ProgramInstance
+from qoala.runtime.program import BatchResult, ProgramInstance
 from qoala.sim.build import build_network
 from qoala.sim.globals import GlobalSimData
 from qoala.sim.network import ProcNodeNetwork
 
 
-def _run(network: ProcNodeNetwork) -> List[Dict[str, Any]]:
+def _run(network: ProcNodeNetwork) -> List[Dict[int, BatchResult]]:
     """Run the protocols of a network and programs running in that network.
 
     :param network: `ProcNodeNetwork` representing the nodes and links
     :return: final results of the programs
     """
 
-    # Start the link protocols.
-    for link in network.links:
-        link.start()
-
-    # Start the node protocols.
-    for _, node in network.nodes.items():
-        node.start()
+    # Start all the protocols.
+    network.start()
 
     # Start the NetSquid simulation.
     ns.sim_run()
 
-    return [node.scheduler.get_results() for _, node in network.nodes.items()]
+    return [node.scheduler.get_batch_results() for _, node in network.nodes.items()]
 
 
 def run(
@@ -40,7 +35,7 @@ def run(
     programs: Dict[str, List[ProgramInstance]],
     # schedules: Optional[Dict[str, Schedule]] = None,
     num_times: int = 1,
-) -> List[Dict[str, Any]]:
+) -> List[Dict[int, BatchResult]]:
     """Run programs on a network specified by a network configuration.
 
     :param config: configuration of the network
