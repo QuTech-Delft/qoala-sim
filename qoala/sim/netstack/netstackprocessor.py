@@ -28,7 +28,7 @@ from qoala.lang.request import (
 )
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
-from qoala.sim.entdist.entdist import GEDRequest
+from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import IqoalaProcess
@@ -656,8 +656,8 @@ class NetstackProcessor:
         # Notify the processor that we are done.
         self._interface.send_qnos_msg(Message(content="breakpoint finished"))
 
-    def execute_ged_request(
-        self, request: GEDRequest
+    def execute_entdist_request(
+        self, request: EntDistRequest
     ) -> Generator[EventExpression, None, None]:
         self._interface.send_entdist_msg(Message(request))
         result = yield from self._interface.receive_entdist_msg()
@@ -675,14 +675,14 @@ class NetstackProcessor:
 
         return virt_id
 
-    def create_ged_request(
+    def create_entdist_request(
         self, process: IqoalaProcess, request: IqoalaRequest, virt_id: int
-    ) -> GEDRequest:
+    ) -> EntDistRequest:
         memmgr = self._interface.memmgr
         pid = process.pid
         phys_id = memmgr.phys_id_for(pid, virt_id)
 
-        return GEDRequest(
+        return EntDistRequest(
             local_node_id=self._interface.node_id,
             remote_node_id=request.remote_id,
             local_qubit_id=phys_id,
@@ -703,5 +703,5 @@ class NetstackProcessor:
         else:
             for i in range(num_pairs):
                 virt_id = self.allocate_for_pair(process, request, i)
-                ged_req = self.create_ged_request(process, request, virt_id)
-                yield from self.execute_ged_request(ged_req)
+                entdist_req = self.create_entdist_request(process, request, virt_id)
+                yield from self.execute_entdist_request(entdist_req)

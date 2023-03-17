@@ -379,18 +379,18 @@ def build_network(
         procnodes[cfg.node_name] = build_procnode(cfg, global_env)
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
-    gedcomp = EntDistComponent(global_env)
-    ged = EntDist(nodes=ns_nodes, global_env=global_env, comp=gedcomp)
+    entdistcomp = EntDistComponent(global_env)
+    entdist = EntDist(nodes=ns_nodes, global_env=global_env, comp=entdistcomp)
 
     for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
         s1.connect_to(s2)
 
         factory = PerfectStateSamplerFactory()
         kwargs = {"cycle_time": 1000}
-        ged.add_sampler(s1.node.ID, s2.node.ID, factory, kwargs=kwargs)
+        entdist.add_sampler(s1.node.ID, s2.node.ID, factory, kwargs=kwargs)
 
     for name, procnode in procnodes.items():
-        procnode.node.entdist_out_port.connect(gedcomp.node_in_port(name))
-        procnode.node.entdist_in_port.connect(gedcomp.node_out_port(name))
+        procnode.node.entdist_out_port.connect(entdistcomp.node_in_port(name))
+        procnode.node.entdist_in_port.connect(entdistcomp.node_out_port(name))
 
-    return ProcNodeNetwork(procnodes, ged)
+    return ProcNodeNetwork(procnodes, entdist)

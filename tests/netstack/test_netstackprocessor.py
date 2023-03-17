@@ -32,7 +32,7 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.entdist.entdist import GEDRequest
+from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
 from qoala.sim.process import IqoalaProcess
@@ -784,7 +784,7 @@ def test_allocate_for_pair():
     assert memmgr.phys_id_for(process.pid, virt_id=2) == 2
 
 
-def test_create_ged_request():
+def test_create_entdist_request():
     topology = generic_topology(5)
     qdevice = MockQDevice(topology)
     ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
@@ -803,7 +803,7 @@ def test_create_ged_request():
     )
 
     phys_id = memmgr.allocate(process.pid, 3)
-    assert processor.create_ged_request(process, request, 3) == GEDRequest(
+    assert processor.create_entdist_request(process, request, 3) == EntDistRequest(
         local_node_id=interface.node_id, remote_node_id=1, local_qubit_id=phys_id
     )
 
@@ -819,4 +819,4 @@ if __name__ == "__main__":
     test_receive_single_pair_2()
     test_handle_receive_ck_request()
     test_allocate_for_pair()
-    test_create_ged_request()
+    test_create_entdist_request()
