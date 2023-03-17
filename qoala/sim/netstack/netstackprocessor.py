@@ -38,6 +38,7 @@ from qoala.sim.requests import (
     NetstackBreakpointReceiveRequest,
     T_NetstackRequest,
 )
+from qoala.sim.signals import MSG_REQUEST_DELIVERED
 from qoala.util.constants import PI
 from qoala.util.logging import LogManager
 
@@ -661,7 +662,7 @@ class NetstackProcessor:
     ) -> Generator[EventExpression, None, None]:
         self._interface.send_entdist_msg(Message(request))
         result = yield from self._interface.receive_entdist_msg()
-        if result.content != "done":
+        if result.content != MSG_REQUEST_DELIVERED:
             raise RuntimeError("Request was not served")
 
     def allocate_for_pair(

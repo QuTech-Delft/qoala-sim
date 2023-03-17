@@ -71,6 +71,7 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos import QnosInterface
+from qoala.sim.signals import MSG_REQUEST_DELIVERED
 from qoala.util.tests import has_multi_state, netsquid_run
 
 MOCK_MESSAGE = Message(content=42)
@@ -143,7 +144,7 @@ class MockNetstackInterface(NetstackInterface):
         return None
 
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
-        return Message("done")
+        return Message(MSG_REQUEST_DELIVERED)
         yield  # to make this behave as a generator
 
     def reset(self) -> None:
