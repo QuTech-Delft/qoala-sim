@@ -57,11 +57,32 @@ class BatchResult:
     results: List[ProgramResult]
 
 
+# TODO: move below classes to qoala.lang?
+# or to qoala.sim ??
+@dataclass
+class RequestRoutineParams:
+    pass
+
+
 @dataclass
 class RequestRoutineResult:
-    # TODO: move this to qoala.lang?
     meas_outcomes: Optional[List[int]]
 
     @classmethod
     def empty(cls) -> RequestRoutineResult:
         return RequestRoutineResult(meas_outcomes=None)
+
+
+@dataclass
+class CallbackRoutineParams:
+    pass
+
+
+@dataclass
+class LocalRoutineParams:
+    pass
+
+
+@dataclass
+class LocalRoutineResult:
+    pass
