@@ -329,22 +329,22 @@ def run_bqc(
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    gedcomp = EntDistComponent(global_env)
-    client_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("client"))
-    client_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("client"))
-    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
-    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
-    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    entdistcomp = EntDistComponent(global_env)
+    client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
+    client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
+    server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
+    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    ged.add_sampler(
+    entdist.add_sampler(
         client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
     )
 
     # client_egp._ll_prot.start()
     server_procnode.start()
     client_procnode.start()
-    ged.start()
+    entdist.start()
     ns.sim_run()
 
     assert client_procnode.finished

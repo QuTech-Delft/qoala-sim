@@ -6,22 +6,7 @@ from netqasm.lang.instr.flavour import NVFlavour
 from netqasm.lang.operand import Template
 from netqasm.lang.parsing.text import parse_text_subroutine
 
-from qoala.lang.hostlang import (
-    AddCValueOp,
-    AssignCValueOp,
-    BasicBlock,
-    BasicBlockType,
-    BitConditionalMultiplyConstantCValueOp,
-    ClassicalIqoalaOp,
-    IqoalaSharedMemLoc,
-    IqoalaValue,
-    IqoalaVector,
-    MultiplyConstantCValueOp,
-    ReceiveCMsgOp,
-    ReturnResultOp,
-    RunSubroutineOp,
-    SendCMsgOp,
-)
+from qoala.lang import hostlang as hl
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.request import (
     CallbackType,
@@ -33,17 +18,17 @@ from qoala.lang.request import (
 )
 from qoala.lang.routine import RoutineMetadata
 
-LHR_OP_NAMES: Dict[str, ClassicalIqoalaOp] = {
+LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
     cls.OP_NAME: cls  # type: ignore
     for cls in [
-        SendCMsgOp,
-        ReceiveCMsgOp,
-        AddCValueOp,
-        MultiplyConstantCValueOp,
-        BitConditionalMultiplyConstantCValueOp,
-        AssignCValueOp,
-        RunSubroutineOp,
-        ReturnResultOp,
+        hl.SendCMsgOp,
+        hl.ReceiveCMsgOp,
+        hl.AddCValueOp,
+        hl.MultiplyConstantCValueOp,
+        hl.BitConditionalMultiplyConstantCValueOp,
+        hl.AssignCValueOp,
+        hl.RunSubroutineOp,
+        hl.ReturnResultOp,
     ]
 }
 
@@ -143,21 +128,21 @@ class IqoalaInstrParser:
                 return line
             # if no non-empty line, will always break on EndOfLineException
 
-    def _parse_var(self, var_str: str) -> Union[str, IqoalaVector]:
+    def _parse_var(self, var_str: str) -> Union[str, hl.IqoalaVector]:
         if var_str.startswith("vec<"):
             vec_values_str = var_str[4:-1]
             if len(vec_values_str) == 0:
                 vec_values = []
             else:
                 vec_values = [x.strip() for x in vec_values_str.split(";")]
-            return IqoalaVector(vec_values)
+            return hl.IqoalaVector(vec_values)
         else:
             return var_str
 
-    def _parse_lhr(self) -> ClassicalIqoalaOp:
+    def _parse_lhr(self) -> hl.ClassicalIqoalaOp:
         line = self._read_line()
 
-        attr: Optional[IqoalaValue]
+        attr: Optional[hl.IqoalaValue]
 
         assign_parts = [x.strip() for x in line.split("=")]
         assert len(assign_parts) <= 2
@@ -196,8 +181,8 @@ class IqoalaInstrParser:
         lhr_op = LHR_OP_NAMES[op].from_generic_args(result, args, attr)  # type: ignore
         return lhr_op
 
-    def parse(self) -> List[ClassicalIqoalaOp]:
-        instructions: List[ClassicalIqoalaOp] = []
+    def parse(self) -> List[hl.ClassicalIqoalaOp]:
+        instructions: List[hl.ClassicalIqoalaOp] = []
 
         try:
             while True:
@@ -240,7 +225,7 @@ class HostCodeParser:
 
         return block_texts
 
-    def _parse_block_header(self, line: str) -> Tuple[str, BasicBlockType]:
+    def _parse_block_header(self, line: str) -> Tuple[str, hl.BasicBlockType]:
         # return (block name, block type)
         assert line.startswith("^")
         split_space = line.split(" ")
@@ -251,19 +236,19 @@ class HostCodeParser:
         typ_end_index = line.find("}")
         assert typ_end_index >= 0
         raw_typ = line[typ_index + 7 : typ_end_index]
-        typ = BasicBlockType[raw_typ.upper()]
+        typ = hl.BasicBlockType[raw_typ.upper()]
         return name, typ
 
-    def parse_block(self, text: str) -> BasicBlock:
+    def parse_block(self, text: str) -> hl.BasicBlock:
         lines = [line.strip() for line in text.split("\n")]
         lines = [line for line in lines if len(line) > 0]
         name, typ = self._parse_block_header(lines[0])
         instr_lines = lines[1:]
         instrs = IqoalaInstrParser("\n".join(instr_lines)).parse()
 
-        return BasicBlock(name, typ, instrs)
+        return hl.BasicBlock(name, typ, instrs)
 
-    def parse(self) -> List[BasicBlock]:
+    def parse(self) -> List[hl.BasicBlock]:
         block_texts = self.get_block_texts()
         return [self.parse_block(text) for text in block_texts]
 
@@ -302,16 +287,16 @@ class LocalRoutineParser:
 
     def _parse_nqasm_return_mapping(
         self, values: List[str]
-    ) -> Dict[str, IqoalaSharedMemLoc]:
+    ) -> Dict[str, hl.IqoalaSharedMemLoc]:
         result_dict = {}
         for v in values:
             key_value = [x.strip() for x in v.split("->")]
             assert len(key_value) == 2
-            result_dict[key_value[1]] = IqoalaSharedMemLoc(key_value[0])
+            result_dict[key_value[1]] = hl.IqoalaSharedMemLoc(key_value[0])
         return result_dict
 
     def _parse_subroutine(self) -> LocalRoutine:
-        return_map: Dict[str, IqoalaSharedMemLoc] = {}
+        return_map: Dict[str, hl.IqoalaSharedMemLoc] = {}
         name_line = self._read_line()
         assert name_line.startswith("SUBROUTINE ")
         name = name_line[len("SUBROUTINE") + 1 :]
@@ -585,7 +570,7 @@ class IqoalaParser:
         # are valid.
         for block in blocks:
             for instr in block.instructions:
-                if isinstance(instr, RunSubroutineOp):
+                if isinstance(instr, hl.RunSubroutineOp):
                     subrt_name = instr.subroutine
                     if subrt_name not in subroutines:
                         raise IqoalaParseError

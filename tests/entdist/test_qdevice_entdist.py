@@ -8,7 +8,7 @@ from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
-from qoala.sim.entdist.entdist import EntDist, GEDRequest
+from qoala.sim.entdist.entdist import EntDist, EntDistRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.qdevice import QDevice
 from qoala.util.tests import B00_DENS, has_multi_state, netsquid_run
@@ -31,31 +31,33 @@ def create_entdist(qdevices: List[QDevice]) -> EntDist:
         node_info = GlobalNodeInfo(qdevice.node.name, qdevice.node.ID)
         env.add_node(qdevice.node.ID, node_info)
     comp = EntDistComponent(env)
-    ged = EntDist(
+    entdist = EntDist(
         nodes=[qdevice.node for qdevice in qdevices], global_env=env, comp=comp
     )
 
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     for qd1, qd2 in itertools.combinations(qdevices, 2):
-        ged.add_sampler(qd1.node.ID, qd2.node.ID, factory, kwargs=kwargs)
+        entdist.add_sampler(qd1.node.ID, qd2.node.ID, factory, kwargs=kwargs)
 
-    return ged
+    return entdist
 
 
-def create_request(node1_id: int, node2_id: int, local_qubit_id: int = 0) -> GEDRequest:
-    return GEDRequest(
+def create_request(
+    node1_id: int, node2_id: int, local_qubit_id: int = 0
+) -> EntDistRequest:
+    return EntDistRequest(
         local_node_id=node1_id, remote_node_id=node2_id, local_qubit_id=local_qubit_id
     )
 
 
 def create_request_pair(
     node1_id: int, node2_id: int, node1_qubit_id: int = 0, node2_qubit_id: int = 0
-) -> Tuple[GEDRequest]:
-    req1 = GEDRequest(
+) -> Tuple[EntDistRequest]:
+    req1 = EntDistRequest(
         local_node_id=node1_id, remote_node_id=node2_id, local_qubit_id=node1_qubit_id
     )
-    req2 = GEDRequest(
+    req2 = EntDistRequest(
         local_node_id=node2_id, remote_node_id=node1_id, local_qubit_id=node2_qubit_id
     )
     return req1, req2
@@ -63,17 +65,17 @@ def create_request_pair(
 
 def test1():
     alice, bob = create_n_qdevices(2)
-    ged = create_entdist([alice, bob])
+    entdist = create_entdist([alice, bob])
 
     request_alice = create_request(alice.node.ID, bob.node.ID)
     request_bob = create_request(bob.node.ID, alice.node.ID)
 
-    ged.put_request(request_alice)
-    ged.put_request(request_bob)
+    entdist.put_request(request_alice)
+    entdist.put_request(request_bob)
 
     ns.sim_reset()
     assert ns.sim_time() == 0
-    netsquid_run(ged.serve_all_requests())
+    netsquid_run(entdist.serve_all_requests())
     assert ns.sim_time() == 1000
 
     alice_qubit = alice.get_local_qubit(0)
@@ -83,25 +85,25 @@ def test1():
 
 def test2():
     qdevices = create_n_qdevices(4, num_qubits=2)
-    ged = create_entdist(qdevices)
+    entdist = create_entdist(qdevices)
 
     ids = [qdevices[i].node.ID for i in range(4)]
 
     req01, req10 = create_request_pair(ids[0], ids[1], 0, 0)
-    ged.put_request(req01)
-    ged.put_request(req10)
+    entdist.put_request(req01)
+    entdist.put_request(req10)
 
     req02, req20 = create_request_pair(ids[0], ids[2], 1, 0)
-    ged.put_request(req02)
-    ged.put_request(req20)
+    entdist.put_request(req02)
+    entdist.put_request(req20)
 
     req13, req31 = create_request_pair(ids[1], ids[3], 1, 0)
-    ged.put_request(req13)
-    ged.put_request(req31)
+    entdist.put_request(req13)
+    entdist.put_request(req31)
 
     ns.sim_reset()
     assert ns.sim_time() == 0
-    netsquid_run(ged.serve_all_requests())
+    netsquid_run(entdist.serve_all_requests())
     assert ns.sim_time() == 3 * 1000  # 3 request pairs
 
     n0_q0 = qdevices[0].get_local_qubit(0)

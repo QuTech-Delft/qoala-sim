@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import abc
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.schedule import ProgramTaskList
@@ -53,3 +55,13 @@ class ProgramBatch:
 class BatchResult:
     batch_id: int
     results: List[ProgramResult]
+
+
+@dataclass
+class RequestRoutineResult:
+    # TODO: move this to qoala.lang?
+    meas_outcomes: Optional[List[int]]
+
+    @classmethod
+    def empty(cls) -> RequestRoutineResult:
+        return RequestRoutineResult(meas_outcomes=None)

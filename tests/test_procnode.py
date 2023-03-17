@@ -71,6 +71,7 @@ from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos import QnosInterface
+from qoala.sim.signals import MSG_REQUEST_DELIVERED
 from qoala.util.tests import has_multi_state, netsquid_run
 
 MOCK_MESSAGE = Message(content=42)
@@ -143,7 +144,7 @@ class MockNetstackInterface(NetstackInterface):
         return None
 
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
-        return Message("done")
+        return Message(MSG_REQUEST_DELIVERED)
         yield  # to make this behave as a generator
 
     def reset(self) -> None:
@@ -966,15 +967,15 @@ def test_epr():
     bob_process.shared_mem.init_new_array(0, 10)
 
     nodes = [alice_procnode.node, bob_procnode.node]
-    gedcomp = EntDistComponent(global_env)
-    alice_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("alice"))
-    alice_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("alice"))
-    bob_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("bob"))
-    bob_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("bob"))
-    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    entdistcomp = EntDistComponent(global_env)
+    alice_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("alice"))
+    alice_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("alice"))
+    bob_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("bob"))
+    bob_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("bob"))
+    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    ged.add_sampler(
+    entdist.add_sampler(
         alice_procnode.node.ID, bob_procnode.node.ID, factory, kwargs=kwargs
     )
 
@@ -983,7 +984,7 @@ def test_epr():
     # protocol while Bob's interface has not even been started.
     bob_procnode.start()
     alice_procnode.start()
-    ged.start()
+    entdist.start()
     ns.sim_run()
 
     assert alice_procnode.memmgr.phys_id_for(pid=0, virt_id=0) == 0
@@ -1165,22 +1166,22 @@ REQUEST req1
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    gedcomp = EntDistComponent(global_env)
-    client_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("client"))
-    client_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("client"))
-    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
-    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
-    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
+    entdistcomp = EntDistComponent(global_env)
+    client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
+    client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
+    server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
+    server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
+    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    ged.add_sampler(
+    entdist.add_sampler(
         client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
     )
 
     # client_egp._ll_prot.start()
     server_procnode.start()
     client_procnode.start()
-    ged.start()
+    entdist.start()
     ns.sim_run()
 
     assert client_procnode.memmgr.phys_id_for(pid=0, virt_id=0) == 0

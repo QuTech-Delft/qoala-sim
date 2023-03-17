@@ -5,14 +5,12 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 import netsquid as ns
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
     GenericQDeviceConfig,
     LatenciesConfig,
-    LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -26,8 +24,6 @@ from qoala.runtime.schedule import (
     TaskBuilder,
 )
 from qoala.sim.build import build_network
-from qoala.sim.entdist.entdist import EntDist
-from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 
 
@@ -94,13 +90,9 @@ def create_network(
 
     global_env = create_global_env(num_clients, global_schedule, timeslot_len)
 
-    link_cfgs = [
-        LinkConfig.perfect_config("server", cfg.node_name) for cfg in client_configs
-    ]
-
     node_cfgs = [server_cfg] + client_configs
 
-    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=link_cfgs)
+    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=[])
     return build_network(network_cfg, global_env)
 
 
@@ -398,15 +390,6 @@ def run_bqc(
 
     server_procnode = network.nodes["server"]
 
-    global_env = server_procnode._global_env
-
-    gedcomp = EntDistComponent(global_env)
-    nodes = [node.node for node in network.nodes.values()]
-    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
-
-    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
-    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
-
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
         index = client_id - 1
@@ -455,21 +438,7 @@ def run_bqc(
         client_procnode.initialize_processes()
         client_procnode.initialize_schedule(NoTimeSolver)
 
-        client_procnode.node.entdist_out_port.connect(
-            gedcomp.node_in_port(f"client_{client_id}")
-        )
-        client_procnode.node.entdist_in_port.connect(
-            gedcomp.node_out_port(f"client_{client_id}")
-        )
-
-        factory = PerfectStateSamplerFactory()
-        kwargs = {"cycle_time": 1000}
-        ged.add_sampler(
-            client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
-        )
-
-    network.start_all_nodes()
-    ged.start()
+    network.start()
     start_time = ns.sim_time()
     ns.sim_run()
     end_time = ns.sim_time()

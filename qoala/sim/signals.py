@@ -11,3 +11,6 @@ SIGNAL_NSTK_ENTD_MSG = "EvNstkEntdMsg"
 SIGNAL_ENTD_NSTK_MSG = "EvEntdNstkMsg"
 
 SIGNAL_MEMORY_FREED = "EvMemoryFreed"
+
+
+MSG_REQUEST_DELIVERED = "RequestDelivered"

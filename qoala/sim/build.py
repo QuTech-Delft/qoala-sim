@@ -25,7 +25,6 @@ from netsquid.components.models.qerrormodels import (
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
 from netsquid.qubits.operators import Operator
 from netsquid_magic.link_layer import (
-    MagicLinkLayerProtocol,
     MagicLinkLayerProtocolWithSignaling,
     SingleClickTranslationUnit,
 )
@@ -34,6 +33,7 @@ from netsquid_magic.magic_distributor import (
     DoubleClickMagicDistributor,
     PerfectStateMagicDistributor,
 )
+from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 from netsquid_physlayer.heralded_connection import MiddleHeraldedConnection
 
 # Ignore type since whole 'config' module is ignored by mypy
@@ -49,6 +49,8 @@ from qoala.runtime.config import (  # type: ignore
 from qoala.runtime.environment import GlobalEnvironment
 from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
+from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
 
@@ -371,22 +373,24 @@ def build_ll_protocol(
 def build_network(
     config: ProcNodeNetworkConfig, global_env: GlobalEnvironment
 ) -> ProcNodeNetwork:
-    proc_nodes: Dict[str, ProcNode] = {}
-    link_prots: List[MagicLinkLayerProtocol] = []
+    procnodes: Dict[str, ProcNode] = {}
 
     for cfg in config.nodes:
-        proc_nodes[cfg.node_name] = build_procnode(cfg, global_env)
+        procnodes[cfg.node_name] = build_procnode(cfg, global_env)
 
-    for (_, s1), (_, s2) in itertools.combinations(proc_nodes.items(), 2):
+    ns_nodes = [procnode.node for procnode in procnodes.values()]
+    entdistcomp = EntDistComponent(global_env)
+    entdist = EntDist(nodes=ns_nodes, global_env=global_env, comp=entdistcomp)
+
+    for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
         s1.connect_to(s2)
 
-    for cfg in config.links:
-        proc_node1 = proc_nodes[cfg.node1]
-        proc_node2 = proc_nodes[cfg.node2]
-        link_prot = build_ll_protocol(cfg, proc_node1, proc_node2)
-        proc_node1.assign_ll_protocol(proc_node2.node.ID, link_prot)
-        proc_node2.assign_ll_protocol(proc_node1.node.ID, link_prot)
+        factory = PerfectStateSamplerFactory()
+        kwargs = {"cycle_time": 1000}
+        entdist.add_sampler(s1.node.ID, s2.node.ID, factory, kwargs=kwargs)
 
-        link_prots.append(link_prot)
+    for name, procnode in procnodes.items():
+        procnode.node.entdist_out_port.connect(entdistcomp.node_in_port(name))
+        procnode.node.entdist_in_port.connect(entdistcomp.node_out_port(name))
 
-    return ProcNodeNetwork(proc_nodes, link_prots)
+    return ProcNodeNetwork(procnodes, entdist)

@@ -12,7 +12,6 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
@@ -35,8 +34,6 @@ from qoala.runtime.schedule import (
 )
 from qoala.sim.build import build_network
 from qoala.sim.egp import EgpProtocol
-from qoala.sim.entdist.entdist import EntDist
-from qoala.sim.entdist.entdistcomp import EntDistComponent
 
 
 def create_global_env(
@@ -351,22 +348,7 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     client_procnode.initialize_processes()
     client_procnode.initialize_schedule(NoTimeSolver)
 
-    nodes = [client_procnode.node, server_procnode.node]
-    gedcomp = EntDistComponent(global_env)
-    client_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("client"))
-    client_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("client"))
-    server_procnode.node.entdist_out_port.connect(gedcomp.node_in_port("server"))
-    server_procnode.node.entdist_in_port.connect(gedcomp.node_out_port("server"))
-    ged = EntDist(nodes=nodes, global_env=global_env, comp=gedcomp)
-    factory = PerfectStateSamplerFactory()
-    kwargs = {"cycle_time": 1000}
-    ged.add_sampler(
-        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
-    )
-
-    server_procnode.start()
-    client_procnode.start()
-    ged.start()
+    network.start()
     ns.sim_run()
 
     client_results = client_procnode.scheduler.get_batch_results()

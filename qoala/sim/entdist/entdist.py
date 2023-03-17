@@ -21,11 +21,12 @@ from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
 from qoala.sim.events import EPR_DELIVERY
+from qoala.sim.signals import MSG_REQUEST_DELIVERED
 from qoala.util.logging import LogManager
 
 
 @dataclass(eq=True, frozen=True)
-class GEDRequest:
+class EntDistRequest:
     local_node_id: int
     remote_node_id: int
     local_qubit_id: int
@@ -72,7 +73,9 @@ class EntDist(Protocol):
         self._samplers: Dict[Tuple[int, int], StateDeliverySampler] = {}
 
         # Node ID -> list of requests
-        self._requests: Dict[int, List[GEDRequest]] = {node.ID: [] for node in nodes}
+        self._requests: Dict[int, List[EntDistRequest]] = {
+            node.ID: [] for node in nodes
+        }
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}(EntDist)"
@@ -144,27 +147,27 @@ class EntDist(Protocol):
         # Send messages to the nodes indictating a request has been delivered.
         node1 = self._interface.remote_id_to_peer_name(node1_id)
         node2 = self._interface.remote_id_to_peer_name(node2_id)
-        self._interface.send_node_msg(node1, Message("done"))
-        self._interface.send_node_msg(node2, Message("done"))
+        self._interface.send_node_msg(node1, Message(MSG_REQUEST_DELIVERED))
+        self._interface.send_node_msg(node2, Message(MSG_REQUEST_DELIVERED))
 
-    def put_request(self, request: GEDRequest) -> None:
+    def put_request(self, request: EntDistRequest) -> None:
         if request.local_node_id not in self._nodes:
             raise ValueError(
-                f"Invalid request: node ID {request.local_node_id} not registered in GED."
+                f"Invalid request: node ID {request.local_node_id} not registered in EntDist."
             )
         if request.remote_node_id not in self._nodes:
             raise ValueError(
-                f"Invalid request: node ID {request.remote_node_id} not registered in GED."
+                f"Invalid request: node ID {request.remote_node_id} not registered in EntDist."
             )
         self._requests[request.local_node_id].append(request)
 
-    def get_requests(self, node_id: int) -> List[GEDRequest]:
+    def get_requests(self, node_id: int) -> List[EntDistRequest]:
         return self._requests[node_id]
 
-    def pop_request(self, node_id: int, index: int) -> GEDRequest:
+    def pop_request(self, node_id: int, index: int) -> EntDistRequest:
         return self._requests[node_id].pop(index)
 
-    def get_remote_request_for(self, local_request: GEDRequest) -> Optional[int]:
+    def get_remote_request_for(self, local_request: EntDistRequest) -> Optional[int]:
         """Return index in request list of remote node."""
         remote_request_index = None
 
@@ -175,7 +178,7 @@ class EntDist(Protocol):
             raise ValueError(
                 f"Request {local_request} refers to remote node "
                 f"{local_request.remote_node_id} "
-                "but this node is not registed in the GED."
+                "but this node is not registed in the EntDist."
             )
 
         for i, req in enumerate(remote_requests):
@@ -244,6 +247,6 @@ class EntDist(Protocol):
             # Wait for a new message.
             msg = yield from self._interface.receive_msg()
             self._logger.debug(f"received new msg from node: {msg}")
-            request: GEDRequest = msg.content
+            request: EntDistRequest = msg.content
             self.put_request(request)
             yield from self.serve_all_requests()

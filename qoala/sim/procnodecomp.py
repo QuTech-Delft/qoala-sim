@@ -62,7 +62,7 @@ class ProcNodeComponent(Node):
         self._host_peer_in_ports: Dict[str, str] = {}  # peer name -> port name
         self._host_peer_out_ports: Dict[str, str] = {}  # peer name -> port name
 
-        # Ports for communicating with the GED
+        # Ports for communicating with the EntDist
         self.add_ports(["entdist_out", "entdist_in"])
         self.netstack_comp.entdist_out_port.forward_output(self.entdist_out_port)
         self.entdist_in_port.forward_input(self.netstack_comp.entdist_in_port)
