@@ -332,7 +332,11 @@ def test_multiple_pairs_full_netstack():
 
 
 def create_simple_request(
-    remote_id: int, num_pairs: int, virt_ids: RequestVirtIdMapping
+    remote_id: int,
+    num_pairs: int,
+    virt_ids: RequestVirtIdMapping,
+    typ: EprType,
+    role: EprRole,
 ) -> IqoalaRequest:
     return IqoalaRequest(
         name="req",
@@ -342,9 +346,24 @@ def create_simple_request(
         virt_ids=virt_ids,
         timeout=1000,
         fidelity=0.65,
-        typ=EprType.CREATE_KEEP,
-        role=EprRole.CREATE,
+        typ=typ,
+        role=role,
         result_array_addr=3,
+    )
+
+
+def simple_req_routine(
+    remote_id: int,
+    num_pairs: int,
+    virt_ids: RequestVirtIdMapping,
+    typ: EprType,
+    role: EprRole,
+) -> IqoalaRequest:
+    return RequestRoutine(
+        name="req1",
+        request=create_simple_request(remote_id, num_pairs, virt_ids, typ, role),
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
     )
 
 
@@ -378,21 +397,17 @@ def create_process(
     return process
 
 
-def test_single_pair_qoala_request():
+def test_single_pair_qoala_ck_request_only_alice():
     num_qubits = 3
     alice_id = 0
     bob_id = 1
 
-    request_alice = create_simple_request(
+    routine_alice = simple_req_routine(
         remote_id=bob_id,
         num_pairs=2,
         virt_ids=RequestVirtIdMapping.from_str("increment 0"),
-    )
-    routine_alice = RequestRoutine(
-        name="req1",
-        request=request_alice,
-        callback_type=CallbackType.WAIT_ALL,
-        callback=None,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
     )
 
     requests_bob = [
@@ -430,9 +445,174 @@ def test_single_pair_qoala_request():
     assert has_multi_state([aq1, bq1], B00_DENS)
 
 
+def test_single_pair_qoala_ck_request():
+    num_qubits = 3
+    alice_id = 0
+    bob_id = 1
+
+    routine_alice = simple_req_routine(
+        remote_id=bob_id,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+    )
+    routine_bob = simple_req_routine(
+        remote_id=alice_id,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.RECEIVE,
+    )
+
+    process_alice = create_process(num_qubits)
+    process_bob = create_process(num_qubits)
+
+    class AliceNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            yield from self.processor.assign_request_routine(
+                process_alice, routine_alice
+            )
+
+    class BobNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            yield from self.processor.assign_request_routine(process_bob, routine_bob)
+
+    alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
+        num_qubits, alice_id, bob_id, AliceNetstack, BobNetstack
+    )
+    alice_netstack.interface.memmgr.add_process(process_alice)
+    bob_netstack.interface.memmgr.add_process(process_bob)
+
+    alice_netstack.start()
+    bob_netstack.start()
+    entdist.start()
+    ns.sim_run()
+
+    aq0 = alice_netstack.qdevice.get_local_qubit(0)
+    bq0 = bob_netstack.qdevice.get_local_qubit(0)
+    aq1 = alice_netstack.qdevice.get_local_qubit(1)
+    bq1 = bob_netstack.qdevice.get_local_qubit(1)
+    assert has_multi_state([aq0, bq0], B00_DENS)
+    assert has_multi_state([aq1, bq1], B00_DENS)
+
+
+def test_single_pair_qoala_md_request_different_virt_ids():
+    num_qubits = 3
+    alice_id = 0
+    bob_id = 1
+
+    routine_alice = simple_req_routine(
+        remote_id=bob_id,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
+    )
+    routine_bob = simple_req_routine(
+        remote_id=alice_id,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.RECEIVE,
+    )
+
+    process_alice = create_process(num_qubits)
+    process_bob = create_process(num_qubits)
+
+    class AliceNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            self.outcomes = yield from self.processor.assign_request_routine(
+                process_alice, routine_alice
+            )
+
+    class BobNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            self.outcomes = yield from self.processor.assign_request_routine(
+                process_bob, routine_bob
+            )
+
+    alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
+        num_qubits, alice_id, bob_id, AliceNetstack, BobNetstack
+    )
+    alice_netstack.interface.memmgr.add_process(process_alice)
+    bob_netstack.interface.memmgr.add_process(process_bob)
+
+    alice_netstack.start()
+    bob_netstack.start()
+    entdist.start()
+    ns.sim_run()
+
+    # All virtual qubits should be free.
+    assert alice_netstack.interface.memmgr.phys_id_for(process_alice.pid, 0) is None
+    assert alice_netstack.interface.memmgr.phys_id_for(process_alice.pid, 1) is None
+    assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 0) is None
+    assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 1) is None
+
+    assert alice_netstack.outcomes == bob_netstack.outcomes
+
+
+def test_single_pair_qoala_md_request_same_virt_ids():
+    num_qubits = 3
+    alice_id = 0
+    bob_id = 1
+
+    routine_alice = simple_req_routine(
+        remote_id=bob_id,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
+    )
+    routine_bob = simple_req_routine(
+        remote_id=alice_id,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.RECEIVE,
+    )
+
+    process_alice = create_process(num_qubits)
+    process_bob = create_process(num_qubits)
+
+    class AliceNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            self.outcomes = yield from self.processor.assign_request_routine(
+                process_alice, routine_alice
+            )
+
+    class BobNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            self.outcomes = yield from self.processor.assign_request_routine(
+                process_bob, routine_bob
+            )
+
+    alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
+        num_qubits, alice_id, bob_id, AliceNetstack, BobNetstack
+    )
+    alice_netstack.interface.memmgr.add_process(process_alice)
+    bob_netstack.interface.memmgr.add_process(process_bob)
+
+    alice_netstack.start()
+    bob_netstack.start()
+    entdist.start()
+    ns.sim_run()
+
+    # All virtual qubits should be free.
+    assert alice_netstack.interface.memmgr.phys_id_for(process_alice.pid, 0) is None
+    assert alice_netstack.interface.memmgr.phys_id_for(process_alice.pid, 1) is None
+    assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 0) is None
+    assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 1) is None
+
+    assert alice_netstack.outcomes == bob_netstack.outcomes
+
+
 if __name__ == "__main__":
     test_single_pair_only_netstack_interface()
     test_multiple_pairs_only_netstack_interface()
     test_single_pair_full_netstack()
     test_multiple_pairs_full_netstack()
-    test_single_pair_qoala_request()
+    test_single_pair_qoala_ck_request_only_alice()
+    test_single_pair_qoala_ck_request()
+    test_single_pair_qoala_md_request_different_virt_ids()
+    test_single_pair_qoala_md_request_same_virt_ids()

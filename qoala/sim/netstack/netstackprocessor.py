@@ -1,5 +1,5 @@
 import logging
-from typing import Generator, Optional, Union
+from typing import Generator, List, Optional, Union
 
 import netsquid as ns
 from netqasm.sdk.build_epr import (
@@ -7,7 +7,7 @@ from netqasm.sdk.build_epr import (
     SER_RESPONSE_KEEP_IDX_GOODNESS,
     SER_RESPONSE_KEEP_LEN,
 )
-from netsquid.components.instructions import INSTR_ROT_X, INSTR_ROT_Z
+from netsquid.components.instructions import INSTR_MEASURE, INSTR_ROT_X, INSTR_ROT_Z
 from netsquid.qubits.ketstates import BellIndex
 from qlink_interface import (
     ReqCreateAndKeep,
@@ -28,6 +28,7 @@ from qoala.lang.request import (
 )
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
+from qoala.runtime.program import RequestRoutineResult
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
@@ -689,9 +690,49 @@ class NetstackProcessor:
             local_qubit_id=phys_id,
         )
 
-    def assign_request_routine(
+    def measure_epr_qubit(
+        self, process: IqoalaProcess, virt_id: int
+    ) -> Generator[EventExpression, None, int]:
+        phys_id = self._interface.memmgr.phys_id_for(process.pid, virt_id)
+        # Should have been allocated by `handle_req_routine_md`
+        assert phys_id is not None
+        commands = [QDeviceCommand(INSTR_MEASURE, [phys_id])]
+        m = yield from self.qdevice.execute_commands(commands=commands)
+        assert m is not None
+        return m
+
+    def handle_req_routine_md(
         self, process: IqoalaProcess, routine: RequestRoutine
-    ) -> Generator[EventExpression, None, None]:
+    ) -> Generator[EventExpression, None, RequestRoutineResult]:
+        request = routine.request
+        assert request.typ == EprType.MEASURE_DIRECTLY
+        num_pairs = request.num_pairs
+
+        # TODO: refactor when implementing proper shared memory
+        inputs = process.prog_instance.inputs.values
+        request.instantiate(inputs)
+
+        outcomes: List[int] = []
+
+        if routine.callback_type == CallbackType.SEQUENTIAL:
+            raise NotImplementedError
+        else:
+            for i in range(num_pairs):
+                virt_id = self.allocate_for_pair(process, request, i)
+                entdist_req = self.create_entdist_request(process, request, virt_id)
+                # Create EPR pair
+                yield from self.execute_entdist_request(entdist_req)
+                # Measure local qubit
+                m = yield from self.measure_epr_qubit(process, virt_id)
+                # Free virt qubit
+                self._interface.memmgr.free(process.pid, virt_id)
+                outcomes.append(m)
+
+        return RequestRoutineResult(meas_outcomes=outcomes)
+
+    def handle_req_routine_ck(
+        self, process: IqoalaProcess, routine: RequestRoutine
+    ) -> Generator[EventExpression, None, RequestRoutineResult]:
         request = routine.request
         num_pairs = request.num_pairs
 
@@ -706,3 +747,15 @@ class NetstackProcessor:
                 virt_id = self.allocate_for_pair(process, request, i)
                 entdist_req = self.create_entdist_request(process, request, virt_id)
                 yield from self.execute_entdist_request(entdist_req)
+
+        return RequestRoutineResult.empty()
+
+    def assign_request_routine(
+        self, process: IqoalaProcess, routine: RequestRoutine
+    ) -> Generator[EventExpression, None, RequestRoutineResult]:
+        if routine.request.typ == EprType.CREATE_KEEP:
+            return (yield from self.handle_req_routine_ck(process, routine))
+        elif routine.request.typ == EprType.MEASURE_DIRECTLY:
+            return (yield from self.handle_req_routine_md(process, routine))
+        else:
+            raise NotImplementedError
