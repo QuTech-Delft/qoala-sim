@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Generator, Optional, Union
+from copy import deepcopy
+from typing import Any, Dict, Generator, Optional, Union
 
 import netsquid as ns
 from netqasm.lang.instr import NetQASMInstruction, core, nv, vanilla
@@ -25,11 +26,13 @@ from netsquid.components.instructions import Instruction as NsInstr
 from netsquid.qubits import qubitapi
 
 from pydynaa import EventExpression
-from qoala.runtime.memory import ProgramMemory
+from qoala.lang.routine import LocalRoutine
+from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
 from qoala.runtime.message import Message
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.globals import GlobalSimData
 from qoala.sim.memmgr import NotAllocatedError
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import IqoalaProcess, RoutineInstance
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos.qnosinterface import QnosInterface, QnosLatencies
 from qoala.sim.requests import (
@@ -72,10 +75,33 @@ class QnosProcessor:
     def qdevice(self) -> QDevice:
         return self._interface.qdevice
 
+    def instantiate_routine(
+        self,
+        process: IqoalaProcess,
+        routine: LocalRoutine,
+        args: Dict[str, Any],
+        input_addr: MemAddr,
+        result_addr: MemAddr,
+    ) -> LocalRoutine:
+        """Instantiates and activates routine."""
+        instance = deepcopy(routine)
+        instance.subroutine.instantiate(process.pid, args)
+
+        running_routine = RunningLocalRoutine(instance, input_addr, result_addr)
+        process.qnos_mem.add_running_routine(running_routine)
+
     def assign_local_routine(
-        self, process: IqoalaProcess, routine_name: str
+        self,
+        process: IqoalaProcess,
+        routine_name: str,
+        input_addr: MemAddr,
+        result_addr: MemAddr,
     ) -> Generator[EventExpression, None, None]:
         routine = process.get_local_routine(routine_name)
+        global_args = process.prog_instance.inputs.values
+
+        self.instantiate_routine(process, routine, global_args, input_addr, result_addr)
+
         netqasm_instrs = routine.subroutine.instructions
 
         instr_idx = 0
@@ -88,15 +114,13 @@ class QnosProcessor:
         self, process: IqoalaProcess, subrt_name: str, instr_idx: int
     ) -> Generator[EventExpression, None, int]:
         """Assign the processor to one specific instruction in a local routine."""
-        # TODO: use arguments from RoutineInstance
-        # (currently the RoutineInstance.routine is already instantiated so we don't
-        # need the RoutineInstance.arguments)
-        iqoala_subrt = process.get_active_routine(subrt_name).routine
+        running_routine = process.qnos_mem.get_running_routine(subrt_name)
+        routine = running_routine.routine
         pid = process.prog_instance.pid
 
         self._current_prog_mem = process.prog_memory
 
-        subroutine = iqoala_subrt.subroutine
+        subroutine = routine.subroutine
 
         # TODO: handle program counter and jumping!!
         instr = subroutine.instructions[instr_idx]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 from netqasm.lang import operand
@@ -7,7 +8,8 @@ from netqasm.lang.encoding import RegisterName
 from netqasm.sdk.shared_memory import Arrays, RegisterGroup, setup_registers
 
 from qoala.lang.ehi import UnitModule
-from qoala.runtime.sharedmem import SharedMemoryManager
+from qoala.lang.routine import LocalRoutine
+from qoala.runtime.sharedmem import MemAddr, SharedMemoryManager
 
 
 class RegisterMeta:
@@ -179,6 +181,13 @@ class SharedMemory:
         return address, index
 
 
+@dataclass
+class RunningLocalRoutine:
+    routine: LocalRoutine
+    params_addr: MemAddr
+    result_addr: MemAddr
+
+
 class QnosMemory:
     """Classical program memory only available to Qnos.
     Not used at the moment.
@@ -187,6 +196,19 @@ class QnosMemory:
 
     def __init__(self, pid: int) -> None:
         self._pid = pid
+
+        # TODO: allow multiple instances of same routine (name)?
+        # Currently not possible
+        self._running_routines: Dict[str, RunningLocalRoutine] = {}
+
+    def add_running_routine(self, running_routine: RunningLocalRoutine) -> None:
+        self._running_routines[running_routine.routine.name] = running_routine
+
+    def remove_running_routine(self, name: str) -> None:
+        self._running_routines.pop(name)
+
+    def get_running_routine(self, name: str) -> RunningLocalRoutine:
+        return self._running_routines[name]
 
 
 class ProgramMemory:
@@ -215,6 +237,10 @@ class ProgramMemory:
     @property
     def shared_mem(self) -> SharedMemory:
         return self._shared_memory
+
+    @property
+    def shared_memmgr(self) -> SharedMemoryManager:
+        return self._shared_memmgr
 
     @property
     def qnos_mem(self) -> QnosMemory:
