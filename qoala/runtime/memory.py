@@ -7,6 +7,7 @@ from netqasm.lang.encoding import RegisterName
 from netqasm.sdk.shared_memory import Arrays, RegisterGroup, setup_registers
 
 from qoala.lang.ehi import UnitModule
+from qoala.runtime.sharedmem import SharedMemoryManager
 
 
 class RegisterMeta:
@@ -197,10 +198,14 @@ class ProgramMemory:
     def __init__(self, pid: int) -> None:
         self._pid: int = pid
 
+        # TODO: remove pids?
         self._host_memory = HostMemory(pid)
         self._shared_memory = SharedMemory(pid)
         self._qnos_memory = QnosMemory(pid)
 
+        self._shared_memmgr: SharedMemoryManager = SharedMemoryManager()
+
+        # TODO: remove?
         self._prog_counter: int = 0
 
     @property
