@@ -13,6 +13,7 @@ from netsquid_magic.link_layer import (
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
+from qoala.lang.ehi import EhiBuilder, UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
@@ -306,13 +307,15 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     server_inputs = [
         ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
     ]
+
+    server_unit_module = UnitModule.from_full_ehi(server_procnode.memmgr.get_ehi())
     server_batch_info = BatchInfo(
         program=server_program,
+        unit_module=server_unit_module,
         inputs=server_inputs,
         num_iterations=num_iterations,
         deadline=0,
         tasks=server_tasks,
-        num_qubits=3,
     )
     server_procnode.submit_batch(server_batch_info)
     server_procnode.initialize_processes()
@@ -336,13 +339,14 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
         for _ in range(num_iterations)
     ]
 
+    client_unit_module = UnitModule.from_full_ehi(client_procnode.memmgr.get_ehi())
     client_batch_info = BatchInfo(
         program=client_program,
+        unit_module=client_unit_module,
         inputs=client_inputs,
         num_iterations=num_iterations,
         deadline=0,
         tasks=client_tasks,
-        num_qubits=3,
     )
     client_procnode.submit_batch(client_batch_info)
     client_procnode.initialize_processes()

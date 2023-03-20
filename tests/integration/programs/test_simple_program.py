@@ -5,6 +5,7 @@ from typing import List
 
 import netsquid as ns
 
+from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
@@ -85,9 +86,9 @@ def create_tasks(program: IqoalaProgram) -> ProgramTaskList:
 
 def create_batch(
     inputs: List[ProgramInput],
+    unit_module: UnitModule,
     num_iterations: int,
     deadline: int,
-    num_qubits: int,
 ) -> BatchInfo:
     program = load_program()
     tasks = create_tasks(program)
@@ -95,10 +96,10 @@ def create_batch(
     return BatchInfo(
         program=program,
         inputs=inputs,
+        unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
         tasks=tasks,
-        num_qubits=num_qubits,
     )
 
 
@@ -112,11 +113,13 @@ def run_program():
     num_iterations = 100
     inputs = [ProgramInput({}) for i in range(num_iterations)]
 
+    unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
+
     batch_info = create_batch(
         inputs=inputs,
+        unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=0,
-        num_qubits=1,
     )
 
     procnode.submit_batch(batch_info)

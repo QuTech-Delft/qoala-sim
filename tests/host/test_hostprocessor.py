@@ -101,12 +101,6 @@ def create_process(
     if inputs is None:
         inputs = {}
     prog_input = ProgramInput(values=inputs)
-    instance = ProgramInstance(
-        pid=0,
-        program=program,
-        inputs=prog_input,
-        tasks=ProgramTaskList.empty(program),
-    )
 
     mock_ehi = EhiBuilder.perfect_uniform(
         num_qubits=2,
@@ -117,7 +111,15 @@ def create_process(
         two_duration=0,
     )
 
-    mem = ProgramMemory(pid=0, unit_module=UnitModule.from_full_ehi(mock_ehi))
+    instance = ProgramInstance(
+        pid=0,
+        program=program,
+        inputs=prog_input,
+        tasks=ProgramTaskList.empty(program),
+        unit_module=UnitModule.from_full_ehi(mock_ehi),
+    )
+
+    mem = ProgramMemory(pid=0)
     process = IqoalaProcess(
         prog_instance=instance,
         prog_memory=mem,

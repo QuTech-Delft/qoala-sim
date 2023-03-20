@@ -60,8 +60,9 @@ def create_process(
         program=program,
         inputs=prog_input,
         tasks=tasks,
+        unit_module=unit_module,
     )
-    mem = ProgramMemory(pid=0, unit_module=unit_module)
+    mem = ProgramMemory(pid=0)
 
     process = IqoalaProcess(
         prog_instance=instance,

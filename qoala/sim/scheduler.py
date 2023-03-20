@@ -101,6 +101,7 @@ class Scheduler(Protocol):
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 tasks=batch_info.tasks,
+                unit_module=batch_info.unit_module,
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -164,15 +165,9 @@ class Scheduler(Protocol):
         self.install_schedule(schedule)
 
     def create_processes_for_batches(self) -> None:
-        ehi = self.memmgr.get_ehi()
         for batch in self._batches.values():
             for prog_instance in batch.instances:
-                prog_memory = ProgramMemory(
-                    prog_instance.pid,
-                    unit_module=UnitModule.from_full_ehi(
-                        ehi
-                    ),  # TODO: make configurable
-                )
+                prog_memory = ProgramMemory(prog_instance.pid)
                 meta = prog_instance.program.meta
 
                 csockets: Dict[int, ClassicalSocket] = {}

@@ -189,13 +189,17 @@ class QnosMemory:
 
 
 class ProgramMemory:
-    def __init__(self, pid: int, unit_module: UnitModule) -> None:
+    """Dynamic runtime memory, divided into
+    - Host Memory: local to the Host
+    - Qnos Memory: local to Qnos
+    - Shared Memory: shared between Host, Qnos and Netstack. Divided into Regions."""
+
+    def __init__(self, pid: int) -> None:
         self._pid: int = pid
 
         self._host_memory = HostMemory(pid)
         self._shared_memory = SharedMemory(pid)
         self._qnos_memory = QnosMemory(pid)
-        self._quantum_memory = QuantumMemory(pid, unit_module)
 
         self._prog_counter: int = 0
 
@@ -212,10 +216,6 @@ class ProgramMemory:
         return self._qnos_memory
 
     @property
-    def quantum_mem(self) -> QuantumMemory:
-        return self._quantum_memory
-
-    @property
     def prog_counter(self) -> int:
         return self._prog_counter
 
@@ -224,19 +224,3 @@ class ProgramMemory:
 
     def set_prog_counter(self, value: int) -> None:
         self._prog_counter = value
-
-
-class QuantumMemory:
-    """Quantum memory only available to Qnos. Represented as unit modules."""
-
-    # Only describes the virtual memory space (i.e. unit module).
-    # Does not contain 'values' (quantum states) of the virtual memory locations.
-    # Does not contain the mapping from virtual to physical space. (Managed by memmgr)
-
-    def __init__(self, pid: int, unit_module: UnitModule) -> None:
-        self._pid = pid
-        self._unit_module = unit_module
-
-    @property
-    def unit_module(self) -> UnitModule:
-        return self._unit_module

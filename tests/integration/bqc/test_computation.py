@@ -6,6 +6,7 @@ from typing import Dict, List
 
 import netsquid as ns
 
+from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
@@ -331,9 +332,9 @@ def load_client_program() -> IqoalaProgram:
 def create_server_batch(
     client_id: int,
     inputs: List[ProgramInput],
+    unit_module: UnitModule,
     num_iterations: int,
     deadline: int,
-    num_qubits: int,
 ) -> BatchInfo:
     durations = create_durations()
     server_program = load_server_program(remote_name=f"client_{client_id}")
@@ -341,15 +342,18 @@ def create_server_batch(
     return BatchInfo(
         program=server_program,
         inputs=inputs,
+        unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
         tasks=server_tasks,
-        num_qubits=num_qubits,
     )
 
 
 def create_client_batch(
-    inputs: List[ProgramInput], num_iterations: int, deadline: int
+    inputs: List[ProgramInput],
+    unit_module: UnitModule,
+    num_iterations: int,
+    deadline: int,
 ) -> BatchInfo:
     durations = create_durations()
     client_program = load_client_program()
@@ -357,10 +361,10 @@ def create_client_batch(
     return BatchInfo(
         program=client_program,
         inputs=inputs,
+        unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
         tasks=client_tasks,
-        num_qubits=1,
     )
 
 
@@ -398,12 +402,13 @@ def run_bqc(
             ProgramInput({"client_id": client_id}) for _ in range(num_iterations[index])
         ]
 
+        server_unit_module = UnitModule.from_full_ehi(server_procnode.memmgr.get_ehi())
         server_batch_info = create_server_batch(
             client_id=client_id,
             inputs=server_inputs,
+            unit_module=server_unit_module,
             num_iterations=num_iterations[index],
             deadline=deadlines[index],
-            num_qubits=server_num_qubits,
         )
 
         server_procnode.submit_batch(server_batch_info)
@@ -429,11 +434,13 @@ def run_bqc(
             for _ in range(num_iterations[index])
         ]
 
+        client_procnode = network.nodes[f"client_{client_id}"]
+
+        client_unit_module = UnitModule.from_full_ehi(client_procnode.memmgr.get_ehi())
         client_batch_info = create_client_batch(
-            client_inputs, num_iterations[index], deadlines[index]
+            client_inputs, client_unit_module, num_iterations[index], deadlines[index]
         )
 
-        client_procnode = network.nodes[f"client_{client_id}"]
         client_procnode.submit_batch(client_batch_info)
         client_procnode.initialize_processes()
         client_procnode.initialize_schedule(NoTimeSolver)

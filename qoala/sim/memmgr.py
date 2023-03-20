@@ -73,7 +73,7 @@ class MemoryManager:
 
     def add_process(self, process: IqoalaProcess) -> None:
         self._processes[process.pid] = process
-        unit_module = process.prog_memory.quantum_mem.unit_module
+        unit_module = process.prog_instance.unit_module
         self._process_mappings[process.pid] = VirtualMapping(
             unit_module, {x: None for x in unit_module.get_all_qubit_ids()}
         )

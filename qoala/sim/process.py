@@ -2,6 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict
 
+from qoala.lang.program import IqoalaProgram
 from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import HostMemory, ProgramMemory, SharedMemory
@@ -63,6 +64,10 @@ class IqoalaProcess:
     @property
     def pid(self) -> int:
         return self.prog_instance.pid  # type: ignore
+
+    @property
+    def program(self) -> IqoalaProgram:
+        return self.prog_instance.program
 
     @property
     def host_mem(self) -> HostMemory:

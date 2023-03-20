@@ -376,15 +376,16 @@ def create_process(
         blocks=[], local_routines=routines, meta=ProgramMeta.empty("")
     )
 
+    ehi = EhiBuilder.perfect_uniform(num_qubits, None, [], 0, [], 0)
+    unit_module = UnitModule.from_full_ehi(ehi)
     instance = ProgramInstance(
         pid=0,
         program=program,
         inputs=ProgramInput({}),
         tasks=ProgramTaskList.empty(program),
+        unit_module=unit_module,
     )
-    ehi = EhiBuilder.perfect_uniform(num_qubits, None, [], 0, [], 0)
-    unit_module = UnitModule.from_full_ehi(ehi)
-    mem = ProgramMemory(pid=0, unit_module=unit_module)
+    mem = ProgramMemory(pid=0)
 
     process = IqoalaProcess(
         prog_instance=instance,
