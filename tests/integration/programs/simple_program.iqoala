@@ -39,5 +39,5 @@ SUBROUTINE subrt1
   NETQASM_START
     meas Q0 M0
     qfree Q0
-    store M0 @101[0]
+    store M0 @output[0]
   NETQASM_END

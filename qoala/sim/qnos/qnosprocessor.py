@@ -317,13 +317,13 @@ class QnosProcessor:
         )
 
         addr = instr.entry.address.address
+        # Only allow NetQASM 2.0 input/output addresses
+        assert isinstance(addr, str)
+        assert addr == "output"
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
-        if addr == 101:  # result region
-            new_shared_mem.write_lr_out(result_addr, [value], offset=index)
-        else:
-            raise NotImplementedError  # TODO: needed?
+        new_shared_mem.write_lr_out(result_addr, [value], offset=index)
 
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
@@ -337,13 +337,13 @@ class QnosProcessor:
         input_addr = self._routine().params_addr
 
         addr = instr.entry.address.address
+        # Only allow NetQASM 2.0 input/output addresses
+        assert isinstance(addr, str)
+        assert addr == "input"
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
-        if addr == 100:  # input region
-            [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
-        else:
-            raise NotImplementedError  # TODO: needed?
+        [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
 
         if value is None:
             raise RuntimeError(f"array value at {instr.entry} is not defined")
@@ -556,12 +556,12 @@ class QnosProcessor:
     def _interpret_create_epr(
         self, pid: int, instr: core.CreateEPRInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
+        raise DeprecationWarning
 
     def _interpret_recv_epr(
         self, pid: int, instr: core.RecvEPRInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
+        raise DeprecationWarning
 
     def _interpret_wait_all(
         self, pid: int, instr: core.WaitAllInstruction
@@ -571,12 +571,12 @@ class QnosProcessor:
     def _interpret_ret_reg(
         self, pid: int, instr: core.RetRegInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
+        raise DeprecationWarning
 
     def _interpret_ret_arr(
         self, pid: int, instr: core.RetArrInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
+        raise DeprecationWarning
 
     def _interpret_single_qubit_instr(
         self, pid: int, instr: core.SingleQubitInstruction

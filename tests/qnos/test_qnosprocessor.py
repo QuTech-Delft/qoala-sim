@@ -588,7 +588,7 @@ SUBROUTINE subrt
     keeps:
     request: 
   NETQASM_START
-    load R0 @100[0]
+    load R0 @input[0]
   NETQASM_END
     """
 
@@ -616,12 +616,12 @@ SUBROUTINE subrt
     keeps:
     request: 
   NETQASM_START
-    load R0 @100[0]
-    load R1 @100[1]
+    load R0 @input[0]
+    load R1 @input[1]
     add C0 R0 R0
     add C1 R1 R1
-    store C0 @101[0]
-    store C1 @101[1]
+    store C0 @output[0]
+    store C1 @output[1]
   NETQASM_END
     """
 

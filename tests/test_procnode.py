@@ -536,7 +536,7 @@ SUBROUTINE subrt1
     request:
   NETQASM_START
     set R5 42
-    store R5 @101[0]
+    store R5 @output[0]
   NETQASM_END
     """
     )
