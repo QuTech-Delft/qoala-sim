@@ -199,7 +199,6 @@ def create_client_tasks(
 
     set_dur = task_durations.instr_latency
     rot_dur = task_durations.single_gate
-    h_dur = task_durations.single_gate
     meas_dur = task_durations.meas
     free_dur = task_durations.instr_latency
 
