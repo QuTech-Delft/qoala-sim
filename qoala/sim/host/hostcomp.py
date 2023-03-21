@@ -35,6 +35,7 @@ class HostComponent(Component):
         self.add_ports(self._peer_out_ports.values())
 
         self.add_ports(["qnos_in", "qnos_out"])
+        self.add_ports(["nstk_in", "nstk_out"])
 
     @property
     def qnos_in_port(self) -> Port:
@@ -43,6 +44,14 @@ class HostComponent(Component):
     @property
     def qnos_out_port(self) -> Port:
         return self.ports["qnos_out"]
+
+    @property
+    def netstack_in_port(self) -> Port:
+        return self.ports["nstk_in"]
+
+    @property
+    def netstack_out_port(self) -> Port:
+        return self.ports["nstk_out"]
 
     def peer_in_port(self, name: str) -> Port:
         port_name = self._peer_in_ports[name]

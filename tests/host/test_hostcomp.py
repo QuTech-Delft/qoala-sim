@@ -33,19 +33,23 @@ def create_hostcomp(num_other_nodes: int) -> HostComponent:
 def test_no_other_nodes():
     comp = create_hostcomp(num_other_nodes=0)
 
-    # should have qnos_in and qnos_out port
-    assert len(comp.ports) == 2
+    # should have qnos_{in|out} and ntsk_{in|out} ports
+    assert len(comp.ports) == 4
     assert "qnos_in" in comp.ports
     assert "qnos_out" in comp.ports
+    assert "nstk_in" in comp.ports
+    assert "nstk_out" in comp.ports
 
 
 def test_one_other_node():
     comp = create_hostcomp(num_other_nodes=1)
 
-    # should have 2 qnos ports + 2 peer ports
-    assert len(comp.ports) == 4
+    # should have 2 qnos ports + 2 nstk ports + 2 peer ports
+    assert len(comp.ports) == 6
     assert "qnos_in" in comp.ports
     assert "qnos_out" in comp.ports
+    assert "nstk_in" in comp.ports
+    assert "nstk_out" in comp.ports
 
     assert "peer_node_1_in" in comp.ports
     assert "peer_node_1_out" in comp.ports
@@ -58,10 +62,12 @@ def test_one_other_node():
 def test_many_other_nodes():
     comp = create_hostcomp(num_other_nodes=5)
 
-    # should have 2 qnos ports + 5 * 2 peer ports
-    assert len(comp.ports) == 12
+    # should have 2 qnos ports + 2 nstk ports + 5 * 2 peer ports
+    assert len(comp.ports) == 14
     assert "qnos_in" in comp.ports
     assert "qnos_out" in comp.ports
+    assert "nstk_in" in comp.ports
+    assert "nstk_out" in comp.ports
 
     for i in range(1, 6):
         assert f"peer_node_{i}_in" in comp.ports

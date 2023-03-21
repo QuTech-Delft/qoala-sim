@@ -368,23 +368,31 @@ def simple_req_routine(
 
 
 def create_process(
-    num_qubits: int, routines: Optional[Dict[str, LocalRoutine]] = None
+    num_qubits: int,
+    routines: Optional[Dict[str, LocalRoutine]] = None,
+    req_routines: Optional[Dict[str, RequestRoutine]] = None,
 ) -> IqoalaProcess:
     if routines is None:
         routines = {}
+    if req_routines is None:
+        req_routines = {}
     program = IqoalaProgram(
-        blocks=[], local_routines=routines, meta=ProgramMeta.empty("")
+        blocks=[],
+        local_routines=routines,
+        meta=ProgramMeta.empty(""),
+        request_routines=req_routines,
     )
 
+    ehi = EhiBuilder.perfect_uniform(num_qubits, None, [], 0, [], 0)
+    unit_module = UnitModule.from_full_ehi(ehi)
     instance = ProgramInstance(
         pid=0,
         program=program,
         inputs=ProgramInput({}),
         tasks=ProgramTaskList.empty(program),
+        unit_module=unit_module,
     )
-    ehi = EhiBuilder.perfect_uniform(num_qubits, None, [], 0, [], 0)
-    unit_module = UnitModule.from_full_ehi(ehi)
-    mem = ProgramMemory(pid=0, unit_module=unit_module)
+    mem = ProgramMemory(pid=0)
 
     process = IqoalaProcess(
         prog_instance=instance,
@@ -392,7 +400,6 @@ def create_process(
         csockets={},
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
@@ -414,13 +421,11 @@ def test_single_pair_qoala_ck_request_only_alice():
         create_request(bob_id, alice_id, 0),
         create_request(bob_id, alice_id, 1),
     ]
-    process_alice = create_process(num_qubits)
+    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.assign_request_routine(
-                process_alice, routine_alice
-            )
+            yield from self.processor.assign_request_routine(process_alice, "req1")
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -465,18 +470,16 @@ def test_single_pair_qoala_ck_request():
         role=EprRole.RECEIVE,
     )
 
-    process_alice = create_process(num_qubits)
-    process_bob = create_process(num_qubits)
+    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
+    process_bob = create_process(num_qubits, req_routines={"req1": routine_bob})
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.assign_request_routine(
-                process_alice, routine_alice
-            )
+            yield from self.processor.assign_request_routine(process_alice, "req1")
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.assign_request_routine(process_bob, routine_bob)
+            yield from self.processor.assign_request_routine(process_bob, "req1")
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
         num_qubits, alice_id, bob_id, AliceNetstack, BobNetstack
@@ -517,19 +520,19 @@ def test_single_pair_qoala_md_request_different_virt_ids():
         role=EprRole.RECEIVE,
     )
 
-    process_alice = create_process(num_qubits)
-    process_bob = create_process(num_qubits)
+    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
+    process_bob = create_process(num_qubits, req_routines={"req1": routine_bob})
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_alice, routine_alice
+                process_alice, "req1"
             )
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_bob, routine_bob
+                process_bob, "req1"
             )
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
@@ -572,19 +575,19 @@ def test_single_pair_qoala_md_request_same_virt_ids():
         role=EprRole.RECEIVE,
     )
 
-    process_alice = create_process(num_qubits)
-    process_bob = create_process(num_qubits)
+    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
+    process_bob = create_process(num_qubits, req_routines={"req1": routine_bob})
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_alice, routine_alice
+                process_alice, "req1"
             )
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_bob, routine_bob
+                process_bob, "req1"
             )
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(

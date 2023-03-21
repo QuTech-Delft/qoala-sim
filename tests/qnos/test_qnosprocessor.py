@@ -9,6 +9,7 @@ from netqasm.lang.parsing import parse_text_subroutine
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
+from qoala.lang.parse import LocalRoutineParser
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
@@ -17,6 +18,7 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
@@ -134,15 +136,22 @@ def create_program(
 
 
 def create_process(
-    pid: int, program: IqoalaProgram, unit_module: UnitModule
+    pid: int,
+    program: IqoalaProgram,
+    unit_module: UnitModule,
+    inputs: Optional[ProgramInput] = None,
 ) -> IqoalaProcess:
+    if inputs is None:
+        inputs = ProgramInput({})
+
     instance = ProgramInstance(
         pid=pid,
         program=program,
-        inputs=ProgramInput({}),
+        inputs=inputs,
         tasks=ProgramTaskList.empty(program),
+        unit_module=unit_module,
     )
-    mem = ProgramMemory(pid=pid, unit_module=unit_module)
+    mem = ProgramMemory(pid=pid)
 
     process = IqoalaProcess(
         prog_instance=instance,
@@ -150,13 +159,15 @@ def create_process(
         csockets={},
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
 
 def create_process_with_subrt(
-    pid: int, subrt_text: str, unit_module: UnitModule
+    pid: int,
+    subrt_text: str,
+    unit_module: UnitModule,
+    inputs: Optional[ProgramInput] = None,
 ) -> IqoalaProcess:
     subrt = parse_text_subroutine(subrt_text)
     metadata = RoutineMetadata.use_none()
@@ -164,13 +175,39 @@ def create_process_with_subrt(
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
     program = create_program(subroutines={"subrt": iqoala_subrt}, meta=meta)
-    return create_process(pid, program, unit_module)
+    return create_process(pid, program, unit_module, inputs)
 
 
-def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
-    subroutines = process.prog_instance.program.local_routines
-    process.instantiate_routine("subrt", {})
-    netqasm_instructions = subroutines["subrt"].subroutine.instructions
+def create_process_with_local_routine(
+    pid: int,
+    routine_text: str,
+    unit_module: UnitModule,
+    inputs: Optional[ProgramInput] = None,
+) -> IqoalaProcess:
+    routines = LocalRoutineParser(routine_text).parse()
+    meta = ProgramMeta.empty("alice")
+    meta.epr_sockets = {0: "bob"}
+    program = create_program(subroutines=routines, meta=meta)
+    return create_process(pid, program, unit_module, inputs)
+
+
+def execute_process(
+    processor: GenericProcessor,
+    process: IqoalaProcess,
+    input_addr: Optional[MemAddr] = None,
+    result_addr: Optional[MemAddr] = None,
+) -> int:
+    if input_addr is None:
+        input_addr = MemAddr(0)
+    if result_addr is None:
+        result_addr = MemAddr(0)
+
+    all_routines = process.program.local_routines
+    routine = all_routines["subrt"]
+    inputs = process.inputs.values
+    processor.instantiate_routine(process, routine, inputs, input_addr, result_addr)
+
+    netqasm_instructions = routine.subroutine.instructions
 
     instr_count = 0
 
@@ -186,9 +223,14 @@ def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
 def execute_process_with_latencies(
     processor: GenericProcessor, process: IqoalaProcess
 ) -> int:
-    subroutines = process.prog_instance.program.local_routines
-    process.instantiate_routine("subrt", {})
-    netqasm_instructions = subroutines["subrt"].subroutine.instructions
+    all_routines = process.program.local_routines
+    routine = all_routines["subrt"]
+    # input/result arrays not used
+    # TODO: add tests that do use these
+    inputs = process.inputs.values
+    processor.instantiate_routine(process, routine, inputs, MemAddr(0), MemAddr(0))
+
+    netqasm_instructions = routine.subroutine.instructions
 
     instr_count = 0
 
@@ -205,9 +247,13 @@ def execute_multiple_processes(
     processor: GenericProcessor, processes: List[IqoalaProcess]
 ) -> None:
     for proc in processes:
-        subroutines = proc.prog_instance.program.local_routines
-        proc.instantiate_routine("subrt", {})
-        netqasm_instructions = subroutines["subrt"].subroutine.instructions
+        all_routines = proc.program.local_routines
+        routine = all_routines["subrt"]
+        # input/result arrays not used
+        # TODO: add tests that do use these
+        inputs = proc.inputs.values
+        processor.instantiate_routine(proc, routine, inputs, MemAddr(0), MemAddr(0))
+        netqasm_instructions = routine.subroutine.instructions
         for i in range(len(netqasm_instructions)):
             yield_from(processor.assign_routine_instr(proc, "subrt", i))
 
@@ -250,7 +296,7 @@ def test_set_reg():
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
-    assert process.prog_memory.shared_mem.get_reg_value("R0") == 17
+    assert process.prog_memory.qnos_mem.get_reg_value("R0") == 17
 
 
 def test_set_reg_with_latencies():
@@ -270,7 +316,7 @@ def test_set_reg_with_latencies():
     execute_process_with_latencies(processor, process)
     assert ns.sim_time() == 5e3
 
-    assert process.prog_memory.shared_mem.get_reg_value("R0") == 17
+    assert process.prog_memory.qnos_mem.get_reg_value("R0") == 17
 
 
 def test_add():
@@ -284,7 +330,7 @@ def test_add():
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
-    assert process.prog_memory.shared_mem.get_reg_value("R2") == 7
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 7
 
 
 def test_add_with_latencies():
@@ -307,7 +353,7 @@ def test_add_with_latencies():
     execute_process_with_latencies(processor, process)
     assert ns.sim_time() == 5e3 * 3
 
-    assert process.prog_memory.shared_mem.get_reg_value("R2") == 7
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 7
 
 
 def test_alloc_qubit():
@@ -464,7 +510,7 @@ LABEL1:
     instr_count = execute_process(processor, process)
 
     assert instr_count == 5
-    assert process.prog_memory.shared_mem.get_reg_value("C0") == 4
+    assert process.prog_memory.qnos_mem.get_reg_value("C0") == 4
 
 
 def test_branch():
@@ -485,7 +531,7 @@ LABEL1:
     instr_count = execute_process(processor, process)
 
     assert instr_count == 3
-    assert process.prog_memory.shared_mem.get_reg_value("C0") == 0
+    assert process.prog_memory.qnos_mem.get_reg_value("C0") == 0
 
 
 def test_branch_with_latencies():
@@ -513,64 +559,86 @@ LABEL1:
     assert instr_count == 3
     assert ns.sim_time() == 5e3 * 3
 
-    assert process.prog_memory.shared_mem.get_reg_value("C0") == 0
+    assert process.prog_memory.qnos_mem.get_reg_value("C0") == 0
 
 
-def test_array():
+def test_program_inputs():
     processor, unit_module = setup_components(star_topology(2))
 
     subrt = """
-    set C10 10
-    array C10 @0
-    set R4 4
-    set C8 8
-    store C8 @0[R4]
+    set R0 {global_arg}
     """
-    assert native_instr_count(subrt) == 5
+    inputs = ProgramInput({"global_arg": 3})
 
-    process = create_process_with_subrt(0, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-    instr_count = execute_process(processor, process)
-
-    assert instr_count == 5
-    array = process.prog_memory.shared_mem.get_array(0)
-    assert len(array) == 10
-    assert all(
-        process.prog_memory.shared_mem.get_array_value(0, i) is None
-        for i in range(10)
-        if i != 4
-    )
-    assert process.prog_memory.shared_mem.get_array_value(0, 4) == 8
-
-
-def test_wait_all():
-    pid = 0
-    array_id = 3
-    start_idx = 5
-    end_idx = 9
-
-    # Let the mock interface write some result to the array such that
-    # our "wait_all" instruction will unblock
-    netstack_result = MockNetstackResultInfo(
-        pid=pid, array_id=array_id, start_idx=start_idx, end_idx=end_idx
-    )
-
-    processor, unit_module = setup_components(
-        uniform_topology(1), netstack_result=netstack_result
-    )
-
-    subrt = f"""
-    array 10 @{array_id}
-    wait_all @{array_id}[{start_idx}:{end_idx}]
-    """
-    process = create_process_with_subrt(pid, subrt, unit_module)
+    process = create_process_with_subrt(0, subrt, unit_module, inputs)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
-    mem = process.prog_memory.shared_mem
-    assert all(
-        mem.get_array_value(array_id, i) is not None for i in range(start_idx, end_idx)
-    )
+    assert process.qnos_mem.get_reg_value("R0") == 3
+
+
+def test_program_routine_params():
+    processor, unit_module = setup_components(star_topology(2))
+
+    routine = """
+SUBROUTINE subrt
+    params: arg0
+    returns: 
+    uses: 
+    keeps:
+    request: 
+  NETQASM_START
+    load R0 @100[0]
+  NETQASM_END
+    """
+
+    process = create_process_with_local_routine(0, routine, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    shared_mem = process.prog_memory.shared_memmgr
+    input_addr = shared_mem.allocate_lr_in(1)
+    shared_mem.write_lr_in(input_addr, [3])
+
+    execute_process(processor, process, input_addr=input_addr, result_addr=0)
+
+    assert process.qnos_mem.get_reg_value("R0") == 3
+
+
+def test_program_routine_params_and_results():
+    processor, unit_module = setup_components(star_topology(2))
+
+    # TODO: fill in params and returns when Host/Array conversion is implemented
+    routine = """
+SUBROUTINE subrt
+    params:
+    returns: 
+    uses: 
+    keeps:
+    request: 
+  NETQASM_START
+    load R0 @100[0]
+    load R1 @100[1]
+    add C0 R0 R0
+    add C1 R1 R1
+    store C0 @101[0]
+    store C1 @101[1]
+  NETQASM_END
+    """
+
+    process = create_process_with_local_routine(0, routine, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    shared_mem = process.prog_memory.shared_memmgr
+
+    input_addr = shared_mem.allocate_lr_in(2)
+    shared_mem.write_lr_in(input_addr, [3, 7])
+
+    result_addr = shared_mem.allocate_lr_out(2)
+
+    execute_process(processor, process, input_addr=input_addr, result_addr=result_addr)
+
+    assert process.qnos_mem.get_reg_value("C0") == 6
+    assert process.qnos_mem.get_reg_value("C1") == 14
 
 
 if __name__ == "__main__":
@@ -588,5 +656,6 @@ if __name__ == "__main__":
     test_no_branch()
     test_branch()
     test_branch_with_latencies()
-    test_array()
-    test_wait_all()
+    test_program_inputs()
+    test_program_routine_params()
+    test_program_routine_params_and_results()

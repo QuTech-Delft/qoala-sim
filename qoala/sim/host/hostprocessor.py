@@ -3,12 +3,9 @@ from __future__ import annotations
 import logging
 from typing import Generator
 
-from netqasm.lang.operand import Register
-from netqasm.lang.parsing.text import NetQASMSyntaxError, parse_register
-
 from pydynaa import EventExpression
 from qoala.lang import hostlang
-from qoala.runtime.message import Message
+from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.util.logging import LogManager
@@ -106,32 +103,25 @@ class HostProcessor:
             self._logger.info(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.RunSubroutineOp):
-            assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
-            arg_vec: hostlang.IqoalaVector = instr.arguments[0]
-            args = arg_vec.values
-            subrt_name = instr.attributes[0]
-            assert isinstance(subrt_name, str)
+            lrcall = self.prepare_lr_call(process, instr)
 
-            routine = process.get_local_routine(subrt_name)
-            self._logger.info(f"executing subroutine {routine}")
+            # Send a message to Qnos asking to run the routine.
+            self._interface.send_qnos_msg(Message(lrcall))
 
-            arg_values = {arg: host_mem.read(arg) for arg in args}
+            # Wait until Qnos says it has finished.
+            yield from self._interface.receive_qnos_msg()
 
-            self._logger.info(f"instantiating subroutine with values {arg_values}")
-            process.instantiate_routine(subrt_name, arg_values)
+            self.post_lr_call(process, lrcall)
+        elif isinstance(instr, hostlang.RunRequestOp):
+            rrcall = self.prepare_rr_call(process, instr)
 
-            if self._asynchronous:
-                # Send a message to Qnos asking it to execute the subroutine.
-                self._interface.send_qnos_msg(Message(subrt_name))
-                # Wait for Qnos to finish.
-                yield from self._interface.receive_qnos_msg()
-                # Qnos should have updated the shared memory with subroutine results.
-                self.copy_subroutine_results(process, subrt_name)
-            else:
-                # Let the scheduler make sure that Qnos executes the subroutine at
-                # some point. The scheduler is also responsible for copying subroutine
-                # results to the Host memory.
-                pass
+            # Send a message to the Netstack asking to run the routine.
+            self._interface.send_netstack_msg(Message(rrcall))
+
+            # Wait until the Netstack says it has finished.
+            yield from self._interface.receive_netstack_msg()
+
+            # TODO: read results
 
         elif isinstance(instr, hostlang.ReturnResultOp):
             assert isinstance(instr.arguments[0], str)
@@ -142,19 +132,72 @@ class HostProcessor:
 
         yield from self._interface.wait(self._latencies.host_instr_time)
 
-    def copy_subroutine_results(self, process: IqoalaProcess, subrt_name: str) -> None:
-        routine = process.get_local_routine(subrt_name)
+    def prepare_lr_call(
+        self, process: IqoalaProcess, instr: hostlang.RunSubroutineOp
+    ) -> LrCallTuple:
+        host_mem = process.prog_memory.host_mem
 
-        for key, mem_loc in routine.return_map.items():
-            try:
-                reg: Register = parse_register(mem_loc.loc)
-                value = process.shared_mem.get_register(reg)
-                self._logger.debug(
-                    f"writing shared memory value {value} from location "
-                    f"{mem_loc} to variable {key}"
-                )
-                # print(f"subrt result {key} = {value}")
-                assert value is not None
-                process.host_mem.write(key, value)
-            except NetQASMSyntaxError:
-                pass  # TODO: needed?
+        assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
+        arg_vec: hostlang.IqoalaVector = instr.arguments[0]
+        args = arg_vec.values
+        subrt_name = instr.attributes[0]
+        assert isinstance(subrt_name, str)
+
+        routine = process.get_local_routine(subrt_name)
+        self._logger.info(f"executing subroutine {routine}")
+
+        arg_values = {arg: host_mem.read(arg) for arg in args}
+
+        # self._logger.info(f"instantiating subroutine with values {arg_values}")
+        # process.instantiate_routine(subrt_name, arg_values)
+
+        shared_mem = process.prog_memory.shared_memmgr
+
+        # Allocate input memory and write args to it.
+        input_addr = shared_mem.allocate_lr_in(len(arg_values))
+        shared_mem.write_lr_in(input_addr, list(arg_values.values()))
+
+        # Allocate result memory.
+        result_addr = shared_mem.allocate_lr_out(len(routine.return_map))
+
+        return LrCallTuple(subrt_name, input_addr, result_addr)
+
+    def post_lr_call(self, process: IqoalaProcess, lrcall: LrCallTuple) -> None:
+        shared_mem = process.prog_memory.shared_memmgr
+        routine = process.get_local_routine(lrcall.routine_name)
+
+        # Read the results from shared memory.
+        result = shared_mem.read_lr_out(lrcall.result_addr, len(routine.return_map))
+
+        # Copy results to local host variables.
+        assert len(result) == len(routine.return_map)
+        for value, var in zip(result, routine.return_map.keys()):
+            process.host_mem.write(var, value)
+
+    def prepare_rr_call(
+        self, process: IqoalaProcess, instr: hostlang.RunRequestOp
+    ) -> RrCallTuple:
+        host_mem = process.prog_memory.host_mem
+
+        assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
+        arg_vec: hostlang.IqoalaVector = instr.arguments[0]
+        args = arg_vec.values
+        routine_name = instr.attributes[0]
+        assert isinstance(routine_name, str)
+
+        routine = process.get_request_routine(routine_name)
+        self._logger.info(f"executing request routine {routine}")
+
+        arg_values = {arg: host_mem.read(arg) for arg in args}
+
+        shared_mem = process.prog_memory.shared_memmgr
+
+        # Allocate input memory and write args to it.
+        input_addr = shared_mem.allocate_rr_in(len(arg_values))
+        shared_mem.write_rr_in(input_addr, list(arg_values.values()))
+
+        # Allocate result memory.
+        # TODO: implement RR return values.
+        result_addr = shared_mem.allocate_rr_out(0)
+
+        return RrCallTuple(routine_name, input_addr, result_addr)

@@ -631,7 +631,10 @@ META_END
 ^b1 {type = LR}:
     vec<m> = run_subroutine(vec<my_value>) : subrt1
 
-^b2 {type = host}:
+^b2 {type = RR}:
+    vec<m> = run_request(vec<my_value>) : req1
+
+^b3 {type = host}:
     return_result(m)
     """
 
@@ -671,8 +674,8 @@ REQUEST req1
         subrt_text=subrt_text,
         req_text=req_text,
     ).parse()
-    assert len(parsed_program.blocks) == 3
-    assert len(parsed_program.instructions) == 8
+    assert len(parsed_program.blocks) == 4
+    assert len(parsed_program.instructions) == 9
     assert "subrt1" in parsed_program.local_routines
     assert len(parsed_program.request_routines) == 1
     assert "req1" in parsed_program.request_routines
@@ -787,6 +790,46 @@ META_END
     my_value = assign_cval() : 1
 ^b1 {type = LR}:
     vec<m> = run_subroutine(vec<my_value>) : non_existing_subrt
+^b2 {type = host}:
+    return_result(m)
+    """
+
+    subrt_text = """
+SUBROUTINE subrt1
+    params: my_value
+    returns: M0 -> m
+    uses: 
+    keeps:
+    request: 
+  NETQASM_START
+    set R0 0
+  NETQASM_END
+    """
+
+    with pytest.raises(IqoalaParseError):
+        IqoalaParser(
+            meta_text=meta_text,
+            host_text=program_text,
+            subrt_text=subrt_text,
+            req_text="",
+        ).parse()
+
+
+def test_parse_program_invalid_req_routine_reference():
+    meta_text = """
+META_START
+name: alice
+parameters: 
+csockets: 0 -> bob
+epr_sockets: 
+META_END
+    """
+
+    program_text = """
+^b0 {type = host}:
+    my_value = assign_cval() : 1
+^b1 {type = LR}:
+    vec<m> = run_request(vec<my_value>) : non_existing_req
 ^b2 {type = host}:
     return_result(m)
     """
@@ -997,6 +1040,7 @@ if __name__ == "__main__":
     test_parse_program_no_requests()
     test_parse_program_no_subroutines()
     test_parse_program_invalid_subrt_reference()
+    test_parse_program_invalid_req_routine_reference()
     test_split_text()
     test_split_text_multiple_subroutines()
     test_parse_program_single_text()

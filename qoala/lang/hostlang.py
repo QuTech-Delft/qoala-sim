@@ -280,6 +280,35 @@ class RunSubroutineOp(ClassicalIqoalaOp):
         return super().__str__()
 
 
+class RunRequestOp(ClassicalIqoalaOp):
+    OP_NAME = "run_request"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(
+        self, result: Optional[IqoalaVector], values: IqoalaVector, routine: str
+    ) -> None:
+        super().__init__(results=result, arguments=[values], attributes=[routine])
+
+    @classmethod
+    def from_generic_args(
+        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+    ):
+        if result is not None:
+            assert isinstance(result, IqoalaVector)
+        assert len(args) == 1
+        assert isinstance(args[0], IqoalaVector)
+        assert isinstance(attr, str)
+        return cls(result, args[0], attr)
+
+    @property
+    def req_routine(self) -> str:
+        assert isinstance(self.attributes[0], str)
+        return self.attributes[0]
+
+    def __str__(self) -> str:
+        return super().__str__()
+
+
 class ReturnResultOp(ClassicalIqoalaOp):
     OP_NAME = "return_result"
     TYP = IqoalaInstructionType.CL

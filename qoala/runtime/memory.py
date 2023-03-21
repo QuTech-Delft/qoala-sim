@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 from netqasm.lang import operand
 from netqasm.lang.encoding import RegisterName
 from netqasm.sdk.shared_memory import Arrays, RegisterGroup, setup_registers
 
-from qoala.lang.ehi import UnitModule
+from qoala.lang.request import RequestRoutine
+from qoala.lang.routine import LocalRoutine
+from qoala.runtime.sharedmem import MemAddr, SharedMemoryManager
 
 
 class RegisterMeta:
@@ -51,53 +54,20 @@ class SharedMemory:
     def __init__(self, pid: int) -> None:
         self._pid = pid
 
-        register_names: Dict[RegisterName, RegisterGroup] = setup_registers()
-        self._registers: Dict[Dict[RegisterName, RegisterGroup], int] = {}
-        # TODO fix this abomination of handling registers
-        for name in register_names.keys():
-            self._registers[name] = {}  # type: ignore
-            for i in range(16):
-                self._registers[name][i] = 0  # type: ignore
         self._arrays: Arrays = Arrays()
-
-    def set_reg_value(self, register: Union[str, operand.Register], value: int) -> None:
-        if isinstance(register, str):
-            name, index = RegisterMeta.parse(register)
-        else:
-            name, index = register.name, register.index
-        self._registers[name][index] = value  # type: ignore
-
-    def get_reg_value(self, register: Union[str, operand.Register]) -> int:
-        if isinstance(register, str):
-            name, index = RegisterMeta.parse(register)
-        else:
-            name, index = register.name, register.index
-        return self._registers[name][index]  # type: ignore
-
-    # for compatibility with netqasm Futures
-    def get_register(self, register: Union[str, operand.Register]) -> Optional[int]:
-        return self.get_reg_value(register)
 
     # for compatibility with netqasm Futures
     def get_array_part(
-        self, address: int, index: Union[int, slice]
+        self, address: int, index: int
     ) -> Union[None, int, List[Optional[int]]]:
-        if isinstance(index, int):
-            return self.get_array_value(address, index)
-        elif isinstance(index, slice):
-            return self.get_array_values(address, index.start, index.stop)
+        assert isinstance(index, int)
+        return self.get_array_value(address, index)
 
     def init_new_array(self, address: int, length: int) -> None:
         self._arrays.init_new_array(address, length)
 
     def get_array(self, address: int) -> List[Optional[int]]:
         return self._arrays._get_array(address)  # type: ignore
-
-    def get_array_entry(self, array_entry: operand.ArrayEntry) -> Optional[int]:
-        address, index = self.expand_array_part(array_part=array_entry)
-        result = self._arrays[address, index]
-        assert (result is None) or isinstance(result, int)
-        return result
 
     def get_array_value(self, addr: int, offset: int) -> Optional[int]:
         address, index = self.expand_array_part(
@@ -106,21 +76,6 @@ class SharedMemory:
         result = self._arrays[address, index]
         assert (result is None) or isinstance(result, int)
         return result
-
-    def get_array_values(
-        self, addr: int, start_offset: int, end_offset
-    ) -> List[Optional[int]]:
-        values = self.get_array_slice(
-            operand.ArraySlice(operand.Address(addr), start_offset, end_offset)
-        )
-        assert values is not None
-        return values
-
-    def set_array_entry(
-        self, array_entry: operand.ArrayEntry, value: Optional[int]
-    ) -> None:
-        address, index = self.expand_array_part(array_part=array_entry)
-        self._arrays[address, index] = value
 
     def set_array_value(self, addr: int, offset: int, value: Optional[int]) -> None:
         address, index = self.expand_array_part(
@@ -142,29 +97,13 @@ class SharedMemory:
         address: int = array_part.address.address
         index: Union[int, slice]
         if isinstance(array_part, operand.ArrayEntry):
-            if isinstance(array_part.index, int):
-                index = array_part.index
-            else:
-                index_from_reg = self.get_reg_value(register=array_part.index)
-                if index_from_reg is None:
-                    raise RuntimeError(
-                        f"Trying to use register {array_part.index} "
-                        "to index an array but its value is None"
-                    )
-                index = index_from_reg
+            assert isinstance(array_part.index, int)
+            index = array_part.index
         elif isinstance(array_part, operand.ArraySlice):
             startstop: List[int] = []
             for raw_s in [array_part.start, array_part.stop]:
                 if isinstance(raw_s, int):
                     startstop.append(raw_s)
-                elif isinstance(raw_s, operand.Register):
-                    s = self.get_reg_value(register=raw_s)
-                    if s is None:
-                        raise RuntimeError(
-                            f"Trying to use register {raw_s} to "
-                            "index an array but its value is None"
-                        )
-                    startstop.append(s)
                 else:
                     raise RuntimeError(
                         f"Something went wrong: raw_s should be int "
@@ -178,25 +117,94 @@ class SharedMemory:
         return address, index
 
 
-class QnosMemory:
-    """Classical program memory only available to Qnos.
-    Not used at the moment.
+@dataclass
+class RunningLocalRoutine:
+    routine: LocalRoutine
+    params_addr: MemAddr
+    result_addr: MemAddr
 
-    TODO: move NetQASM registers into here."""
+
+@dataclass
+class RunningRequestRoutine:
+    routine: RequestRoutine
+    params_addr: MemAddr
+    result_addr: MemAddr
+
+
+class QnosMemory:
+    """Classical program memory only available to Qnos."""
 
     def __init__(self, pid: int) -> None:
         self._pid = pid
 
+        # TODO: allow multiple instances of same routine (name)?
+        # Currently not possible
+        self._running_local_routines: Dict[str, RunningLocalRoutine] = {}
+        self._running_request_routines: Dict[str, RunningRequestRoutine] = {}
+
+        # NetQASM registers.
+        register_names: Dict[RegisterName, RegisterGroup] = setup_registers()
+        self._registers: Dict[Dict[RegisterName, RegisterGroup], int] = {}
+        # TODO fix this abomination of handling registers
+        for name in register_names.keys():
+            self._registers[name] = {}  # type: ignore
+            for i in range(16):
+                self._registers[name][i] = 0  # type: ignore
+
+    def add_running_local_routine(self, routine: RunningLocalRoutine) -> None:
+        self._running_local_routines[routine.routine.name] = routine
+
+    def get_running_local_routine(self, name: str) -> RunningLocalRoutine:
+        return self._running_local_routines[name]
+
+    def get_all_running_local_routines(self) -> Dict[str, RunningLocalRoutine]:
+        return self._running_local_routines
+
+    def add_running_request_routine(self, routine: RunningRequestRoutine) -> None:
+        self._running_request_routines[routine.routine.name] = routine
+
+    def get_running_request_routine(self, name: str) -> RunningRequestRoutine:
+        return self._running_request_routines[name]
+
+    def get_all_running_request_routines(self) -> Dict[str, RunningRequestRoutine]:
+        return self._running_request_routines
+
+    def set_reg_value(self, register: Union[str, operand.Register], value: int) -> None:
+        if isinstance(register, str):
+            name, index = RegisterMeta.parse(register)
+        else:
+            name, index = register.name, register.index
+        self._registers[name][index] = value  # type: ignore
+
+    def get_reg_value(self, register: Union[str, operand.Register]) -> int:
+        if isinstance(register, str):
+            name, index = RegisterMeta.parse(register)
+        else:
+            name, index = register.name, register.index
+        return self._registers[name][index]  # type: ignore
+
+    # for compatibility with netqasm Futures
+    def get_register(self, register: Union[str, operand.Register]) -> Optional[int]:
+        return self.get_reg_value(register)
+
 
 class ProgramMemory:
-    def __init__(self, pid: int, unit_module: UnitModule) -> None:
+    """Dynamic runtime memory, divided into
+    - Host Memory: local to the Host
+    - Qnos Memory: local to Qnos
+    - Shared Memory: shared between Host, Qnos and Netstack. Divided into Regions."""
+
+    def __init__(self, pid: int) -> None:
         self._pid: int = pid
 
+        # TODO: remove pids?
         self._host_memory = HostMemory(pid)
         self._shared_memory = SharedMemory(pid)
         self._qnos_memory = QnosMemory(pid)
-        self._quantum_memory = QuantumMemory(pid, unit_module)
 
+        self._shared_memmgr: SharedMemoryManager = SharedMemoryManager()
+
+        # TODO: remove?
         self._prog_counter: int = 0
 
     @property
@@ -208,12 +216,12 @@ class ProgramMemory:
         return self._shared_memory
 
     @property
-    def qnos_mem(self) -> QnosMemory:
-        return self._qnos_memory
+    def shared_memmgr(self) -> SharedMemoryManager:
+        return self._shared_memmgr
 
     @property
-    def quantum_mem(self) -> QuantumMemory:
-        return self._quantum_memory
+    def qnos_mem(self) -> QnosMemory:
+        return self._qnos_memory
 
     @property
     def prog_counter(self) -> int:
@@ -224,19 +232,3 @@ class ProgramMemory:
 
     def set_prog_counter(self, value: int) -> None:
         self._prog_counter = value
-
-
-class QuantumMemory:
-    """Quantum memory only available to Qnos. Represented as unit modules."""
-
-    # Only describes the virtual memory space (i.e. unit module).
-    # Does not contain 'values' (quantum states) of the virtual memory locations.
-    # Does not contain the mapping from virtual to physical space. (Managed by memmgr)
-
-    def __init__(self, pid: int, unit_module: UnitModule) -> None:
-        self._pid = pid
-        self._unit_module = unit_module
-
-    @property
-    def unit_module(self) -> UnitModule:
-        return self._unit_module

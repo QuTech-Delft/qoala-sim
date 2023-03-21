@@ -27,13 +27,20 @@ class HostTask:
 
 @dataclass
 class QnosTask:
+    instr_index: int  # in host code
     subrt_name: str
-    instr_index: int
 
 
 @dataclass
 class NetstackTask:
+    instr_index: int  # in host code
     request_routine_name: str
+
+
+@dataclass
+class JointHostQnosTask:
+    instr_index: int  # in host code
+    subrt_name: str
 
 
 @dataclass
@@ -52,14 +59,15 @@ class SingleProgramTask:
 
     def as_qnos_task(self) -> QnosTask:
         assert self.processor_type == ProcessorType.QNOS
-        assert self.subrt_name is not None
         assert self.instr_index is not None
-        return QnosTask(self.subrt_name, self.instr_index)
+        assert self.subrt_name is not None
+        return QnosTask(self.instr_index, self.subrt_name)
 
     def as_netstack_task(self) -> NetstackTask:
         assert self.processor_type == ProcessorType.NETSTACK
-        assert self.subrt_name is not None
-        return NetstackTask(self.subrt_name)
+        assert self.instr_index is not None
+        assert self.request_name is not None
+        return NetstackTask(self.instr_index, self.request_name)
 
     def __str__(self) -> str:
         return f"{self.processor_type.name} {self.subrt_name} {self.instr_index}"
@@ -102,7 +110,7 @@ class TaskBuilder:
         )
 
     @classmethod
-    def QL(cls, duration, subrt_name: str, index: int) -> ProgramTask:
+    def QL(cls, duration, index: int, subrt_name: str) -> ProgramTask:
         return SingleProgramTask(
             instr_type=InstructionType.QL,
             processor_type=ProcessorType.QNOS,
@@ -113,13 +121,13 @@ class TaskBuilder:
         )
 
     @classmethod
-    def QC(cls, duration, subrt_name: str) -> ProgramTask:
+    def QC(cls, duration, index: int, routine_name: str) -> ProgramTask:
         return SingleProgramTask(
             instr_type=InstructionType.QC,
             processor_type=ProcessorType.NETSTACK,
-            instr_index=None,
-            subrt_name=subrt_name,
-            request_name=None,
+            instr_index=index,
+            subrt_name=None,
+            request_name=routine_name,
             duration=duration,
         )
 

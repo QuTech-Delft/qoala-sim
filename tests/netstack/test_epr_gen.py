@@ -118,8 +118,9 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
         program=program,
         inputs=ProgramInput({}),
         tasks=ProgramTaskList.empty(program),
+        unit_module=unit_module,
     )
-    mem = ProgramMemory(pid=pid, unit_module=unit_module)
+    mem = ProgramMemory(pid=pid)
 
     process = IqoalaProcess(
         prog_instance=instance,
@@ -127,7 +128,6 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
         csockets={},
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 

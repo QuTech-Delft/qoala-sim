@@ -7,7 +7,7 @@ import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import UnitModule
+from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
@@ -101,6 +101,7 @@ class Scheduler(Protocol):
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 tasks=batch_info.tasks,
+                unit_module=batch_info.unit_module,
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -164,15 +165,9 @@ class Scheduler(Protocol):
         self.install_schedule(schedule)
 
     def create_processes_for_batches(self) -> None:
-        ehi = self.memmgr.get_ehi()
         for batch in self._batches.values():
             for prog_instance in batch.instances:
-                prog_memory = ProgramMemory(
-                    prog_instance.pid,
-                    unit_module=UnitModule.from_full_ehi(
-                        ehi
-                    ),  # TODO: make configurable
-                )
+                prog_memory = ProgramMemory(prog_instance.pid)
                 meta = prog_instance.program.meta
 
                 csockets: Dict[int, ClassicalSocket] = {}
@@ -214,7 +209,6 @@ class Scheduler(Protocol):
                     csockets=csockets,
                     epr_sockets=epr_sockets,
                     result=result,
-                    active_routines={},
                 )
 
                 self.memmgr.add_process(process)
@@ -239,20 +233,24 @@ class Scheduler(Protocol):
     def execute_qnos_task(
         self, process: IqoalaProcess, task: QnosTask
     ) -> Generator[EventExpression, None, None]:
-        yield from self.qnos.processor.assign_routine_instr(
-            process, task.subrt_name, task.instr_index
+        host_instr = process.program.instructions[task.instr_index]
+        assert isinstance(host_instr, RunSubroutineOp)
+        lrcall = self.host.processor.prepare_lr_call(process, host_instr)
+        yield from self.qnos.processor.assign_local_routine(
+            process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
         )
-        # TODO: improve this
-        subrt = process.get_local_routine(task.subrt_name)
-        if task.instr_index == (len(subrt.subroutine.instructions) - 1):
-            # subroutine finished -> return results to host
-            self.host.processor.copy_subroutine_results(process, task.subrt_name)
+        self.host.processor.post_lr_call(process, lrcall)
 
     def execute_netstack_task(
         self, process: IqoalaProcess, task: NetstackTask
     ) -> Generator[EventExpression, None, None]:
-        routine = process.get_request_routine(task.request_routine_name)
-        yield from self.netstack.processor.assign_request_routine(process, routine)
+        host_instr = process.program.instructions[task.instr_index]
+        assert isinstance(host_instr, RunRequestOp)
+        rrcall = self.host.processor.prepare_rr_call(process, host_instr)
+        yield from self.netstack.processor.assign_request_routine(
+            process, task.request_routine_name, rrcall.input_addr, rrcall.result_addr
+        )
+        # self.host.processor.post_rr_call(process, rrcall)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask

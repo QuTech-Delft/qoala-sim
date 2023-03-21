@@ -35,6 +35,7 @@ from qoala.runtime.lhi_to_ehi import (
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import AllocError, MemoryManager, NotAllocatedError
 from qoala.sim.process import IqoalaProcess
@@ -117,8 +118,9 @@ def create_process(
         program=program,
         inputs=ProgramInput({}),
         tasks=ProgramTaskList.empty(program),
+        unit_module=unit_module,
     )
-    mem = ProgramMemory(pid=pid, unit_module=unit_module)
+    mem = ProgramMemory(pid=pid)
 
     process = IqoalaProcess(
         prog_instance=instance,
@@ -126,7 +128,6 @@ def create_process(
         csockets={},
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
@@ -174,9 +175,14 @@ def set_new_nv_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
 
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
-    subroutines = process.prog_instance.program.local_routines
-    process.instantiate_routine("subrt", {})
-    netqasm_instructions = subroutines["subrt"].subroutine.instructions
+    all_routines = process.program.local_routines
+    routine = all_routines["subrt"]
+    # input/result arrays not used
+    # TODO: add tests that do use these
+    inputs = process.inputs.values
+    processor.instantiate_routine(process, routine, inputs, MemAddr(0), MemAddr(0))
+
+    netqasm_instructions = routine.subroutine.instructions
 
     instr_count = 0
 
@@ -193,9 +199,13 @@ def execute_multiple_processes(
     processor: GenericProcessor, processes: List[IqoalaProcess]
 ) -> None:
     for proc in processes:
-        subroutines = proc.prog_instance.program.local_routines
-        proc.instantiate_routine("subrt", {})
-        netqasm_instructions = subroutines["subrt"].subroutine.instructions
+        all_routines = proc.program.local_routines
+        routine = all_routines["subrt"]
+        # input/result arrays not used
+        # TODO: add tests that do use these
+        inputs = proc.inputs.values
+        processor.instantiate_routine(proc, routine, inputs, MemAddr(0), MemAddr(0))
+        netqasm_instructions = routine.subroutine.instructions
         for i in range(len(netqasm_instructions)):
             netsquid_run(processor.assign_routine_instr(proc, "subrt", i))
 

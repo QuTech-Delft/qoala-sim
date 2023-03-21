@@ -317,8 +317,9 @@ def create_process(
         program=program,
         inputs=prog_input,
         tasks=ProgramTaskList.empty(program),
+        unit_module=unit_module,
     )
-    mem = ProgramMemory(pid=0, unit_module=unit_module)
+    mem = ProgramMemory(pid=0)
 
     process = IqoalaProcess(
         prog_instance=instance,
@@ -329,7 +330,6 @@ def create_process(
         },
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
@@ -453,22 +453,6 @@ def test_initialize():
     """,
     )
 
-    program = create_program(instrs=instrs, subroutines={"subrt1": subrt1})
-    process = create_process(
-        pid=0,
-        program=program,
-        unit_module=unit_module,
-        host_interface=procnode.host._interface,
-        inputs={"x": 1, "theta": 3.14, "name": "alice"},
-    )
-    procnode.add_process(process)
-
-    host_processor.initialize(process)
-    host_mem = process.prog_memory.host_mem
-    assert host_mem.read("x") == 1
-    assert host_mem.read("theta") == 3.14
-    assert host_mem.read("name") == "alice"
-
     request_routine = RequestRoutine(
         name="req1",
         callback_type=CallbackType.WAIT_ALL,
@@ -487,60 +471,11 @@ def test_initialize():
         ),
     )
 
-    netsquid_run(host_processor.assign(process, instr_idx=0))
-    process.instantiate_routine("subrt1", {})
-    netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
-
-    process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
-    netsquid_run(netstack_processor.assign_request_routine(process, request_routine))
-
-    assert process.host_mem.read("x") == 3
-    assert process.shared_mem.get_reg_value("R5") == 42
-    assert procnode.memmgr.phys_id_for(pid=process.pid, virt_id=0) == 0
-
-
-def test_2():
-    num_qubits = 3
-    topology = generic_topology(num_qubits)
-    latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
-
-    global_env = create_global_env(num_qubits)
-    procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, latencies, ntf
+    program = create_program(
+        instrs=instrs,
+        subroutines={"subrt1": subrt1},
+        req_routines={"req1": request_routine},
     )
-    procnode.qdevice = MockQDevice(topology)
-
-    # procnode.host.interface = MockHostInterface()
-
-    # mock_result = ResCreateAndKeep(bell_state=BellIndex.B01)
-    # procnode.netstack.interface = MockNetstackInterface(
-    #     local_env, procnode.qdevice, procnode.memmgr, mock_result
-    # )
-
-    host_processor = procnode.host.processor
-    qnos_processor = procnode.qnos.processor
-
-    ehi = LhiConverter.to_ehi(topology, ntf)
-    unit_module = UnitModule.from_full_ehi(ehi)
-
-    instrs = [RunSubroutineOp(None, IqoalaVector([]), "subrt1")]
-    subroutines = parse_iqoala_subroutines(
-        """
-SUBROUTINE subrt1
-    params: 
-    returns: R5 -> result
-    uses: 
-    keeps: 
-    request:
-  NETQASM_START
-    set R5 42
-    ret_reg R5
-  NETQASM_END
-    """
-    )
-
-    program = create_program(instrs=instrs, subroutines=subroutines)
     process = create_process(
         pid=0,
         program=program,
@@ -551,16 +486,26 @@ SUBROUTINE subrt1
     procnode.add_process(process)
 
     host_processor.initialize(process)
+    host_mem = process.prog_memory.host_mem
+    assert host_mem.read("x") == 1
+    assert host_mem.read("theta") == 3.14
+    assert host_mem.read("name") == "alice"
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
+    routine = process.program.local_routines["subrt1"]
+    qnos_processor.instantiate_routine(process, routine, {}, 0, 0)
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
-    host_processor.copy_subroutine_results(process, "subrt1")
 
-    assert process.host_mem.read("result") == 42
-    assert process.shared_mem.get_reg_value("R5") == 42
+    process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
+    # netstack_processor.instantiate_routine(process, request_routine, {}, 0, 0)
+    netsquid_run(netstack_processor.assign_request_routine(process, "req1"))
+
+    assert process.host_mem.read("x") == 3
+    assert process.qnos_mem.get_reg_value("R5") == 42
+    assert procnode.memmgr.phys_id_for(pid=process.pid, virt_id=0) == 0
 
 
-def test_2_async():
+def test_2():
     ns.sim_reset()
 
     num_qubits = 3
@@ -591,7 +536,7 @@ SUBROUTINE subrt1
     request:
   NETQASM_START
     set R5 42
-    ret_reg R5
+    store R5 @101[0]
   NETQASM_END
     """
     )
@@ -612,9 +557,7 @@ SUBROUTINE subrt1
         yield from host_processor.assign(process, instr_idx=0)
 
     def qnos_run() -> Generator[EventExpression, None, None]:
-        yield from qnos_processor.assign_routine_instr(process, "subrt1", 0)
-        # Mock sending signal back to Host that subroutine has finished.
-        qnos_processor._interface.send_host_msg(Message(None))
+        yield from qnos_processor.await_local_routine_call(process)
 
     procnode.host.run = host_run
     procnode.qnos.run = qnos_run
@@ -622,7 +565,7 @@ SUBROUTINE subrt1
     ns.sim_run()
 
     assert process.host_mem.read("result") == 42
-    assert process.shared_mem.get_reg_value("R5") == 42
+    assert process.qnos_mem.get_reg_value("R5") == 42
 
 
 def test_classical_comm():
@@ -854,8 +797,7 @@ def test_epr():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            request = process.get_request_routine("req")
-            yield from self.netstack.processor.assign_request_routine(process, request)
+            yield from self.netstack.processor.assign_request_routine(process, "req1")
 
     alice_procnode = create_procnode(
         "alice",
@@ -927,7 +869,7 @@ def test_epr():
     )
     alice_program = create_program(
         instrs=alice_instrs,
-        req_routines={"req": alice_request_routine},
+        req_routines={"req1": alice_request_routine},
         meta=alice_meta,
     )
     alice_process = create_process(
@@ -945,7 +887,7 @@ def test_epr():
         name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
     )
     bob_program = create_program(
-        instrs=bob_instrs, req_routines={"req": bob_request_routine}, meta=bob_meta
+        instrs=bob_instrs, req_routines={"req1": bob_request_routine}, meta=bob_meta
     )
     bob_process = create_process(
         pid=0,
@@ -1054,7 +996,8 @@ REQUEST req1
             self.scheduler.initialize_process(process)
 
             subrt1 = process.get_local_routine("subrt1")
-            process.instantiate_routine("subrt1", {})
+            subrt1 = process.program.local_routines["subrt1"]
+            self.qnos.processor.instantiate_routine(process, subrt1, {}, 0, 0)
             epr_instr_idx = None
             for i, instr in enumerate(subrt1.subroutine.instructions):
                 if isinstance(instr, CreateEPRInstruction) or isinstance(
@@ -1068,11 +1011,8 @@ REQUEST req1
                     process, "subrt1", i
                 )
 
-            request_routine = process.get_request_routine("req1")
             print("hello 1?")
-            yield from self.netstack.processor.assign_request_routine(
-                process, request_routine
-            )
+            yield from self.netstack.processor.assign_request_routine(process, "req1")
 
             # wait instr
             yield from self.qnos.processor.assign_routine_instr(
@@ -1197,7 +1137,6 @@ REQUEST req1
 if __name__ == "__main__":
     test_initialize()
     test_2()
-    test_2_async()
     test_classical_comm()
     test_classical_comm_three_nodes()
     test_epr()

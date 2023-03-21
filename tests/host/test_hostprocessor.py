@@ -21,15 +21,25 @@ from qoala.lang.hostlang import (
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
     ReturnResultOp,
+    RunRequestOp,
     RunSubroutineOp,
     SendCMsgOp,
 )
 from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    IqoalaRequest,
+    RequestRoutine,
+    RequestVirtIdMapping,
+)
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
-from qoala.runtime.memory import ProgramMemory, SharedMemory
-from qoala.runtime.message import Message
+from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.sharedmem import SharedMemoryManager
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.host.hostprocessor import HostProcessor
@@ -39,6 +49,7 @@ from qoala.util.tests import netsquid_run, yield_from
 MOCK_MESSAGE = Message(content=42)
 MOCK_QNOS_RET_REG = "R0"
 MOCK_QNOS_RET_VALUE = 7
+MOCK_NETSTACK_RET_VALUE = 22
 
 
 @dataclass(eq=True, frozen=True)
@@ -48,7 +59,7 @@ class InterfaceEvent:
 
 
 class MockHostInterface(HostInterface):
-    def __init__(self, shared_mem: Optional[SharedMemory] = None) -> None:
+    def __init__(self, shared_mem: Optional[SharedMemoryManager] = None) -> None:
         self.send_events: List[InterfaceEvent] = []
         self.recv_events: List[InterfaceEvent] = []
 
@@ -68,7 +79,17 @@ class MockHostInterface(HostInterface):
     def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
         self.recv_events.append(InterfaceEvent("qnos", MOCK_MESSAGE))
         if self.shared_mem is not None:
-            self.shared_mem.set_reg_value(MOCK_QNOS_RET_REG, MOCK_QNOS_RET_VALUE)
+            # Hack to find out which addr was allocated to write results to.
+            result_addr = self.shared_mem._lr_out_addrs[0]
+            self.shared_mem.write_lr_out(result_addr, [MOCK_QNOS_RET_VALUE])
+        return MOCK_MESSAGE
+        yield  # to make it behave as a generator
+
+    def send_netstack_msg(self, msg: Message) -> None:
+        self.send_events.append(InterfaceEvent("netstack", msg))
+
+    def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
+        self.recv_events.append(InterfaceEvent("netstack", MOCK_MESSAGE))
         return MOCK_MESSAGE
         yield  # to make it behave as a generator
 
@@ -80,17 +101,22 @@ class MockHostInterface(HostInterface):
 def create_program(
     instrs: Optional[List[ClassicalIqoalaOp]] = None,
     subroutines: Optional[Dict[str, LocalRoutine]] = None,
+    requests: Optional[Dict[str, RequestRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
 ) -> IqoalaProgram:
     if instrs is None:
         instrs = []
     if subroutines is None:
         subroutines = {}
+    if requests is None:
+        requests = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
     # TODO: split into proper blocks
     block = BasicBlock("b0", BasicBlockType.HOST, instrs)
-    return IqoalaProgram(blocks=[block], local_routines=subroutines, meta=meta)
+    return IqoalaProgram(
+        blocks=[block], local_routines=subroutines, request_routines=requests, meta=meta
+    )
 
 
 def create_process(
@@ -101,12 +127,6 @@ def create_process(
     if inputs is None:
         inputs = {}
     prog_input = ProgramInput(values=inputs)
-    instance = ProgramInstance(
-        pid=0,
-        program=program,
-        inputs=prog_input,
-        tasks=ProgramTaskList.empty(program),
-    )
 
     mock_ehi = EhiBuilder.perfect_uniform(
         num_qubits=2,
@@ -117,7 +137,15 @@ def create_process(
         two_duration=0,
     )
 
-    mem = ProgramMemory(pid=0, unit_module=UnitModule.from_full_ehi(mock_ehi))
+    instance = ProgramInstance(
+        pid=0,
+        program=program,
+        inputs=prog_input,
+        tasks=ProgramTaskList.empty(program),
+        unit_module=UnitModule.from_full_ehi(mock_ehi),
+    )
+
+    mem = ProgramMemory(pid=0)
     process = IqoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
@@ -127,7 +155,6 @@ def create_process(
         },
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
@@ -302,29 +329,6 @@ def test_bit_cond_mult():
 
 def test_run_subroutine():
     interface = MockHostInterface()
-    processor = HostProcessor(interface, HostLatencies.all_zero())
-
-    subrt = Subroutine()
-    metadata = RoutineMetadata.use_none()
-    routine = LocalRoutine("subrt1", subrt, return_map={}, metadata=metadata)
-
-    program = create_program(
-        instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
-        subroutines={"subrt1": routine},
-    )
-    process = create_process(program, interface)
-    processor.initialize(process)
-
-    for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
-
-    # Non-async host processor should not have done any communciation.
-    assert len(interface.send_events) == 0
-    assert len(interface.recv_events) == 0
-
-
-def test_run_subroutine_async():
-    interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
     subrt = Subroutine()
@@ -341,12 +345,16 @@ def test_run_subroutine_async():
     for i in range(len(program.instructions)):
         yield_from(processor.assign(process, i))
 
-    # Async host processor should have communicated with the qnos processor.
-    assert interface.send_events[0] == InterfaceEvent("qnos", Message("subrt1"))
+    # Host processor should have communicated with the qnos processor.
+    send_event = interface.send_events[0]
+    assert send_event.peer == "qnos"
+    assert isinstance(send_event.msg, Message)
+    assert isinstance(send_event.msg.content, LrCallTuple)
+    assert send_event.msg.content.routine_name == "subrt1"
     assert interface.recv_events[0] == InterfaceEvent("qnos", MOCK_MESSAGE)
 
 
-def test_run_subroutine_async_2():
+def test_run_subroutine_2():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
@@ -372,17 +380,81 @@ def test_run_subroutine_async_2():
     process = create_process(program, interface)
 
     # Make sure interface can mimick writing subroutine results to shared memory
-    interface.shared_mem = process.prog_memory.shared_mem
+    interface.shared_mem = process.prog_memory.shared_memmgr
 
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
         yield_from(processor.assign(process, i))
 
-    assert interface.send_events[0] == InterfaceEvent("qnos", Message("subrt1"))
+    send_event = interface.send_events[0]
+    assert send_event.peer == "qnos"
+    assert isinstance(send_event.msg, Message)
+    assert isinstance(send_event.msg.content, LrCallTuple)
+    assert send_event.msg.content.routine_name == "subrt1"
     assert interface.recv_events[0] == InterfaceEvent("qnos", MOCK_MESSAGE)
-    assert process.prog_memory.shared_mem.get_reg_value("R0") == MOCK_QNOS_RET_VALUE
+
+    # Hack to find out which addr was allocated to write results to.
+    result_addr = process.prog_memory.shared_memmgr._lr_out_addrs[0]
+    assert process.prog_memory.shared_memmgr.read_lr_out(result_addr, 1) == [
+        MOCK_QNOS_RET_VALUE
+    ]
+
+    # Check if result was correctly written to host variable "m".
     assert process.prog_memory.host_mem.read("m") == MOCK_QNOS_RET_VALUE
+
+
+def create_simple_request(
+    remote_id: int,
+    num_pairs: int,
+    virt_ids: RequestVirtIdMapping,
+    typ: EprType,
+    role: EprRole,
+) -> IqoalaRequest:
+    return IqoalaRequest(
+        name="req",
+        remote_id=remote_id,
+        epr_socket_id=0,
+        num_pairs=num_pairs,
+        virt_ids=virt_ids,
+        timeout=1000,
+        fidelity=0.65,
+        typ=typ,
+        role=role,
+        result_array_addr=3,
+    )
+
+
+def test_run_request():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
+
+    request = create_simple_request(
+        remote_id=2,
+        num_pairs=5,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+    )
+    routine = RequestRoutine("req", request, CallbackType.WAIT_ALL, None)
+
+    program = create_program(
+        instrs=[RunRequestOp(None, IqoalaVector([]), "req")],
+        requests={"req": routine},
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    for i in range(len(program.instructions)):
+        yield_from(processor.assign(process, i))
+
+    # Host processor should have communicated with the netstack processor.
+    send_event = interface.send_events[0]
+    assert send_event.peer == "netstack"
+    assert isinstance(send_event.msg, Message)
+    assert isinstance(send_event.msg.content, RrCallTuple)
+    assert send_event.msg.content.routine_name == "req"
+    assert interface.recv_events[0] == InterfaceEvent("netstack", MOCK_MESSAGE)
 
 
 def test_return_result():
@@ -413,6 +485,6 @@ if __name__ == "__main__":
     test_multiply_const()
     test_bit_cond_mult()
     test_run_subroutine()
-    test_run_subroutine_async()
-    test_run_subroutine_async_2()
+    test_run_subroutine_2()
+    test_run_request()
     test_return_result()

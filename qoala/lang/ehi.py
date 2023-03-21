@@ -193,12 +193,13 @@ class EhiBuilder:
 
 @dataclass(eq=True, frozen=True)
 class UnitModule:
-    """Virtual memory space for programs. Target for a compiler.
+    """Description of virtual memory space for programs. Target for a compiler.
 
     Simply wraps around a ExposedHardwareInfo object and provides convenience methods.
 
     Unit Modules should be used as the interface for compilers and schedulers,
-    as well as the program itself.
+    as well as the program itself. This object does not contain information about
+    runtime values (i.e. qubit mappings); this is managed by the Memory Manager.
     Only the Memory Manager should use an ExposedHardwareInfo object itself,
     namely the object that represents the full quantum memory space of the node."""
 
