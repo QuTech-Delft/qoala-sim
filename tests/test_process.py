@@ -58,7 +58,7 @@ def test1():
 
     assert len(process.get_all_local_routines()) == 1
     assert process.get_local_routine("subrt1") == routine
-    assert len(process.qnos_mem.get_all_running_routines()) == 0
+    assert len(process.qnos_mem.get_all_running_local_routines()) == 0
 
 
 if __name__ == "__main__":

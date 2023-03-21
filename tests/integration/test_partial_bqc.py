@@ -151,14 +151,15 @@ class BqcProcNode(ProcNode):
         )
         self.host.processor.post_lr_call(process, lrcall)
 
-        # subrt = process.get_local_routine(subrt_name)
-        # num_instrs = len(subrt.subroutine.instructions)
-
-        # for i in range(num_instrs):
-        #     yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
-
-        # # Return subroutine results
-        # self.host.processor.copy_subroutine_results(process, subrt_name)
+    def run_request(
+        self, process: IqoalaProcess, host_instr_index: int, req_name: str
+    ) -> Generator[EventExpression, None, None]:
+        host_instr = process.program.instructions[host_instr_index]
+        rrcall = self.host.processor.prepare_rr_call(process, host_instr)
+        assert rrcall.routine_name == req_name
+        yield from self.netstack.processor.assign_request_routine(
+            process, rrcall.routine_name, rrcall.input_addr, rrcall.result_addr
+        )
 
 
 class ServerProcNode(BqcProcNode):
@@ -171,23 +172,19 @@ class ServerProcNode(BqcProcNode):
         # csocket = assign_cval() : 0
         yield from self.host.processor.assign(process, 0)
 
-        # run_subroutine(vec<client_id>) : create_epr_0
-        routine = process.get_request_routine("req0")
-        yield from self.netstack.processor.assign_request_routine(process, routine)
+        # run_request() : req0
+        yield from self.run_request(process, 1, "req0")
 
-        # run_subroutine(vec<client_id>) : create_epr_1
-        routine = process.get_request_routine("req1")
-        yield from self.netstack.processor.assign_request_routine(process, routine)
+        # run_request() : req1
+        yield from self.run_request(process, 2, "req1")
 
         # run_subroutine(vec<client_id>) : local_cphase
-        # yield from self.host.processor.assign(process, 3)
         yield from self.run_subroutine(process, 3, "local_cphase")
 
         # delta1 = recv_cmsg(client_id)
         yield from self.host.processor.assign(process, 4)
 
         # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-        # yield from self.host.processor.assign(process, 5)
         yield from self.run_subroutine(process, 5, "meas_qubit_1")
 
         # send_cmsg(csocket, m1)
@@ -196,7 +193,6 @@ class ServerProcNode(BqcProcNode):
         yield from self.host.processor.assign(process, 7)
 
         # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-        # yield from self.host.processor.assign(process, 8)
         yield from self.run_subroutine(process, 8, "meas_qubit_0")
 
         # return_result(m1)
@@ -217,20 +213,16 @@ class ClientProcNode(BqcProcNode):
         # csocket = assign_cval() : 0
         yield from self.host.processor.assign(process, 0)
 
-        # run_subroutine(vec<>) : create_epr_0
-        routine = process.get_request_routine("req0")
-        yield from self.netstack.processor.assign_request_routine(process, routine)
+        # run_request() : req0
+        yield from self.run_request(process, 1, "req0")
 
         # run_subroutine(vec<theta2>) : post_epr_0
-        # yield from self.host.processor.assign(process, 2)
         yield from self.run_subroutine(process, 2, "post_epr_0")
 
-        # run_subroutine(vec<>) : create_epr_1
-        routine = process.get_request_routine("req1")
-        yield from self.netstack.processor.assign_request_routine(process, routine)
+        # run_request() : req1
+        yield from self.run_request(process, 3, "req1")
 
         # run_subroutine(vec<theta1>) : post_epr_1
-        # yield from self.host.processor.assign(process, 4)
         yield from self.run_subroutine(process, 4, "post_epr_1")
 
         # x = mult_const(p1) : 16
@@ -437,13 +429,11 @@ def test_bqc_1():
             # csocket = assign_cval() : 0
             yield from self.host.processor.assign(process, 0)
 
-            # run_subroutine(vec<client_id>) : create_epr_0
-            routine = process.get_request_routine("req0")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req0
+            yield from self.run_request(process, 1, "req0")
 
-            # run_subroutine(vec<client_id>) : create_epr_1
-            routine = process.get_request_routine("req1")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req1
+            yield from self.run_request(process, 2, "req1")
 
             self.finished = True
 
@@ -457,20 +447,16 @@ def test_bqc_1():
             # csocket = assign_cval() : 0
             yield from self.host.processor.assign(process, 0)
 
-            # run_subroutine(vec<>) : create_epr_0
-            routine = process.get_request_routine("req0")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req0
+            yield from self.run_request(process, 1, "req0")
 
             # run_subroutine(vec<theta2>) : post_epr_0
-            # yield from self.host.processor.assign(process, 2)
             yield from self.run_subroutine(process, 2, "post_epr_0")
 
-            # run_subroutine(vec<>) : create_epr_1
-            routine = process.get_request_routine("req1")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req1
+            yield from self.run_request(process, 3, "req1")
 
             # run_subroutine(vec<theta1>) : post_epr_1
-            # yield from self.host.processor.assign(process, 4)
             yield from self.run_subroutine(process, 4, "post_epr_1")
 
             # x = mult_const(p1) : 16
@@ -526,23 +512,19 @@ def test_bqc_2():
             # csocket = assign_cval() : 0
             yield from self.host.processor.assign(process, 0)
 
-            # run_subroutine(vec<client_id>) : create_epr_0
-            routine = process.get_request_routine("req0")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req0
+            yield from self.run_request(process, 1, "req0")
 
-            # run_subroutine(vec<client_id>) : create_epr_1
-            routine = process.get_request_routine("req1")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req1
+            yield from self.run_request(process, 2, "req1")
 
             # run_subroutine(vec<client_id>) : local_cphase
-            # yield from self.host.processor.assign(process, 3)
             yield from self.run_subroutine(process, 3, "local_cphase")
 
             # delta1 = recv_cmsg(client_id)
             yield from self.host.processor.assign(process, 4)
 
             # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-            # yield from self.host.processor.assign(process, 5)
             yield from self.run_subroutine(process, 5, "meas_qubit_1")
 
             # send_cmsg(csocket, m1)
@@ -562,20 +544,16 @@ def test_bqc_2():
             # csocket = assign_cval() : 0
             yield from self.host.processor.assign(process, 0)
 
-            # run_subroutine(vec<>) : create_epr_0
-            routine = process.get_request_routine("req0")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req0
+            yield from self.run_request(process, 1, "req0")
 
             # run_subroutine(vec<theta2>) : post_epr_0
-            # yield from self.host.processor.assign(process, 2)
             yield from self.run_subroutine(process, 2, "post_epr_0")
 
-            # run_subroutine(vec<>) : create_epr_1
-            routine = process.get_request_routine("req1")
-            yield from self.netstack.processor.assign_request_routine(process, routine)
+            # run_request() : req1
+            yield from self.run_request(process, 3, "req1")
 
             # run_subroutine(vec<theta1>) : post_epr_1
-            # yield from self.host.processor.assign(process, 4)
             yield from self.run_subroutine(process, 4, "post_epr_1")
 
             # x = mult_const(p1) : 16

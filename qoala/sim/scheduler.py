@@ -7,7 +7,7 @@ import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.hostlang import RunSubroutineOp
+from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
@@ -244,8 +244,13 @@ class Scheduler(Protocol):
     def execute_netstack_task(
         self, process: IqoalaProcess, task: NetstackTask
     ) -> Generator[EventExpression, None, None]:
-        routine = process.get_request_routine(task.request_routine_name)
-        yield from self.netstack.processor.assign_request_routine(process, routine)
+        host_instr = process.program.instructions[task.instr_index]
+        assert isinstance(host_instr, RunRequestOp)
+        rrcall = self.host.processor.prepare_rr_call(process, host_instr)
+        yield from self.netstack.processor.assign_request_routine(
+            process, task.request_routine_name, rrcall.input_addr, rrcall.result_addr
+        )
+        # self.host.processor.post_rr_call(process, rrcall)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask

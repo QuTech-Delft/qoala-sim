@@ -7,6 +7,7 @@ from netqasm.lang import operand
 from netqasm.lang.encoding import RegisterName
 from netqasm.sdk.shared_memory import Arrays, RegisterGroup, setup_registers
 
+from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.sharedmem import MemAddr, SharedMemoryManager
 
@@ -123,6 +124,13 @@ class RunningLocalRoutine:
     result_addr: MemAddr
 
 
+@dataclass
+class RunningRequestRoutine:
+    routine: RequestRoutine
+    params_addr: MemAddr
+    result_addr: MemAddr
+
+
 class QnosMemory:
     """Classical program memory only available to Qnos."""
 
@@ -131,7 +139,8 @@ class QnosMemory:
 
         # TODO: allow multiple instances of same routine (name)?
         # Currently not possible
-        self._running_routines: Dict[str, RunningLocalRoutine] = {}
+        self._running_local_routines: Dict[str, RunningLocalRoutine] = {}
+        self._running_request_routines: Dict[str, RunningRequestRoutine] = {}
 
         # NetQASM registers.
         register_names: Dict[RegisterName, RegisterGroup] = setup_registers()
@@ -142,17 +151,23 @@ class QnosMemory:
             for i in range(16):
                 self._registers[name][i] = 0  # type: ignore
 
-    def add_running_routine(self, running_routine: RunningLocalRoutine) -> None:
-        self._running_routines[running_routine.routine.name] = running_routine
+    def add_running_local_routine(self, routine: RunningLocalRoutine) -> None:
+        self._running_local_routines[routine.routine.name] = routine
 
-    def remove_running_routine(self, name: str) -> None:
-        self._running_routines.pop(name)
+    def get_running_local_routine(self, name: str) -> RunningLocalRoutine:
+        return self._running_local_routines[name]
 
-    def get_running_routine(self, name: str) -> RunningLocalRoutine:
-        return self._running_routines[name]
+    def get_all_running_local_routines(self) -> Dict[str, RunningLocalRoutine]:
+        return self._running_local_routines
 
-    def get_all_running_routines(self) -> Dict[str, RunningLocalRoutine]:
-        return self._running_routines
+    def add_running_request_routine(self, routine: RunningRequestRoutine) -> None:
+        self._running_request_routines[routine.routine.name] = routine
+
+    def get_running_request_routine(self, name: str) -> RunningRequestRoutine:
+        return self._running_request_routines[name]
+
+    def get_all_running_request_routines(self) -> Dict[str, RunningRequestRoutine]:
+        return self._running_request_routines
 
     def set_reg_value(self, register: Union[str, operand.Register], value: int) -> None:
         if isinstance(register, str):

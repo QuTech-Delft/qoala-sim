@@ -453,22 +453,6 @@ def test_initialize():
     """,
     )
 
-    program = create_program(instrs=instrs, subroutines={"subrt1": subrt1})
-    process = create_process(
-        pid=0,
-        program=program,
-        unit_module=unit_module,
-        host_interface=procnode.host._interface,
-        inputs={"x": 1, "theta": 3.14, "name": "alice"},
-    )
-    procnode.add_process(process)
-
-    host_processor.initialize(process)
-    host_mem = process.prog_memory.host_mem
-    assert host_mem.read("x") == 1
-    assert host_mem.read("theta") == 3.14
-    assert host_mem.read("name") == "alice"
-
     request_routine = RequestRoutine(
         name="req1",
         callback_type=CallbackType.WAIT_ALL,
@@ -487,13 +471,34 @@ def test_initialize():
         ),
     )
 
+    program = create_program(
+        instrs=instrs,
+        subroutines={"subrt1": subrt1},
+        req_routines={"req1": request_routine},
+    )
+    process = create_process(
+        pid=0,
+        program=program,
+        unit_module=unit_module,
+        host_interface=procnode.host._interface,
+        inputs={"x": 1, "theta": 3.14, "name": "alice"},
+    )
+    procnode.add_process(process)
+
+    host_processor.initialize(process)
+    host_mem = process.prog_memory.host_mem
+    assert host_mem.read("x") == 1
+    assert host_mem.read("theta") == 3.14
+    assert host_mem.read("name") == "alice"
+
     netsquid_run(host_processor.assign(process, instr_idx=0))
     routine = process.program.local_routines["subrt1"]
     qnos_processor.instantiate_routine(process, routine, {}, 0, 0)
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
-    netsquid_run(netstack_processor.assign_request_routine(process, request_routine))
+    # netstack_processor.instantiate_routine(process, request_routine, {}, 0, 0)
+    netsquid_run(netstack_processor.assign_request_routine(process, "req1"))
 
     assert process.host_mem.read("x") == 3
     assert process.qnos_mem.get_reg_value("R5") == 42
@@ -792,8 +797,7 @@ def test_epr():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            request = process.get_request_routine("req")
-            yield from self.netstack.processor.assign_request_routine(process, request)
+            yield from self.netstack.processor.assign_request_routine(process, "req1")
 
     alice_procnode = create_procnode(
         "alice",
@@ -865,7 +869,7 @@ def test_epr():
     )
     alice_program = create_program(
         instrs=alice_instrs,
-        req_routines={"req": alice_request_routine},
+        req_routines={"req1": alice_request_routine},
         meta=alice_meta,
     )
     alice_process = create_process(
@@ -883,7 +887,7 @@ def test_epr():
         name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
     )
     bob_program = create_program(
-        instrs=bob_instrs, req_routines={"req": bob_request_routine}, meta=bob_meta
+        instrs=bob_instrs, req_routines={"req1": bob_request_routine}, meta=bob_meta
     )
     bob_process = create_process(
         pid=0,
@@ -1007,11 +1011,8 @@ REQUEST req1
                     process, "subrt1", i
                 )
 
-            request_routine = process.get_request_routine("req1")
             print("hello 1?")
-            yield from self.netstack.processor.assign_request_routine(
-                process, request_routine
-            )
+            yield from self.netstack.processor.assign_request_routine(process, "req1")
 
             # wait instr
             yield from self.qnos.processor.assign_routine_instr(

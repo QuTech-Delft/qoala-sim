@@ -1,5 +1,6 @@
 import logging
-from typing import Generator, List, Optional, Union
+from copy import deepcopy
+from typing import Any, Dict, Generator, List, Optional, Union
 
 import netsquid as ns
 from netqasm.sdk.build_epr import (
@@ -26,9 +27,10 @@ from qoala.lang.request import (
     IqoalaRequest,
     RequestRoutine,
 )
-from qoala.runtime.memory import ProgramMemory, SharedMemory
+from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import RequestRoutineResult
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
@@ -702,15 +704,13 @@ class NetstackProcessor:
         return m
 
     def handle_req_routine_md(
-        self, process: IqoalaProcess, routine: RequestRoutine
+        self, process: IqoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, RequestRoutineResult]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
         request = routine.request
         assert request.typ == EprType.MEASURE_DIRECTLY
         num_pairs = request.num_pairs
-
-        # TODO: refactor when implementing proper shared memory
-        inputs = process.prog_instance.inputs.values
-        request.instantiate(inputs)
 
         outcomes: List[int] = []
 
@@ -731,14 +731,12 @@ class NetstackProcessor:
         return RequestRoutineResult(meas_outcomes=outcomes)
 
     def handle_req_routine_ck(
-        self, process: IqoalaProcess, routine: RequestRoutine
+        self, process: IqoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, RequestRoutineResult]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
         request = routine.request
         num_pairs = request.num_pairs
-
-        # TODO: refactor when implementing proper shared memory
-        inputs = process.prog_instance.inputs.values
-        request.instantiate(inputs)
 
         if routine.callback_type == CallbackType.SEQUENTIAL:
             raise NotImplementedError
@@ -750,12 +748,37 @@ class NetstackProcessor:
 
         return RequestRoutineResult.empty()
 
+    def instantiate_routine(
+        self,
+        process: IqoalaProcess,
+        routine: RequestRoutine,
+        args: Dict[str, Any],
+        input_addr: MemAddr,
+        result_addr: MemAddr,
+    ) -> None:
+        """Instantiates and activates routine."""
+        instance = deepcopy(routine)
+        instance.request.instantiate(args)
+
+        running_routine = RunningRequestRoutine(instance, input_addr, result_addr)
+        process.qnos_mem.add_running_request_routine(running_routine)
+
     def assign_request_routine(
-        self, process: IqoalaProcess, routine: RequestRoutine
+        self,
+        process: IqoalaProcess,
+        routine_name: str,
+        # Not used at the moment, therefore default values
+        input_addr: MemAddr = MemAddr(0),
+        result_addr: MemAddr = MemAddr(0),
     ) -> Generator[EventExpression, None, RequestRoutineResult]:
+        # TODO: actually use input_addr and result_addr
+        routine = process.get_request_routine(routine_name)
+        global_args = process.prog_instance.inputs.values
+        self.instantiate_routine(process, routine, global_args, input_addr, result_addr)
+
         if routine.request.typ == EprType.CREATE_KEEP:
-            return (yield from self.handle_req_routine_ck(process, routine))
+            return (yield from self.handle_req_routine_ck(process, routine_name))
         elif routine.request.typ == EprType.MEASURE_DIRECTLY:
-            return (yield from self.handle_req_routine_md(process, routine))
+            return (yield from self.handle_req_routine_md(process, routine_name))
         else:
             raise NotImplementedError

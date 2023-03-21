@@ -95,7 +95,7 @@ class QnosProcessor:
         instance.subroutine.instantiate(process.pid, args)
 
         running_routine = RunningLocalRoutine(instance, input_addr, result_addr)
-        process.qnos_mem.add_running_routine(running_routine)
+        process.qnos_mem.add_running_local_routine(running_routine)
 
     def await_local_routine_call(
         self, process: IqoalaProcess
@@ -132,7 +132,7 @@ class QnosProcessor:
         self, process: IqoalaProcess, subrt_name: str, instr_idx: int
     ) -> Generator[EventExpression, None, int]:
         """Assign the processor to one specific instruction in a local routine."""
-        running_routine = process.qnos_mem.get_running_routine(subrt_name)
+        running_routine = process.qnos_mem.get_running_local_routine(subrt_name)
         routine = running_routine.routine
         pid = process.prog_instance.pid
 
