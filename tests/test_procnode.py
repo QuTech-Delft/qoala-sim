@@ -56,7 +56,7 @@ from qoala.runtime.lhi_to_ehi import (
     NativeToFlavourInterface,
 )
 from qoala.runtime.memory import ProgramMemory, SharedMemory
-from qoala.runtime.message import LrCallTuple, Message
+from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
@@ -70,7 +70,7 @@ from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.qnos import QnosInterface, qnosprocessor
+from qoala.sim.qnos import QnosInterface
 from qoala.sim.signals import MSG_REQUEST_DELIVERED
 from qoala.util.tests import has_multi_state, netsquid_run
 

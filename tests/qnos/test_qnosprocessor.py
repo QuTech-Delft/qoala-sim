@@ -14,7 +14,7 @@ from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
-from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList

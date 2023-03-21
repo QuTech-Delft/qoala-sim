@@ -3,9 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Generator
 
-from netqasm.lang.operand import Register
-from netqasm.lang.parsing.text import NetQASMSyntaxError, parse_register
-
 from pydynaa import EventExpression
 from qoala.lang import hostlang
 from qoala.runtime.message import LrCallTuple, Message

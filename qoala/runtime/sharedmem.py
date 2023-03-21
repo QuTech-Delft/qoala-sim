@@ -1,15 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
-
-from netqasm.sdk.shared_memory import Arrays
-
-from qoala.runtime.program import (
-    CallbackRoutineParams,
-    LocalRoutineParams,
-    LocalRoutineResult,
-    RequestRoutineParams,
-    RequestRoutineResult,
-)
+from typing import Dict, List, Optional
 
 
 class SharedMemWriteError(Exception):
@@ -55,7 +45,9 @@ class NetQASMArrays:
             raise SharedMemReadError
         if len(self._memory[addr]) < offset + size:
             raise SharedMemReadError
-        return self._memory[addr][offset : offset + size]
+        array = self._memory[addr][offset : offset + size]
+        assert all(v is not None for v in array)
+        return array  # type: ignore
 
 
 class SharedMemoryManager:

@@ -7,7 +7,6 @@ import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import UnitModule
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (

@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from qoala.lang.ehi import UnitModule
 from qoala.lang.hostlang import BasicBlock, ClassicalIqoalaOp
 from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine

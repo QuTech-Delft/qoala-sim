@@ -29,11 +29,10 @@ from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
 from qoala.runtime.message import LrCallTuple, Message
-from qoala.runtime.schedule import NoTimeSolver
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.globals import GlobalSimData
 from qoala.sim.memmgr import NotAllocatedError
-from qoala.sim.process import IqoalaProcess, RoutineInstance
+from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos.qnosinterface import QnosInterface, QnosLatencies
 from qoala.sim.requests import (

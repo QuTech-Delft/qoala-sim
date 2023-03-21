@@ -1,13 +1,11 @@
 import pytest
 
-from qoala.runtime.program import LocalRoutineParams
 from qoala.runtime.sharedmem import (
     MemAddr,
     SharedMemIllegalRegionError,
     SharedMemNotAllocatedError,
     SharedMemoryManager,
     SharedMemReadError,
-    SharedMemWriteError,
 )
 
 

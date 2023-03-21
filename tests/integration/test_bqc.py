@@ -13,7 +13,7 @@ from netsquid_magic.link_layer import (
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
-from qoala.lang.ehi import EhiBuilder, UnitModule
+from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (

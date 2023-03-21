@@ -26,11 +26,11 @@ from qoala.lang.hostlang import (
 )
 from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
-from qoala.runtime.memory import ProgramMemory, SharedMemory
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.runtime.sharedmem import MemAddr, SharedMemoryManager
+from qoala.runtime.sharedmem import SharedMemoryManager
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.host.hostprocessor import HostProcessor
