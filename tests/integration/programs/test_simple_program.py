@@ -66,17 +66,21 @@ def create_tasks(program: IqoalaProgram) -> ProgramTaskList:
     ql_dur = 1e6
 
     # vec<m> = run_subroutine(vec<>) : subrt0
-    tasks.append(TaskBuilder.CL(cl_dur, 0))
-    for i in range(4):
-        tasks.append(TaskBuilder.QL(ql_dur, "subrt0", i))
+    dur = cl_dur + 4 * ql_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 0, "subrt0"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 0))
+    # for i in range(4):
+    #     tasks.append(TaskBuilder.QL(ql_dur, "subrt0", i))
 
     # x = assign_cval() : 0
     tasks.append(TaskBuilder.CL(1e4, 1))
 
     # vec<m> = run_subroutine(vec<>) : subrt1
-    tasks.append(TaskBuilder.CL(cl_dur, 2))
-    for i in range(2):
-        tasks.append(TaskBuilder.QL(ql_dur, "subrt1", i))
+    dur = cl_dur + 2 * ql_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 2, "subrt1"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 2))
+    # for i in range(2):
+    #     tasks.append(TaskBuilder.QL(ql_dur, "subrt1", i))
 
     # return_result(x)
     tasks.append(TaskBuilder.CL(cl_dur, 3))

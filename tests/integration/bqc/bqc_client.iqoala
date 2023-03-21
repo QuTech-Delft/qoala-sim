@@ -85,12 +85,16 @@ SUBROUTINE post_epr_0
     keeps:
     request:
   NETQASM_START
+    load C0 @100[0]
+    load C1 @100[1]
+    load C2 @100[2]
     set Q0 0
-    rot_z Q0 {theta2} 4
-    rot_y Q0 {epr0_rot_y} 4
-    rot_z Q0 {epr0_rot_z} 4
+    rot_z Q0 C0 4
+    rot_y Q0 C1 4
+    rot_z Q0 C2 4
     meas Q0 M0
     qfree Q0
+    store M0 @101[0]
   NETQASM_END
 
 SUBROUTINE create_epr_1
@@ -112,12 +116,16 @@ SUBROUTINE post_epr_1
     keeps:
     request:
   NETQASM_START
+    load C0 @100[0]
+    load C1 @100[1]
+    load C2 @100[2]
     set Q0 0
-    rot_z Q0 {theta1} 4
-    rot_y Q0 {epr1_rot_y} 4
-    rot_z Q0 {epr1_rot_z} 4
+    rot_z Q0 C0 4
+    rot_y Q0 C1 4
+    rot_z Q0 C2 4
     meas Q0 M1
     qfree Q0
+    store M1 @101[0]
   NETQASM_END
 
 REQUEST req1

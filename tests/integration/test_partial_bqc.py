@@ -180,15 +180,15 @@ class ServerProcNode(BqcProcNode):
         yield from self.netstack.processor.assign_request_routine(process, routine)
 
         # run_subroutine(vec<client_id>) : local_cphase
-        yield from self.host.processor.assign(process, 3)
-        yield from self.run_subroutine(process, "local_cphase")
+        # yield from self.host.processor.assign(process, 3)
+        yield from self.run_subroutine(process, 3, "local_cphase")
 
         # delta1 = recv_cmsg(client_id)
         yield from self.host.processor.assign(process, 4)
 
         # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-        yield from self.host.processor.assign(process, 5)
-        yield from self.run_subroutine(process, "meas_qubit_1")
+        # yield from self.host.processor.assign(process, 5)
+        yield from self.run_subroutine(process, 5, "meas_qubit_1")
 
         # send_cmsg(csocket, m1)
         yield from self.host.processor.assign(process, 6)
@@ -196,8 +196,8 @@ class ServerProcNode(BqcProcNode):
         yield from self.host.processor.assign(process, 7)
 
         # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-        yield from self.host.processor.assign(process, 8)
-        yield from self.run_subroutine(process, "meas_qubit_0")
+        # yield from self.host.processor.assign(process, 8)
+        yield from self.run_subroutine(process, 8, "meas_qubit_0")
 
         # return_result(m1)
         yield from self.host.processor.assign(process, 9)
@@ -222,16 +222,16 @@ class ClientProcNode(BqcProcNode):
         yield from self.netstack.processor.assign_request_routine(process, routine)
 
         # run_subroutine(vec<theta2>) : post_epr_0
-        yield from self.host.processor.assign(process, 2)
-        yield from self.run_subroutine(process, "post_epr_0")
+        # yield from self.host.processor.assign(process, 2)
+        yield from self.run_subroutine(process, 2, "post_epr_0")
 
         # run_subroutine(vec<>) : create_epr_1
         routine = process.get_request_routine("req1")
         yield from self.netstack.processor.assign_request_routine(process, routine)
 
         # run_subroutine(vec<theta1>) : post_epr_1
-        yield from self.host.processor.assign(process, 4)
-        yield from self.run_subroutine(process, "post_epr_1")
+        # yield from self.host.processor.assign(process, 4)
+        yield from self.run_subroutine(process, 4, "post_epr_1")
 
         # x = mult_const(p1) : 16
         # minus_theta1 = mult_const(theta1) : -1
