@@ -22,11 +22,11 @@ META_END
     theta1 = bcond_mult_const(theta1, dummy1) : 0
 
 ^b1 {type = LR}:
-    run_subroutine(vec<>) : create_epr_0
+    run_request(vec<>) : req0
 ^b2 {type = LR}:
     vec<p2> = run_subroutine(vec<theta2; epr0_rot_y; epr0_rot_z>) : post_epr_0
 ^b3 {type = LR}:
-    run_subroutine(vec<>) : create_epr_1
+    run_request(vec<>) : req1
 ^b4 {type = LR}:
     vec<p1> = run_subroutine(vec<theta1; epr1_rot_y; epr1_rot_z>) : post_epr_1
 
@@ -66,18 +66,6 @@ META_END
     return_result(m2)
 
 
-SUBROUTINE create_epr_0
-    params:
-    returns:
-    uses: 0
-    keeps: 0
-    request: req0
-  NETQASM_START
-    array 10 @0
-    create_epr C15 C0 C1 C2 C0
-    wait_all @0[0:10]
-  NETQASM_END
-
 SUBROUTINE post_epr_0
     params: theta2, epr0_rot_y, epr0_rot_z
     returns: M0 -> p2
@@ -95,18 +83,6 @@ SUBROUTINE post_epr_0
     meas Q0 M0
     qfree Q0
     store M0 @101[0]
-  NETQASM_END
-
-SUBROUTINE create_epr_1
-    params: 
-    returns:
-    uses: 0
-    keeps: 0
-    request: req1
-  NETQASM_START
-    array 10 @1
-    create_epr C15 C0 C4 C5 C3
-    wait_all @1[0:10]
   NETQASM_END
 
 SUBROUTINE post_epr_1

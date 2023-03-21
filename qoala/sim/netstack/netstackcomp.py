@@ -41,6 +41,7 @@ class NetstackComponent(Component):
         self.add_ports(self._peer_in_ports.values())
         self.add_ports(self._peer_out_ports.values())
 
+        self.add_ports(["host_out", "host_in"])
         self.add_ports(["qnos_out", "qnos_in"])
 
         # Separate channel for "memory freed" signals
@@ -55,6 +56,14 @@ class NetstackComponent(Component):
     @property
     def qnos_out_port(self) -> Port:
         return self.ports["qnos_out"]
+
+    @property
+    def host_in_port(self) -> Port:
+        return self.ports["host_in"]
+
+    @property
+    def host_out_port(self) -> Port:
+        return self.ports["host_out"]
 
     @property
     def qnos_mem_in_port(self) -> Port:

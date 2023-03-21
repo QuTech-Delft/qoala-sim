@@ -5,7 +5,7 @@ from typing import Generator
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
-from qoala.runtime.message import LrCallTuple, Message
+from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.util.logging import LogManager
@@ -112,6 +112,16 @@ class HostProcessor:
             yield from self._interface.receive_qnos_msg()
 
             self.post_lr_call(process, lrcall)
+        elif isinstance(instr, hostlang.RunRequestOp):
+            rrcall = self.prepare_rr_call(process, instr)
+
+            # Send a message to the Netstack asking to run the routine.
+            self._interface.send_netstack_msg(Message(rrcall))
+
+            # Wait until the Netstack says it has finished.
+            yield from self._interface.receive_netstack_msg()
+
+            # TODO: read results
 
         elif isinstance(instr, hostlang.ReturnResultOp):
             assert isinstance(instr.arguments[0], str)
@@ -163,3 +173,31 @@ class HostProcessor:
         assert len(result) == len(routine.return_map)
         for value, var in zip(result, routine.return_map.keys()):
             process.host_mem.write(var, value)
+
+    def prepare_rr_call(
+        self, process: IqoalaProcess, instr: hostlang.RunRequestOp
+    ) -> RrCallTuple:
+        host_mem = process.prog_memory.host_mem
+
+        assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
+        arg_vec: hostlang.IqoalaVector = instr.arguments[0]
+        args = arg_vec.values
+        routine_name = instr.attributes[0]
+        assert isinstance(routine_name, str)
+
+        routine = process.get_request_routine(routine_name)
+        self._logger.info(f"executing request routine {routine}")
+
+        arg_values = {arg: host_mem.read(arg) for arg in args}
+
+        shared_mem = process.prog_memory.shared_memmgr
+
+        # Allocate input memory and write args to it.
+        input_addr = shared_mem.allocate_rr_in(len(arg_values))
+        shared_mem.write_rr_in(input_addr, list(arg_values.values()))
+
+        # Allocate result memory.
+        # TODO: implement RR return values.
+        result_addr = shared_mem.allocate_rr_out(0)
+
+        return RrCallTuple(routine_name, input_addr, result_addr)

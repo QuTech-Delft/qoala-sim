@@ -20,7 +20,6 @@ from qoala.runtime.program import (
 from qoala.runtime.schedule import (
     CombinedProgramTask,
     HostTask,
-    JointHostQnosTask,
     NetstackTask,
     ProcessorType,
     ProgramTask,
@@ -234,17 +233,6 @@ class Scheduler(Protocol):
     def execute_qnos_task(
         self, process: IqoalaProcess, task: QnosTask
     ) -> Generator[EventExpression, None, None]:
-        raise DeprecationWarning
-
-    def execute_netstack_task(
-        self, process: IqoalaProcess, task: NetstackTask
-    ) -> Generator[EventExpression, None, None]:
-        routine = process.get_request_routine(task.request_routine_name)
-        yield from self.netstack.processor.assign_request_routine(process, routine)
-
-    def execute_joint_host_qnos_task(
-        self, process: IqoalaProcess, task: JointHostQnosTask
-    ) -> Generator[EventExpression, None, None]:
         host_instr = process.program.instructions[task.instr_index]
         assert isinstance(host_instr, RunSubroutineOp)
         lrcall = self.host.processor.prepare_lr_call(process, host_instr)
@@ -252,6 +240,12 @@ class Scheduler(Protocol):
             process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
         )
         self.host.processor.post_lr_call(process, lrcall)
+
+    def execute_netstack_task(
+        self, process: IqoalaProcess, task: NetstackTask
+    ) -> Generator[EventExpression, None, None]:
+        routine = process.get_request_routine(task.request_routine_name)
+        yield from self.netstack.processor.assign_request_routine(process, routine)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask
@@ -262,10 +256,6 @@ class Scheduler(Protocol):
             yield from self.execute_qnos_task(process, task.as_qnos_task())
         elif task.processor_type == ProcessorType.NETSTACK:
             yield from self.execute_netstack_task(process, task.as_netstack_task())
-        elif task.processor_type == ProcessorType.JOINT_HOST_QNOS:
-            yield from self.execute_joint_host_qnos_task(
-                process, task.as_joint_host_qnos_task()
-            )
         else:
             raise RuntimeError
 

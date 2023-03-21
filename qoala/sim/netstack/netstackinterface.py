@@ -20,9 +20,10 @@ from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.qdevice import QDevice
 from qoala.sim.signals import (
     SIGNAL_ENTD_NSTK_MSG,
+    SIGNAL_HOST_NSTK_MSG,
     SIGNAL_MEMORY_FREED,
-    SIGNAL_PEER_NSTK_MSG,
-    SIGNAL_PROC_NSTK_MSG,
+    SIGNAL_NSTK_NSTK_MSG,
+    SIGNAL_QNOS_NSTK_MSG,
 )
 
 
@@ -62,8 +63,13 @@ class NetstackInterface(ComponentProtocol):
         self._egpmgr = egpmgr
 
         self.add_listener(
+            "host",
+            PortListener(self._comp.host_in_port, SIGNAL_HOST_NSTK_MSG),
+        )
+
+        self.add_listener(
             "qnos",
-            PortListener(self._comp.qnos_in_port, SIGNAL_PROC_NSTK_MSG),
+            PortListener(self._comp.qnos_in_port, SIGNAL_QNOS_NSTK_MSG),
         )
 
         self.add_listener(
@@ -80,9 +86,18 @@ class NetstackInterface(ComponentProtocol):
             self.add_listener(
                 f"peer_{peer}",
                 PortListener(
-                    self._comp.peer_in_port(peer), f"{SIGNAL_PEER_NSTK_MSG}_{peer}"
+                    self._comp.peer_in_port(peer), f"{SIGNAL_NSTK_NSTK_MSG}_{peer}"
                 ),
             )
+
+    def send_host_msg(self, msg: Message) -> None:
+        """Send a message to the host."""
+        self._comp.host_out_port.tx_output(msg)
+
+    def receive_host_msg(self) -> Generator[EventExpression, None, Message]:
+        """Receive a message from the host. Block until there is at least one
+        message."""
+        return (yield from self._receive_msg("host", SIGNAL_HOST_NSTK_MSG))
 
     def send_qnos_msg(self, msg: Message) -> None:
         """Send a message to the processor."""
@@ -91,7 +106,7 @@ class NetstackInterface(ComponentProtocol):
     def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
         """Receive a message from the processor. Block until there is at least one
         message."""
-        return (yield from self._receive_msg("qnos", SIGNAL_PROC_NSTK_MSG))
+        return (yield from self._receive_msg("qnos", SIGNAL_QNOS_NSTK_MSG))
 
     def send_entdist_msg(self, msg: Message) -> None:
         """Send a message to the Entdist."""
@@ -115,7 +130,7 @@ class NetstackInterface(ComponentProtocol):
         NOTE: for now we assume there is only one other node, which is 'the' peer."""
         return (
             yield from self._receive_msg(
-                f"peer_{peer}", f"{SIGNAL_PEER_NSTK_MSG}_{peer}"
+                f"peer_{peer}", f"{SIGNAL_NSTK_NSTK_MSG}_{peer}"
             )
         )
 

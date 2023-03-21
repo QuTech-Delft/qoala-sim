@@ -14,3 +14,10 @@ class LrCallTuple:
     routine_name: str
     input_addr: MemAddr
     result_addr: MemAddr
+
+
+@dataclass
+class RrCallTuple:
+    routine_name: str
+    input_addr: MemAddr
+    result_addr: MemAddr

@@ -9,7 +9,11 @@ from qoala.runtime.message import Message
 from qoala.sim.common import ComponentProtocol, PortListener
 from qoala.sim.events import EVENT_WAIT
 from qoala.sim.host.hostcomp import HostComponent
-from qoala.sim.signals import SIGNAL_HAND_HOST_MSG, SIGNAL_HOST_HOST_MSG
+from qoala.sim.signals import (
+    SIGNAL_HOST_HOST_MSG,
+    SIGNAL_NSTK_HOST_MSG,
+    SIGNAL_QNOS_HOST_MSG,
+)
 
 
 @dataclass
@@ -44,7 +48,11 @@ class HostInterface(ComponentProtocol):
 
         self.add_listener(
             "qnos",
-            PortListener(self._comp.ports["qnos_in"], SIGNAL_HAND_HOST_MSG),
+            PortListener(self._comp.qnos_in_port, SIGNAL_QNOS_HOST_MSG),
+        )
+        self.add_listener(
+            "netstack",
+            PortListener(self._comp.netstack_in_port, SIGNAL_NSTK_HOST_MSG),
         )
         for peer in self._local_env.get_all_other_node_names():
             self.add_listener(
@@ -58,7 +66,13 @@ class HostInterface(ComponentProtocol):
         self._comp.qnos_out_port.tx_output(msg)
 
     def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
-        return (yield from self._receive_msg("qnos", SIGNAL_HAND_HOST_MSG))
+        return (yield from self._receive_msg("qnos", SIGNAL_QNOS_HOST_MSG))
+
+    def send_netstack_msg(self, msg: Message) -> None:
+        self._comp.netstack_out_port.tx_output(msg)
+
+    def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
+        return (yield from self._receive_msg("netstack", SIGNAL_NSTK_HOST_MSG))
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self._comp.peer_out_port(peer).tx_output(msg)

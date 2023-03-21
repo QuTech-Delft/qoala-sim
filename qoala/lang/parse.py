@@ -28,6 +28,7 @@ LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
         hl.BitConditionalMultiplyConstantCValueOp,
         hl.AssignCValueOp,
         hl.RunSubroutineOp,
+        hl.RunRequestOp,
         hl.ReturnResultOp,
     ]
 }
@@ -567,11 +568,16 @@ class IqoalaParser:
         meta = self._meta_parser.parse()
 
         # Check that all references to subroutines (in RunSubroutineOp instructions)
-        # are valid.
+        # and to requests (in RunRequestOp instructions) are valid.
         for block in blocks:
             for instr in block.instructions:
                 if isinstance(instr, hl.RunSubroutineOp):
                     subrt_name = instr.subroutine
                     if subrt_name not in subroutines:
                         raise IqoalaParseError
+                elif isinstance(instr, hl.RunRequestOp):
+                    req_name = instr.req_routine
+                    if req_name not in requests:
+                        raise IqoalaParseError
+
         return IqoalaProgram(meta, blocks, subroutines, requests)

@@ -149,39 +149,23 @@ def create_server_tasks(server_program: IqoalaProgram) -> ProgramTaskList:
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
 
-    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+    tasks.append(TaskBuilder.QC(qc_dur, 1, "req0"))
 
-    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+    tasks.append(TaskBuilder.QC(qc_dur, 2, "req1"))
 
     dur = cl_dur + 3 * ql_dur
-    tasks.append(TaskBuilder.JointHostQnos(dur, 3, "local_cphase"))
-    # tasks.append(TaskBuilder.CL(cl_dur, 3))
-    # tasks.append(TaskBuilder.QL(ql_dur, "local_cphase", 0))
-    # tasks.append(TaskBuilder.QL(ql_dur, "local_cphase", 1))
-    # tasks.append(TaskBuilder.QL(ql_dur, "local_cphase", 2))
+    tasks.append(TaskBuilder.QL(dur, 3, "local_cphase"))
 
     tasks.append(TaskBuilder.CC(cc_dur, 4))
 
     dur = cl_dur + 5 * ql_dur
-    tasks.append(TaskBuilder.JointHostQnos(dur, 5, "meas_qubit_1"))
-    # tasks.append(TaskBuilder.CL(cl_dur, 5))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_1", 0))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_1", 1))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_1", 2))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_1", 3))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_1", 4))
+    tasks.append(TaskBuilder.QL(dur, 5, "meas_qubit_1"))
 
     tasks.append(TaskBuilder.CC(cc_dur, 6))
     tasks.append(TaskBuilder.CC(cc_dur, 7))
 
     dur = cl_dur + 5 * ql_dur
-    tasks.append(TaskBuilder.JointHostQnos(dur, 8, "meas_qubit_0"))
-    # tasks.append(TaskBuilder.CL(cl_dur, 8))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_0", 0))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_0", 1))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_0", 2))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_0", 3))
-    # tasks.append(TaskBuilder.QL(ql_dur, "meas_qubit_0", 4))
+    tasks.append(TaskBuilder.QL(dur, 8, "meas_qubit_0"))
 
     tasks.append(TaskBuilder.CL(cl_dur, 9))
     tasks.append(TaskBuilder.CL(cl_dur, 10))
@@ -199,27 +183,15 @@ def create_client_tasks(client_program: IqoalaProgram) -> ProgramTaskList:
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
 
-    tasks.append(TaskBuilder.QC(qc_dur, "req0"))
+    tasks.append(TaskBuilder.QC(qc_dur, 1, "req0"))
 
     dur = cl_dur + 5 * ql_dur
-    tasks.append(TaskBuilder.JointHostQnos(dur, 2, "post_epr_0"))
-    # tasks.append(TaskBuilder.CL(cl_dur, 2))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 0))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 1))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 2))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 3))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_0", 4))
+    tasks.append(TaskBuilder.QL(dur, 2, "post_epr_0"))
 
-    tasks.append(TaskBuilder.QC(qc_dur, "req1"))
+    tasks.append(TaskBuilder.QC(qc_dur, 3, "req1"))
 
     dur = cl_dur + 5 * ql_dur
-    tasks.append(TaskBuilder.JointHostQnos(dur, 4, "post_epr_1"))
-    # tasks.append(TaskBuilder.CL(cl_dur, 4))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_1", 0))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_1", 1))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_1", 2))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_1", 3))
-    # tasks.append(TaskBuilder.QL(ql_dur, "post_epr_1", 4))
+    tasks.append(TaskBuilder.QL(dur, 4, "post_epr_1"))
 
     tasks.append(TaskBuilder.CL(cl_dur, 5))
     tasks.append(TaskBuilder.CL(cl_dur, 6))

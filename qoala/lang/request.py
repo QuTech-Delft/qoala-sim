@@ -25,12 +25,12 @@ class EprRole(Enum):
 
 class VirtIdMappingType(Enum):
     # All virt IDs have the same single value.
-    # E.g. if virt_ids_equal = 0, and num_pairs = 4,
+    # E.g. if single_value = 0 and num_pairs = 4,
     # virt IDs are [0, 0, 0, 0]
     EQUAL = 0
 
     # Virt IDs are increasing sequence starting at given value.
-    # E.g. if virt_ids_increment = 0, and num_pairs = 4,
+    # E.g. if single_value = 0 and num_pairs = 4,
     # virt IDs are [0, 1, 2, 3]
     INCREMENT = auto()
 
