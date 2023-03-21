@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from netqasm.sdk.shared_memory import Arrays
 
 from qoala.runtime.program import (
     CallbackRoutineParams,
@@ -18,100 +20,162 @@ class SharedMemReadError(Exception):
     pass
 
 
+class SharedMemNotAllocatedError(Exception):
+    pass
+
+
+class SharedMemIllegalRegionError(Exception):
+    pass
+
+
 @dataclass(eq=True, frozen=True)
 class MemAddr:
     addr: int
 
 
-class SharedMemoryRegion:
-    """Allocation is represented by adding a key to the _memory dict.
-    Writing is represented by writing a value to a _memory dict entry."""
-
+class NetQASMArrays:
     def __init__(self) -> None:
         self._next_addr: int = 0
-        self._memory: Dict[MemAddr, Optional[Any]] = {}
+        self._memory: Dict[MemAddr, List[Optional[int]]] = {}
 
-    def allocate(self) -> MemAddr:
-        addr = MemAddr(self._next_addr)
-        self._next_addr += 1
-        self._memory[addr] = None
-        return addr
+    def allocate(self, addr: MemAddr, size: int) -> None:
+        assert addr not in self._memory
+        self._memory[addr] = [None] * size
 
-    def write(self, addr: MemAddr, data: Any) -> None:
+    def write(self, addr: MemAddr, data: List[int], offset: int) -> None:
         if addr not in self._memory:
             raise SharedMemWriteError
-        self._memory[addr] = data
+        if len(self._memory[addr]) < offset + len(data):
+            raise SharedMemWriteError
+        for i in range(len(data)):
+            self._memory[addr][i + offset] = data[i]
 
-    def read(self, addr: MemAddr) -> Any:
+    def read(self, addr: MemAddr, size: int, offset: int) -> List[int]:
         if addr not in self._memory:
             raise SharedMemReadError
-        return self._memory[addr]
+        if len(self._memory[addr]) < offset + size:
+            raise SharedMemReadError
+        return self._memory[addr][offset : offset + size]
 
 
 class SharedMemoryManager:
     def __init__(self) -> None:
-        self._rr_in = SharedMemoryRegion()
-        self._rr_out = SharedMemoryRegion()
-        self._cr_in = SharedMemoryRegion()
-        self._lr_in = SharedMemoryRegion()
-        self._lr_out = SharedMemoryRegion()
+        self._arrays = NetQASMArrays()
 
-    def allocate_rr_in(self) -> MemAddr:
-        return self._rr_in.allocate()
+        self._rr_in_addrs: List[MemAddr] = []
+        self._rr_out_addrs: List[MemAddr] = []
+        self._cr_in_addrs: List[MemAddr] = []
+        self._lr_in_addrs: List[MemAddr] = []
+        self._lr_out_addrs: List[MemAddr] = []
 
-    def write_rr_in(self, addr: MemAddr, params: RequestRoutineParams) -> None:
-        assert isinstance(params, RequestRoutineParams)
-        self._rr_in.write(addr, params)
+        self._addr_counter: int = 0
 
-    def read_rr_in(self, addr: MemAddr) -> RequestRoutineParams:
-        data = self._rr_in.read(addr)
-        assert isinstance(data, RequestRoutineParams)
+    def _allocate(self, size: int) -> MemAddr:
+        addr = MemAddr(self._addr_counter)
+        self._addr_counter += 1
+        self._arrays.allocate(addr, size)
+        return addr
+
+    def allocate_rr_in(self, size: int) -> MemAddr:
+        addr = self._allocate(size)
+        self._rr_in_addrs.append(addr)
+        return addr
+
+    def write_rr_in(self, addr: MemAddr, data: List[int], offset: int = 0) -> None:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._rr_in_addrs:
+            raise SharedMemIllegalRegionError
+        self._arrays.write(addr, data, offset)
+
+    def read_rr_in(self, addr: MemAddr, size: int, offset: int = 0) -> List[int]:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._rr_in_addrs:
+            raise SharedMemIllegalRegionError
+        data = self._arrays.read(addr, size, offset)
         return data
 
-    def allocate_rr_out(self) -> MemAddr:
-        return self._rr_out.allocate()
+    def allocate_rr_out(self, size: int) -> MemAddr:
+        addr = self._allocate(size)
+        self._rr_out_addrs.append(addr)
+        return addr
 
-    def write_rr_out(self, addr: MemAddr, result: RequestRoutineResult) -> None:
-        assert isinstance(result, RequestRoutineResult)
-        self._rr_out.write(addr, result)
+    def write_rr_out(self, addr: MemAddr, data: List[int], offset: int = 0) -> None:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._rr_out_addrs:
+            raise SharedMemIllegalRegionError
+        self._arrays.write(addr, data, offset)
 
-    def read_rr_out(self, addr: MemAddr) -> RequestRoutineResult:
-        data = self._rr_out.read(addr)
-        assert isinstance(data, RequestRoutineResult)
+    def read_rr_out(self, addr: MemAddr, size: int, offset: int = 0) -> List[int]:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._rr_out_addrs:
+            raise SharedMemIllegalRegionError
+        data = self._arrays.read(addr, size, offset)
         return data
 
-    def allocate_cr_in(self) -> MemAddr:
-        return self._cr_in.allocate()
+    def allocate_cr_in(self, size: int) -> MemAddr:
+        addr = self._allocate(size)
+        self._cr_in_addrs.append(addr)
+        return addr
 
-    def write_cr_in(self, addr: MemAddr, params: CallbackRoutineParams) -> None:
-        assert isinstance(params, CallbackRoutineParams)
-        self._cr_in.write(addr, params)
+    def write_cr_in(self, addr: MemAddr, data: List[int], offset: int = 0) -> None:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._cr_in_addrs:
+            raise SharedMemIllegalRegionError
+        self._arrays.write(addr, data, offset)
 
-    def read_cr_in(self, addr: MemAddr) -> CallbackRoutineParams:
-        data = self._cr_in.read(addr)
-        assert isinstance(data, CallbackRoutineParams)
+    def read_cr_in(self, addr: MemAddr, size: int, offset: int = 0) -> List[int]:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._cr_in_addrs:
+            raise SharedMemIllegalRegionError
+        data = self._arrays.read(addr, size, offset)
         return data
 
-    def allocate_lr_in(self) -> MemAddr:
-        return self._lr_in.allocate()
+    def allocate_lr_in(self, size: int) -> MemAddr:
+        addr = self._allocate(size)
+        self._lr_in_addrs.append(addr)
+        return addr
 
-    def write_lr_in(self, addr: MemAddr, params: LocalRoutineParams) -> None:
-        assert isinstance(params, LocalRoutineParams)
-        self._lr_in.write(addr, params)
+    def _check_allocated(self, addr: MemAddr) -> bool:
+        # "hack": make use of fact that addr counter is never decreased
+        return addr.addr < self._addr_counter
 
-    def read_lr_in(self, addr: MemAddr) -> LocalRoutineParams:
-        data = self._lr_in.read(addr)
-        assert isinstance(data, LocalRoutineParams)
+    def write_lr_in(self, addr: MemAddr, data: List[int], offset: int = 0) -> None:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._lr_in_addrs:
+            raise SharedMemIllegalRegionError
+        self._arrays.write(addr, data, offset)
+
+    def read_lr_in(self, addr: MemAddr, size: int, offset: int = 0) -> List[int]:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._lr_in_addrs:
+            raise SharedMemIllegalRegionError
+        data = self._arrays.read(addr, size, offset)
         return data
 
-    def allocate_lr_out(self) -> MemAddr:
-        return self._lr_out.allocate()
+    def allocate_lr_out(self, size: int) -> MemAddr:
+        addr = self._allocate(size)
+        self._lr_out_addrs.append(addr)
+        return addr
 
-    def write_lr_out(self, addr: MemAddr, result: LocalRoutineResult) -> None:
-        assert isinstance(result, LocalRoutineResult)
-        self._lr_out.write(addr, result)
+    def write_lr_out(self, addr: MemAddr, data: List[int], offset: int = 0) -> None:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._lr_out_addrs:
+            raise SharedMemIllegalRegionError
+        self._arrays.write(addr, data, offset)
 
-    def read_lr_out(self, addr: MemAddr) -> LocalRoutineResult:
-        data = self._lr_out.read(addr)
-        assert isinstance(data, LocalRoutineResult)
+    def read_lr_out(self, addr: MemAddr, size: int, offset: int = 0) -> List[int]:
+        if not self._check_allocated(addr):
+            raise SharedMemNotAllocatedError
+        if addr not in self._lr_out_addrs:
+            raise SharedMemIllegalRegionError
+        data = self._arrays.read(addr, size, offset)
         return data

@@ -29,6 +29,7 @@ from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
 from qoala.runtime.message import Message
+from qoala.runtime.schedule import NoTimeSolver
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.globals import GlobalSimData
 from qoala.sim.memmgr import NotAllocatedError
@@ -66,10 +67,17 @@ class QnosProcessor:
         # memory of current program, only not-None when processor is active
         self._current_prog_mem: Optional[ProgramMemory] = None
 
+        self._current_routine: Optional[RunningLocalRoutine] = None
+
     def _prog_mem(self) -> ProgramMemory:
         # May only be called when processor is active
         assert self._current_prog_mem is not None
         return self._current_prog_mem
+
+    def _routine(self) -> RunningLocalRoutine:
+        # May only be called when processor is active
+        assert self._current_routine is not None
+        return self._current_routine
 
     @property
     def qdevice(self) -> QDevice:
@@ -119,6 +127,7 @@ class QnosProcessor:
         pid = process.prog_instance.pid
 
         self._current_prog_mem = process.prog_memory
+        self._current_routine = running_routine
 
         subroutine = routine.subroutine
 
@@ -146,6 +155,7 @@ class QnosProcessor:
             next_instr_idx = instr_idx + 1
 
         self._current_prog_mem = None
+        self._current_routine = None
         return next_instr_idx
 
     def _interpret_instruction(
@@ -285,6 +295,9 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         shared_mem = self._prog_mem().shared_mem
 
+        new_shared_mem = self._prog_mem().shared_memmgr
+        result_addr = self._routine().result_addr
+
         value = shared_mem.get_reg_value(instr.reg)
         if value is None:
             raise RuntimeError(f"value in register {instr.reg} is not defined")
@@ -293,7 +306,16 @@ class QnosProcessor:
             f"to array entry {instr.entry}"
         )
 
-        shared_mem.set_array_entry(instr.entry, value)
+        addr = instr.entry.address.address
+        entry = instr.entry.index
+        assert isinstance(entry, Register)
+        index = shared_mem.get_reg_value(entry)
+        if addr == 1:  # result region
+            new_shared_mem.write_lr_out(result_addr, [value], offset=index)
+        else:
+            raise NotImplementedError  # TODO: needed?
+
+        # shared_mem.set_array_entry(instr.entry, value)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
@@ -302,7 +324,19 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         shared_mem = self._prog_mem().shared_mem
 
-        value = shared_mem.get_array_entry(instr.entry)
+        new_shared_mem = self._prog_mem().shared_memmgr
+        input_addr = self._routine().params_addr
+
+        addr = instr.entry.address.address
+        entry = instr.entry.index
+        assert isinstance(entry, Register)
+        index = shared_mem.get_reg_value(entry)
+        if addr == 0:  # input region
+            [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
+        else:
+            raise NotImplementedError  # TODO: needed?
+
+        # value = shared_mem.get_array_entry(instr.entry)
         if value is None:
             raise RuntimeError(f"array value at {instr.entry} is not defined")
         self._logger.debug(

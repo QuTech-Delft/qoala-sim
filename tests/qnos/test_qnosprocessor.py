@@ -645,7 +645,7 @@ SUBROUTINE subrt
     keeps:
     request: 
   NETQASM_START
-    set R0 {arg0}
+    load R0 @0[0]
   NETQASM_END
     """
 
@@ -653,30 +653,68 @@ SUBROUTINE subrt
     processor._interface.memmgr.add_process(process)
 
     shared_mem = process.prog_memory.shared_memmgr
-    input_addr = shared_mem.allocate_lr_in()
-    shared_mem.write_lr_in(input_addr, 3)
+    input_addr = shared_mem.allocate_lr_in(1)
+    shared_mem.write_lr_in(input_addr, [3])
 
-    execute_process(processor, process, input_addr=0, result_addr=0)
+    execute_process(processor, process, input_addr=input_addr, result_addr=0)
 
     assert process.shared_mem.get_reg_value("R0") == 3
 
 
+def test_program_routine_params_and_results():
+    processor, unit_module = setup_components(star_topology(2))
+
+    # TODO: fill in params and returns when Host/Array conversion is implemented
+    routine = """
+SUBROUTINE subrt
+    params:
+    returns: 
+    uses: 
+    keeps:
+    request: 
+  NETQASM_START
+    load R0 @0[0]
+    load R1 @0[1]
+    add C0 R0 R0
+    add C1 R1 R1
+    store C0 @1[0]
+    store C1 @1[1]
+  NETQASM_END
+    """
+
+    process = create_process_with_local_routine(0, routine, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    shared_mem = process.prog_memory.shared_memmgr
+
+    input_addr = shared_mem.allocate_lr_in(2)
+    shared_mem.write_lr_in(input_addr, [3, 7])
+
+    result_addr = shared_mem.allocate_lr_out(2)
+
+    execute_process(processor, process, input_addr=input_addr, result_addr=result_addr)
+
+    assert process.shared_mem.get_reg_value("C0") == 6
+    assert process.shared_mem.get_reg_value("C1") == 14
+
+
 if __name__ == "__main__":
-    test_set_reg()
-    test_set_reg_with_latencies()
-    test_add()
-    test_add_with_latencies()
-    test_alloc_qubit()
-    test_free_qubit()
-    test_free_non_allocated()
-    test_alloc_multiple()
-    test_alloc_multiprocess()
-    test_alloc_multiprocess_same_virt_id()
-    test_alloc_multiprocess_same_virt_id_trait_not_available()
-    test_no_branch()
-    test_branch()
-    test_branch_with_latencies()
-    test_array()
-    test_wait_all()
-    test_program_inputs()
-    test_program_routine_params()
+    # test_set_reg()
+    # test_set_reg_with_latencies()
+    # test_add()
+    # test_add_with_latencies()
+    # test_alloc_qubit()
+    # test_free_qubit()
+    # test_free_non_allocated()
+    # test_alloc_multiple()
+    # test_alloc_multiprocess()
+    # test_alloc_multiprocess_same_virt_id()
+    # test_alloc_multiprocess_same_virt_id_trait_not_available()
+    # test_no_branch()
+    # test_branch()
+    # test_branch_with_latencies()
+    # test_array()
+    # test_wait_all()
+    # test_program_inputs()
+    # test_program_routine_params()
+    test_program_routine_params_and_results()
