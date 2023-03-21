@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from qoala.runtime.sharedmem import MemAddr
+
 
 @dataclass
 class Message:
@@ -10,5 +12,5 @@ class Message:
 @dataclass
 class LrCallTuple:
     routine_name: str
-    input_addr: int
-    result_addr: int
+    input_addr: MemAddr
+    result_addr: MemAddr

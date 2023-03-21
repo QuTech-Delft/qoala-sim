@@ -7,6 +7,7 @@ import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.lang.hostlang import RunSubroutineOp
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
@@ -233,14 +234,7 @@ class Scheduler(Protocol):
     def execute_qnos_task(
         self, process: IqoalaProcess, task: QnosTask
     ) -> Generator[EventExpression, None, None]:
-        yield from self.qnos.processor.assign_routine_instr(
-            process, task.subrt_name, task.instr_index
-        )
-        # TODO: improve this
-        subrt = process.get_local_routine(task.subrt_name)
-        if task.instr_index == (len(subrt.subroutine.instructions) - 1):
-            # subroutine finished -> return results to host
-            self.host.processor.copy_subroutine_results(process, task.subrt_name)
+        raise DeprecationWarning
 
     def execute_netstack_task(
         self, process: IqoalaProcess, task: NetstackTask
@@ -252,6 +246,7 @@ class Scheduler(Protocol):
         self, process: IqoalaProcess, task: JointHostQnosTask
     ) -> Generator[EventExpression, None, None]:
         host_instr = process.program.instructions[task.instr_index]
+        assert isinstance(host_instr, RunSubroutineOp)
         lrcall = self.host.processor.prepare_lr_call(process, host_instr)
         yield from self.qnos.processor.assign_local_routine(
             process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr

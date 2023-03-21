@@ -89,7 +89,7 @@ class QnosProcessor:
         args: Dict[str, Any],
         input_addr: MemAddr,
         result_addr: MemAddr,
-    ) -> LocalRoutine:
+    ) -> None:
         """Instantiates and activates routine."""
         instance = deepcopy(routine)
         instance.subroutine.instantiate(process.pid, args)
@@ -370,11 +370,7 @@ class QnosProcessor:
     def _interpret_undef(
         self, pid: int, instr: core.UndefInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        shared_mem = self._prog_mem().shared_mem
-        self._logger.debug(f"Unset array entry {instr.entry}")
-        shared_mem.set_array_entry(instr.entry, None)
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
-        return None
+        raise DeprecationWarning
 
     def _interpret_array(
         self, pid: int, instr: core.ArrayInstruction
@@ -570,38 +566,7 @@ class QnosProcessor:
     def _interpret_wait_all(
         self, pid: int, instr: core.WaitAllInstruction
     ) -> Generator[EventExpression, None, None]:
-        qnos_mem = self._prog_mem().qnos_mem
-        shared_mem = self._prog_mem().shared_mem
-        self._logger.debug(
-            f"Waiting for all entries in array slice {instr.slice} to become defined"
-        )
-        assert isinstance(instr.slice.start, Register)
-        assert isinstance(instr.slice.stop, Register)
-        start: int = qnos_mem.get_reg_value(instr.slice.start)
-        end: int = qnos_mem.get_reg_value(instr.slice.stop)
-        addr: int = instr.slice.address.address
-
-        self._logger.debug(
-            f"checking if @{addr}[{start}:{end}] has values for app ID {pid}"
-        )
-
-        while True:
-            values = shared_mem.get_array_values(addr, start, end)
-            if any(v is None for v in values):
-                self._logger.debug(
-                    f"waiting for netstack to write to @{addr}[{start}:{end}] "
-                    f"for app ID {pid}"
-                )
-                yield from self._interface.receive_netstack_msg()
-                self._logger.debug("netstack wrote something")
-            else:
-                break
-        self._interface.flush_netstack_msgs()
-        self._logger.debug("all entries were written")
-
-        self._logger.info(f"\nFinished waiting for array slice {instr.slice}")
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
-        return None
+        raise DeprecationWarning
 
     def _interpret_ret_reg(
         self, pid: int, instr: core.RetRegInstruction

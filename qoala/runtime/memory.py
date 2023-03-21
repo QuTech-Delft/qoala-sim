@@ -57,24 +57,16 @@ class SharedMemory:
 
     # for compatibility with netqasm Futures
     def get_array_part(
-        self, address: int, index: Union[int, slice]
+        self, address: int, index: int
     ) -> Union[None, int, List[Optional[int]]]:
-        if isinstance(index, int):
-            return self.get_array_value(address, index)
-        elif isinstance(index, slice):
-            return self.get_array_values(address, index.start, index.stop)
+        assert isinstance(index, int)
+        return self.get_array_value(address, index)
 
     def init_new_array(self, address: int, length: int) -> None:
         self._arrays.init_new_array(address, length)
 
     def get_array(self, address: int) -> List[Optional[int]]:
         return self._arrays._get_array(address)  # type: ignore
-
-    def get_array_entry(self, array_entry: operand.ArrayEntry) -> Optional[int]:
-        address, index = self.expand_array_part(array_part=array_entry)
-        result = self._arrays[address, index]
-        assert (result is None) or isinstance(result, int)
-        return result
 
     def get_array_value(self, addr: int, offset: int) -> Optional[int]:
         address, index = self.expand_array_part(
@@ -83,21 +75,6 @@ class SharedMemory:
         result = self._arrays[address, index]
         assert (result is None) or isinstance(result, int)
         return result
-
-    def get_array_values(
-        self, addr: int, start_offset: int, end_offset
-    ) -> List[Optional[int]]:
-        values = self.get_array_slice(
-            operand.ArraySlice(operand.Address(addr), start_offset, end_offset)
-        )
-        assert values is not None
-        return values
-
-    def set_array_entry(
-        self, array_entry: operand.ArrayEntry, value: Optional[int]
-    ) -> None:
-        address, index = self.expand_array_part(array_part=array_entry)
-        self._arrays[address, index] = value
 
     def set_array_value(self, addr: int, offset: int, value: Optional[int]) -> None:
         address, index = self.expand_array_part(
@@ -119,29 +96,13 @@ class SharedMemory:
         address: int = array_part.address.address
         index: Union[int, slice]
         if isinstance(array_part, operand.ArrayEntry):
-            if isinstance(array_part.index, int):
-                index = array_part.index
-            else:
-                index_from_reg = self.get_reg_value(register=array_part.index)
-                if index_from_reg is None:
-                    raise RuntimeError(
-                        f"Trying to use register {array_part.index} "
-                        "to index an array but its value is None"
-                    )
-                index = index_from_reg
+            assert isinstance(array_part.index, int)
+            index = array_part.index
         elif isinstance(array_part, operand.ArraySlice):
             startstop: List[int] = []
             for raw_s in [array_part.start, array_part.stop]:
                 if isinstance(raw_s, int):
                     startstop.append(raw_s)
-                elif isinstance(raw_s, operand.Register):
-                    s = self.get_reg_value(register=raw_s)
-                    if s is None:
-                        raise RuntimeError(
-                            f"Trying to use register {raw_s} to "
-                            "index an array but its value is None"
-                        )
-                    startstop.append(s)
                 else:
                     raise RuntimeError(
                         f"Something went wrong: raw_s should be int "

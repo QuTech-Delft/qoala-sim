@@ -44,12 +44,6 @@ class IqoalaProcess:
     def get_all_request_routines(self) -> Dict[str, RequestRoutine]:
         return self.program.request_routines
 
-    def get_active_routine(self, name: str) -> RoutineInstance:
-        return self.active_routines[name]
-
-    def get_all_active_routines(self) -> Dict[str, RoutineInstance]:
-        return self.active_routines
-
     @property
     def pid(self) -> int:
         return self.prog_instance.pid  # type: ignore

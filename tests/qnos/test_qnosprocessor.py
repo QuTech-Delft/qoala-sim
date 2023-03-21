@@ -562,36 +562,6 @@ LABEL1:
     assert process.prog_memory.qnos_mem.get_reg_value("C0") == 0
 
 
-def test_wait_all():
-    pid = 0
-    array_id = 3
-    start_idx = 5
-    end_idx = 9
-
-    # Let the mock interface write some result to the array such that
-    # our "wait_all" instruction will unblock
-    netstack_result = MockNetstackResultInfo(
-        pid=pid, array_id=array_id, start_idx=start_idx, end_idx=end_idx
-    )
-
-    processor, unit_module = setup_components(
-        uniform_topology(1), netstack_result=netstack_result
-    )
-
-    subrt = f"""
-    array 10 @{array_id}
-    wait_all @{array_id}[{start_idx}:{end_idx}]
-    """
-    process = create_process_with_subrt(pid, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-    execute_process(processor, process)
-
-    mem = process.prog_memory.shared_mem
-    assert all(
-        mem.get_array_value(array_id, i) is not None for i in range(start_idx, end_idx)
-    )
-
-
 def test_program_inputs():
     processor, unit_module = setup_components(star_topology(2))
 
@@ -686,7 +656,6 @@ if __name__ == "__main__":
     test_no_branch()
     test_branch()
     test_branch_with_latencies()
-    test_wait_all()
     test_program_inputs()
     test_program_routine_params()
     test_program_routine_params_and_results()

@@ -6,6 +6,7 @@ from typing import Dict, List
 
 import netsquid as ns
 
+from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
@@ -152,44 +153,34 @@ def create_server_tasks(
     tasks.append(TaskBuilder.CL(cl_dur, 0))
 
     # run_subroutine(vec<client_id>) : create_epr_0
-    # OLD
-    # tasks.append(TaskBuilder.CL(cl_dur, 1))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
-    # NEW
     tasks.append(TaskBuilder.QC(qc_dur, "req0"))
 
     # run_subroutine(vec<client_id>) : create_epr_1
-    # OLD
-    # tasks.append(TaskBuilder.CL(cl_dur, 2))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
-    # NEW
     tasks.append(TaskBuilder.QC(qc_dur, "req1"))
 
     # run_subroutine(vec<client_id>) : local_cphase
-    tasks.append(TaskBuilder.CL(cl_dur, 3))
-    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
-    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 1))
-    tasks.append(TaskBuilder.QL(cphase_dur, "local_cphase", 2))
+    dur = cl_dur + 2 * set_dur + cphase_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 3, "local_cphase"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 3))
+    # tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
+    # tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 1))
+    # tasks.append(TaskBuilder.QL(cphase_dur, "local_cphase", 2))
+
     # delta1 = recv_cmsg(client_id)
     tasks.append(TaskBuilder.CC(cc_dur, 4))
+
     # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-    tasks.append(TaskBuilder.CL(cl_dur, 5))
-    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_1", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_1", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_1", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_1", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_1", 4))
+    dur = cl_dur + 3 * set_dur + rot_dur + h_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 5, "meas_qubit_1"))
+
     # send_cmsg(csocket, m1)
     tasks.append(TaskBuilder.CC(cc_dur, 6))
     # delta2 = recv_cmsg(csocket)
     tasks.append(TaskBuilder.CC(cc_dur, 7))
+
     # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-    tasks.append(TaskBuilder.CL(cl_dur, 8))
-    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_0", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_0", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_0", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_0", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_0", 4))
+    dur = cl_dur + 3 * set_dur + rot_dur + h_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 8, "meas_qubit_0"))
 
     # send_cmsg(csocket, m2)
     tasks.append(TaskBuilder.CC(cc_dur, 9))
@@ -233,35 +224,17 @@ def create_client_tasks(
         tasks.append(TaskBuilder.CL(cl_dur, c.next()))
 
     # run_subroutine(vec<>) : create_epr_0
-    # OLD
-    # tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
-    # NEW
     c.next()
     tasks.append(TaskBuilder.QC(qc_dur, "req0"))
 
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    tasks.append(TaskBuilder.QL(set_dur, "post_epr_0", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "post_epr_0", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "post_epr_0", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "post_epr_0", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 4))
-    tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 5))
+    dur = cl_dur + 5 * set_dur + 3 * rot_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, c.next(), "post_epr_0"))
 
-    # OLD
-    # tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
-    # NEW
     c.next()
     tasks.append(TaskBuilder.QC(qc_dur, "req1"))
 
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    tasks.append(TaskBuilder.QL(set_dur, "post_epr_1", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "post_epr_1", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "post_epr_1", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "post_epr_1", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "post_epr_1", 4))
-    tasks.append(TaskBuilder.QL(free_dur, "post_epr_1", 5))
+    dur = cl_dur + 5 * set_dur + 3 * rot_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, c.next(), "post_epr_1"))
 
     # x = mult_const(p1) : 16
     # minus_theta1 = mult_const(theta1) : -1
@@ -357,9 +330,9 @@ def load_client_program() -> IqoalaProgram:
 def create_server_batch(
     client_id: int,
     inputs: List[ProgramInput],
+    unit_module: UnitModule,
     num_iterations: int,
     deadline: int,
-    num_qubits: int,
 ) -> BatchInfo:
     durations = create_durations()
     server_program = load_server_program(remote_name=f"client_{client_id}")
@@ -367,15 +340,18 @@ def create_server_batch(
     return BatchInfo(
         program=server_program,
         inputs=inputs,
+        unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
         tasks=server_tasks,
-        num_qubits=num_qubits,
     )
 
 
 def create_client_batch(
-    inputs: List[ProgramInput], num_iterations: int, deadline: int
+    inputs: List[ProgramInput],
+    unit_module: UnitModule,
+    num_iterations: int,
+    deadline: int,
 ) -> BatchInfo:
     durations = create_durations()
     client_program = load_client_program()
@@ -383,10 +359,10 @@ def create_client_batch(
     return BatchInfo(
         program=client_program,
         inputs=inputs,
+        unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
         tasks=client_tasks,
-        num_qubits=1,
     )
 
 
@@ -416,12 +392,13 @@ def compute_schedule(
             ProgramInput({"client_id": client_id}) for _ in range(num_iterations[index])
         ]
 
+        server_unit_module = UnitModule.from_full_ehi(server_procnode.memmgr.get_ehi())
         server_batch_info = create_server_batch(
             client_id=client_id,
             inputs=server_inputs,
+            unit_module=server_unit_module,
             num_iterations=num_iterations[index],
             deadline=deadlines[index],
-            num_qubits=server_num_qubits,
         )
 
         server_procnode.submit_batch(server_batch_info)
@@ -467,12 +444,13 @@ def run_bqc(
             ProgramInput({"client_id": client_id}) for _ in range(num_iterations[index])
         ]
 
+        server_unit_module = UnitModule.from_full_ehi(server_procnode.memmgr.get_ehi())
         server_batch_info = create_server_batch(
             client_id=client_id,
             inputs=server_inputs,
+            unit_module=server_unit_module,
             num_iterations=num_iterations[index],
             deadline=deadlines[index],
-            num_qubits=server_num_qubits,
         )
 
         server_procnode.submit_batch(server_batch_info)
@@ -500,11 +478,13 @@ def run_bqc(
             for _ in range(num_iterations[index])
         ]
 
+        client_procnode = network.nodes[f"client_{client_id}"]
+        client_unit_module = UnitModule.from_full_ehi(client_procnode.memmgr.get_ehi())
+
         client_batch_info = create_client_batch(
-            client_inputs, num_iterations[index], deadlines[index]
+            client_inputs, client_unit_module, num_iterations[index], deadlines[index]
         )
 
-        client_procnode = network.nodes[f"client_{client_id}"]
         client_procnode.submit_batch(client_batch_info)
         client_procnode.initialize_processes()
         client_procnode.initialize_schedule(NoTimeSolver)
