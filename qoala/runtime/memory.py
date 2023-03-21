@@ -53,32 +53,7 @@ class SharedMemory:
     def __init__(self, pid: int) -> None:
         self._pid = pid
 
-        register_names: Dict[RegisterName, RegisterGroup] = setup_registers()
-        self._registers: Dict[Dict[RegisterName, RegisterGroup], int] = {}
-        # TODO fix this abomination of handling registers
-        for name in register_names.keys():
-            self._registers[name] = {}  # type: ignore
-            for i in range(16):
-                self._registers[name][i] = 0  # type: ignore
         self._arrays: Arrays = Arrays()
-
-    def set_reg_value(self, register: Union[str, operand.Register], value: int) -> None:
-        if isinstance(register, str):
-            name, index = RegisterMeta.parse(register)
-        else:
-            name, index = register.name, register.index
-        self._registers[name][index] = value  # type: ignore
-
-    def get_reg_value(self, register: Union[str, operand.Register]) -> int:
-        if isinstance(register, str):
-            name, index = RegisterMeta.parse(register)
-        else:
-            name, index = register.name, register.index
-        return self._registers[name][index]  # type: ignore
-
-    # for compatibility with netqasm Futures
-    def get_register(self, register: Union[str, operand.Register]) -> Optional[int]:
-        return self.get_reg_value(register)
 
     # for compatibility with netqasm Futures
     def get_array_part(
@@ -188,10 +163,7 @@ class RunningLocalRoutine:
 
 
 class QnosMemory:
-    """Classical program memory only available to Qnos.
-    Not used at the moment.
-
-    TODO: move NetQASM registers into here."""
+    """Classical program memory only available to Qnos."""
 
     def __init__(self, pid: int) -> None:
         self._pid = pid
@@ -199,6 +171,15 @@ class QnosMemory:
         # TODO: allow multiple instances of same routine (name)?
         # Currently not possible
         self._running_routines: Dict[str, RunningLocalRoutine] = {}
+
+        # NetQASM registers.
+        register_names: Dict[RegisterName, RegisterGroup] = setup_registers()
+        self._registers: Dict[Dict[RegisterName, RegisterGroup], int] = {}
+        # TODO fix this abomination of handling registers
+        for name in register_names.keys():
+            self._registers[name] = {}  # type: ignore
+            for i in range(16):
+                self._registers[name][i] = 0  # type: ignore
 
     def add_running_routine(self, running_routine: RunningLocalRoutine) -> None:
         self._running_routines[running_routine.routine.name] = running_routine
@@ -208,6 +189,24 @@ class QnosMemory:
 
     def get_running_routine(self, name: str) -> RunningLocalRoutine:
         return self._running_routines[name]
+
+    def set_reg_value(self, register: Union[str, operand.Register], value: int) -> None:
+        if isinstance(register, str):
+            name, index = RegisterMeta.parse(register)
+        else:
+            name, index = register.name, register.index
+        self._registers[name][index] = value  # type: ignore
+
+    def get_reg_value(self, register: Union[str, operand.Register]) -> int:
+        if isinstance(register, str):
+            name, index = RegisterMeta.parse(register)
+        else:
+            name, index = register.name, register.index
+        return self._registers[name][index]  # type: ignore
+
+    # for compatibility with netqasm Futures
+    def get_register(self, register: Union[str, operand.Register]) -> Optional[int]:
+        return self.get_reg_value(register)
 
 
 class ProgramMemory:

@@ -257,17 +257,17 @@ class QnosProcessor:
         self, pid: int, instr: core.SetInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
         self._logger.debug(f"Set register {instr.reg} to {instr.imm}")
-        shared_mem = self._prog_mem().shared_mem
-        shared_mem.set_reg_value(instr.reg, instr.imm.value)
+        qnos_mem = self._prog_mem().qnos_mem
+        qnos_mem.set_reg_value(instr.reg, instr.imm.value)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_qalloc(
         self, pid: int, instr: core.QAllocInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        shared_mem = self._prog_mem().shared_mem
+        qnos_mem = self._prog_mem().qnos_mem
 
-        virt_id = shared_mem.get_reg_value(instr.reg)
+        virt_id = qnos_mem.get_reg_value(instr.reg)
         if virt_id is None:
             raise RuntimeError(f"qubit address in register {instr.reg} is not defined")
         self._logger.debug(f"Allocating qubit with virtual ID {virt_id}")
@@ -279,9 +279,9 @@ class QnosProcessor:
     def _interpret_qfree(
         self, pid: int, instr: core.QFreeInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        shared_mem = self._prog_mem().shared_mem
+        qnos_mem = self._prog_mem().qnos_mem
 
-        virt_id = shared_mem.get_reg_value(instr.reg)
+        virt_id = qnos_mem.get_reg_value(instr.reg)
         assert virt_id is not None
         self._logger.debug(f"Freeing virtual qubit {virt_id}")
         self._interface.memmgr.free(pid, virt_id)
@@ -293,12 +293,12 @@ class QnosProcessor:
     def _interpret_store(
         self, pid: int, instr: core.StoreInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        shared_mem = self._prog_mem().shared_mem
+        qnos_mem = self._prog_mem().qnos_mem
 
         new_shared_mem = self._prog_mem().shared_memmgr
         result_addr = self._routine().result_addr
 
-        value = shared_mem.get_reg_value(instr.reg)
+        value = qnos_mem.get_reg_value(instr.reg)
         if value is None:
             raise RuntimeError(f"value in register {instr.reg} is not defined")
         self._logger.debug(
@@ -309,20 +309,19 @@ class QnosProcessor:
         addr = instr.entry.address.address
         entry = instr.entry.index
         assert isinstance(entry, Register)
-        index = shared_mem.get_reg_value(entry)
-        if addr == 1:  # result region
+        index = qnos_mem.get_reg_value(entry)
+        if addr == 101:  # result region
             new_shared_mem.write_lr_out(result_addr, [value], offset=index)
         else:
             raise NotImplementedError  # TODO: needed?
 
-        # shared_mem.set_array_entry(instr.entry, value)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_load(
         self, pid: int, instr: core.LoadInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        shared_mem = self._prog_mem().shared_mem
+        qnos_mem = self._prog_mem().qnos_mem
 
         new_shared_mem = self._prog_mem().shared_memmgr
         input_addr = self._routine().params_addr
@@ -330,13 +329,12 @@ class QnosProcessor:
         addr = instr.entry.address.address
         entry = instr.entry.index
         assert isinstance(entry, Register)
-        index = shared_mem.get_reg_value(entry)
-        if addr == 0:  # input region
+        index = qnos_mem.get_reg_value(entry)
+        if addr == 100:  # input region
             [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
         else:
             raise NotImplementedError  # TODO: needed?
 
-        # value = shared_mem.get_array_entry(instr.entry)
         if value is None:
             raise RuntimeError(f"array value at {instr.entry} is not defined")
         self._logger.debug(
@@ -344,18 +342,18 @@ class QnosProcessor:
             f"to register {instr.reg}"
         )
 
-        shared_mem.set_reg_value(instr.reg, value)
+        qnos_mem.set_reg_value(instr.reg, value)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_lea(
         self, pid: int, instr: core.LeaInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        shared_mem = self._prog_mem().shared_mem
+        qnos_mem = self._prog_mem().qnos_mem
         self._logger.debug(
             f"Storing address of {instr.address} to register {instr.reg}"
         )
-        shared_mem.set_reg_value(instr.reg, instr.address.address)
+        qnos_mem.set_reg_value(instr.reg, instr.address.address)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
@@ -371,9 +369,10 @@ class QnosProcessor:
     def _interpret_array(
         self, pid: int, instr: core.ArrayInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
+        qnos_mem = self._prog_mem().qnos_mem
         shared_mem = self._prog_mem().shared_mem
 
-        length = shared_mem.get_reg_value(instr.size)
+        length = qnos_mem.get_reg_value(instr.size)
         assert length is not None
         self._logger.debug(
             f"Initializing an array of length {length} at address {instr.address}"
@@ -393,15 +392,15 @@ class QnosProcessor:
         ],
     ) -> Generator[EventExpression, None, Optional[int]]:
         """Returns line to jump to, or None if no jump happens."""
-        shared_mem = self._prog_mem().shared_mem
+        qnos_mem = self._prog_mem().qnos_mem
         a, b = None, None
         registers = []
         if isinstance(instr, core.BranchUnaryInstruction):
-            a = shared_mem.get_reg_value(instr.reg)
+            a = qnos_mem.get_reg_value(instr.reg)
             registers = [instr.reg]
         elif isinstance(instr, core.BranchBinaryInstruction):
-            a = shared_mem.get_reg_value(instr.reg0)
-            b = shared_mem.get_reg_value(instr.reg1)
+            a = qnos_mem.get_reg_value(instr.reg0)
+            b = qnos_mem.get_reg_value(instr.reg1)
             registers = [instr.reg0, instr.reg1]
 
         if isinstance(instr, core.JmpInstruction):
@@ -434,14 +433,14 @@ class QnosProcessor:
             core.ClassicalOpModInstruction,
         ],
     ) -> Optional[Generator[EventExpression, None, None]]:
-        shared_mem = self._prog_mem().shared_mem
+        qnos_mem = self._prog_mem().qnos_mem
         mod = None
         if isinstance(instr, core.ClassicalOpModInstruction):
-            mod = shared_mem.get_reg_value(instr.regmod)
+            mod = qnos_mem.get_reg_value(instr.regmod)
         if mod is not None and mod < 1:
             raise RuntimeError(f"Modulus needs to be greater or equal to 1, not {mod}")
-        a = shared_mem.get_reg_value(instr.regin0)
-        b = shared_mem.get_reg_value(instr.regin1)
+        a = qnos_mem.get_reg_value(instr.regin0)
+        b = qnos_mem.get_reg_value(instr.regin1)
         assert a is not None
         assert b is not None
         value = self._compute_binary_classical_instr(instr, a, b, mod=mod)
@@ -450,7 +449,7 @@ class QnosProcessor:
             f"Performing {instr} of a={a} and b={b} {mod_str} "
             f"and storing the value {value} at register {instr.regout}"
         )
-        shared_mem.set_reg_value(instr.regout, value)
+        qnos_mem.set_reg_value(instr.regout, value)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
@@ -481,8 +480,8 @@ class QnosProcessor:
         instr: core.RotationInstruction,
         ns_instr: NsInstr,
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id = shared_mem.get_reg_value(instr.reg)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id = qnos_mem.get_reg_value(instr.reg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
         if phys_id is None:
             raise NotAllocatedError
@@ -509,12 +508,12 @@ class QnosProcessor:
         instr: core.ControlledRotationInstruction,
         ns_instr: NsInstr,
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id0 = shared_mem.get_reg_value(instr.reg0)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id0 = qnos_mem.get_reg_value(instr.reg0)
         phys_id0 = self._interface.memmgr.phys_id_for(pid, virt_id0)
         if phys_id0 is None:
             raise NotAllocatedError
-        virt_id1 = shared_mem.get_reg_value(instr.reg1)
+        virt_id1 = qnos_mem.get_reg_value(instr.reg1)
         phys_id1 = self._interface.memmgr.phys_id_for(pid, virt_id1)
         if phys_id1 is None:
             raise NotAllocatedError
@@ -546,114 +545,25 @@ class QnosProcessor:
     def _interpret_create_epr(
         self, pid: int, instr: core.CreateEPRInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        # shared_mem = self._prog_mem().shared_mem
-        # remote_node_id = shared_mem.get_reg_value(instr.remote_node_id)
-        # epr_socket_id = shared_mem.get_reg_value(instr.epr_socket_id)
-        # qubit_array_addr = shared_mem.get_reg_value(instr.qubit_addr_array)
-        # arg_array_addr = shared_mem.get_reg_value(instr.arg_array)
-        # result_array_addr = shared_mem.get_reg_value(instr.ent_results_array)
-        # assert remote_node_id is not None
-        # assert epr_socket_id is not None
-        # # qubit_array_addr can be None
-        # assert arg_array_addr is not None
-        # assert result_array_addr is not None
-        # self._logger.debug(
-        #     f"Creating EPR pair with remote node id {remote_node_id} "
-        #     f"and EPR socket ID {epr_socket_id}, "
-        #     f"using qubit addresses stored in array with address {qubit_array_addr}, "
-        #     f"using arguments stored in array with address {arg_array_addr}, "
-        #     f"placing the entanglement information in array at "
-        #     f"address {result_array_addr}"
-        # )
-
-        # raw_args = shared_mem.get_array(arg_array_addr)
-        # raw_typ = raw_args[SER_CREATE_IDX_TYPE]
-        # typ = {
-        #     0: EprType.CREATE_KEEP,
-        #     1: EprType.MEASURE_DIRECTLY,
-        #     2: EprType.REMOTE_STATE_PREP,
-        # }[raw_typ]
-        # num_pairs = raw_args[SER_CREATE_IDX_NUMBER]
-
-        # if qubit_array_addr is not None:
-        #     virt_ids = shared_mem.get_array(qubit_array_addr)
-        # else:
-        #     virt_ids = [0 for _ in range(num_pairs)]
-
-        # # TODO: get fidelity from EPR socket
-
-        # request = NetstackCreateRequest(
-        #     remote_id=remote_node_id,
-        #     epr_socket_id=epr_socket_id,
-        #     typ=typ,
-        #     num_pairs=num_pairs,
-        #     fidelity=1.0,  # for now, always just ask for the best
-        #     virt_qubit_ids=virt_ids,
-        #     result_array_addr=result_array_addr,
-        # )
-
-        # if self._asynchronous:
-        #     self._interface.send_netstack_msg(Message(content=request))
-        #     # result = yield from self._interface.receive_netstack_msg()
-        #     # self._logger.debug(f"result from netstack: {result}")
-        # else:
-        #     self._prog_mem().requests = [request]
         return None
 
     def _interpret_recv_epr(
         self, pid: int, instr: core.RecvEPRInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
-        # shared_mem = self._prog_mem().shared_mem
-        # remote_node_id = shared_mem.get_reg_value(instr.remote_node_id)
-        # epr_socket_id = shared_mem.get_reg_value(instr.epr_socket_id)
-        # qubit_array_addr = shared_mem.get_reg_value(instr.qubit_addr_array)
-        # result_array_addr = shared_mem.get_reg_value(instr.ent_results_array)
-        # assert remote_node_id is not None
-        # assert epr_socket_id is not None
-        # # qubit_array_addr can be None
-        # assert result_array_addr is not None
-        # self._logger.debug(
-        #     f"Receiving EPR pair with remote node id {remote_node_id} "
-        #     f"and EPR socket ID {epr_socket_id}, "
-        #     f"using qubit addresses stored in array with address {qubit_array_addr}, "
-        #     f"placing the entanglement information in array at "
-        #     f"address {result_array_addr}"
-        # )
-
-        # # We don't allow None for qubit_array_addr since creating the array manually
-        # # requires the number of pairs (for the length), which we don't know.
-        # assert qubit_array_addr is not None
-        # virt_ids = shared_mem.get_array(qubit_array_addr)
-
-        # request = NetstackReceiveRequest(
-        #     remote_id=remote_node_id,
-        #     epr_socket_id=epr_socket_id,
-        #     typ=None,  # TODO: fix recv_epr instruction
-        #     num_pairs=None,  # TODO: fix recv_epr instruction
-        #     fidelity=1.0,  # for now, always just ask for the best
-        #     virt_qubit_ids=virt_ids,
-        #     result_array_addr=result_array_addr,
-        # )
-
-        # if self._asynchronous:
-        #     self._interface.send_netstack_msg(Message(content=request))
-        #     # result = yield from self._interface.receive_netstack_msg()
-        #     # self._logger.debug(f"result from netstack: {result}")
-        # else:
-        #     self._prog_mem().requests = [request]
         return None
 
     def _interpret_wait_all(
         self, pid: int, instr: core.WaitAllInstruction
     ) -> Generator[EventExpression, None, None]:
+        qnos_mem = self._prog_mem().qnos_mem
         shared_mem = self._prog_mem().shared_mem
         self._logger.debug(
             f"Waiting for all entries in array slice {instr.slice} to become defined"
         )
         assert isinstance(instr.slice.start, Register)
         assert isinstance(instr.slice.stop, Register)
-        start: int = shared_mem.get_reg_value(instr.slice.start)
-        end: int = shared_mem.get_reg_value(instr.slice.stop)
+        start: int = qnos_mem.get_reg_value(instr.slice.start)
+        end: int = qnos_mem.get_reg_value(instr.slice.stop)
         addr: int = instr.slice.address.address
 
         self._logger.debug(
@@ -705,8 +615,8 @@ class GenericProcessor(QnosProcessor):
     def _interpret_init(
         self, pid: int, instr: core.InitInstruction
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id = shared_mem.get_reg_value(instr.reg)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id = qnos_mem.get_reg_value(instr.reg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
         if phys_id is None:
             raise NotAllocatedError
@@ -721,8 +631,8 @@ class GenericProcessor(QnosProcessor):
     def _interpret_meas(
         self, pid: int, instr: core.MeasInstruction
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id = shared_mem.get_reg_value(instr.qreg)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id = qnos_mem.get_reg_value(instr.qreg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
         if phys_id is None:
             raise NotAllocatedError
@@ -735,14 +645,14 @@ class GenericProcessor(QnosProcessor):
         commands = [QDeviceCommand(INSTR_MEASURE, [phys_id])]
         outcome = yield from self.qdevice.execute_commands(commands)
         assert outcome is not None
-        shared_mem.set_reg_value(instr.creg, outcome)
+        qnos_mem.set_reg_value(instr.creg, outcome)
         return None
 
     def _interpret_single_qubit_instr(
         self, pid: int, instr: core.SingleQubitInstruction
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id = shared_mem.get_reg_value(instr.qreg)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id = qnos_mem.get_reg_value(instr.qreg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
         if phys_id is None:
             raise NotAllocatedError
@@ -783,12 +693,12 @@ class GenericProcessor(QnosProcessor):
     def _interpret_two_qubit_instr(
         self, pid: int, instr: core.SingleQubitInstruction
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id0 = shared_mem.get_reg_value(instr.reg0)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id0 = qnos_mem.get_reg_value(instr.reg0)
         phys_id0 = self._interface.memmgr.phys_id_for(pid, virt_id0)
         if phys_id0 is None:
             raise NotAllocatedError
-        virt_id1 = shared_mem.get_reg_value(instr.reg1)
+        virt_id1 = qnos_mem.get_reg_value(instr.reg1)
         phys_id1 = self._interface.memmgr.phys_id_for(pid, virt_id1)
         if phys_id1 is None:
             raise NotAllocatedError
@@ -809,8 +719,8 @@ class NVProcessor(QnosProcessor):
     def _interpret_init(
         self, pid: int, instr: core.InitInstruction
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id = shared_mem.get_reg_value(instr.reg)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id = qnos_mem.get_reg_value(instr.reg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
         if phys_id is None:
             raise NotAllocatedError
@@ -873,8 +783,8 @@ class NVProcessor(QnosProcessor):
     def _interpret_meas(
         self, pid: int, instr: core.MeasInstruction
     ) -> Generator[EventExpression, None, None]:
-        shared_mem = self._prog_mem().shared_mem
-        virt_id = shared_mem.get_reg_value(instr.qreg)
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id = qnos_mem.get_reg_value(instr.qreg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
         assert phys_id is not None
 
@@ -892,7 +802,7 @@ class NVProcessor(QnosProcessor):
         if phys_id == 0:
             # Measuring a comm qubit. This can be done immediately.
             outcome = yield from self._measure_electron()
-            shared_mem.set_reg_value(instr.creg, outcome)
+            qnos_mem.set_reg_value(instr.creg, outcome)
             memmgr.free(pid, virt_id)
             return None
         # else:
@@ -917,7 +827,7 @@ class NVProcessor(QnosProcessor):
 
             # Measure comm qubit (containing state of qubit-to-measure).
             outcome = yield from self._measure_electron()
-            shared_mem.set_reg_value(instr.creg, outcome)
+            qnos_mem.set_reg_value(instr.creg, outcome)
 
             # Move temporarily-moved state back to comm qubit.
             yield from self._move_carbon_to_electron(mem_phys_id)
@@ -938,7 +848,7 @@ class NVProcessor(QnosProcessor):
 
             # Measure comm qubit.
             outcome = yield from self._measure_electron()
-            shared_mem.set_reg_value(instr.creg, outcome)
+            qnos_mem.set_reg_value(instr.creg, outcome)
 
             # Free comm qubit.
             memmgr.free(pid, 0)

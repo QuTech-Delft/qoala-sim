@@ -296,7 +296,7 @@ def test_set_reg():
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
-    assert process.prog_memory.shared_mem.get_reg_value("R0") == 17
+    assert process.prog_memory.qnos_mem.get_reg_value("R0") == 17
 
 
 def test_set_reg_with_latencies():
@@ -316,7 +316,7 @@ def test_set_reg_with_latencies():
     execute_process_with_latencies(processor, process)
     assert ns.sim_time() == 5e3
 
-    assert process.prog_memory.shared_mem.get_reg_value("R0") == 17
+    assert process.prog_memory.qnos_mem.get_reg_value("R0") == 17
 
 
 def test_add():
@@ -330,7 +330,7 @@ def test_add():
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
-    assert process.prog_memory.shared_mem.get_reg_value("R2") == 7
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 7
 
 
 def test_add_with_latencies():
@@ -353,7 +353,7 @@ def test_add_with_latencies():
     execute_process_with_latencies(processor, process)
     assert ns.sim_time() == 5e3 * 3
 
-    assert process.prog_memory.shared_mem.get_reg_value("R2") == 7
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 7
 
 
 def test_alloc_qubit():
@@ -510,7 +510,7 @@ LABEL1:
     instr_count = execute_process(processor, process)
 
     assert instr_count == 5
-    assert process.prog_memory.shared_mem.get_reg_value("C0") == 4
+    assert process.prog_memory.qnos_mem.get_reg_value("C0") == 4
 
 
 def test_branch():
@@ -531,7 +531,7 @@ LABEL1:
     instr_count = execute_process(processor, process)
 
     assert instr_count == 3
-    assert process.prog_memory.shared_mem.get_reg_value("C0") == 0
+    assert process.prog_memory.qnos_mem.get_reg_value("C0") == 0
 
 
 def test_branch_with_latencies():
@@ -559,34 +559,7 @@ LABEL1:
     assert instr_count == 3
     assert ns.sim_time() == 5e3 * 3
 
-    assert process.prog_memory.shared_mem.get_reg_value("C0") == 0
-
-
-def test_array():
-    processor, unit_module = setup_components(star_topology(2))
-
-    subrt = """
-    set C10 10
-    array C10 @0
-    set R4 4
-    set C8 8
-    store C8 @0[R4]
-    """
-    assert native_instr_count(subrt) == 5
-
-    process = create_process_with_subrt(0, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-    instr_count = execute_process(processor, process)
-
-    assert instr_count == 5
-    array = process.prog_memory.shared_mem.get_array(0)
-    assert len(array) == 10
-    assert all(
-        process.prog_memory.shared_mem.get_array_value(0, i) is None
-        for i in range(10)
-        if i != 4
-    )
-    assert process.prog_memory.shared_mem.get_array_value(0, 4) == 8
+    assert process.prog_memory.qnos_mem.get_reg_value("C0") == 0
 
 
 def test_wait_all():
@@ -631,7 +604,7 @@ def test_program_inputs():
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
-    assert process.shared_mem.get_reg_value("R0") == 3
+    assert process.qnos_mem.get_reg_value("R0") == 3
 
 
 def test_program_routine_params():
@@ -645,7 +618,7 @@ SUBROUTINE subrt
     keeps:
     request: 
   NETQASM_START
-    load R0 @0[0]
+    load R0 @100[0]
   NETQASM_END
     """
 
@@ -658,7 +631,7 @@ SUBROUTINE subrt
 
     execute_process(processor, process, input_addr=input_addr, result_addr=0)
 
-    assert process.shared_mem.get_reg_value("R0") == 3
+    assert process.qnos_mem.get_reg_value("R0") == 3
 
 
 def test_program_routine_params_and_results():
@@ -673,12 +646,12 @@ SUBROUTINE subrt
     keeps:
     request: 
   NETQASM_START
-    load R0 @0[0]
-    load R1 @0[1]
+    load R0 @100[0]
+    load R1 @100[1]
     add C0 R0 R0
     add C1 R1 R1
-    store C0 @1[0]
-    store C1 @1[1]
+    store C0 @101[0]
+    store C1 @101[1]
   NETQASM_END
     """
 
@@ -694,27 +667,26 @@ SUBROUTINE subrt
 
     execute_process(processor, process, input_addr=input_addr, result_addr=result_addr)
 
-    assert process.shared_mem.get_reg_value("C0") == 6
-    assert process.shared_mem.get_reg_value("C1") == 14
+    assert process.qnos_mem.get_reg_value("C0") == 6
+    assert process.qnos_mem.get_reg_value("C1") == 14
 
 
 if __name__ == "__main__":
-    # test_set_reg()
-    # test_set_reg_with_latencies()
-    # test_add()
-    # test_add_with_latencies()
-    # test_alloc_qubit()
-    # test_free_qubit()
-    # test_free_non_allocated()
-    # test_alloc_multiple()
-    # test_alloc_multiprocess()
-    # test_alloc_multiprocess_same_virt_id()
-    # test_alloc_multiprocess_same_virt_id_trait_not_available()
-    # test_no_branch()
-    # test_branch()
-    # test_branch_with_latencies()
-    # test_array()
-    # test_wait_all()
-    # test_program_inputs()
-    # test_program_routine_params()
+    test_set_reg()
+    test_set_reg_with_latencies()
+    test_add()
+    test_add_with_latencies()
+    test_alloc_qubit()
+    test_free_qubit()
+    test_free_non_allocated()
+    test_alloc_multiple()
+    test_alloc_multiprocess()
+    test_alloc_multiprocess_same_virt_id()
+    test_alloc_multiprocess_same_virt_id_trait_not_available()
+    test_no_branch()
+    test_branch()
+    test_branch_with_latencies()
+    test_wait_all()
+    test_program_inputs()
+    test_program_routine_params()
     test_program_routine_params_and_results()
