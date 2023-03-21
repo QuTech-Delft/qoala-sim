@@ -56,7 +56,7 @@ from qoala.runtime.lhi_to_ehi import (
     NativeToFlavourInterface,
 )
 from qoala.runtime.memory import ProgramMemory, SharedMemory
-from qoala.runtime.message import Message
+from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
@@ -70,7 +70,7 @@ from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.qnos import QnosInterface
+from qoala.sim.qnos import QnosInterface, qnosprocessor
 from qoala.sim.signals import MSG_REQUEST_DELIVERED
 from qoala.util.tests import has_multi_state, netsquid_run
 
@@ -501,67 +501,6 @@ def test_initialize():
 
 
 def test_2():
-    num_qubits = 3
-    topology = generic_topology(num_qubits)
-    latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
-
-    global_env = create_global_env(num_qubits)
-    procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, latencies, ntf
-    )
-    procnode.qdevice = MockQDevice(topology)
-
-    # procnode.host.interface = MockHostInterface()
-
-    # mock_result = ResCreateAndKeep(bell_state=BellIndex.B01)
-    # procnode.netstack.interface = MockNetstackInterface(
-    #     local_env, procnode.qdevice, procnode.memmgr, mock_result
-    # )
-
-    host_processor = procnode.host.processor
-    qnos_processor = procnode.qnos.processor
-
-    ehi = LhiConverter.to_ehi(topology, ntf)
-    unit_module = UnitModule.from_full_ehi(ehi)
-
-    instrs = [RunSubroutineOp(None, IqoalaVector([]), "subrt1")]
-    subroutines = parse_iqoala_subroutines(
-        """
-SUBROUTINE subrt1
-    params: 
-    returns: R5 -> result
-    uses: 
-    keeps: 
-    request:
-  NETQASM_START
-    set R5 42
-    ret_reg R5
-  NETQASM_END
-    """
-    )
-
-    program = create_program(instrs=instrs, subroutines=subroutines)
-    process = create_process(
-        pid=0,
-        program=program,
-        unit_module=unit_module,
-        host_interface=procnode.host._interface,
-        inputs={"x": 1, "theta": 3.14, "name": "alice"},
-    )
-    procnode.add_process(process)
-
-    host_processor.initialize(process)
-
-    netsquid_run(host_processor.assign(process, instr_idx=0))
-    netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
-    host_processor.copy_subroutine_results(process, "subrt1")
-
-    assert process.host_mem.read("result") == 42
-    assert process.shared_mem.get_reg_value("R5") == 42
-
-
-def test_2_async():
     ns.sim_reset()
 
     num_qubits = 3
@@ -592,7 +531,7 @@ SUBROUTINE subrt1
     request:
   NETQASM_START
     set R5 42
-    ret_reg R5
+    store R5 @101[0]
   NETQASM_END
     """
     )
@@ -613,9 +552,7 @@ SUBROUTINE subrt1
         yield from host_processor.assign(process, instr_idx=0)
 
     def qnos_run() -> Generator[EventExpression, None, None]:
-        yield from qnos_processor.assign_routine_instr(process, "subrt1", 0)
-        # Mock sending signal back to Host that subroutine has finished.
-        qnos_processor._interface.send_host_msg(Message(None))
+        yield from qnos_processor.await_local_routine_call(process)
 
     procnode.host.run = host_run
     procnode.qnos.run = qnos_run
@@ -623,7 +560,7 @@ SUBROUTINE subrt1
     ns.sim_run()
 
     assert process.host_mem.read("result") == 42
-    assert process.shared_mem.get_reg_value("R5") == 42
+    assert process.qnos_mem.get_reg_value("R5") == 42
 
 
 def test_classical_comm():
@@ -1199,7 +1136,6 @@ REQUEST req1
 if __name__ == "__main__":
     test_initialize()
     test_2()
-    test_2_async()
     test_classical_comm()
     test_classical_comm_three_nodes()
     test_epr()

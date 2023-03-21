@@ -11,6 +11,7 @@ class ProcessorType(Enum):
     HOST = 0
     QNOS = auto()
     NETSTACK = auto()
+    JOINT_HOST_QNOS = auto()
 
 
 class InstructionType(Enum):
@@ -18,6 +19,7 @@ class InstructionType(Enum):
     CC = auto()
     QL = auto()
     QC = auto()
+    JOINT_HOST_QNOS = auto()  # temp; remove when implementing proper scheduling
 
 
 @dataclass
@@ -34,6 +36,12 @@ class QnosTask:
 @dataclass
 class NetstackTask:
     request_routine_name: str
+
+
+@dataclass
+class JointHostQnosTask:
+    instr_index: int  # in host code
+    subrt_name: str
 
 
 @dataclass
@@ -60,6 +68,12 @@ class SingleProgramTask:
         assert self.processor_type == ProcessorType.NETSTACK
         assert self.subrt_name is not None
         return NetstackTask(self.subrt_name)
+
+    def as_joint_host_qnos_task(self) -> JointHostQnosTask:
+        assert self.processor_type == ProcessorType.JOINT_HOST_QNOS
+        assert self.instr_index is not None
+        assert self.subrt_name is not None
+        return JointHostQnosTask(self.instr_index, self.subrt_name)
 
     def __str__(self) -> str:
         return f"{self.processor_type.name} {self.subrt_name} {self.instr_index}"
@@ -118,6 +132,17 @@ class TaskBuilder:
             instr_type=InstructionType.QC,
             processor_type=ProcessorType.NETSTACK,
             instr_index=None,
+            subrt_name=subrt_name,
+            request_name=None,
+            duration=duration,
+        )
+
+    @classmethod
+    def JointHostQnos(cls, duration, index: int, subrt_name: str) -> ProgramTask:
+        return SingleProgramTask(
+            instr_type=InstructionType.JOINT_HOST_QNOS,
+            processor_type=ProcessorType.JOINT_HOST_QNOS,
+            instr_index=index,
             subrt_name=subrt_name,
             request_name=None,
             duration=duration,

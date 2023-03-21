@@ -28,7 +28,7 @@ from netsquid.qubits import qubitapi
 from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
-from qoala.runtime.message import Message
+from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.schedule import NoTimeSolver
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.globals import GlobalSimData
@@ -97,6 +97,17 @@ class QnosProcessor:
 
         running_routine = RunningLocalRoutine(instance, input_addr, result_addr)
         process.qnos_mem.add_running_routine(running_routine)
+
+    def await_local_routine_call(
+        self, process: IqoalaProcess
+    ) -> Generator[EventExpression, None, None]:
+        msg = yield from self._interface.receive_host_msg()
+        payload: LrCallTuple = msg.content
+        yield from self.assign_local_routine(
+            process, payload.routine_name, payload.input_addr, payload.result_addr
+        )
+        # Mock sending signal back to Host that subroutine has finished.
+        self._interface.send_host_msg(Message(None))
 
     def assign_local_routine(
         self,
@@ -485,10 +496,15 @@ class QnosProcessor:
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
         if phys_id is None:
             raise NotAllocatedError
-        angle = self._get_rotation_angle_from_operands(
-            n=instr.angle_num.value,
-            d=instr.angle_denom.value,
-        )
+        if isinstance(instr.angle_num, Register):
+            n = qnos_mem.get_reg_value(instr.angle_num)
+        else:
+            n = instr.angle_num.value
+        if isinstance(instr.angle_denom, Register):
+            d = qnos_mem.get_reg_value(instr.angle_denom)
+        else:
+            d = instr.angle_denom.value
+        angle = self._get_rotation_angle_from_operands(n=n, d=d)
         self._logger.debug(
             f"Performing {instr} with angle {angle} on virtual qubit "
             f"{virt_id} (physical ID: {phys_id})"

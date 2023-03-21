@@ -27,9 +27,10 @@ from qoala.lang.hostlang import (
 from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory, SharedMemory
-from qoala.runtime.message import Message
+from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.sharedmem import MemAddr, SharedMemoryManager
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.host.hostprocessor import HostProcessor
@@ -48,7 +49,7 @@ class InterfaceEvent:
 
 
 class MockHostInterface(HostInterface):
-    def __init__(self, shared_mem: Optional[SharedMemory] = None) -> None:
+    def __init__(self, shared_mem: Optional[SharedMemoryManager] = None) -> None:
         self.send_events: List[InterfaceEvent] = []
         self.recv_events: List[InterfaceEvent] = []
 
@@ -68,7 +69,9 @@ class MockHostInterface(HostInterface):
     def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
         self.recv_events.append(InterfaceEvent("qnos", MOCK_MESSAGE))
         if self.shared_mem is not None:
-            self.shared_mem.set_reg_value(MOCK_QNOS_RET_REG, MOCK_QNOS_RET_VALUE)
+            # Hack to find out which addr was allocated to write results to.
+            result_addr = self.shared_mem._lr_out_addrs[0]
+            self.shared_mem.write_lr_out(result_addr, [MOCK_QNOS_RET_VALUE])
         return MOCK_MESSAGE
         yield  # to make it behave as a generator
 
@@ -303,29 +306,6 @@ def test_bit_cond_mult():
 
 def test_run_subroutine():
     interface = MockHostInterface()
-    processor = HostProcessor(interface, HostLatencies.all_zero())
-
-    subrt = Subroutine()
-    metadata = RoutineMetadata.use_none()
-    routine = LocalRoutine("subrt1", subrt, return_map={}, metadata=metadata)
-
-    program = create_program(
-        instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
-        subroutines={"subrt1": routine},
-    )
-    process = create_process(program, interface)
-    processor.initialize(process)
-
-    for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
-
-    # Non-async host processor should not have done any communciation.
-    assert len(interface.send_events) == 0
-    assert len(interface.recv_events) == 0
-
-
-def test_run_subroutine_async():
-    interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
     subrt = Subroutine()
@@ -342,12 +322,16 @@ def test_run_subroutine_async():
     for i in range(len(program.instructions)):
         yield_from(processor.assign(process, i))
 
-    # Async host processor should have communicated with the qnos processor.
-    assert interface.send_events[0] == InterfaceEvent("qnos", Message("subrt1"))
+    # Host processor should have communicated with the qnos processor.
+    send_event = interface.send_events[0]
+    assert send_event.peer == "qnos"
+    assert isinstance(send_event.msg, Message)
+    assert isinstance(send_event.msg.content, LrCallTuple)
+    assert send_event.msg.content.routine_name == "subrt1"
     assert interface.recv_events[0] == InterfaceEvent("qnos", MOCK_MESSAGE)
 
 
-def test_run_subroutine_async_2():
+def test_run_subroutine_2():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
 
@@ -373,16 +357,27 @@ def test_run_subroutine_async_2():
     process = create_process(program, interface)
 
     # Make sure interface can mimick writing subroutine results to shared memory
-    interface.shared_mem = process.prog_memory.shared_mem
+    interface.shared_mem = process.prog_memory.shared_memmgr
 
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
         yield_from(processor.assign(process, i))
 
-    assert interface.send_events[0] == InterfaceEvent("qnos", Message("subrt1"))
+    send_event = interface.send_events[0]
+    assert send_event.peer == "qnos"
+    assert isinstance(send_event.msg, Message)
+    assert isinstance(send_event.msg.content, LrCallTuple)
+    assert send_event.msg.content.routine_name == "subrt1"
     assert interface.recv_events[0] == InterfaceEvent("qnos", MOCK_MESSAGE)
-    assert process.prog_memory.shared_mem.get_reg_value("R0") == MOCK_QNOS_RET_VALUE
+
+    # Hack to find out which addr was allocated to write results to.
+    result_addr = process.prog_memory.shared_memmgr._lr_out_addrs[0]
+    assert process.prog_memory.shared_memmgr.read_lr_out(result_addr, 1) == [
+        MOCK_QNOS_RET_VALUE
+    ]
+
+    # Check if result was correctly written to host variable "m".
     assert process.prog_memory.host_mem.read("m") == MOCK_QNOS_RET_VALUE
 
 
@@ -414,6 +409,5 @@ if __name__ == "__main__":
     test_multiply_const()
     test_bit_cond_mult()
     test_run_subroutine()
-    test_run_subroutine_async()
-    test_run_subroutine_async_2()
+    test_run_subroutine_2()
     test_return_result()

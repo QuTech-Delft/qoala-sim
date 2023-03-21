@@ -8,7 +8,7 @@ class Message:
 
 
 @dataclass
-class RunLocalRoutinePayload:
+class LrCallTuple:
     routine_name: str
     input_addr: int
     result_addr: int

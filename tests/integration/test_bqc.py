@@ -85,49 +85,48 @@ def create_server_tasks(
     # csocket = assign_cval() : 0
     tasks.append(TaskBuilder.CL(cl_dur, 0))
 
-    # OLD:
-    # run_subroutine(vec<client_id>) : create_epr_0
-    # tasks.append(TaskBuilder.CL(cl_dur, 1))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
-
-    # NEW:
     # run_subroutine(vec<client_id>) : create_epr_0
     tasks.append(TaskBuilder.QC(qc_dur, "req0"))
 
-    # OLD:
-    # run_subroutine(vec<client_id>) : create_epr_1
-    # tasks.append(TaskBuilder.CL(cl_dur, 2))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
-
-    # NEW:
     # run_subroutine(vec<client_id>) : create_epr_1
     tasks.append(TaskBuilder.QC(qc_dur, "req1"))
 
     # run_subroutine(vec<client_id>) : local_cphase
-    tasks.append(TaskBuilder.CL(cl_dur, 3))
-    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
-    tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 1))
-    tasks.append(TaskBuilder.QL(cphase_dur, "local_cphase", 2))
+    dur = cl_dur + 2 * set_dur + cphase_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 3, "local_cphase"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 3))
+    # tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 0))
+    # tasks.append(TaskBuilder.QL(set_dur, "local_cphase", 1))
+    # tasks.append(TaskBuilder.QL(cphase_dur, "local_cphase", 2))
+
     # delta1 = recv_cmsg(client_id)
     tasks.append(TaskBuilder.CC(cc_dur, 4))
+
     # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-    tasks.append(TaskBuilder.CL(cl_dur, 5))
-    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_1", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_1", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_1", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_1", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_1", 4))
+    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 5, "meas_qubit_1"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 5))
+    # tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_1", 0))
+    # tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_1", 1))
+    # tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_1", 2))
+    # tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_1", 3))
+    # tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_1", 4))
+
     # send_cmsg(csocket, m1)
     tasks.append(TaskBuilder.CC(cc_dur, 6))
     # delta2 = recv_cmsg(csocket)
     tasks.append(TaskBuilder.CC(cc_dur, 7))
+
     # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-    tasks.append(TaskBuilder.CL(cl_dur, 8))
-    tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_0", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_0", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_0", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_0", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_0", 4))
+    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 8, "meas_qubit_0"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 8))
+    # tasks.append(TaskBuilder.QL(set_dur, "meas_qubit_0", 0))
+    # tasks.append(TaskBuilder.QL(rot_dur, "meas_qubit_0", 1))
+    # tasks.append(TaskBuilder.QL(h_dur, "meas_qubit_0", 2))
+    # tasks.append(TaskBuilder.QL(meas_dur, "meas_qubit_0", 3))
+    # tasks.append(TaskBuilder.QL(free_dur, "meas_qubit_0", 4))
+
     # return_result(m1)
     tasks.append(TaskBuilder.CL(cl_dur, 9))
     # return_result(m2)
@@ -158,33 +157,27 @@ def create_client_tasks(
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
 
-    # OLD
-    # tasks.append(TaskBuilder.CL(cl_dur, 1))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_0"))
-
-    # NEW
     tasks.append(TaskBuilder.QC(qc_dur, "req0"))
 
-    tasks.append(TaskBuilder.CL(cl_dur, 2))
-    tasks.append(TaskBuilder.QL(set_dur, "post_epr_0", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "post_epr_0", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "post_epr_0", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "post_epr_0", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 4))
+    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 2, "post_epr_0"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 2))
+    # tasks.append(TaskBuilder.QL(set_dur, "post_epr_0", 0))
+    # tasks.append(TaskBuilder.QL(rot_dur, "post_epr_0", 1))
+    # tasks.append(TaskBuilder.QL(h_dur, "post_epr_0", 2))
+    # tasks.append(TaskBuilder.QL(meas_dur, "post_epr_0", 3))
+    # tasks.append(TaskBuilder.QL(free_dur, "post_epr_0", 4))
 
-    # OLD
-    # tasks.append(TaskBuilder.CL(cl_dur, 3))
-    # tasks.append(TaskBuilder.QC(qc_dur, "create_epr_1"))
-
-    # NEW
     tasks.append(TaskBuilder.QC(qc_dur, "req1"))
 
-    tasks.append(TaskBuilder.CL(cl_dur, 4))
-    tasks.append(TaskBuilder.QL(set_dur, "post_epr_1", 0))
-    tasks.append(TaskBuilder.QL(rot_dur, "post_epr_1", 1))
-    tasks.append(TaskBuilder.QL(h_dur, "post_epr_1", 2))
-    tasks.append(TaskBuilder.QL(meas_dur, "post_epr_1", 3))
-    tasks.append(TaskBuilder.QL(free_dur, "post_epr_1", 4))
+    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
+    tasks.append(TaskBuilder.JointHostQnos(dur, 4, "post_epr_1"))
+    # tasks.append(TaskBuilder.CL(cl_dur, 4))
+    # tasks.append(TaskBuilder.QL(set_dur, "post_epr_1", 0))
+    # tasks.append(TaskBuilder.QL(rot_dur, "post_epr_1", 1))
+    # tasks.append(TaskBuilder.QL(h_dur, "post_epr_1", 2))
+    # tasks.append(TaskBuilder.QL(meas_dur, "post_epr_1", 3))
+    # tasks.append(TaskBuilder.QL(free_dur, "post_epr_1", 4))
 
     tasks.append(TaskBuilder.CL(cl_dur, 5))
     tasks.append(TaskBuilder.CL(cl_dur, 6))
