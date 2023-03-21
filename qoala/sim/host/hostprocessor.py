@@ -8,7 +8,7 @@ from netqasm.lang.parsing.text import NetQASMSyntaxError, parse_register
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
-from qoala.runtime.message import Message
+from qoala.runtime.message import Message, RunLocalRoutinePayload
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.util.logging import LogManager
@@ -117,21 +117,30 @@ class HostProcessor:
 
             arg_values = {arg: host_mem.read(arg) for arg in args}
 
-            self._logger.info(f"instantiating subroutine with values {arg_values}")
-            process.instantiate_routine(subrt_name, arg_values)
+            # self._logger.info(f"instantiating subroutine with values {arg_values}")
+            # process.instantiate_routine(subrt_name, arg_values)
 
-            if self._asynchronous:
-                # Send a message to Qnos asking it to execute the subroutine.
-                self._interface.send_qnos_msg(Message(subrt_name))
-                # Wait for Qnos to finish.
-                yield from self._interface.receive_qnos_msg()
-                # Qnos should have updated the shared memory with subroutine results.
-                self.copy_subroutine_results(process, subrt_name)
-            else:
-                # Let the scheduler make sure that Qnos executes the subroutine at
-                # some point. The scheduler is also responsible for copying subroutine
-                # results to the Host memory.
-                pass
+            shared_mem = process.prog_memory.shared_memmgr
+            input_addr = shared_mem.allocate_lr_in(len(arg_values))
+            result_addr = shared_mem.allocate_lr_out(len(routine.return_map))
+
+            msg = RunLocalRoutinePayload(subrt_name, input_addr, result_addr)
+            self._interface.send_qnos_msg(Message(msg))
+            yield from self._interface.receive_qnos_msg()
+            self.copy_subroutine_results(process, subrt_name)
+
+            # if self._asynchronous:
+            #     # Send a message to Qnos asking it to execute the subroutine.
+            #     self._interface.send_qnos_msg(Message(subrt_name))
+            #     # Wait for Qnos to finish.
+            #     yield from self._interface.receive_qnos_msg()
+            #     # Qnos should have updated the shared memory with subroutine results.
+            #     self.copy_subroutine_results(process, subrt_name)
+            # else:
+            #     # Let the scheduler make sure that Qnos executes the subroutine at
+            #     # some point. The scheduler is also responsible for copying subroutine
+            #     # results to the Host memory.
+            #     pass
 
         elif isinstance(instr, hostlang.ReturnResultOp):
             assert isinstance(instr.arguments[0], str)

@@ -119,7 +119,6 @@ def create_process(
         csockets={},
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
@@ -146,7 +145,9 @@ def set_new_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     subroutines = process.prog_instance.program.local_routines
-    process.instantiate_routine("subrt", {})
+    all_routines = process.program.local_routines
+    routine = all_routines["subrt"]
+    processor.instantiate_routine(process, routine, {}, 0, 0)
     netqasm_instructions = subroutines["subrt"].subroutine.instructions
 
     instr_count = 0

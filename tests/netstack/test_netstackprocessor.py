@@ -150,7 +150,6 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
         csockets={},
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 

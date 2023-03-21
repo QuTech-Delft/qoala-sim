@@ -73,7 +73,6 @@ def create_process(
         },
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 

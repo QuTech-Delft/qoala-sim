@@ -209,7 +209,6 @@ class Scheduler(Protocol):
                     csockets=csockets,
                     epr_sockets=epr_sockets,
                     result=result,
-                    active_routines={},
                 )
 
                 self.memmgr.add_process(process)

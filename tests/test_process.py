@@ -47,7 +47,6 @@ def create_process(program: IqoalaProgram) -> IqoalaProcess:
         csockets={},
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
@@ -62,21 +61,7 @@ def test1():
 
     assert len(process.get_all_local_routines()) == 1
     assert process.get_local_routine("subrt1") == routine
-    assert len(process.get_all_active_routines()) == 0
-
-    with pytest.raises(KeyError):
-        process.instantiate_routine("subrt1", {"hello": 3})
-
-    process.instantiate_routine("subrt1", {"my_value": 3})
-    assert len(process.get_all_local_routines()) == 1
-    assert process.get_local_routine("subrt1") == routine
-    assert len(process.get_all_active_routines()) == 1
-
-    instantiated = process.get_active_routine("subrt1")
-    # instance should have a deepcopy of original routine
-    assert instantiated.routine != routine
-
-    assert text_equal(str(instantiated.routine.subroutine.instructions[0]), "set Q0 3")
+    assert len(process.qnos_mem.get_all_running_routines()) == 0
 
 
 if __name__ == "__main__":

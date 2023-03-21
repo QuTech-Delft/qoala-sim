@@ -330,7 +330,6 @@ def create_process(
         },
         epr_sockets=program.meta.epr_sockets,
         result=ProgramResult(values={}),
-        active_routines={},
     )
     return process
 
@@ -489,14 +488,15 @@ def test_initialize():
     )
 
     netsquid_run(host_processor.assign(process, instr_idx=0))
-    process.instantiate_routine("subrt1", {})
+    routine = process.program.local_routines["subrt1"]
+    qnos_processor.instantiate_routine(process, routine, {}, 0, 0)
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
     netsquid_run(netstack_processor.assign_request_routine(process, request_routine))
 
     assert process.host_mem.read("x") == 3
-    assert process.shared_mem.get_reg_value("R5") == 42
+    assert process.qnos_mem.get_reg_value("R5") == 42
     assert procnode.memmgr.phys_id_for(pid=process.pid, virt_id=0) == 0
 
 
@@ -1055,7 +1055,8 @@ REQUEST req1
             self.scheduler.initialize_process(process)
 
             subrt1 = process.get_local_routine("subrt1")
-            process.instantiate_routine("subrt1", {})
+            subrt1 = process.program.local_routines["subrt1"]
+            self.qnos.processor.instantiate_routine(process, subrt1, {}, 0, 0)
             epr_instr_idx = None
             for i, instr in enumerate(subrt1.subroutine.instructions):
                 if isinstance(instr, CreateEPRInstruction) or isinstance(

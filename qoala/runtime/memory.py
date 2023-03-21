@@ -190,6 +190,9 @@ class QnosMemory:
     def get_running_routine(self, name: str) -> RunningLocalRoutine:
         return self._running_routines[name]
 
+    def get_all_running_routines(self) -> Dict[str, RunningLocalRoutine]:
+        return self._running_routines
+
     def set_reg_value(self, register: Union[str, operand.Register], value: int) -> None:
         if isinstance(register, str):
             name, index = RegisterMeta.parse(register)
