@@ -354,35 +354,6 @@ def run_bqc(
     )
 
 
-def expected_rsp_qubit(theta: int, p: int, dummy: bool):
-    expected = qubitapi.create_qubits(1)[0]
-
-    if dummy:
-        if p == 0:
-            qubitapi.assign_qstate(expected, ketstates.s0)
-        elif p == 1:
-            qubitapi.assign_qstate(expected, ketstates.s1)
-    else:
-        if (theta, p) == (0, 0):
-            qubitapi.assign_qstate(expected, ketstates.h0)
-        elif (theta, p) == (0, 1):
-            qubitapi.assign_qstate(expected, ketstates.h1)
-        if (theta, p) == (8, 0):
-            qubitapi.assign_qstate(expected, ketstates.y0)
-        elif (theta, p) == (8, 1):
-            qubitapi.assign_qstate(expected, ketstates.y1)
-        if (theta, p) == (16, 0):
-            qubitapi.assign_qstate(expected, ketstates.h1)
-        elif (theta, p) == (16, 1):
-            qubitapi.assign_qstate(expected, ketstates.h0)
-        if (theta, p) == (-8, 0):
-            qubitapi.assign_qstate(expected, ketstates.y1)
-        elif (theta, p) == (-8, 1):
-            qubitapi.assign_qstate(expected, ketstates.y0)
-
-    return expected
-
-
 def expected_rsp_state(theta: int, p: int, dummy: bool):
     expected = qubitapi.create_qubits(1)[0]
 

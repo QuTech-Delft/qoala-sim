@@ -2,24 +2,19 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, List
 
 import netsquid as ns
-from netsquid.components import QuantumProcessor
-from netsquid.nodes import Node
-from netsquid.qubits import ketstates, qubitapi
-from netsquid_magic.link_layer import (
-    MagicLinkLayerProtocolWithSignaling,
-    SingleClickTranslationUnit,
-)
-from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
-from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.config import GenericQDeviceConfig
+from qoala.runtime.config import (
+    LatenciesConfig,
+    ProcNodeConfig,
+    ProcNodeNetworkConfig,
+    TopologyConfig,
+)
 from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
@@ -32,10 +27,7 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     TaskBuilder,
 )
-from qoala.sim.build import build_generic_qprocessor, build_qprocessor_from_topology
-from qoala.sim.egp import EgpProtocol
-from qoala.sim.entdist.entdist import EntDist
-from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.sim.build import build_network, build_qprocessor_from_topology
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import IqoalaProcess
@@ -47,13 +39,9 @@ def create_process(
     program: IqoalaProgram,
     unit_module: UnitModule,
     host_interface: HostInterface,
-    inputs: Optional[Dict[str, Any]] = None,
-    tasks: Optional[ProgramTaskList] = None,
+    inputs: Dict[str, Any],
+    tasks: ProgramTaskList,
 ) -> IqoalaProcess:
-    if inputs is None:
-        inputs = {}
-    if tasks is None:
-        tasks = ProgramTaskList.empty(program)
     prog_input = ProgramInput(values=inputs)
     instance = ProgramInstance(
         pid=pid,
@@ -77,66 +65,11 @@ def create_process(
     return process
 
 
-def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    return build_generic_qprocessor(name=f"{name}_processor", cfg=cfg)
-
-
-def create_global_env(
-    num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
-) -> GlobalEnvironment:
+def create_global_env(names: List[str]) -> GlobalEnvironment:
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
     return env
-
-
-def create_procnode(
-    name: str,
-    env: GlobalEnvironment,
-    num_qubits: int,
-    asynchronous: bool = False,
-) -> ProcNode:
-    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
-    qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
-
-    node_id = env.get_node_id(name)
-    procnode = ProcNode(
-        name=name,
-        global_env=env,
-        qprocessor=qprocessor,
-        qdevice_topology=topology,
-        latencies=LhiLatencies(qnos_instr_time=1000),
-        ntf_interface=GenericToVanillaInterface(),
-        node_id=node_id,
-        asynchronous=asynchronous,
-    )
-
-    return procnode
-
-
-def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
-    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=1000.0)
-    link_prot = MagicLinkLayerProtocolWithSignaling(
-        nodes=[node1, node2],
-        magic_distributor=link_dist,
-        translation_unit=SingleClickTranslationUnit(),
-    )
-    return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
-
-
-class BqcProcNode(ProcNode):
-    def run_subroutine(
-        self, process: IqoalaProcess, subrt_name: str
-    ) -> Generator[EventExpression, None, None]:
-        subrt = process.get_local_routine(subrt_name)
-        num_instrs = len(subrt.subroutine.instructions)
-
-        for i in range(num_instrs):
-            yield from self.qnos.processor.assign_routine_instr(process, subrt_name, i)
-
-        # Return subroutine results
-        self.host.processor.copy_subroutine_results(process, subrt_name)
 
 
 def create_server_tasks(server_program: IqoalaProgram) -> ProgramTaskList:
@@ -148,25 +81,17 @@ def create_server_tasks(server_program: IqoalaProgram) -> ProgramTaskList:
     qc_dur = 1e6
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
-
     tasks.append(TaskBuilder.QC(qc_dur, 1, "req0"))
-
     tasks.append(TaskBuilder.QC(qc_dur, 2, "req1"))
-
     dur = cl_dur + 3 * ql_dur
     tasks.append(TaskBuilder.QL(dur, 3, "local_cphase"))
-
     tasks.append(TaskBuilder.CC(cc_dur, 4))
-
     dur = cl_dur + 5 * ql_dur
     tasks.append(TaskBuilder.QL(dur, 5, "meas_qubit_1"))
-
     tasks.append(TaskBuilder.CC(cc_dur, 6))
     tasks.append(TaskBuilder.CC(cc_dur, 7))
-
     dur = cl_dur + 5 * ql_dur
     tasks.append(TaskBuilder.QL(dur, 8, "meas_qubit_0"))
-
     tasks.append(TaskBuilder.CL(cl_dur, 9))
     tasks.append(TaskBuilder.CL(cl_dur, 10))
 
@@ -182,17 +107,12 @@ def create_client_tasks(client_program: IqoalaProgram) -> ProgramTaskList:
     qc_dur = 1e6
 
     tasks.append(TaskBuilder.CL(cl_dur, 0))
-
     tasks.append(TaskBuilder.QC(qc_dur, 1, "req0"))
-
     dur = cl_dur + 5 * ql_dur
     tasks.append(TaskBuilder.QL(dur, 2, "post_epr_0"))
-
     tasks.append(TaskBuilder.QC(qc_dur, 3, "req1"))
-
     dur = cl_dur + 5 * ql_dur
     tasks.append(TaskBuilder.QL(dur, 4, "post_epr_1"))
-
     tasks.append(TaskBuilder.CL(cl_dur, 5))
     tasks.append(TaskBuilder.CL(cl_dur, 6))
     tasks.append(TaskBuilder.CL(cl_dur, 7))
@@ -227,43 +147,50 @@ def create_client_schedule(num_tasks: int) -> Schedule:
     return Schedule(entries)
 
 
-class ServerProcNode(BqcProcNode):
-    def run(self) -> Generator[EventExpression, None, None]:
-        self.finished = False
+def load_program(path: str) -> IqoalaProgram:
+    path = os.path.join(os.path.dirname(__file__), path)
+    with open(path) as file:
+        text = file.read()
+    return IqoalaParser(text).parse()
 
-        self.finished = True
 
-
-class ClientProcNode(BqcProcNode):
-    def run(self) -> Generator[EventExpression, None, None]:
-        self.finished = False
-
-        self.finished = True
+def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
+    return ProcNodeConfig(
+        node_name=name,
+        node_id=id,
+        topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
+    )
 
 
 @dataclass
 class BqcResult:
     client_process: IqoalaProcess
     server_process: IqoalaProcess
-    client_procnode: BqcProcNode
-    server_procnode: BqcProcNode
+    client_procnode: ProcNode
+    server_procnode: ProcNode
 
 
 def run_bqc(alpha, beta, theta1, theta2):
     ns.sim_reset()
 
     num_qubits = 3
-    global_env = create_global_env(num_qubits, names=["client", "server"])
+    global_env = create_global_env(names=["client", "server"])
     server_id = global_env.get_node_id("server")
     client_id = global_env.get_node_id("client")
 
-    path = os.path.join(os.path.dirname(__file__), "test_bqc_server.iqoala")
-    with open(path) as file:
-        server_text = file.read()
-    server_program = IqoalaParser(server_text).parse()
+    server_program = load_program("test_bqc_server.iqoala")
     server_tasks = create_server_tasks(server_program)
 
-    server_procnode = create_procnode("server", global_env, num_qubits)
+    server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
+    client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
+    network_cfg = ProcNodeNetworkConfig(
+        nodes=[server_node_cfg, client_node_cfg], links=[]
+    )
+    network = build_network(network_cfg, global_env)
+    server_procnode = network.nodes["server"]
+    client_procnode = network.nodes["client"]
+
     server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
         pid=0,
@@ -279,13 +206,9 @@ def run_bqc(alpha, beta, theta1, theta2):
     server_schedule = create_server_schedule(len(server_tasks.tasks))
     server_procnode.install_schedule(server_schedule)
 
-    path = os.path.join(os.path.dirname(__file__), "test_bqc_client.iqoala")
-    with open(path) as file:
-        client_text = file.read()
-    client_program = IqoalaParser(client_text).parse()
+    client_program = load_program("test_bqc_client.iqoala")
     client_tasks = create_client_tasks(client_program)
 
-    client_procnode = create_procnode("client", global_env, num_qubits)
     client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
         pid=0,
@@ -307,30 +230,7 @@ def run_bqc(alpha, beta, theta1, theta2):
     client_schedule = create_client_schedule(len(client_tasks.tasks))
     client_procnode.install_schedule(client_schedule)
 
-    client_egp, server_egp = create_egp_protocols(
-        client_procnode.node, server_procnode.node
-    )
-    client_procnode.egpmgr.add_egp(server_id, client_egp)
-    server_procnode.egpmgr.add_egp(client_id, server_egp)
-
-    client_procnode.connect_to(server_procnode)
-
-    nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(global_env)
-    client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
-    client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
-    server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
-    server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
-    factory = PerfectStateSamplerFactory()
-    kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(
-        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
-    )
-
-    server_procnode.start()
-    client_procnode.start()
-    entdist.start()
+    network.start()
     ns.sim_run()
 
     return BqcResult(
@@ -339,64 +239,6 @@ def run_bqc(alpha, beta, theta1, theta2):
         client_procnode=client_procnode,
         server_procnode=server_procnode,
     )
-
-
-def expected_rsp_qubit(theta: int, p: int, dummy: bool):
-    expected = qubitapi.create_qubits(1)[0]
-
-    if dummy:
-        if p == 0:
-            qubitapi.assign_qstate(expected, ketstates.s0)
-        elif p == 1:
-            qubitapi.assign_qstate(expected, ketstates.s1)
-    else:
-        if (theta, p) == (0, 0):
-            qubitapi.assign_qstate(expected, ketstates.h0)
-        elif (theta, p) == (0, 1):
-            qubitapi.assign_qstate(expected, ketstates.h1)
-        if (theta, p) == (8, 0):
-            qubitapi.assign_qstate(expected, ketstates.y0)
-        elif (theta, p) == (8, 1):
-            qubitapi.assign_qstate(expected, ketstates.y1)
-        if (theta, p) == (16, 0):
-            qubitapi.assign_qstate(expected, ketstates.h1)
-        elif (theta, p) == (16, 1):
-            qubitapi.assign_qstate(expected, ketstates.h0)
-        if (theta, p) == (-8, 0):
-            qubitapi.assign_qstate(expected, ketstates.y1)
-        elif (theta, p) == (-8, 1):
-            qubitapi.assign_qstate(expected, ketstates.y0)
-
-    return expected
-
-
-def expected_rsp_state(theta: int, p: int, dummy: bool):
-    expected = qubitapi.create_qubits(1)[0]
-
-    if dummy:
-        if p == 0:
-            return ketstates.s0
-        elif p == 1:
-            return ketstates.s1
-    else:
-        if (theta, p) == (0, 0):
-            return ketstates.h0
-        elif (theta, p) == (0, 1):
-            return ketstates.h1
-        if (theta, p) == (8, 0):
-            return ketstates.y0
-        elif (theta, p) == (8, 1):
-            return ketstates.y1
-        if (theta, p) == (16, 0):
-            return ketstates.h1
-        elif (theta, p) == (16, 1):
-            return ketstates.h0
-        if (theta, p) == (-8, 0):
-            return ketstates.y1
-        elif (theta, p) == (-8, 1):
-            return ketstates.y0
-
-    return expected.qstate
 
 
 def test_bqc():
