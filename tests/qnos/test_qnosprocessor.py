@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Dict, Generator, List, Optional, Tuple
 
 import netsquid as ns
-import pytest
 from netqasm.lang.parsing import parse_text_subroutine
 
 from pydynaa import EventExpression
@@ -19,7 +18,7 @@ from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.sharedmem import MemAddr
-from qoala.sim.memmgr import AllocError, MemoryManager
+from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import GenericProcessor, QnosInterface, QnosLatencies, QnosProcessor
@@ -398,142 +397,6 @@ def test_div_rounded():
     assert process.prog_memory.qnos_mem.get_reg_value("R2") == 5
 
 
-def test_alloc_qubit():
-    processor, unit_module = setup_components(star_topology(2))
-
-    subrt = """
-    set Q0 0
-    qalloc Q0
-    """
-    process = create_process_with_subrt(0, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-    execute_process(processor, process)
-
-    assert processor._interface.memmgr.phys_id_for(process.pid, 0) == 0
-    assert processor._interface.memmgr.phys_id_for(process.pid, 1) is None
-
-
-def test_free_qubit():
-    processor, unit_module = setup_components(star_topology(2))
-
-    subrt = """
-    set Q0 0
-    qalloc Q0
-    qfree Q0
-    """
-    process = create_process_with_subrt(0, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-    execute_process(processor, process)
-
-    assert processor._interface.memmgr.phys_id_for(process.pid, 0) is None
-    assert processor._interface.memmgr.phys_id_for(process.pid, 1) is None
-
-
-def test_free_non_allocated():
-    processor, unit_module = setup_components(star_topology(2))
-
-    subrt = """
-    set Q0 0
-    qfree Q0
-    """
-    process = create_process_with_subrt(0, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-
-    with pytest.raises(AllocError):
-        execute_process(processor, process)
-
-
-def test_alloc_multiple():
-    processor, unit_module = setup_components(star_topology(2))
-
-    subrt = """
-    set Q0 0
-    set Q1 1
-    qalloc Q0
-    qalloc Q1
-    """
-    process = create_process_with_subrt(0, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-    execute_process(processor, process)
-
-    assert processor._interface.memmgr.phys_id_for(process.pid, 0) == 0
-    assert processor._interface.memmgr.phys_id_for(process.pid, 1) == 1
-
-
-def test_alloc_multiprocess():
-    processor, unit_module = setup_components(star_topology(2))
-
-    subrt0 = """
-    set Q0 0
-    qalloc Q0
-    """
-    subrt1 = """
-    set Q1 1
-    qalloc Q1
-    """
-    process0 = create_process_with_subrt(0, subrt0, unit_module)
-    process1 = create_process_with_subrt(1, subrt1, unit_module)
-    processor._interface.memmgr.add_process(process0)
-    processor._interface.memmgr.add_process(process1)
-    execute_multiple_processes(processor, [process0, process1])
-
-    assert processor._interface.memmgr.phys_id_for(process0.pid, 0) == 0
-    assert processor._interface.memmgr.phys_id_for(process0.pid, 1) is None
-    assert processor._interface.memmgr.phys_id_for(process1.pid, 0) is None
-    assert processor._interface.memmgr.phys_id_for(process1.pid, 1) == 1
-
-    assert processor._interface.memmgr._physical_mapping[0].pid == process0.pid
-    assert processor._interface.memmgr._physical_mapping[1].pid == process1.pid
-
-
-def test_alloc_multiprocess_same_virt_id():
-    processor, unit_module = setup_components(uniform_topology(2))
-
-    subrt0 = """
-    set Q0 0
-    qalloc Q0
-    """
-    subrt1 = """
-    set Q0 0
-    qalloc Q0
-    """
-
-    process0 = create_process_with_subrt(0, subrt0, unit_module)
-    process1 = create_process_with_subrt(1, subrt1, unit_module)
-    processor._interface.memmgr.add_process(process0)
-    processor._interface.memmgr.add_process(process1)
-    execute_multiple_processes(processor, [process0, process1])
-
-    assert processor._interface.memmgr.phys_id_for(process0.pid, 0) == 0
-    assert processor._interface.memmgr.phys_id_for(process0.pid, 1) is None
-    assert processor._interface.memmgr.phys_id_for(process1.pid, 0) == 1
-    assert processor._interface.memmgr.phys_id_for(process1.pid, 1) is None
-
-    assert processor._interface.memmgr._physical_mapping[0].pid == process0.pid
-    assert processor._interface.memmgr._physical_mapping[1].pid == process1.pid
-
-
-def test_alloc_multiprocess_same_virt_id_trait_not_available():
-    processor, unit_module = setup_components(star_topology(2))
-
-    subrt0 = """
-    set Q0 0
-    qalloc Q0
-    """
-    subrt1 = """
-    set Q0 0
-    qalloc Q0
-    """
-
-    process0 = create_process_with_subrt(0, subrt0, unit_module)
-    process1 = create_process_with_subrt(1, subrt1, unit_module)
-    processor._interface.memmgr.add_process(process0)
-    processor._interface.memmgr.add_process(process1)
-
-    with pytest.raises(AllocError):
-        execute_multiple_processes(processor, [process0, process1])
-
-
 def test_no_branch():
     processor, unit_module = setup_components(star_topology(2))
 
@@ -691,13 +554,6 @@ if __name__ == "__main__":
     test_mul()
     test_div()
     test_div_rounded()
-    test_alloc_qubit()
-    test_free_qubit()
-    test_free_non_allocated()
-    test_alloc_multiple()
-    test_alloc_multiprocess()
-    test_alloc_multiprocess_same_virt_id()
-    test_alloc_multiprocess_same_virt_id_trait_not_available()
     test_no_branch()
     test_branch()
     test_branch_with_latencies()

@@ -47,7 +47,7 @@ SUBROUTINE local_cphase
 SUBROUTINE meas_qubit_1
     params: delta1
     returns: M0 -> m1
-    uses: 0
+    uses: 1
     keeps:
     request: 
   NETQASM_START
@@ -56,14 +56,13 @@ SUBROUTINE meas_qubit_1
     rot_z Q1 C0 4
     h Q1
     meas Q1 M0
-    qfree Q1
     store M0 @output[0]
   NETQASM_END
 
 SUBROUTINE meas_qubit_0
     params: delta2
     returns: M0 -> m2
-    uses: 0, 1
+    uses: 0
     keeps:
     request: 
   NETQASM_START
@@ -72,7 +71,6 @@ SUBROUTINE meas_qubit_0
     rot_z Q0 C0 4
     h Q0
     meas Q0 M0
-    qfree Q0
     store M0 @output[0]
   NETQASM_END
 

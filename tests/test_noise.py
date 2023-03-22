@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
@@ -31,6 +31,7 @@ from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import IqoalaProcess
@@ -124,10 +125,18 @@ def create_process(
 
 
 def create_process_with_subrt(
-    pid: int, subrt_text: str, unit_module: UnitModule
+    pid: int,
+    subrt_text: str,
+    unit_module: UnitModule,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
 ) -> IqoalaProcess:
+    if uses is None:
+        uses = []
+    if keeps is None:
+        keeps = []
     subrt = parse_text_subroutine(subrt_text)
-    metadata = RoutineMetadata.use_none()
+    metadata = RoutineMetadata(qubit_use=uses, qubit_keep=keeps)
     iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
@@ -141,24 +150,6 @@ def set_new_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
     iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     program = process.prog_instance.program
     program.local_routines["subrt"] = iqoala_subrt
-
-
-def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
-    subroutines = process.prog_instance.program.local_routines
-    all_routines = process.program.local_routines
-    routine = all_routines["subrt"]
-    processor.instantiate_routine(process, routine, {}, 0, 0)
-    netqasm_instructions = subroutines["subrt"].subroutine.instructions
-
-    instr_count = 0
-
-    instr_idx = 0
-    while instr_idx < len(netqasm_instructions):
-        instr_count += 1
-        instr_idx = netsquid_run(
-            processor.assign_routine_instr(process, "subrt", instr_idx)
-        )
-    return instr_count
 
 
 def test_depolarizing_decoherence():
@@ -333,14 +324,16 @@ def test_decoherence_in_subroutine():
 
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     x Q0
     """
 
-    process = create_process_with_subrt(0, subrt, unit_module)
+    process = create_process_with_subrt(0, subrt, unit_module, uses=[0], keeps=[0])
     processor._interface.memmgr.add_process(process)
-    execute_process(processor, process)
+    processor._interface.memmgr.allocate(process.pid, 0)
+    netsquid_run(
+        processor.assign_local_routine(process, "subrt", MemAddr(0), MemAddr(1))
+    )
 
     # Check if qubit with virt ID 0 has been initialized.
     phys_id = processor._interface.memmgr.phys_id_for(process.pid, virt_id=0)

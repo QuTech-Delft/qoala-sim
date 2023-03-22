@@ -133,10 +133,19 @@ def create_process(
 
 
 def create_process_with_subrt(
-    pid: int, subrt_text: str, unit_module: UnitModule, flavour: Flavour
+    pid: int,
+    subrt_text: str,
+    unit_module: UnitModule,
+    flavour: Flavour,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
 ) -> IqoalaProcess:
+    if uses is None:
+        uses = []
+    if keeps is None:
+        keeps = []
     subrt = parse_text_subroutine(subrt_text, flavour=flavour)
-    metadata = RoutineMetadata.use_none()
+    metadata = RoutineMetadata(uses, keeps)
     iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
@@ -145,38 +154,72 @@ def create_process_with_subrt(
 
 
 def create_process_with_vanilla_subrt(
-    pid: int, subrt_text: str, unit_module: UnitModule
+    pid: int,
+    subrt_text: str,
+    unit_module: UnitModule,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
 ) -> IqoalaProcess:
-    return create_process_with_subrt(pid, subrt_text, unit_module, VanillaFlavour())
+    return create_process_with_subrt(
+        pid, subrt_text, unit_module, VanillaFlavour(), uses, keeps
+    )
 
 
 def create_process_with_nv_subrt(
-    pid: int, subrt_text: str, unit_module: UnitModule
+    pid: int,
+    subrt_text: str,
+    unit_module: UnitModule,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
 ) -> IqoalaProcess:
-    return create_process_with_subrt(pid, subrt_text, unit_module, NVFlavour())
+    return create_process_with_subrt(
+        pid, subrt_text, unit_module, NVFlavour(), uses, keeps
+    )
 
 
 def set_new_subroutine(
-    process: IqoalaProcess, subrt_text: str, flavour: Flavour
+    process: IqoalaProcess,
+    subrt_text: str,
+    flavour: Flavour,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
 ) -> None:
+    if uses is None:
+        uses = []
+    if keeps is None:
+        keeps = []
     subrt = parse_text_subroutine(subrt_text, flavour=flavour)
-    metadata = RoutineMetadata.use_none()
+    metadata = RoutineMetadata(uses, keeps)
     iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
     program = process.prog_instance.program
     program.local_routines["subrt"] = iqoala_subrt
 
 
-def set_new_vanilla_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
-    set_new_subroutine(process, subrt_text, VanillaFlavour())
+def set_new_vanilla_subroutine(
+    process: IqoalaProcess,
+    subrt_text: str,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
+) -> None:
+    set_new_subroutine(process, subrt_text, VanillaFlavour(), uses, keeps)
 
 
-def set_new_nv_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
-    set_new_subroutine(process, subrt_text, NVFlavour())
+def set_new_nv_subroutine(
+    process: IqoalaProcess,
+    subrt_text: str,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
+) -> None:
+    set_new_subroutine(process, subrt_text, NVFlavour(), uses, keeps)
 
 
 def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
     all_routines = process.program.local_routines
     routine = all_routines["subrt"]
+    for virt_id in routine.metadata.qubit_use:
+        if processor.interface.memmgr.phys_id_for(process.pid, virt_id) is None:
+            processor.interface.memmgr.allocate(process.pid, virt_id)
+
     # input/result arrays not used
     # TODO: add tests that do use these
     inputs = process.inputs.values
@@ -201,6 +244,10 @@ def execute_multiple_processes(
     for proc in processes:
         all_routines = proc.program.local_routines
         routine = all_routines["subrt"]
+        for virt_id in routine.metadata.qubit_use:
+            if processor.interface.memmgr.phys_id_for(proc.pid, virt_id) is None:
+                processor.interface.memmgr.allocate(proc.pid, virt_id)
+
         # input/result arrays not used
         # TODO: add tests that do use these
         inputs = proc.inputs.values
@@ -242,11 +289,10 @@ def test_init_qubit():
 
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     """
 
-    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
+    process = create_process_with_vanilla_subrt(0, subrt, unit_module, [0], [0])
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
@@ -272,16 +318,15 @@ def test_init_qubit_with_latencies():
 
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     """
 
-    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
+    process = create_process_with_vanilla_subrt(0, subrt, unit_module, [0], [0])
     processor._interface.memmgr.add_process(process)
 
     assert ns.sim_time() == 0
     execute_process(processor, process)
-    assert ns.sim_time() == 2 * instr_time + 1 * gate_time
+    assert ns.sim_time() == instr_time + 1 * gate_time
 
     # Check if qubit with virt ID 0 has been initialized.
     phys_id = processor._interface.memmgr.phys_id_for(process.pid, virt_id=0)
@@ -298,35 +343,12 @@ def test_init_not_allocated():
     init Q0
     """
 
-    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
+    # set "uses" to empty list so virt ID 0 is not allocated
+    process = create_process_with_vanilla_subrt(0, subrt, unit_module, uses=[])
     processor._interface.memmgr.add_process(process)
 
     with pytest.raises(NotAllocatedError):
         execute_process(processor, process)
-
-
-def test_alloc_no_init():
-    num_qubits = 3
-    processor, unit_module = setup_components_generic(num_qubits)
-
-    subrt = """
-    set Q0 0
-    qalloc Q0
-    """
-
-    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
-    processor._interface.memmgr.add_process(process)
-    execute_process(processor, process)
-
-    # Check if qubit with virt ID 0 has been initialized.
-    phys_id = processor._interface.memmgr.phys_id_for(process.pid, virt_id=0)
-
-    # The 'qalloc' should have created a mapping to a phys ID.
-    assert phys_id is not None
-
-    # However, no actual qubit state should have been initalized.
-    qubit = processor.qdevice.get_local_qubit(phys_id)
-    assert qubit is None
 
 
 def test_single_gates_generic():
@@ -335,12 +357,11 @@ def test_single_gates_generic():
 
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     x Q0
     """
 
-    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
+    process = create_process_with_vanilla_subrt(0, subrt, unit_module, [0], [0])
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
@@ -355,7 +376,7 @@ def test_single_gates_generic():
     subrt = """
     x Q0
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should be back in |0>
@@ -366,7 +387,7 @@ def test_single_gates_generic():
     subrt = """
     z Q0
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should still be in |0>
@@ -378,7 +399,7 @@ def test_single_gates_generic():
     subrt = """
     rot_y Q0 8 4
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should be in |+>
@@ -390,7 +411,7 @@ def test_single_gates_generic():
     subrt = """
     rot_z Q0 24 4
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should be in |-i>
@@ -405,16 +426,14 @@ def test_single_gates_multiple_qubits_generic():
     # Initialize q0 and q1. Apply X on q0 and Z on q1.
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     set Q1 1
-    qalloc Q1
     init Q1
     x Q0
     z Q1
     """
 
-    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
+    process = create_process_with_vanilla_subrt(0, subrt, unit_module, [0, 1], [0, 1])
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
@@ -436,7 +455,7 @@ def test_single_gates_multiple_qubits_generic():
     x Q0
     y Q1
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0, 1], [0, 1])
     execute_process(processor, process)
 
     # q0 should be back in |0>
@@ -451,11 +470,10 @@ def test_single_gates_multiple_qubits_generic():
     # pi/2 = 8 / 2^4 * pi
     subrt = """
     set Q2 2
-    qalloc Q2
     init Q2
     rot_y Q0 8 4
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [2], [2])
     execute_process(processor, process)
 
     # q0 should be in |+>
@@ -481,15 +499,13 @@ def test_two_qubit_gates_generic():
     # Initialize q0 and q1. Apply CNOT between q0 and q1.
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     set Q1 1
-    qalloc Q1
     init Q1
     cnot Q0 Q1
     """
 
-    process = create_process_with_vanilla_subrt(0, subrt, unit_module)
+    process = create_process_with_vanilla_subrt(0, subrt, unit_module, [0, 1], [0, 1])
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
@@ -511,7 +527,7 @@ def test_two_qubit_gates_generic():
     h Q0
     cnot Q0 Q1
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0, 1], [0, 1])
     execute_process(processor, process)
 
     # q0 and q1 should be maximally entangled
@@ -524,7 +540,7 @@ def test_two_qubit_gates_generic():
     subrt = """
     cnot Q1 Q0
     """
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0, 1], [0, 1])
     execute_process(processor, process)
 
     # q0 should be |0>
@@ -541,19 +557,17 @@ def test_multiple_processes_generic():
     # Process 0: initialize q0.
     subrt0 = """
     set Q0 0
-    qalloc Q0
     init Q0
     """
 
     # Process 1: initialize q0.
     subrt1 = """
     set Q0 0
-    qalloc Q0
     init Q0
     """
 
-    process0 = create_process_with_vanilla_subrt(0, subrt0, unit_module)
-    process1 = create_process_with_vanilla_subrt(1, subrt1, unit_module)
+    process0 = create_process_with_vanilla_subrt(0, subrt0, unit_module, [0], [0])
+    process1 = create_process_with_vanilla_subrt(1, subrt1, unit_module, [0], [0])
     processor._interface.memmgr.add_process(process0)
     processor._interface.memmgr.add_process(process1)
     execute_multiple_processes(processor, [process0, process1])
@@ -580,16 +594,15 @@ def test_multiple_processes_generic():
     subrt0 = """
     x Q0
     set Q1 1
-    qalloc Q1
     init Q1
     """
-    set_new_vanilla_subroutine(process0, subrt0)
+    set_new_vanilla_subroutine(process0, subrt0, [0, 1], [0, 1])
 
     # New subroutine for process 0: apply H to q0
     subrt1 = """
     h Q0
     """
-    set_new_vanilla_subroutine(process1, subrt1)
+    set_new_vanilla_subroutine(process1, subrt1, [0], [0])
     execute_multiple_processes(processor, [process0, process1])
 
     # Check if qubit with virt ID 1 has been initialized for process 0
@@ -612,21 +625,17 @@ def test_multiple_processes_generic():
     # New subroutine for process 1: alloc q1
     subrt1 = """
     set Q1 1
-    qalloc Q1
     init Q1
     """
-    set_new_vanilla_subroutine(process1, subrt1)
+    set_new_vanilla_subroutine(process1, subrt1, [1], [1])
     # Should raise an AllocError since no physical qubits left.
     with pytest.raises(AllocError):
         execute_multiple_processes(processor, [process0, process1])
 
-    # New subroutine for process 0: free q0
-    subrt0 = """
-    qfree Q0
-    """
-    set_new_vanilla_subroutine(process0, subrt0)
+    # Free q0 for process 0
+    processor.interface.memmgr.free(process0.pid, 0)
     # Try again same subroutine for process 1
-    execute_multiple_processes(processor, [process0, process1])
+    execute_process(processor, process1)
 
     # Check that qubit with virt ID 0 has been freed for process 0
     assert processor._interface.memmgr.phys_id_for(pid=0, virt_id=0) is None
@@ -656,12 +665,11 @@ def test_single_gates_nv_comm():
 
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     rot_x Q0 16 4
     """
 
-    process = create_process_with_nv_subrt(0, subrt, unit_module)
+    process = create_process_with_nv_subrt(0, subrt, unit_module, [0], [0])
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
@@ -676,7 +684,7 @@ def test_single_gates_nv_comm():
     subrt = """
     rot_x Q0 16 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should be back in |0>
@@ -687,7 +695,7 @@ def test_single_gates_nv_comm():
     subrt = """
     rot_z Q0 16 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [0], [0])
     with pytest.raises(UnsupportedQDeviceCommandError):
         execute_process(processor, process)
 
@@ -697,7 +705,7 @@ def test_single_gates_nv_comm():
     rot_y Q0 16 4
     rot_x Q0 8 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should still be in |0>
@@ -709,7 +717,7 @@ def test_single_gates_nv_comm():
     subrt = """
     rot_y Q0 8 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should be in |+>
@@ -723,7 +731,7 @@ def test_single_gates_nv_comm():
     rot_y Q0 24 4
     rot_x Q0 8 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [0], [0])
     execute_process(processor, process)
 
     # Qubit should be in |-i>
@@ -741,12 +749,11 @@ def test_single_gates_nv_mem():
 
     subrt = """
     set Q1 1
-    qalloc Q1
     init Q1
     rot_x Q1 16 4
     """
 
-    process = create_process_with_nv_subrt(0, subrt, unit_module)
+    process = create_process_with_nv_subrt(0, subrt, unit_module, [1], [1])
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
@@ -761,7 +768,7 @@ def test_single_gates_nv_mem():
     subrt = """
     rot_x Q1 16 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [1], [1])
     execute_process(processor, process)
 
     # Qubit should be back in |0>
@@ -772,7 +779,7 @@ def test_single_gates_nv_mem():
     subrt = """
     rot_z Q1 16 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [1], [1])
     execute_process(processor, process)
 
     # Qubit should still be in |0>
@@ -784,7 +791,7 @@ def test_single_gates_nv_mem():
     subrt = """
     rot_y Q1 8 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [1], [1])
     execute_process(processor, process)
 
     # Qubit should be in |+>
@@ -796,7 +803,7 @@ def test_single_gates_nv_mem():
     subrt = """
     rot_z Q1 24 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [1], [1])
     execute_process(processor, process)
 
     # Qubit should be in |-i>
@@ -811,15 +818,13 @@ def test_two_qubit_gates_nv():
     # Initialize q0 and q1. Apply CROT_X (angle 0) between q0 and q1.
     subrt = """
     set Q0 0
-    qalloc Q0
     init Q0
     set Q1 1
-    qalloc Q1
     init Q1
     crot_x Q0 Q1 0 4
     """
 
-    process = create_process_with_nv_subrt(0, subrt, unit_module)
+    process = create_process_with_nv_subrt(0, subrt, unit_module, [0, 1], [0, 1])
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
 
@@ -843,7 +848,7 @@ def test_two_qubit_gates_nv():
     """
     # parse as vanilla just to check that NVProcessor cannot handle it
     # (parsing as NV will already give a parsing error)
-    set_new_vanilla_subroutine(process, subrt)
+    set_new_vanilla_subroutine(process, subrt, [0, 1], [0, 1])
     with pytest.raises(
         NotImplementedError
     ):  # NVProcessor does not implement _interpret_single_qubit_instr
@@ -859,7 +864,7 @@ def test_two_qubit_gates_nv():
     rot_x Q0 8 4
     rot_x Q1 24 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [0, 1], [0, 1])
     execute_process(processor, process)
 
     # q0 and q1 should be maximally entangled
@@ -880,7 +885,7 @@ def test_two_qubit_gates_nv():
     rot_x Q1 24 4
     rot_y Q1 24 4
     """
-    set_new_nv_subroutine(process, subrt)
+    set_new_nv_subroutine(process, subrt, [0, 1], [0, 1])
     execute_process(processor, process)
 
     # q0 should be |0>
@@ -897,19 +902,17 @@ def test_multiple_processes_nv_alloc_error():
     # Process 0: initialize q0.
     subrt0 = """
     set Q0 0
-    qalloc Q0
     init Q0
     """
 
     # Process 1: initialize q0.
     subrt1 = """
     set Q0 0
-    qalloc Q0
     init Q0
     """
 
-    process0 = create_process_with_nv_subrt(0, subrt0, unit_module)
-    process1 = create_process_with_nv_subrt(1, subrt1, unit_module)
+    process0 = create_process_with_nv_subrt(0, subrt0, unit_module, [0], [0])
+    process1 = create_process_with_nv_subrt(1, subrt1, unit_module, [0], [0])
     processor._interface.memmgr.add_process(process0)
     processor._interface.memmgr.add_process(process1)
 
@@ -923,7 +926,6 @@ if __name__ == "__main__":
     test_init_qubit()
     test_init_qubit_with_latencies()
     test_init_not_allocated()
-    test_alloc_no_init()
     test_single_gates_generic()
     test_single_gates_multiple_qubits_generic()
     test_two_qubit_gates_generic()

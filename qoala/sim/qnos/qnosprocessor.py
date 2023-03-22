@@ -82,6 +82,10 @@ class QnosProcessor:
     def qdevice(self) -> QDevice:
         return self._interface.qdevice
 
+    @property
+    def interface(self) -> QnosInterface:
+        return self._interface
+
     def instantiate_routine(
         self,
         process: IqoalaProcess,
@@ -117,6 +121,12 @@ class QnosProcessor:
     ) -> Generator[EventExpression, None, None]:
         routine = process.get_local_routine(routine_name)
         global_args = process.prog_instance.inputs.values
+
+        uses = routine.metadata.qubit_use
+        # Verify that all qubits that are used have been allocated.
+        for q in uses:
+            if not self._interface.memmgr.phys_id_for(process.pid, q) is not None:
+                raise NotAllocatedError
 
         self.instantiate_routine(process, routine, global_args, input_addr, result_addr)
 
@@ -270,34 +280,6 @@ class QnosProcessor:
         qnos_mem = self._prog_mem().qnos_mem
         qnos_mem.set_reg_value(instr.reg, instr.imm.value)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
-        return None
-
-    def _interpret_qalloc(
-        self, pid: int, instr: core.QAllocInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        qnos_mem = self._prog_mem().qnos_mem
-
-        virt_id = qnos_mem.get_reg_value(instr.reg)
-        if virt_id is None:
-            raise RuntimeError(f"qubit address in register {instr.reg} is not defined")
-        self._logger.debug(f"Allocating qubit with virtual ID {virt_id}")
-        self._interface.memmgr.allocate(pid, virt_id)
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
-
-        return None
-
-    def _interpret_qfree(
-        self, pid: int, instr: core.QFreeInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        qnos_mem = self._prog_mem().qnos_mem
-
-        virt_id = qnos_mem.get_reg_value(instr.reg)
-        assert virt_id is not None
-        self._logger.debug(f"Freeing virtual qubit {virt_id}")
-        self._interface.memmgr.free(pid, virt_id)
-        self._interface.signal_memory_freed()
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
-
         return None
 
     def _interpret_store(

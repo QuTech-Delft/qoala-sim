@@ -48,7 +48,6 @@ SUBROUTINE post_epr_0
     rot_z Q0 C0 4
     h Q0
     meas Q0 M0
-    qfree Q0
     store M0 @output[0]
   NETQASM_END
 
@@ -64,7 +63,6 @@ SUBROUTINE post_epr_1
     rot_z Q0 C0 4
     h Q0
     meas Q0 M1
-    qfree Q0
     store M1 @output[0]
   NETQASM_END
 

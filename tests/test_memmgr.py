@@ -15,17 +15,25 @@ from qoala.sim.qdevice import QDevice
 
 
 class MockQDevice(QDevice):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, typ: str = "star") -> None:
+        self._typ = typ
 
     def get_all_qubit_ids(self) -> Set[int]:
         return {0, 1}
 
     def get_comm_qubit_ids(self) -> Set[int]:
-        return {0}
+        if self._typ == "star":
+            return {0}
+        else:
+            assert self._typ == "uniform"
+            return {0, 1}
 
     def get_non_comm_qubit_ids(self) -> Set[int]:
-        return {1}
+        if self._typ == "star":
+            return {1}
+        else:
+            assert self._typ == "uniform"
+            return {}
 
     def set_mem_pos_in_use(self, id: int, in_use: bool) -> None:
         pass
@@ -56,7 +64,7 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     return process
 
 
-def create_unit_module() -> UnitModule:
+def create_unit_module_star() -> UnitModule:
     ehi = EhiBuilder.perfect_star(
         num_qubits=2,
         flavour=None,
@@ -70,10 +78,28 @@ def create_unit_module() -> UnitModule:
     return UnitModule.from_full_ehi(ehi)
 
 
-def setup_manager() -> Tuple[int, MemoryManager]:
-    qdevice = MockQDevice()
-    mgr = MemoryManager("alice", qdevice)
-    um = create_unit_module()
+def create_unit_module_uniform() -> UnitModule:
+    ehi = EhiBuilder.perfect_uniform(
+        num_qubits=2,
+        flavour=None,
+        single_instructions=[],
+        single_duration=0,
+        two_instructions=[],
+        two_duration=0,
+    )
+    return UnitModule.from_full_ehi(ehi)
+
+
+def setup_manager(typ: str = "star") -> Tuple[int, MemoryManager]:
+    if typ == "star":
+        um = create_unit_module_star()
+        qdevice = MockQDevice()
+        mgr = MemoryManager("alice", qdevice)
+    else:
+        assert typ == "uniform"
+        um = create_unit_module_uniform()
+        qdevice = MockQDevice(typ="uniform")
+        mgr = MemoryManager("alice", qdevice)
 
     process = create_process(0, um)
     mgr.add_process(process)
@@ -83,11 +109,17 @@ def setup_manager() -> Tuple[int, MemoryManager]:
 
 
 def setup_manager_multiple_processes(
-    num_processes: int,
+    num_processes: int, typ: str = "star"
 ) -> Tuple[List[int], MemoryManager]:
-    qdevice = MockQDevice()
-    mgr = MemoryManager("alice", qdevice)
-    um = create_unit_module()
+    if typ == "star":
+        um = create_unit_module_star()
+        qdevice = MockQDevice()
+        mgr = MemoryManager("alice", qdevice)
+    else:
+        assert typ == "uniform"
+        um = create_unit_module_uniform()
+        qdevice = MockQDevice(typ="uniform")
+        mgr = MemoryManager("alice", qdevice)
 
     pids: List[int] = []
 
@@ -212,6 +244,23 @@ def test_alloc_multiple_processes():
     assert mgr.virt_id_for(pid1, 1) == 1
 
 
+def test_alloc_multiple_processes_same_virt_id():
+    [pid0, pid1], mgr = setup_manager_multiple_processes(2, typ="uniform")
+
+    mgr.allocate(pid0, 0)
+    # Should allocate phys ID 0 for virt ID 0 of pid0
+    assert mgr.phys_id_for(pid0, 0) == 0
+    assert mgr.virt_id_for(pid0, 0) == 0
+
+    # Should allocate phys ID 1 for virt ID 0 of pid1
+    mgr.allocate(pid1, 0)
+    assert mgr.phys_id_for(pid1, 0) == 1
+    assert mgr.virt_id_for(pid1, 1) == 0
+
+    with pytest.raises(AllocError):
+        mgr.allocate(pid1, 1)
+
+
 if __name__ == "__main__":
     test_alloc_free_0()
     test_alloc_free_0_1()
@@ -220,3 +269,4 @@ if __name__ == "__main__":
     test_free_alreay_freed()
     test_get_unmapped_qubit()
     test_alloc_multiple_processes()
+    test_alloc_multiple_processes_same_virt_id()

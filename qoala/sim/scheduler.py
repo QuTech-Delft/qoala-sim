@@ -185,24 +185,6 @@ class Scheduler(Protocol):
 
                 result = ProgramResult(values={})
 
-                # Important: create a deep copy of the local_routines for each process,
-                # since each process should be able to instantiate their local_routines
-                # without affecting the local_routines of other processes.
-
-                # TODO: Check if commented-out lines are not needed anymore and if so,
-                # remove completely.
-
-                # local_routines = {
-                #     name: deepcopy(subrt)
-                #     for name, subrt in prog_instance.program.local_routines.items()
-                # }
-
-                # # Same holds for requests.
-                # requests = {
-                #     name: deepcopy(req)
-                #     for name, req in prog_instance.program.requests.items()
-                # }
-
                 process = IqoalaProcess(
                     prog_instance=prog_instance,
                     prog_memory=prog_memory,
@@ -235,10 +217,18 @@ class Scheduler(Protocol):
     ) -> Generator[EventExpression, None, None]:
         host_instr = process.program.instructions[task.instr_index]
         assert isinstance(host_instr, RunSubroutineOp)
+
+        # Let Host setup shared memory.
         lrcall = self.host.processor.prepare_lr_call(process, host_instr)
+        # Allocate required qubits.
+        self.allocate_qubits_for_routine(process, lrcall.routine_name)
+        # Execute the routine on Qnos.
         yield from self.qnos.processor.assign_local_routine(
             process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
         )
+        # Free qubits that do not need to be kept.
+        self.free_qubits_after_routine(process, lrcall.routine_name)
+        # Let Host get results from shared memory.
         self.host.processor.post_lr_call(process, lrcall)
 
     def execute_netstack_task(
@@ -294,6 +284,22 @@ class Scheduler(Protocol):
         self._schedule_after(delta_time, EVENT_WAIT)
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
+
+    def allocate_qubits_for_routine(
+        self, process: IqoalaProcess, routine_name: str
+    ) -> None:
+        routine = process.get_local_routine(routine_name)
+        for virt_id in routine.metadata.qubit_use:
+            if self.memmgr.phys_id_for(process.pid, virt_id) is None:
+                self.memmgr.allocate(process.pid, virt_id)
+
+    def free_qubits_after_routine(
+        self, process: IqoalaProcess, routine_name: str
+    ) -> None:
+        routine = process.get_local_routine(routine_name)
+        for virt_id in routine.metadata.qubit_use:
+            if virt_id not in routine.metadata.qubit_keep:
+                self.memmgr.free(process.pid, virt_id)
 
     def run(self) -> Generator[EventExpression, None, None]:
         if self._schedule is None:
