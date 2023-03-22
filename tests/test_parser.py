@@ -881,12 +881,28 @@ SUBROUTINE subrt1
   NETQASM_END
     """
 
-    text = meta_text + host_text + subrt_text
+    req_text = """
+REQUEST req1
+  callback_type: wait_all
+  callback:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout:1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+  result_array_addr: 0
+    """
+
+    text = meta_text + host_text + subrt_text + req_text
     parser = IqoalaParser(text)
 
     assert text_equal(parser._meta_text, meta_text)
     assert text_equal(parser._host_text, host_text)
     assert text_equal(parser._subrt_text, subrt_text)
+    assert text_equal(parser._req_text, req_text)
 
 
 def test_split_text_multiple_subroutines():
@@ -933,6 +949,46 @@ SUBROUTINE subrt2
     assert text_equal(parser._meta_text, meta_text)
     assert text_equal(parser._host_text, host_text)
     assert text_equal(parser._subrt_text, subrt_text)
+
+
+def test_split_text_no_subroutines():
+    meta_text = """
+META_START
+    name: server
+    parameters: client_id
+    csockets: 0 -> client
+    epr_sockets: 0 -> client
+META_END
+    """
+
+    host_text = """
+    ^b0 {type = host}:
+        remote_id = assign_cval() : {client_id}
+    ^b1 {type = RR}:
+        run_request(vec<>) : req1
+        """
+
+    req_text = """
+REQUEST req1
+    callback_type: wait_all
+    callback:
+    remote_id: {client_id}
+    epr_socket_id: 0
+    num_pairs: 1
+    virt_ids: all 0
+    timeout:1000
+    fidelity: 1.0
+    typ: create_keep
+    role: receive
+    result_array_addr: 0
+        """
+
+    text = meta_text + host_text + req_text
+    parser = IqoalaParser(text)
+
+    assert text_equal(parser._meta_text, meta_text)
+    assert text_equal(parser._host_text, host_text)
+    assert text_equal(parser._req_text, req_text)
 
 
 def test_parse_program_single_text():
@@ -1043,6 +1099,7 @@ if __name__ == "__main__":
     test_parse_program_invalid_req_routine_reference()
     test_split_text()
     test_split_text_multiple_subroutines()
+    test_split_text_no_subroutines()
     test_parse_program_single_text()
     test_parse_file()
     test_parse_file_2()

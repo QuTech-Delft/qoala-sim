@@ -25,7 +25,6 @@ SUBROUTINE subrt0
     request: 
   NETQASM_START
     set Q0 0
-    qalloc Q0
     init Q0
     x Q0
   NETQASM_END
@@ -38,6 +37,5 @@ SUBROUTINE subrt1
     request: 
   NETQASM_START
     meas Q0 M0
-    qfree Q0
-    store M0 @101[0]
+    store M0 @output[0]
   NETQASM_END

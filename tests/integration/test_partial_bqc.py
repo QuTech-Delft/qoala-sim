@@ -25,7 +25,7 @@ from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.schedule import ProgramTaskList, QnosTask
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
@@ -143,13 +143,9 @@ class BqcProcNode(ProcNode):
     def run_subroutine(
         self, process: IqoalaProcess, host_instr_index: int, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        host_instr = process.program.instructions[host_instr_index]
-        lrcall = self.host.processor.prepare_lr_call(process, host_instr)
-        assert lrcall.routine_name == subrt_name
-        yield from self.qnos.processor.assign_local_routine(
-            process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
+        yield from self.scheduler.execute_qnos_task(
+            process, QnosTask(host_instr_index, subrt_name)
         )
-        self.host.processor.post_lr_call(process, lrcall)
 
     def run_request(
         self, process: IqoalaProcess, host_instr_index: int, req_name: str

@@ -545,19 +545,30 @@ class IqoalaParser:
                 break
 
         meta_text = "\n".join(lines[0 : meta_end_line + 1])
-        host_text = "\n".join(lines[meta_end_line + 1 : first_subrt_line])
-        if first_subrt_line is None:
+        host_end_line: Optional[int] = None
+        if first_subrt_line is None and first_req_line is None:
             # no subroutines and no requests
             subrt_text = ""
             req_text = ""
-        elif first_req_line is None:
+        elif first_subrt_line is not None and first_req_line is None:
             # subroutines but no requests
             subrt_text = "\n".join(lines[first_subrt_line:])
             req_text = ""
+            host_end_line = first_subrt_line
+        elif first_subrt_line is None and first_req_line is not None:
+            # no subroutines but only requests
+            subrt_text = ""
+            req_text = "\n".join(lines[first_req_line:])
+            host_end_line = first_req_line
         else:
             # subroutines and requests
             subrt_text = "\n".join(lines[first_subrt_line:first_req_line])
             req_text = "\n".join(lines[first_req_line:])
+            host_end_line = first_subrt_line
+        if host_end_line is not None:
+            host_text = "\n".join(lines[meta_end_line + 1 : host_end_line])
+        else:
+            host_text = "\n".join(lines[meta_end_line + 1 :])
 
         return meta_text, host_text, subrt_text, req_text
 

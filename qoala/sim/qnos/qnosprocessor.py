@@ -82,6 +82,10 @@ class QnosProcessor:
     def qdevice(self) -> QDevice:
         return self._interface.qdevice
 
+    @property
+    def interface(self) -> QnosInterface:
+        return self._interface
+
     def instantiate_routine(
         self,
         process: IqoalaProcess,
@@ -117,6 +121,12 @@ class QnosProcessor:
     ) -> Generator[EventExpression, None, None]:
         routine = process.get_local_routine(routine_name)
         global_args = process.prog_instance.inputs.values
+
+        uses = routine.metadata.qubit_use
+        # Verify that all qubits that are used have been allocated.
+        for q in uses:
+            if not self._interface.memmgr.phys_id_for(process.pid, q) is not None:
+                raise NotAllocatedError
 
         self.instantiate_routine(process, routine, global_args, input_addr, result_addr)
 
@@ -173,34 +183,16 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         if isinstance(instr, core.SetInstruction):
             return self._interpret_set(pid, instr)
-        elif isinstance(instr, core.QAllocInstruction):
-            return self._interpret_qalloc(pid, instr)
-        elif isinstance(instr, core.QFreeInstruction):
-            return self._interpret_qfree(pid, instr)
         elif isinstance(instr, core.StoreInstruction):
             return self._interpret_store(pid, instr)
         elif isinstance(instr, core.LoadInstruction):
             return self._interpret_load(pid, instr)
         elif isinstance(instr, core.LeaInstruction):
             return self._interpret_lea(pid, instr)
-        elif isinstance(instr, core.UndefInstruction):
-            return self._interpret_undef(pid, instr)
-        elif isinstance(instr, core.ArrayInstruction):
-            return self._interpret_array(pid, instr)
         elif isinstance(instr, core.InitInstruction):
             return self._interpret_init(pid, instr)
         elif isinstance(instr, core.MeasInstruction):
             return self._interpret_meas(pid, instr)
-        elif isinstance(instr, core.CreateEPRInstruction):
-            return self._interpret_create_epr(pid, instr)
-        elif isinstance(instr, core.RecvEPRInstruction):
-            return self._interpret_recv_epr(pid, instr)
-        elif isinstance(instr, core.WaitAllInstruction):
-            return self._interpret_wait_all(pid, instr)
-        elif isinstance(instr, core.RetRegInstruction):
-            return None
-        elif isinstance(instr, core.RetArrInstruction):
-            return None
         elif isinstance(instr, core.SingleQubitInstruction):
             return self._interpret_single_qubit_instr(pid, instr)
         elif isinstance(instr, core.TwoQubitInstruction):
@@ -272,34 +264,6 @@ class QnosProcessor:
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
-    def _interpret_qalloc(
-        self, pid: int, instr: core.QAllocInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        qnos_mem = self._prog_mem().qnos_mem
-
-        virt_id = qnos_mem.get_reg_value(instr.reg)
-        if virt_id is None:
-            raise RuntimeError(f"qubit address in register {instr.reg} is not defined")
-        self._logger.debug(f"Allocating qubit with virtual ID {virt_id}")
-        self._interface.memmgr.allocate(pid, virt_id)
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
-
-        return None
-
-    def _interpret_qfree(
-        self, pid: int, instr: core.QFreeInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        qnos_mem = self._prog_mem().qnos_mem
-
-        virt_id = qnos_mem.get_reg_value(instr.reg)
-        assert virt_id is not None
-        self._logger.debug(f"Freeing virtual qubit {virt_id}")
-        self._interface.memmgr.free(pid, virt_id)
-        self._interface.signal_memory_freed()
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
-
-        return None
-
     def _interpret_store(
         self, pid: int, instr: core.StoreInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
@@ -317,13 +281,13 @@ class QnosProcessor:
         )
 
         addr = instr.entry.address.address
+        # Only allow NetQASM 2.0 input/output addresses
+        assert isinstance(addr, str)
+        assert addr == "output"
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
-        if addr == 101:  # result region
-            new_shared_mem.write_lr_out(result_addr, [value], offset=index)
-        else:
-            raise NotImplementedError  # TODO: needed?
+        new_shared_mem.write_lr_out(result_addr, [value], offset=index)
 
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
@@ -337,13 +301,13 @@ class QnosProcessor:
         input_addr = self._routine().params_addr
 
         addr = instr.entry.address.address
+        # Only allow NetQASM 2.0 input/output addresses
+        assert isinstance(addr, str)
+        assert addr == "input"
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
-        if addr == 100:  # input region
-            [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
-        else:
-            raise NotImplementedError  # TODO: needed?
+        [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
 
         if value is None:
             raise RuntimeError(f"array value at {instr.entry} is not defined")
@@ -364,27 +328,6 @@ class QnosProcessor:
             f"Storing address of {instr.address} to register {instr.reg}"
         )
         qnos_mem.set_reg_value(instr.reg, instr.address.address)
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
-        return None
-
-    def _interpret_undef(
-        self, pid: int, instr: core.UndefInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        raise DeprecationWarning
-
-    def _interpret_array(
-        self, pid: int, instr: core.ArrayInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        qnos_mem = self._prog_mem().qnos_mem
-        shared_mem = self._prog_mem().shared_mem
-
-        length = qnos_mem.get_reg_value(instr.size)
-        assert length is not None
-        self._logger.debug(
-            f"Initializing an array of length {length} at address {instr.address}"
-        )
-
-        shared_mem.init_new_array(instr.address.address, length)
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
@@ -472,6 +415,10 @@ class QnosProcessor:
         elif isinstance(instr, core.SubmInstruction):
             assert mod is not None
             return (a - b) % mod
+        elif isinstance(instr, core.MulInstruction):
+            return a * b
+        elif isinstance(instr, core.DivInstruction):
+            return int(a / b)
         else:
             raise ValueError(f"{instr} cannot be used as binary classical function")
 
@@ -552,31 +499,6 @@ class QnosProcessor:
         self, pid: int, instr: core.MeasInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
-
-    def _interpret_create_epr(
-        self, pid: int, instr: core.CreateEPRInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
-
-    def _interpret_recv_epr(
-        self, pid: int, instr: core.RecvEPRInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
-
-    def _interpret_wait_all(
-        self, pid: int, instr: core.WaitAllInstruction
-    ) -> Generator[EventExpression, None, None]:
-        raise DeprecationWarning
-
-    def _interpret_ret_reg(
-        self, pid: int, instr: core.RetRegInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
-
-    def _interpret_ret_arr(
-        self, pid: int, instr: core.RetArrInstruction
-    ) -> Optional[Generator[EventExpression, None, None]]:
-        return None
 
     def _interpret_single_qubit_instr(
         self, pid: int, instr: core.SingleQubitInstruction
