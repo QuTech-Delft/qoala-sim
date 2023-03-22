@@ -356,6 +356,48 @@ def test_add_with_latencies():
     assert process.prog_memory.qnos_mem.get_reg_value("R2") == 7
 
 
+def test_mul():
+    processor, unit_module = setup_components(star_topology(2))
+
+    subrt = """
+    set R0 2
+    set R1 5
+    mul R2 R0 R1
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 10
+
+
+def test_div():
+    processor, unit_module = setup_components(star_topology(2))
+
+    subrt = """
+    set R0 15
+    set R1 3
+    div R2 R0 R1
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 5
+
+
+def test_div_rounded():
+    processor, unit_module = setup_components(star_topology(2))
+
+    subrt = """
+    set R0 16
+    set R1 3
+    div R2 R0 R1
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 5
+
+
 def test_alloc_qubit():
     processor, unit_module = setup_components(star_topology(2))
 
@@ -646,6 +688,9 @@ if __name__ == "__main__":
     test_set_reg_with_latencies()
     test_add()
     test_add_with_latencies()
+    test_mul()
+    test_div()
+    test_div_rounded()
     test_alloc_qubit()
     test_free_qubit()
     test_free_non_allocated()
