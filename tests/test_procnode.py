@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
-from netqasm.lang.instr.core import CreateEPRInstruction, RecvEPRInstruction
 from netqasm.lang.parsing import parse_text_subroutine
 from netqasm.sdk.build_epr import SER_RESPONSE_KEEP_LEN
 from netsquid.components import QuantumProcessor
@@ -950,20 +949,8 @@ META_END
 
 ^b0 {type = host}:
     remote_id = assign_cval() : {client_id}
-^b1 {type = LR}:
-    run_subroutine(vec<remote_id>) : subrt1
-
-SUBROUTINE subrt1
-    params: remote_id
-    returns:
-    uses: 0
-    keeps: 0
-    request: req1
-  NETQASM_START
-    array 10 @0
-    recv_epr C15 C0 C1 C0
-    wait_all @0[0:10]
-  NETQASM_END
+^b1 {type = RR}:
+    run_request(vec<>) : req1
 
 REQUEST req1
   callback_type: wait_all
@@ -994,32 +981,7 @@ REQUEST req1
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
-
-            subrt1 = process.get_local_routine("subrt1")
-            subrt1 = process.program.local_routines["subrt1"]
-            self.qnos.processor.instantiate_routine(process, subrt1, {}, 0, 0)
-            epr_instr_idx = None
-            for i, instr in enumerate(subrt1.subroutine.instructions):
-                if isinstance(instr, CreateEPRInstruction) or isinstance(
-                    instr, RecvEPRInstruction
-                ):
-                    epr_instr_idx = i
-                    break
-
-            for i in range(epr_instr_idx):
-                yield from self.qnos.processor.assign_routine_instr(
-                    process, "subrt1", i
-                )
-
-            print("hello 1?")
             yield from self.netstack.processor.assign_request_routine(process, "req1")
-
-            # wait instr
-            yield from self.qnos.processor.assign_routine_instr(
-                process, "subrt1", epr_instr_idx + 1
-            )
-            print("hello 2?")
-            # yield from self.netstack.processor.assign(process, request)
 
     server_procnode = create_procnode(
         "server",
@@ -1050,20 +1012,7 @@ META_END
 ^b0 {type = host}:
     remote_id = assign_cval() : {server_id}
 ^b1 {type = LR}:
-    run_subroutine(vec<remote_id>) : subrt1
-
-SUBROUTINE subrt1
-    params: remote_id
-    returns:
-    uses: 0
-    keeps: 0
-    request: req1
-  NETQASM_START
-    set C10 10
-    array C10 @0
-    create_epr C15 C0 C1 C2 C0
-    wait_all @0[0:10]
-  NETQASM_END
+    run_request(vec<>) : req1
 
 REQUEST req1
   callback_type: wait_all
