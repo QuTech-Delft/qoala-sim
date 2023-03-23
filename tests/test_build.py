@@ -29,7 +29,6 @@ from qoala.sim.build import (
     build_procnode,
     build_qprocessor_from_topology,
 )
-from qoala.sim.procnodecomp import ProcNodeComponent
 
 
 def uniform_topology(num_qubits: int) -> LhiTopology:

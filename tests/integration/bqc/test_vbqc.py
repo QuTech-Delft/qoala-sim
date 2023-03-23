@@ -595,6 +595,7 @@ def test_bqc_computation():
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
 
+
 def test_bqc_trap():
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("logs/test_trap.log")
@@ -610,6 +611,7 @@ def test_bqc_trap():
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
+
 
 if __name__ == "__main__":
     test_bqc_computation()

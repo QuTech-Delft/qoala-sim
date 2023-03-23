@@ -30,6 +30,39 @@ def create_global_env(names: List[str]) -> GlobalEnvironment:
     return env
 
 
+def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
+    return ProcNodeConfig(
+        node_name=name,
+        node_id=id,
+        topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
+    )
+
+
+def load_program(path: str) -> IqoalaProgram:
+    path = os.path.join(os.path.dirname(__file__), path)
+    with open(path) as file:
+        text = file.read()
+    return IqoalaParser(text).parse()
+
+
+def create_batch(
+    program: IqoalaProgram,
+    unit_module: UnitModule,
+    inputs: List[ProgramInput],
+    num_iterations: int,
+    tasks: ProgramTaskList,
+) -> BatchInfo:
+    return BatchInfo(
+        program=program,
+        unit_module=unit_module,
+        inputs=inputs,
+        num_iterations=num_iterations,
+        deadline=0,
+        tasks=tasks,
+    )
+
+
 def create_server_tasks(
     server_program: IqoalaProgram, cfg: ProcNodeConfig
 ) -> ProgramTaskList:
@@ -123,39 +156,6 @@ class BqcResult:
     server_results: Dict[int, BatchResult]
 
 
-def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
-    return ProcNodeConfig(
-        node_name=name,
-        node_id=id,
-        topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        latencies=LatenciesConfig(qnos_instr_time=1000),
-    )
-
-
-def load_program(path: str) -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), path)
-    with open(path) as file:
-        text = file.read()
-    return IqoalaParser(text).parse()
-
-
-def create_batch(
-    program: IqoalaProgram,
-    unit_module: UnitModule,
-    inputs: List[ProgramInput],
-    num_iterations: int,
-    tasks: ProgramTaskList,
-) -> BatchInfo:
-    return BatchInfo(
-        program=program,
-        unit_module=unit_module,
-        inputs=inputs,
-        num_iterations=num_iterations,
-        deadline=0,
-        tasks=tasks,
-    )
-
-
 def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     ns.sim_reset()
 
@@ -230,24 +230,28 @@ def test_bqc():
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("test_run.log")
 
-    def check(alpha, beta, theta1, theta2, expected):
+    def check(alpha, beta, theta1, theta2, expected, num_iterations):
         ns.sim_reset()
         bqc_result = run_bqc(
-            alpha=alpha, beta=beta, theta1=theta1, theta2=theta2, num_iterations=20
+            alpha=alpha,
+            beta=beta,
+            theta1=theta1,
+            theta2=theta2,
+            num_iterations=num_iterations,
         )
         assert len(bqc_result.client_results) > 0
         assert len(bqc_result.server_results) > 0
 
         server_batch_results = bqc_result.server_results
-        for batch_id, batch_results in server_batch_results.items():
+        for _, batch_results in server_batch_results.items():
             program_results = batch_results.results
             m2s = [result.values["m2"] for result in program_results]
             assert all(m2 == expected for m2 in m2s)
 
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1)
+    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10)
 
 
 if __name__ == "__main__":

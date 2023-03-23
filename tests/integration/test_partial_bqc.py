@@ -69,9 +69,7 @@ def create_process(
     return process
 
 
-def create_global_env(
-    num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
-) -> GlobalEnvironment:
+def create_global_env(names: List[str]) -> GlobalEnvironment:
     env = GlobalEnvironment()
     for i, name in enumerate(names):
         env.add_node(i, GlobalNodeInfo(name, i))
@@ -79,6 +77,7 @@ def create_global_env(
 
 
 def create_procnode(
+    part: str,
     name: str,
     env: GlobalEnvironment,
     num_qubits: int,
@@ -91,6 +90,7 @@ def create_procnode(
 
     node_id = env.get_node_id(name)
     procnode = procnode_cls(
+        part=part,
         name=name,
         global_env=env,
         qprocessor=qprocessor,
@@ -159,6 +159,10 @@ class BqcProcNode(ProcNode):
 
 
 class ServerProcNode(BqcProcNode):
+    def __init__(self, part: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._part = part
+
     def run(self) -> Generator[EventExpression, None, None]:
         self.finished = False
 
@@ -167,39 +171,46 @@ class ServerProcNode(BqcProcNode):
 
         # csocket = assign_cval() : 0
         yield from self.host.processor.assign(process, 0)
-
         # run_request() : req0
         yield from self.run_request(process, 1, "req0")
-
         # run_request() : req1
         yield from self.run_request(process, 2, "req1")
 
+        if self._part == "only_rsp":
+            self.finished = True
+            return
+
         # run_subroutine(vec<client_id>) : local_cphase
         yield from self.run_subroutine(process, 3, "local_cphase")
-
         # delta1 = recv_cmsg(client_id)
         yield from self.host.processor.assign(process, 4)
-
         # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
         yield from self.run_subroutine(process, 5, "meas_qubit_1")
-
         # send_cmsg(csocket, m1)
         yield from self.host.processor.assign(process, 6)
         # delta2 = recv_cmsg(csocket)
         yield from self.host.processor.assign(process, 7)
 
+        if self._part == "meas_first_epr":
+            self.finished = True
+            return
+
         # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
         yield from self.run_subroutine(process, 8, "meas_qubit_0")
-
         # return_result(m1)
         yield from self.host.processor.assign(process, 9)
         # return_result(m2)
         yield from self.host.processor.assign(process, 10)
 
+        assert self._part == "full"
         self.finished = True
 
 
 class ClientProcNode(BqcProcNode):
+    def __init__(self, part: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._part = part
+
     def run(self) -> Generator[EventExpression, None, None]:
         self.finished = False
 
@@ -208,19 +219,14 @@ class ClientProcNode(BqcProcNode):
 
         # csocket = assign_cval() : 0
         yield from self.host.processor.assign(process, 0)
-
         # run_request() : req0
         yield from self.run_request(process, 1, "req0")
-
         # run_subroutine(vec<theta2>) : post_epr_0
         yield from self.run_subroutine(process, 2, "post_epr_0")
-
         # run_request() : req1
         yield from self.run_request(process, 3, "req1")
-
         # run_subroutine(vec<theta1>) : post_epr_1
         yield from self.run_subroutine(process, 4, "post_epr_1")
-
         # x = mult_const(p1) : 16
         # minus_theta1 = mult_const(theta1) : -1
         # delta1 = add_cval_c(minus_theta1, x)
@@ -229,9 +235,12 @@ class ClientProcNode(BqcProcNode):
         for i in range(5, 10):
             yield from self.host.processor.assign(process, i)
 
+        if self._part == "only_rsp":
+            self.finished = True
+            return
+
         # m1 = recv_cmsg(csocket)
         yield from self.host.processor.assign(process, 10)
-
         # y = mult_const(p2) : 16
         # minus_theta2 = mult_const(theta2) : -1
         # beta = bcond_mult_const(beta, m1) : -1
@@ -241,11 +250,16 @@ class ClientProcNode(BqcProcNode):
         for i in range(11, 17):
             yield from self.host.processor.assign(process, i)
 
+        if self._part == "meas_first_epr":
+            self.finished = True
+            return
+
         # return_result(p1)
         yield from self.host.processor.assign(process, 17)
         # return_result(p2)
         yield from self.host.processor.assign(process, 18)
 
+        assert self._part == "full"
         self.finished = True
 
 
@@ -258,8 +272,7 @@ class BqcResult:
 
 
 def run_bqc(
-    server_prot: Type[BqcProcNode],
-    client_prot: Type[BqcProcNode],
+    part: str,
     alpha,
     beta,
     theta1,
@@ -270,7 +283,7 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    global_env = create_global_env(num_qubits, names=["client", "server"])
+    global_env = create_global_env(names=["client", "server"])
     server_id = global_env.get_node_id("server")
     client_id = global_env.get_node_id("client")
 
@@ -280,7 +293,7 @@ def run_bqc(
     server_program = IqoalaParser(server_text).parse()
 
     server_procnode = create_procnode(
-        "server", global_env, num_qubits, procnode_cls=server_prot, pid=server_pid
+        part, "server", global_env, num_qubits, ServerProcNode, pid=server_pid
     )
     server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
@@ -298,7 +311,7 @@ def run_bqc(
     client_program = IqoalaParser(client_text).parse()
 
     client_procnode = create_procnode(
-        "client", global_env, num_qubits, procnode_cls=client_prot, pid=client_pid
+        part, "client", global_env, num_qubits, ClientProcNode, pid=client_pid
     )
     client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
@@ -316,12 +329,6 @@ def run_bqc(
     )
     client_procnode.add_process(client_process)
 
-    client_egp, server_egp = create_egp_protocols(
-        client_procnode.node, server_procnode.node
-    )
-    client_procnode.egpmgr.add_egp(server_id, client_egp)
-    server_procnode.egpmgr.add_egp(client_id, server_egp)
-
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
@@ -337,7 +344,6 @@ def run_bqc(
         client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
     )
 
-    # client_egp._ll_prot.start()
     server_procnode.start()
     client_procnode.start()
     entdist.start()
@@ -383,58 +389,8 @@ def expected_rsp_state(theta: int, p: int, dummy: bool):
     return expected.qstate
 
 
-def test_bqc_1():
+def test_bqc_only_rsp():
     ns.sim_reset()
-
-    class ServerProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_request() : req0
-            yield from self.run_request(process, 1, "req0")
-
-            # run_request() : req1
-            yield from self.run_request(process, 2, "req1")
-
-            self.finished = True
-
-    class ClientProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_request() : req0
-            yield from self.run_request(process, 1, "req0")
-
-            # run_subroutine(vec<theta2>) : post_epr_0
-            yield from self.run_subroutine(process, 2, "post_epr_0")
-
-            # run_request() : req1
-            yield from self.run_request(process, 3, "req1")
-
-            # run_subroutine(vec<theta1>) : post_epr_1
-            yield from self.run_subroutine(process, 4, "post_epr_1")
-
-            # x = mult_const(p1) : 16
-            # minus_theta1 = mult_const(theta1) : -1
-            # delta1 = add_cval_c(minus_theta1, x)
-            # delta1 = add_cval_c(delta1, alpha)
-            # send_cmsg(server_id, delta1)
-            for i in range(5, 10):
-                yield from self.host.processor.assign(process, i)
-
-            self.finished = True
 
     alpha_beta_theta1_theta2 = [
         (0, 0, 0, 0),
@@ -445,9 +401,7 @@ def test_bqc_1():
 
     for alpha, beta, theta1, theta2 in alpha_beta_theta1_theta2:
         for _ in range(10):
-            result = run_bqc(
-                ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
-            )
+            result = run_bqc("only_rsp", alpha, beta, theta1, theta2)
 
             p1 = result.client_process.host_mem.read("p1")
             p2 = result.client_process.host_mem.read("p2")
@@ -466,84 +420,8 @@ def test_bqc_1():
             assert has_state(q1, expected_q1)
 
 
-def test_bqc_2():
+def test_bqc_only_meas_first_EPR():
     ns.sim_reset()
-
-    class ServerProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_request() : req0
-            yield from self.run_request(process, 1, "req0")
-
-            # run_request() : req1
-            yield from self.run_request(process, 2, "req1")
-
-            # run_subroutine(vec<client_id>) : local_cphase
-            yield from self.run_subroutine(process, 3, "local_cphase")
-
-            # delta1 = recv_cmsg(client_id)
-            yield from self.host.processor.assign(process, 4)
-
-            # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-            yield from self.run_subroutine(process, 5, "meas_qubit_1")
-
-            # send_cmsg(csocket, m1)
-            yield from self.host.processor.assign(process, 6)
-            # delta2 = recv_cmsg(csocket)
-            yield from self.host.processor.assign(process, 7)
-
-            self.finished = True
-
-    class ClientProcNode(BqcProcNode):
-        def run(self) -> Generator[EventExpression, None, None]:
-            self.finished = False
-
-            process = self.memmgr.get_process(self.pid)
-            self.scheduler.initialize_process(process)
-
-            # csocket = assign_cval() : 0
-            yield from self.host.processor.assign(process, 0)
-
-            # run_request() : req0
-            yield from self.run_request(process, 1, "req0")
-
-            # run_subroutine(vec<theta2>) : post_epr_0
-            yield from self.run_subroutine(process, 2, "post_epr_0")
-
-            # run_request() : req1
-            yield from self.run_request(process, 3, "req1")
-
-            # run_subroutine(vec<theta1>) : post_epr_1
-            yield from self.run_subroutine(process, 4, "post_epr_1")
-
-            # x = mult_const(p1) : 16
-            # minus_theta1 = mult_const(theta1) : -1
-            # delta1 = add_cval_c(minus_theta1, x)
-            # delta1 = add_cval_c(delta1, alpha)
-            # send_cmsg(server_id, delta1)
-            for i in range(5, 10):
-                yield from self.host.processor.assign(process, i)
-
-            # m1 = recv_cmsg(csocket)
-            yield from self.host.processor.assign(process, 10)
-
-            # y = mult_const(p2) : 16
-            # minus_theta2 = mult_const(theta2) : -1
-            # beta = bcond_mult_const(beta, m1) : -1
-            # delta2 = add_cval_c(beta, minus_theta2)
-            # delta2 = add_cval_c(delta2, y)
-            # send_cmsg(csocket, delta2)
-            for i in range(11, 17):
-                yield from self.host.processor.assign(process, i)
-
-            self.finished = True
 
     alpha_beta_theta1_theta2 = [
         (0, 0, 0, 0),
@@ -554,9 +432,7 @@ def test_bqc_2():
 
     for alpha, beta, theta1, theta2 in alpha_beta_theta1_theta2:
         for _ in range(10):
-            result = run_bqc(
-                ServerProcNode, ClientProcNode, alpha, beta, theta1, theta2
-            )
+            result = run_bqc("meas_first_epr", alpha, beta, theta1, theta2)
 
             p1 = result.client_process.host_mem.read("p1")
             p2 = result.client_process.host_mem.read("p2")
@@ -571,30 +447,18 @@ def test_bqc_2():
             assert delta2 == math.pow(-1, m1) * beta - theta2 + p2 * 16
 
 
-def test_bqc():
+def test_bqc_full():
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome
 
     # angles are in multiples of pi/16
 
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("test_bqc.log")
-
     def check(alpha, beta, theta1, theta2, expected):
         ns.sim_reset()
 
         results = [
-            run_bqc(
-                server_prot=ServerProcNode,
-                client_prot=ClientProcNode,
-                alpha=alpha,
-                beta=beta,
-                theta1=theta1,
-                theta2=theta2,
-                client_pid=i,
-                server_pid=i,
-            )
+            run_bqc("full", alpha, beta, theta1, theta2, client_pid=i, server_pid=i)
             for i in range(2)
         ]
         m2s = [result.server_process.result.values["m2"] for result in results]
@@ -607,6 +471,6 @@ def test_bqc():
 
 
 if __name__ == "__main__":
-    test_bqc_1()
-    test_bqc_2()
-    test_bqc()
+    test_bqc_only_rsp()
+    test_bqc_only_meas_first_EPR()
+    test_bqc_full()
