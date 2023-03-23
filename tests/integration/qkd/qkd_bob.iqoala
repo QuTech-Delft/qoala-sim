@@ -1,0 +1,102 @@
+META_START
+    name: server
+    parameters: client_id
+    csockets: 0 -> client
+    epr_sockets: 0 -> client
+META_END
+
+^b0 {type = host}:
+    csocket = assign_cval() : 0
+
+^b1 {type = LR}:
+    run_request(vec<>) : req0
+^b2 {type = LR}:
+    run_request(vec<>) : req1
+^b3 {type = LR}:
+    run_subroutine(vec<>) : local_cphase
+
+^b4 {type = host}:
+    delta1 = recv_cmsg(csocket)
+
+^b5 {type = LR}:
+    vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
+
+^b6 {type = host}:
+    send_cmsg(csocket, m1)
+    delta2 = recv_cmsg(csocket)
+
+^b7 {type = LR}:
+    vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
+
+^b8 {type = host}:
+    return_result(m1)
+    return_result(m2)
+
+
+SUBROUTINE local_cphase
+    params: 
+    returns: 
+    uses: 0, 1
+    keeps: 0, 1
+    request: 
+  NETQASM_START
+    set Q0 1
+    set Q1 0
+    cphase Q0 Q1
+  NETQASM_END
+
+SUBROUTINE meas_qubit_1
+    params: delta1
+    returns: M0 -> m1
+    uses: 0, 1
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q1 1
+    rot_z Q1 C0 4
+    h Q1
+    meas Q1 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_0
+    params: delta2
+    returns: M0 -> m2
+    uses: 0, 1
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    rot_z Q0 C0 4
+    h Q0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST req0
+  callback_type: wait_all
+  callback: 
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+  result_array_addr: 0
+
+REQUEST req1
+  callback_type: wait_all
+  callback: 
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+  result_array_addr: 1
