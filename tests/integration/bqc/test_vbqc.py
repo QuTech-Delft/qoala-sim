@@ -275,7 +275,7 @@ def create_durations() -> TaskDurations:
 
 
 def load_server_program(remote_name: str) -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "vbqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
     program = IqoalaParser(server_text).parse()
@@ -288,7 +288,7 @@ def load_server_program(remote_name: str) -> IqoalaProgram:
 
 
 def load_client_program() -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "bqc_client.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "vbqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
     return IqoalaParser(client_text).parse()
@@ -425,6 +425,77 @@ def run_bqc(
     return BqcResult(client_batches, client_results), makespan
 
 
+def check_computation(
+    alpha,
+    beta,
+    theta1,
+    theta2,
+    dummy0,
+    dummy1,
+    expected,
+    num_iterations,
+    deadlines,
+    num_clients,
+    global_schedule: List[int],
+    timeslot_len: int,
+):
+    ns.sim_reset()
+    bqc_result, makespan = run_bqc(
+        alpha=alpha,
+        beta=beta,
+        theta1=theta1,
+        theta2=theta2,
+        dummy0=dummy0,
+        dummy1=dummy1,
+        num_iterations=num_iterations,
+        deadlines=deadlines,
+        num_clients=num_clients,
+        global_schedule=global_schedule,
+        timeslot_len=timeslot_len,
+    )
+
+    batch_success_probabilities: List[float] = []
+
+    for i in range(num_clients):
+        assert len(bqc_result.client_results[i]) == 1
+        batch_result = bqc_result.client_results[i][0]
+        assert len(bqc_result.client_batches[i]) == 1
+        program_batch = bqc_result.client_batches[i][0]
+        batch_iterations = program_batch.info.num_iterations
+
+        m2s = [result.values["m2"] for result in batch_result.results]
+        correct_outcomes = len([m2 for m2 in m2s if m2 == expected])
+        succ_prob = round(correct_outcomes / batch_iterations, 2)
+        batch_success_probabilities.append(succ_prob)
+
+    return batch_success_probabilities, makespan
+
+
+def compute_succ_prob_computation(
+    num_clients: int,
+    num_iterations: List[int],
+    deadlines: List[int],
+    global_schedule: List[int],
+    timeslot_len: int,
+):
+    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
+
+    return check_computation(
+        alpha=8,
+        beta=24,
+        theta1=2,
+        theta2=22,
+        dummy0=0,
+        dummy1=0,
+        expected=1,
+        num_iterations=num_iterations,
+        deadlines=deadlines,
+        num_clients=num_clients,
+        global_schedule=global_schedule,
+        timeslot_len=timeslot_len,
+    )
+
+
 def check_trap(
     alpha,
     beta,
@@ -508,7 +579,24 @@ def compute_succ_prob_trap(
     )
 
 
-def test_bqc():
+def test_bqc_computation():
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("logs/test_computation.log")
+
+    num_clients = 3
+
+    succ_probs, makespan = compute_succ_prob_computation(
+        num_clients=num_clients,
+        num_iterations=[30] * num_clients,
+        deadlines=[1e9] * num_clients,
+        global_schedule=[i for i in range(num_clients)],
+        timeslot_len=1e6,
+    )
+    print(f"success probabilities: {succ_probs}")
+    print(f"makespan: {makespan}")
+
+
+def test_bqc_trap():
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("logs/test_trap.log")
 
@@ -526,4 +614,5 @@ def test_bqc():
 
 
 if __name__ == "__main__":
-    test_bqc()
+    test_bqc_computation()
+    test_bqc_trap()

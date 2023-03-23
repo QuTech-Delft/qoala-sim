@@ -12,11 +12,21 @@ from netsquid.components.instructions import (
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 from netsquid.components.qprocessor import MissingInstructionError, QuantumProcessor
 
-from qoala.runtime.config import GenericQDeviceConfig, NVQDeviceConfig
+from qoala.runtime.config import (
+    GenericQDeviceConfig,
+    LatenciesConfig,
+    NVQDeviceConfig,
+    ProcNodeConfig,
+    ProcNodeNetworkConfig,
+    TopologyConfig,
+)
+from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology, LhiTopologyBuilder
 from qoala.sim.build import (
     build_generic_qprocessor,
+    build_network,
     build_nv_qprocessor,
+    build_procnode,
     build_qprocessor_from_topology,
 )
 
@@ -150,8 +160,95 @@ def test_build_nv_perfect():
     assert proc.get_instruction_duration(INSTR_CXDIR, [0, 1]) == cfg.ec_controlled_dir_x
 
 
+def test_build_procnode():
+    top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
+    latencies = LatenciesConfig(
+        host_qnos_latency=3,
+        host_instr_time=17,
+        qnos_instr_time=20,
+        host_peer_latency=5,
+        netstack_peer_latency=9,
+    )
+    cfg = ProcNodeConfig(
+        node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
+    )
+    global_env = GlobalEnvironment()
+    global_env.add_node(42, GlobalNodeInfo("the_node", 42))
+    global_env.add_node(43, GlobalNodeInfo("other_node", 43))
+
+    procnode = build_procnode(cfg, global_env)
+
+    assert procnode.node.name == "the_node"
+    procnode.host_comp.peer_in_port("other_node")  # should not raise error
+    procnode.netstack_comp.peer_in_port("other_node")  # should not raise error
+    procnode.qnos.processor._latencies.qnos_instr_time == 3
+    procnode.host.processor._latencies.host_instr_time == 17
+    procnode.host.processor._latencies.host_peer_latency == 5
+
+    expected_topology = LhiTopologyBuilder.from_config(top_cfg)
+    expected_qprocessor = build_qprocessor_from_topology("the_node", expected_topology)
+    actual_qprocessor = procnode.qdevice.qprocessor
+
+    assert expected_qprocessor.name == actual_qprocessor.name
+    assert expected_qprocessor.num_positions == actual_qprocessor.num_positions
+
+    assert expected_qprocessor.get_instruction_duration(
+        INSTR_X, [0]
+    ) == actual_qprocessor.get_instruction_duration(INSTR_X, [0])
+
+    assert expected_topology == procnode.qdevice.topology
+
+
+def test_build_network():
+    top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
+    cfg_alice = ProcNodeConfig(
+        node_name="alice", node_id=42, topology=top_cfg, latencies=LatenciesConfig()
+    )
+    cfg_bob = ProcNodeConfig(
+        node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
+    )
+    global_env = GlobalEnvironment()
+    global_env.add_node(42, GlobalNodeInfo("alice", 42))
+    global_env.add_node(43, GlobalNodeInfo("bob", 43))
+
+    # TODO: implement entdist config!!
+    # 'links' not used at the moment
+    cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[])
+    network = build_network(cfg, global_env)
+
+    assert len(network.nodes) == 2
+    assert "alice" in network.nodes
+    assert "bob" in network.nodes
+    assert network.entdist is not None
+
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+    entdist = network.entdist
+
+    # NOTE: alice.host_comp.peer_in_port("bob") does not have a 'connected_port'.
+    # Rather, messages are forwarded from alice.node.host_peer_in_port("bob").
+
+    alice_host_in = alice.node.host_peer_in_port("bob")
+    alice_host_out = alice.node.host_peer_out_port("bob")
+    bob_host_in = bob.node.host_peer_in_port("alice")
+    bob_host_out = bob.node.host_peer_out_port("alice")
+    assert alice_host_in.connected_port == bob_host_out
+    assert alice_host_out.connected_port == bob_host_in
+
+    alice_ent_in = alice.node.entdist_in_port
+    alice_ent_out = alice.node.entdist_out_port
+    bob_ent_in = bob.node.entdist_in_port
+    bob_ent_out = bob.node.entdist_out_port
+    assert alice_ent_in.connected_port == entdist.comp.node_out_port("alice")
+    assert alice_ent_out.connected_port == entdist.comp.node_in_port("alice")
+    assert bob_ent_in.connected_port == entdist.comp.node_out_port("bob")
+    assert bob_ent_out.connected_port == entdist.comp.node_in_port("bob")
+
+
 if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
     test_build_generic_perfect()
     test_build_nv_perfect()
+    test_build_procnode()
+    test_build_network()

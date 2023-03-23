@@ -81,6 +81,10 @@ class EntDist(Protocol):
             f"{self.__class__.__name__}(EntDist)"
         )
 
+    @property
+    def comp(self) -> EntDistComponent:
+        return self._comp
+
     def add_sampler(
         self,
         node1_id: int,

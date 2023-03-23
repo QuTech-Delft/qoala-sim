@@ -300,7 +300,7 @@ def relative_to_cwd(file: str) -> str:
 
 
 def load_server_program(remote_name: str) -> IqoalaProgram:
-    path = relative_to_cwd("bqc_server.iqoala")
+    path = relative_to_cwd("server.iqoala")
     with open(path) as file:
         server_text = file.read()
     program = IqoalaParser(server_text).parse()
@@ -313,7 +313,7 @@ def load_server_program(remote_name: str) -> IqoalaProgram:
 
 
 def load_client_program() -> IqoalaProgram:
-    path = relative_to_cwd("bqc_client.iqoala")
+    path = relative_to_cwd("client.iqoala")
     with open(path) as file:
         client_text = file.read()
     return IqoalaParser(client_text).parse()
