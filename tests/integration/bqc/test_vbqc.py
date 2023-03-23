@@ -275,7 +275,7 @@ def create_durations() -> TaskDurations:
 
 
 def load_server_program(remote_name: str) -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "vbqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
     program = IqoalaParser(server_text).parse()
@@ -288,7 +288,7 @@ def load_server_program(remote_name: str) -> IqoalaProgram:
 
 
 def load_client_program() -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "bqc_client.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "vbqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
     return IqoalaParser(client_text).parse()

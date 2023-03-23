@@ -174,7 +174,7 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     server_procnode = network.nodes["server"]
     client_procnode = network.nodes["client"]
 
-    server_program = load_program("test_bqc_server.iqoala")
+    server_program = load_program("bqc_server.iqoala")
     server_tasks = create_server_tasks(server_program, server_node_cfg)
     server_inputs = [
         ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
@@ -188,7 +188,7 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     server_procnode.initialize_processes()
     server_procnode.initialize_schedule(NoTimeSolver)
 
-    client_program = load_program("test_bqc_client.iqoala")
+    client_program = load_program("bqc_client.iqoala")
     client_tasks = create_client_tasks(client_program, client_node_cfg)
     client_inputs = [
         ProgramInput(
