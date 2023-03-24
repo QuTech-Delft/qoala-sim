@@ -532,7 +532,13 @@ def test_single_pair_qoala_md_request_different_virt_ids():
         def run(self) -> Generator[EventExpression, None, None]:
             shared_mem = process_alice.prog_memory.shared_memmgr
             result_addr = shared_mem.allocate_rr_out(2)
-            rrcall = RrCallTuple("req1", input_addr=MemAddr(0), result_addr=result_addr)
+            rrcall = RrCallTuple(
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
+            )
             self.outcomes = yield from self.processor.assign_request_routine(
                 process_alice, rrcall
             )
@@ -541,7 +547,13 @@ def test_single_pair_qoala_md_request_different_virt_ids():
         def run(self) -> Generator[EventExpression, None, None]:
             shared_mem = process_bob.prog_memory.shared_memmgr
             result_addr = shared_mem.allocate_rr_out(2)
-            rrcall = RrCallTuple("req1", input_addr=MemAddr(0), result_addr=result_addr)
+            rrcall = RrCallTuple(
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
+            )
             self.outcomes = yield from self.processor.assign_request_routine(
                 process_bob, rrcall
             )
@@ -594,7 +606,11 @@ def test_single_pair_qoala_md_request_same_virt_ids():
             shared_mem = process_alice.prog_memory.shared_memmgr
             self.result_addr = shared_mem.allocate_rr_out(2)
             rrcall = RrCallTuple(
-                "req1", input_addr=MemAddr(0), result_addr=self.result_addr
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=self.result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
             )
             self.outcomes = yield from self.processor.assign_request_routine(
                 process_alice, rrcall
@@ -605,7 +621,11 @@ def test_single_pair_qoala_md_request_same_virt_ids():
             shared_mem = process_bob.prog_memory.shared_memmgr
             self.result_addr = shared_mem.allocate_rr_out(2)
             rrcall = RrCallTuple(
-                "req1", input_addr=MemAddr(0), result_addr=self.result_addr
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=self.result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
             )
             self.outcomes = yield from self.processor.assign_request_routine(
                 process_bob, rrcall

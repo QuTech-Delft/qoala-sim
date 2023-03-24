@@ -240,8 +240,11 @@ class Scheduler(Protocol):
         # Let Host setup shared memory.
         rrcall = self.host.processor.prepare_rr_call(process, host_instr)
         assert rrcall.routine_name == task.request_routine_name
-        yield from self.netstack.processor.assign_request_routine(process, rrcall)
-        self.host.processor.post_rr_call(process, rrcall)
+        # TODO: refactor this. Bit of a hack to just pass the QnosProcessor around like this!
+        yield from self.netstack.processor.assign_request_routine(
+            process, rrcall, self.qnos.processor
+        )
+        self.host.processor.post_rr_call(process, host_instr, rrcall)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask

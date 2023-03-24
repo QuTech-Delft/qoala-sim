@@ -758,10 +758,29 @@ class NetstackProcessor:
                 entdist_req = self.create_entdist_request(process, request, virt_id)
                 yield from self.execute_entdist_request(entdist_req)
 
-                # if routine.callback is not None:
-                #     qnosprocessor.assign_local_routine(
-                #         process=process, routine_name=routine.callback, input_addr=running_routine.
-                #     )
+            if routine.callback is not None:
+                # TODO: write CR inputs to shared memory
+
+                # Allocate qubits for CR
+                cb_routine = process.get_local_routine(routine.callback)
+                for virt_id in cb_routine.metadata.qubit_use:
+                    if self._interface.memmgr.phys_id_for(process.pid, virt_id) is None:
+                        self._interface.memmgr.allocate(process.pid, virt_id)
+
+                # for WAIT_ALL, there should be at most 1 callback.
+                # So we can access index 0 of the cb input/output addresses.
+
+                yield from qnosprocessor.assign_local_routine(
+                    process=process,
+                    routine_name=routine.callback,
+                    input_addr=running_routine.cb_input_addrs[0],
+                    result_addr=running_routine.cb_output_addrs[0],
+                )
+
+                # Free CR qubits
+                for virt_id in cb_routine.metadata.qubit_use:
+                    if virt_id not in cb_routine.metadata.qubit_keep:
+                        self._interface.memmgr.free(process.pid, virt_id)
 
     def instantiate_routine(
         self,
@@ -775,7 +794,11 @@ class NetstackProcessor:
         instance.request.instantiate(args)
 
         running_routine = RunningRequestRoutine(
-            instance, rrcall.input_addr, rrcall.result_addr
+            instance,
+            rrcall.input_addr,
+            rrcall.result_addr,
+            rrcall.cb_input_addrs,
+            rrcall.cb_output_addrs,
         )
         process.qnos_mem.add_running_request_routine(running_routine)
 
@@ -790,7 +813,9 @@ class NetstackProcessor:
         self.instantiate_routine(process, rrcall, global_args)
 
         if routine.request.typ == EprType.CREATE_KEEP:
-            yield from self.handle_req_routine_ck(process, rrcall.routine_name)
+            yield from self.handle_req_routine_ck(
+                process, rrcall.routine_name, qnosprocessor
+            )
         elif routine.request.typ == EprType.MEASURE_DIRECTLY:
             yield from self.handle_req_routine_md(process, rrcall.routine_name)
         else:

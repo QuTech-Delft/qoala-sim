@@ -5,8 +5,9 @@ from typing import Generator, List
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
-from qoala.lang.request import EprType
+from qoala.lang.request import CallbackType, EprType
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.util.logging import LogManager
@@ -207,26 +208,87 @@ class HostProcessor:
 
         shared_mem = process.prog_memory.shared_memmgr
 
-        # Allocate input memory and write args to it.
+        # Allocate input memory for RR itself and write args to it.
         input_addr = shared_mem.allocate_rr_in(len(arg_values))
         shared_mem.write_rr_in(input_addr, list(arg_values.values()))
 
-        # Allocate result memory.
+        cb_input_addrs: List[MemAddr] = []
+        cb_output_addrs: List[MemAddr] = []
+
+        # Allocate memory for callbacks.
+        if routine.callback is not None:
+            if routine.callback_type == CallbackType.SEQUENTIAL:
+                cb_routine = process.get_local_routine(routine.callback)
+                for _ in range(routine.request.num_pairs):
+                    # Allocate input memory.
+                    cb_args = cb_routine.subroutine.arguments
+                    # TODO: can it just be LR_in instead of CR_in?
+                    cb_input_addrs.append(shared_mem.allocate_cr_in(len(cb_args)))
+
+                    # Allocate result memory.
+                    cb_results = cb_routine.return_vars
+                    cb_output_addrs.append(shared_mem.allocate_lr_out(len(cb_results)))
+            elif routine.callback_type == CallbackType.WAIT_ALL:
+                cb_routine = process.get_local_routine(routine.callback)
+                # Allocate input memory.
+                cb_args = cb_routine.subroutine.arguments
+                # TODO: can it just be LR_in instead of CR_in?
+                cb_input_addrs.append(shared_mem.allocate_cr_in(len(cb_args)))
+
+                # Allocate result memory.
+                cb_results = cb_routine.return_vars
+                cb_output_addrs.append(shared_mem.allocate_lr_out(len(cb_results)))
+
+        # Allocate result memory for RR itself.
         result_addr = shared_mem.allocate_rr_out(len(routine.return_vars))
 
-        return RrCallTuple(routine_name, input_addr, result_addr)
+        return RrCallTuple(
+            routine_name, input_addr, result_addr, cb_input_addrs, cb_output_addrs
+        )
 
-    def post_rr_call(self, process: IqoalaProcess, rrcall: RrCallTuple) -> None:
+    def post_rr_call(
+        self, process: IqoalaProcess, instr: hostlang.RunRequestOp, rrcall: RrCallTuple
+    ) -> None:
         shared_mem = process.prog_memory.shared_memmgr
         routine = process.get_request_routine(rrcall.routine_name)
 
-        # Read the results from shared memory.
-        if routine.request.typ == EprType.MEASURE_DIRECTLY:
-            # result array should contain the measurement outcomes
-            len_results = len(routine.return_vars)
-            result = shared_mem.read_rr_out(rrcall.result_addr, len_results)
+        # Read the RR results from shared memory.
+        rr_result = shared_mem.read_rr_out(rrcall.result_addr, len(routine.return_vars))
 
-            # Copy results to local host variables.
-            assert len(result) == len_results
-            for value, var in zip(result, routine.return_vars):
-                process.host_mem.write(var, value)
+        # Read the callback results from shared memory.
+        cb_results: List[int] = []
+        if routine.callback is not None:
+            if routine.callback_type == CallbackType.SEQUENTIAL:
+                cb_routine = process.get_local_routine(routine.callback)
+                for i in range(routine.request.num_pairs):
+                    # Read result memory.
+                    cb_ret_vars = cb_routine.return_vars
+                    cb_output_addr = rrcall.cb_output_addrs[i]
+                    result = shared_mem.read_lr_out(cb_output_addr, len(cb_ret_vars))
+                    cb_results.extend(result)
+            elif routine.callback_type == CallbackType.WAIT_ALL:
+                cb_routine = process.get_local_routine(routine.callback)
+                # Read result memory.
+                cb_ret_vars = cb_routine.return_vars
+                cb_output_addr = rrcall.cb_output_addrs[0]
+                result = shared_mem.read_lr_out(cb_output_addr, len(cb_ret_vars))
+                cb_results.extend(result)
+
+        all_results = rr_result + cb_results
+        # At this point, `all_results` contains all the results of both the RR itself
+        # as well as from all the callbacks, in order.
+
+        # Collect the host variables to which to copy these results.
+        result_vars: List[str]
+        if isinstance(instr.results, list):
+            result_vars = instr.results
+        elif isinstance(instr.results, hostlang.IqoalaVector):
+            result_vec: hostlang.IqoalaVector = instr.results
+            result_vars = result_vec.values
+        else:
+            raise RuntimeError
+
+        # Copy all results to local host variables.
+        assert len(all_results) == len(result_vars)
+        for value, var in zip(all_results, result_vars):
+            process.host_mem.write(var, value)
