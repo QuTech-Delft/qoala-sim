@@ -5,6 +5,7 @@ from typing import Generator
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
+from qoala.lang.request import EprType
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import IqoalaProcess
@@ -197,7 +198,21 @@ class HostProcessor:
         shared_mem.write_rr_in(input_addr, list(arg_values.values()))
 
         # Allocate result memory.
-        # TODO: implement RR return values.
-        result_addr = shared_mem.allocate_rr_out(0)
+        result_addr = shared_mem.allocate_rr_out(len(routine.return_vars))
 
         return RrCallTuple(routine_name, input_addr, result_addr)
+
+    def post_rr_call(self, process: IqoalaProcess, rrcall: RrCallTuple) -> None:
+        shared_mem = process.prog_memory.shared_memmgr
+        routine = process.get_request_routine(rrcall.routine_name)
+
+        # Read the results from shared memory.
+        if routine.request.typ == EprType.MEASURE_DIRECTLY:
+            # result array should contain the measurement outcomes
+            len_results = len(routine.return_vars)
+            result = shared_mem.read_rr_out(rrcall.result_addr, len_results)
+
+            # Copy results to local host variables.
+            assert len(result) == len_results
+            for value, var in zip(result, routine.return_vars):
+                process.host_mem.write(var, value)

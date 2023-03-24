@@ -62,10 +62,17 @@ class NetstackProcessor:
         # memory of current program, only not-None when processor is active
         self._current_prog_mem: Optional[ProgramMemory] = None
 
+        self._current_routine: Optional[RunningRequestRoutine] = None
+
     def _prog_mem(self) -> ProgramMemory:
         # May only be called when processor is active
         assert self._current_prog_mem is not None
         return self._current_prog_mem
+
+    def _routine(self) -> RunningRequestRoutine:
+        # May only be called when processor is active
+        assert self._current_routine is not None
+        return self._current_routine
 
     @property
     def qdevice(self) -> QDevice:
@@ -705,7 +712,7 @@ class NetstackProcessor:
 
     def handle_req_routine_md(
         self, process: IqoalaProcess, routine_name: str
-    ) -> Generator[EventExpression, None, RequestRoutineResult]:
+    ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
@@ -728,11 +735,13 @@ class NetstackProcessor:
                 self._interface.memmgr.free(process.pid, virt_id)
                 outcomes.append(m)
 
-        return RequestRoutineResult(meas_outcomes=outcomes)
+        shared_mem = process.prog_memory.shared_memmgr
+        results_addr = running_routine.result_addr
+        shared_mem.write_rr_out(results_addr, outcomes)
 
     def handle_req_routine_ck(
         self, process: IqoalaProcess, routine_name: str
-    ) -> Generator[EventExpression, None, RequestRoutineResult]:
+    ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
@@ -745,8 +754,6 @@ class NetstackProcessor:
                 virt_id = self.allocate_for_pair(process, request, i)
                 entdist_req = self.create_entdist_request(process, request, virt_id)
                 yield from self.execute_entdist_request(entdist_req)
-
-        return RequestRoutineResult.empty()
 
     def instantiate_routine(
         self,
@@ -767,18 +774,17 @@ class NetstackProcessor:
         self,
         process: IqoalaProcess,
         routine_name: str,
-        # Not used at the moment, therefore default values
+        # TODO: remove default values?
         input_addr: MemAddr = MemAddr(0),
         result_addr: MemAddr = MemAddr(0),
-    ) -> Generator[EventExpression, None, RequestRoutineResult]:
-        # TODO: actually use input_addr and result_addr
+    ) -> Generator[EventExpression, None, None]:
         routine = process.get_request_routine(routine_name)
         global_args = process.prog_instance.inputs.values
         self.instantiate_routine(process, routine, global_args, input_addr, result_addr)
 
         if routine.request.typ == EprType.CREATE_KEEP:
-            return (yield from self.handle_req_routine_ck(process, routine_name))
+            yield from self.handle_req_routine_ck(process, routine_name)
         elif routine.request.typ == EprType.MEASURE_DIRECTLY:
-            return (yield from self.handle_req_routine_md(process, routine_name))
+            yield from self.handle_req_routine_md(process, routine_name)
         else:
             raise NotImplementedError

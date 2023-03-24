@@ -390,6 +390,7 @@ def test_parse_request():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 5
@@ -408,6 +409,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -430,6 +432,7 @@ def test_parse_request_2():
 REQUEST req1
   callback_type: sequential
   callback: subrt1
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -448,6 +451,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=IqoalaRequest(
@@ -470,6 +474,7 @@ def test_parse_request_with_template():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 3
@@ -488,6 +493,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -510,6 +516,7 @@ def test_parse_multiple_request():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 5
@@ -523,6 +530,7 @@ REQUEST req1
 REQUEST req2
   callback_type: sequential
   callback: subrt1
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -543,6 +551,7 @@ REQUEST req2
 
     assert routine1 == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -560,6 +569,7 @@ REQUEST req2
     )
     assert routine2 == RequestRoutine(
         name="req2",
+        return_vars=[],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=IqoalaRequest(
@@ -582,6 +592,7 @@ def test_parse_invalid_request():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -657,6 +668,7 @@ SUBROUTINE subrt1
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -885,6 +897,7 @@ SUBROUTINE subrt1
 REQUEST req1
   callback_type: wait_all
   callback:
+  return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -972,6 +985,7 @@ META_END
 REQUEST req1
     callback_type: wait_all
     callback:
+  return_vars: 
     remote_id: {client_id}
     epr_socket_id: 0
     num_pairs: 1

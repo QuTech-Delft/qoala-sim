@@ -436,7 +436,7 @@ def test_run_request():
         typ=EprType.CREATE_KEEP,
         role=EprRole.CREATE,
     )
-    routine = RequestRoutine("req", request, CallbackType.WAIT_ALL, None)
+    routine = RequestRoutine("req", request, [], CallbackType.WAIT_ALL, None)
 
     program = create_program(
         instrs=[RunRequestOp(None, IqoalaVector([]), "req")],

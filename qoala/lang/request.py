@@ -148,5 +148,10 @@ class IqoalaRequest:
 class RequestRoutine:
     name: str
     request: IqoalaRequest
+
+    # host var names
+    # TODO: move this to Host side (RR does not need to know this!)
+    return_vars: List[str]
+
     callback_type: CallbackType
     callback: Optional[str]  # Local Routine name

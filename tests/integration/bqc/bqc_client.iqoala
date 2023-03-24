@@ -69,6 +69,7 @@ SUBROUTINE post_epr_1
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -82,6 +83,7 @@ REQUEST req1
 REQUEST req0
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1

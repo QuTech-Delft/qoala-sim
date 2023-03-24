@@ -454,6 +454,7 @@ def test_initialize():
 
     request_routine = RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -825,6 +826,7 @@ def test_epr():
 
     alice_request_routine = RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -843,6 +845,7 @@ def test_epr():
 
     bob_request_routine = RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -955,6 +958,7 @@ META_END
 REQUEST req1
   callback_type: wait_all
   callback:
+  return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -1017,6 +1021,7 @@ META_END
 REQUEST req1
   callback_type: wait_all
   callback:
+  return_vars: 
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1

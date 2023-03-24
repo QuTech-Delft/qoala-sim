@@ -81,6 +81,7 @@ def test_instantiate():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: {num_pairs}

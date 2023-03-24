@@ -236,11 +236,13 @@ class Scheduler(Protocol):
     ) -> Generator[EventExpression, None, None]:
         host_instr = process.program.instructions[task.instr_index]
         assert isinstance(host_instr, RunRequestOp)
+
+        # Let Host setup shared memory.
         rrcall = self.host.processor.prepare_rr_call(process, host_instr)
         yield from self.netstack.processor.assign_request_routine(
             process, task.request_routine_name, rrcall.input_addr, rrcall.result_addr
         )
-        # self.host.processor.post_rr_call(process, rrcall)
+        self.host.processor.post_rr_call(process, rrcall)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask

@@ -362,6 +362,7 @@ def simple_req_routine(
     return RequestRoutine(
         name="req1",
         request=create_simple_request(remote_id, num_pairs, virt_ids, typ, role),
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
     )

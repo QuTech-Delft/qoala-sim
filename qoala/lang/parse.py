@@ -454,6 +454,8 @@ class RequestRoutineParser:
 
         callback = self._parse_optional_str_value("callback", self._read_line())
 
+        return_vars = self._parse_request_line("return_vars", self._read_line())
+
         remote_id = self._parse_single_int_value(
             "remote_id", self._read_line(), allow_template=True
         )
@@ -489,7 +491,7 @@ class RequestRoutineParser:
             role=role,
             result_array_addr=result_array_addr,
         )
-        return RequestRoutine(name, request, callback_type, callback)
+        return RequestRoutine(name, request, return_vars, callback_type, callback)
 
     def parse(self) -> Dict[str, RequestRoutine]:
         requests: Dict[str, RequestRoutine] = {}
