@@ -28,13 +28,14 @@ from qoala.lang.request import (
     RequestRoutine,
 )
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
-from qoala.runtime.message import Message
+from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
+from qoala.sim.qnos.qnosprocessor import QnosProcessor
 from qoala.sim.requests import (
     NetstackBreakpointCreateRequest,
     NetstackBreakpointReceiveRequest,
@@ -739,7 +740,10 @@ class NetstackProcessor:
         shared_mem.write_rr_out(results_addr, outcomes)
 
     def handle_req_routine_ck(
-        self, process: IqoalaProcess, routine_name: str
+        self,
+        process: IqoalaProcess,
+        routine_name: str,
+        qnosprocessor: Optional[QnosProcessor] = None,
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -754,36 +758,40 @@ class NetstackProcessor:
                 entdist_req = self.create_entdist_request(process, request, virt_id)
                 yield from self.execute_entdist_request(entdist_req)
 
+                # if routine.callback is not None:
+                #     qnosprocessor.assign_local_routine(
+                #         process=process, routine_name=routine.callback, input_addr=running_routine.
+                #     )
+
     def instantiate_routine(
         self,
         process: IqoalaProcess,
-        routine: RequestRoutine,
+        rrcall: RrCallTuple,
         args: Dict[str, Any],
-        input_addr: MemAddr,
-        result_addr: MemAddr,
     ) -> None:
         """Instantiates and activates routine."""
+        routine = process.get_request_routine(rrcall.routine_name)
         instance = deepcopy(routine)
         instance.request.instantiate(args)
 
-        running_routine = RunningRequestRoutine(instance, input_addr, result_addr)
+        running_routine = RunningRequestRoutine(
+            instance, rrcall.input_addr, rrcall.result_addr
+        )
         process.qnos_mem.add_running_request_routine(running_routine)
 
     def assign_request_routine(
         self,
         process: IqoalaProcess,
-        routine_name: str,
-        # TODO: remove default values?
-        input_addr: MemAddr = MemAddr(0),
-        result_addr: MemAddr = MemAddr(0),
+        rrcall: RrCallTuple,
+        qnosprocessor: Optional[QnosProcessor] = None,
     ) -> Generator[EventExpression, None, None]:
-        routine = process.get_request_routine(routine_name)
+        routine = process.get_request_routine(rrcall.routine_name)
         global_args = process.prog_instance.inputs.values
-        self.instantiate_routine(process, routine, global_args, input_addr, result_addr)
+        self.instantiate_routine(process, rrcall, global_args)
 
         if routine.request.typ == EprType.CREATE_KEEP:
-            yield from self.handle_req_routine_ck(process, routine_name)
+            yield from self.handle_req_routine_ck(process, rrcall.routine_name)
         elif routine.request.typ == EprType.MEASURE_DIRECTLY:
-            yield from self.handle_req_routine_md(process, routine_name)
+            yield from self.handle_req_routine_md(process, rrcall.routine_name)
         else:
             raise NotImplementedError

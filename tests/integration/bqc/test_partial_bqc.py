@@ -153,9 +153,7 @@ class BqcProcNode(ProcNode):
         host_instr = process.program.instructions[host_instr_index]
         rrcall = self.host.processor.prepare_rr_call(process, host_instr)
         assert rrcall.routine_name == req_name
-        yield from self.netstack.processor.assign_request_routine(
-            process, rrcall.routine_name, rrcall.input_addr, rrcall.result_addr
-        )
+        yield from self.netstack.processor.assign_request_routine(process, rrcall)
 
 
 class ServerProcNode(BqcProcNode):

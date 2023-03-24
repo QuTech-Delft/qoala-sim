@@ -55,7 +55,7 @@ from qoala.runtime.lhi_to_ehi import (
     NativeToFlavourInterface,
 )
 from qoala.runtime.memory import ProgramMemory, SharedMemory
-from qoala.runtime.message import Message
+from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
@@ -499,8 +499,8 @@ def test_initialize():
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
-    # netstack_processor.instantiate_routine(process, request_routine, {}, 0, 0)
-    netsquid_run(netstack_processor.assign_request_routine(process, "req1"))
+    rrcall = RrCallTuple.no_alloc("req1")
+    netsquid_run(netstack_processor.assign_request_routine(process, rrcall))
 
     assert process.host_mem.read("x") == 3
     assert process.qnos_mem.get_reg_value("R5") == 42
@@ -799,7 +799,8 @@ def test_epr():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            yield from self.netstack.processor.assign_request_routine(process, "req1")
+            rrcall = RrCallTuple.no_alloc("req1")
+            yield from self.netstack.processor.assign_request_routine(process, rrcall)
 
     alice_procnode = create_procnode(
         "alice",
@@ -987,7 +988,8 @@ REQUEST req1
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
-            yield from self.netstack.processor.assign_request_routine(process, "req1")
+            rrcall = RrCallTuple.no_alloc("req1")
+            yield from self.netstack.processor.assign_request_routine(process, rrcall)
 
     server_procnode = create_procnode(
         "server",
