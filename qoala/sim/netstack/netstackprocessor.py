@@ -29,7 +29,6 @@ from qoala.lang.request import (
 )
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
 from qoala.runtime.message import Message
-from qoala.runtime.program import RequestRoutineResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
