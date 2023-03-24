@@ -20,16 +20,9 @@ from qlink_interface import (
 )
 
 from pydynaa import EventExpression
-from qoala.lang.request import (
-    CallbackType,
-    EprRole,
-    EprType,
-    IqoalaRequest,
-    RequestRoutine,
-)
+from qoala.lang.request import CallbackType, EprRole, EprType, IqoalaRequest
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
 from qoala.runtime.message import Message, RrCallTuple
-from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
@@ -751,7 +744,35 @@ class NetstackProcessor:
         num_pairs = request.num_pairs
 
         if routine.callback_type == CallbackType.SEQUENTIAL:
-            raise NotImplementedError
+            for i in range(num_pairs):
+                virt_id = self.allocate_for_pair(process, request, i)
+                entdist_req = self.create_entdist_request(process, request, virt_id)
+                yield from self.execute_entdist_request(entdist_req)
+
+                if routine.callback is not None:
+                    # TODO: write CR inputs to shared memory
+
+                    # Allocate qubits for CR
+                    cb_routine = process.get_local_routine(routine.callback)
+                    for virt_id in cb_routine.metadata.qubit_use:
+                        if (
+                            self._interface.memmgr.phys_id_for(process.pid, virt_id)
+                            is None
+                        ):
+                            self._interface.memmgr.allocate(process.pid, virt_id)
+
+                    assert qnosprocessor is not None
+                    yield from qnosprocessor.assign_local_routine(
+                        process=process,
+                        routine_name=routine.callback,
+                        input_addr=running_routine.cb_input_addrs[i],
+                        result_addr=running_routine.cb_output_addrs[i],
+                    )
+
+                    # Free CR qubits
+                    for virt_id in cb_routine.metadata.qubit_use:
+                        if virt_id not in cb_routine.metadata.qubit_keep:
+                            self._interface.memmgr.free(process.pid, virt_id)
         else:
             for i in range(num_pairs):
                 virt_id = self.allocate_for_pair(process, request, i)
@@ -770,6 +791,7 @@ class NetstackProcessor:
                 # for WAIT_ALL, there should be at most 1 callback.
                 # So we can access index 0 of the cb input/output addresses.
 
+                assert qnosprocessor is not None
                 yield from qnosprocessor.assign_local_routine(
                     process=process,
                     routine_name=routine.callback,

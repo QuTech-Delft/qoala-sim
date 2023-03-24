@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 import netsquid as ns
 
@@ -110,7 +110,9 @@ class QkdResult:
     bob_result: BatchResult
 
 
-def run_qkd(num_iterations: int, alice_file: str, bob_file: str):
+def run_qkd(
+    num_iterations: int, alice_file: str, bob_file: str, num_pairs: Optional[int] = None
+):
     ns.sim_reset()
 
     num_qubits = 3
@@ -128,7 +130,13 @@ def run_qkd(num_iterations: int, alice_file: str, bob_file: str):
 
     alice_program = load_program(alice_file)
     alice_tasks = create_alice_tasks(alice_program)
-    alice_inputs = [ProgramInput({"bob_id": bob_id}) for _ in range(num_iterations)]
+    if num_pairs is not None:
+        alice_inputs = [
+            ProgramInput({"bob_id": bob_id, "num_pairs": num_pairs})
+            for _ in range(num_iterations)
+        ]
+    else:
+        alice_inputs = [ProgramInput({"bob_id": bob_id}) for _ in range(num_iterations)]
 
     alice_unit_module = UnitModule.from_full_ehi(alice_procnode.memmgr.get_ehi())
     alice_batch = create_batch(
@@ -140,7 +148,15 @@ def run_qkd(num_iterations: int, alice_file: str, bob_file: str):
 
     bob_program = load_program(bob_file)
     bob_tasks = create_bob_tasks(bob_program)
-    bob_inputs = [ProgramInput({"alice_id": alice_id}) for _ in range(num_iterations)]
+    if num_pairs is not None:
+        bob_inputs = [
+            ProgramInput({"alice_id": alice_id, "num_pairs": num_pairs})
+            for _ in range(num_iterations)
+        ]
+    else:
+        bob_inputs = [
+            ProgramInput({"alice_id": alice_id}) for _ in range(num_iterations)
+        ]
 
     bob_unit_module = UnitModule.from_full_ehi(bob_procnode.memmgr.get_ehi())
     bob_batch = create_batch(
@@ -268,9 +284,55 @@ def test_qkd_ck_callback_1pair():
         assert alice["m0"] == bob["m0"]
 
 
+def test_qkd_ck_callback_2pairs():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_ck_callback_2pairs_alice.iqoala"
+    bob_file = "qkd_ck_callback_2pairs_bob.iqoala"
+
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+        assert alice["m1"] == bob["m1"]
+
+
+def test_qkd_ck_callback_npairs():
+    ns.sim_reset()
+
+    num_iterations = 1
+    alice_file = "qkd_ck_callback_npairs_alice.iqoala"
+    bob_file = "qkd_ck_callback_npairs_bob.iqoala"
+
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=1)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+        assert alice["m1"] == bob["m1"]
+
+
 if __name__ == "__main__":
     test_qkd_md_1pair()
     test_qkd_md_2pairs()
     test_qkd_ck_1pair()
     test_qkd_ck_2pairs()
     test_qkd_ck_callback_1pair()
+    test_qkd_ck_callback_2pairs()
+    test_qkd_ck_callback_npairs()

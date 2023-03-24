@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Generator, List
 
+from netqasm.lang.operand import Template
+
 from pydynaa import EventExpression
 from qoala.lang import hostlang
-from qoala.lang.request import CallbackType, EprType
+from qoala.lang.request import CallbackType
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
@@ -215,11 +217,25 @@ class HostProcessor:
         cb_input_addrs: List[MemAddr] = []
         cb_output_addrs: List[MemAddr] = []
 
+        # TODO: refactor!!
+        # the `num_pairs` entry of an RR may be a template.
+        # Its value should be provided in the ProgramInput of this ProgamInstance.
+        # This value is filled in when `instantiating` the RR, but currently this only
+        # happens by the NetstackProcessor when it's assigned to execute the RR.
+        # The filled-in value is then part of a `RunningRequestRoutine`. However, it is
+        # not accessible by this code here.
+        # For now we use the following 'hack' where we peek in the ProgramInputs:
+        if isinstance(routine.request.num_pairs, Template):
+            template_name = routine.request.num_pairs.name
+            num_pairs = process.prog_instance.inputs.values[template_name]
+        else:
+            num_pairs = routine.request.num_pairs
+
         # Allocate memory for callbacks.
         if routine.callback is not None:
             if routine.callback_type == CallbackType.SEQUENTIAL:
                 cb_routine = process.get_local_routine(routine.callback)
-                for _ in range(routine.request.num_pairs):
+                for _ in range(num_pairs):
                     # Allocate input memory.
                     cb_args = cb_routine.subroutine.arguments
                     # TODO: can it just be LR_in instead of CR_in?
@@ -255,12 +271,19 @@ class HostProcessor:
         # Read the RR results from shared memory.
         rr_result = shared_mem.read_rr_out(rrcall.result_addr, len(routine.return_vars))
 
+        # Bit of a hack; see prepare_rr_call comments.
+        if isinstance(routine.request.num_pairs, Template):
+            template_name = routine.request.num_pairs.name
+            num_pairs = process.prog_instance.inputs.values[template_name]
+        else:
+            num_pairs = routine.request.num_pairs
+
         # Read the callback results from shared memory.
         cb_results: List[int] = []
         if routine.callback is not None:
             if routine.callback_type == CallbackType.SEQUENTIAL:
                 cb_routine = process.get_local_routine(routine.callback)
-                for i in range(routine.request.num_pairs):
+                for i in range(num_pairs):
                     # Read result memory.
                     cb_ret_vars = cb_routine.return_vars
                     cb_output_addr = rrcall.cb_output_addrs[i]
