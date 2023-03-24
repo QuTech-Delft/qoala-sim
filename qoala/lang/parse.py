@@ -286,25 +286,15 @@ class LocalRoutineParser:
         values = split[1].split(",")
         return [v.strip() for v in values]
 
-    def _parse_nqasm_return_mapping(
-        self, values: List[str]
-    ) -> Dict[str, hl.IqoalaSharedMemLoc]:
-        result_dict = {}
-        for v in values:
-            key_value = [x.strip() for x in v.split("->")]
-            assert len(key_value) == 2
-            result_dict[key_value[1]] = hl.IqoalaSharedMemLoc(key_value[0])
-        return result_dict
-
     def _parse_subroutine(self) -> LocalRoutine:
-        return_map: Dict[str, hl.IqoalaSharedMemLoc] = {}
         name_line = self._read_line()
         assert name_line.startswith("SUBROUTINE ")
         name = name_line[len("SUBROUTINE") + 1 :]
         params_line = self._parse_subrt_meta_line("params", self._read_line())
         # TODO: use params line?
-        return_map_line = self._parse_subrt_meta_line("returns", self._read_line())
-        return_map = self._parse_nqasm_return_mapping(return_map_line)
+
+        return_vars = self._parse_subrt_meta_line("returns", self._read_line())
+        assert all(" " not in v for v in return_vars)
 
         uses_line = self._parse_subrt_meta_line("uses", self._read_line())
         uses = [int(u) for u in uses_line]
@@ -333,7 +323,7 @@ class LocalRoutineParser:
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
             raise IqoalaParseError
-        return LocalRoutine(name, subrt, return_map, metadata, request_name)
+        return LocalRoutine(name, subrt, return_vars, metadata, request_name)
 
     def parse(self) -> Dict[str, LocalRoutine]:
         subroutines: Dict[str, LocalRoutine] = {}

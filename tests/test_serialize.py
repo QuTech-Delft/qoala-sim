@@ -8,7 +8,6 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlock,
     BasicBlockType,
-    IqoalaSharedMemLoc,
     IqoalaVector,
     ReceiveCMsgOp,
     ReturnResultOp,
@@ -103,7 +102,7 @@ def test_serialize_subroutines_1():
     expected = """
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps: 
   NETQASM_START
@@ -127,7 +126,7 @@ SUBROUTINE subrt1
             ],
             arguments=["my_value"],
         ),
-        return_map={"m": IqoalaSharedMemLoc("M0")},
+        return_vars=["m"],
         metadata=RoutineMetadata.free_all([0]),
     )
     program = IqoalaProgram(
@@ -142,7 +141,7 @@ def test_serialize_subroutines_2():
     expected = """
 SUBROUTINE subrt1
     params: param1
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps: 
   NETQASM_START
@@ -172,7 +171,7 @@ SUBROUTINE subrt2
             ],
             arguments=["param1"],
         ),
-        return_map={"m": IqoalaSharedMemLoc("M0")},
+        return_vars=["m"],
         metadata=RoutineMetadata.free_all([0]),
     )
     subrt2 = LocalRoutine(
@@ -183,7 +182,7 @@ SUBROUTINE subrt2
             ],
             arguments=["theta"],
         ),
-        return_map={},
+        return_vars=[],
         metadata=RoutineMetadata.use_none(),
     )
     program = IqoalaProgram(
@@ -217,7 +216,7 @@ META_END
 
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps: 
   NETQASM_START
@@ -257,7 +256,7 @@ SUBROUTINE subrt1
             ],
             arguments=["my_value"],
         ),
-        return_map={"m": IqoalaSharedMemLoc("M0")},
+        return_vars=["m"],
         metadata=RoutineMetadata.free_all([0]),
     )
 

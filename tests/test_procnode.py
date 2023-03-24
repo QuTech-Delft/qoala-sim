@@ -376,7 +376,9 @@ def create_procnode(
 
 def simple_subroutine(name: str, subrt_text: str) -> LocalRoutine:
     subrt = parse_text_subroutine(subrt_text)
-    return LocalRoutine(name, subrt, return_map={}, metadata=RoutineMetadata.use_none())
+    return LocalRoutine(
+        name, subrt, return_vars=[], metadata=RoutineMetadata.use_none()
+    )
 
 
 def parse_iqoala_subroutines(subrt_text: str) -> LocalRoutine:
@@ -525,12 +527,12 @@ def test_2():
     ehi = LhiConverter.to_ehi(topology, ntf)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    instrs = [RunSubroutineOp(None, IqoalaVector([]), "subrt1")]
+    instrs = [RunSubroutineOp(IqoalaVector(["result"]), IqoalaVector([]), "subrt1")]
     subroutines = parse_iqoala_subroutines(
         """
 SUBROUTINE subrt1
     params: 
-    returns: R5 -> result
+    returns: result
     uses: 
     keeps: 
     request:

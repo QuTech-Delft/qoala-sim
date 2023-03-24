@@ -229,7 +229,7 @@ class Scheduler(Protocol):
         # Free qubits that do not need to be kept.
         self.free_qubits_after_routine(process, lrcall.routine_name)
         # Let Host get results from shared memory.
-        self.host.processor.post_lr_call(process, lrcall)
+        self.host.processor.post_lr_call(process, host_instr, lrcall)
 
     def execute_netstack_task(
         self, process: IqoalaProcess, task: NetstackTask

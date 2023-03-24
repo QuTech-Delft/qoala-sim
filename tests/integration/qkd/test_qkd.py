@@ -7,7 +7,7 @@ from typing import List
 import netsquid as ns
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.hostlang import RunRequestOp
+from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
@@ -69,11 +69,15 @@ def create_alice_tasks(alice_program: IqoalaProgram) -> ProgramTaskList:
 
     cl_dur = 1e3
     qc_dur = 1e6
+    ql_dur = 1e6
 
     for i, instr in enumerate(alice_program.instructions):
         if isinstance(instr, RunRequestOp):
             req_name = instr.req_routine
             tasks.append(TaskBuilder.QC(qc_dur, i, req_name))
+        elif isinstance(instr, RunSubroutineOp):
+            subrt_name = instr.subroutine
+            tasks.append(TaskBuilder.QL(ql_dur, i, subrt_name))
         else:
             tasks.append(TaskBuilder.CL(cl_dur, i))
 
@@ -85,10 +89,15 @@ def create_bob_tasks(bob_program: IqoalaProgram) -> ProgramTaskList:
 
     cl_dur = 1e3
     qc_dur = 1e6
+    ql_dur = 1e6
+
     for i, instr in enumerate(bob_program.instructions):
         if isinstance(instr, RunRequestOp):
             req_name = instr.req_routine
             tasks.append(TaskBuilder.QC(qc_dur, i, req_name))
+        elif isinstance(instr, RunSubroutineOp):
+            subrt_name = instr.subroutine
+            tasks.append(TaskBuilder.QL(ql_dur, i, subrt_name))
         else:
             tasks.append(TaskBuilder.CL(cl_dur, i))
 
@@ -195,6 +204,51 @@ def test_qkd_md_2pairs():
         assert alice["m1"] == bob["m1"]
 
 
+def test_qkd_ck_1pair():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_ck_1pair_alice.iqoala"
+    bob_file = "qkd_ck_1pair_bob.iqoala"
+
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+
+
+def test_qkd_ck_2pairs():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_ck_2pairs_alice.iqoala"
+    bob_file = "qkd_ck_2pairs_bob.iqoala"
+
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+        assert alice["m1"] == bob["m1"]
+
+
 if __name__ == "__main__":
     test_qkd_md_1pair()
     test_qkd_md_2pairs()
+    test_qkd_ck_1pair()
+    test_qkd_ck_2pairs()

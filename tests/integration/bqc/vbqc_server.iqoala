@@ -46,7 +46,7 @@ SUBROUTINE local_cphase
 
 SUBROUTINE meas_qubit_1
     params: delta1
-    returns: M0 -> m1
+    returns: m1
     uses: 1
     keeps:
     request: 
@@ -61,7 +61,7 @@ SUBROUTINE meas_qubit_1
 
 SUBROUTINE meas_qubit_0
     params: delta2
-    returns: M0 -> m2
+    returns: m2
     uses: 0
     keeps:
     request: 

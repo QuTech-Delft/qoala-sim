@@ -16,7 +16,6 @@ from qoala.lang.hostlang import (
     BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
-    IqoalaSharedMemLoc,
     IqoalaVector,
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
@@ -333,7 +332,7 @@ def test_run_subroutine():
 
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
-    routine = LocalRoutine("subrt1", subrt, return_map={}, metadata=metadata)
+    routine = LocalRoutine("subrt1", subrt, return_vars=[], metadata=metadata)
 
     program = create_program(
         instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
@@ -366,14 +365,14 @@ def test_run_subroutine_2():
     routine = LocalRoutine(
         "subrt1",
         subrt,
-        return_map={"m": IqoalaSharedMemLoc("R0")},
+        return_vars=["m"],
         metadata=RoutineMetadata.use_none(),
     )
 
     program = create_program(
         instrs=[
             AssignCValueOp("my_value", 16),
-            RunSubroutineOp(None, IqoalaVector(["my_value"]), "subrt1"),
+            RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
         ],
         subroutines={"subrt1": routine},
     )

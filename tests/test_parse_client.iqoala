@@ -50,7 +50,7 @@ SUBROUTINE create_epr_0
 
 SUBROUTINE post_epr_0
     params: theta2
-    returns: M0 -> p2
+    returns: p2
     uses: 0
     keeps:
     request:
@@ -76,7 +76,7 @@ SUBROUTINE create_epr_1
 
 SUBROUTINE post_epr_1
     params: theta1
-    returns: M1 -> p1
+    returns: p1
     uses: 0
     keeps:
     request:

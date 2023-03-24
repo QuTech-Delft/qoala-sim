@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Generator
+from typing import Generator, List
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
@@ -112,7 +112,7 @@ class HostProcessor:
             # Wait until Qnos says it has finished.
             yield from self._interface.receive_qnos_msg()
 
-            self.post_lr_call(process, lrcall)
+            self.post_lr_call(process, instr, lrcall)
         elif isinstance(instr, hostlang.RunRequestOp):
             rrcall = self.prepare_rr_call(process, instr)
 
@@ -159,20 +159,34 @@ class HostProcessor:
         shared_mem.write_lr_in(input_addr, list(arg_values.values()))
 
         # Allocate result memory.
-        result_addr = shared_mem.allocate_lr_out(len(routine.return_map))
+        result_addr = shared_mem.allocate_lr_out(len(routine.return_vars))
 
         return LrCallTuple(subrt_name, input_addr, result_addr)
 
-    def post_lr_call(self, process: IqoalaProcess, lrcall: LrCallTuple) -> None:
+    def post_lr_call(
+        self,
+        process: IqoalaProcess,
+        instr: hostlang.RunSubroutineOp,
+        lrcall: LrCallTuple,
+    ) -> None:
         shared_mem = process.prog_memory.shared_memmgr
-        routine = process.get_local_routine(lrcall.routine_name)
+
+        # Collect the host variables that should obtain the LR results.
+        result_vars: List[str]
+        if isinstance(instr.results, list):
+            result_vars = instr.results
+        elif isinstance(instr.results, hostlang.IqoalaVector):
+            result_vec: hostlang.IqoalaVector = instr.results
+            result_vars = result_vec.values
+        else:
+            raise RuntimeError
 
         # Read the results from shared memory.
-        result = shared_mem.read_lr_out(lrcall.result_addr, len(routine.return_map))
+        result = shared_mem.read_lr_out(lrcall.result_addr, len(result_vars))
 
         # Copy results to local host variables.
-        assert len(result) == len(routine.return_map)
-        for value, var in zip(result, routine.return_map.keys()):
+        assert len(result) == len(result_vars)
+        for value, var in zip(result, result_vars):
             process.host_mem.write(var, value)
 
     def prepare_rr_call(
