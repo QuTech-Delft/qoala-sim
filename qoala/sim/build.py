@@ -1,5 +1,5 @@
 import itertools
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 from netsquid.components.instructions import (
@@ -47,9 +47,9 @@ from qoala.runtime.config import (  # type: ignore
     ProcNodeNetworkConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment
-from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiNetwork, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
-from qoala.sim.entdist.entdist import EntDist
+from qoala.sim.entdist.entdist import DelayedSampler, EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
@@ -371,7 +371,9 @@ def build_ll_protocol(
 
 
 def build_network(
-    config: ProcNodeNetworkConfig, global_env: GlobalEnvironment
+    config: ProcNodeNetworkConfig,
+    links: LhiNetwork,
+    global_env: GlobalEnvironment,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
@@ -387,7 +389,7 @@ def build_network(
 
         factory = PerfectStateSamplerFactory()
         kwargs = {"cycle_time": 1000}
-        entdist.add_sampler(s1.node.ID, s2.node.ID, factory, kwargs=kwargs)
+        entdist.add_sampler(s1.node.ID, s2.node.ID, factory, kwargs=kwargs, delay=1000)
 
     for name, procnode in procnodes.items():
         procnode.node.entdist_out_port.connect(entdistcomp.node_in_port(name))

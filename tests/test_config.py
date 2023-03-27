@@ -16,17 +16,27 @@ from netsquid.components.models.qerrormodels import (
     QuantumErrorModel,
     T1T2NoiseModel,
 )
+from netsquid_magic.state_delivery_sampler import (
+    DeliverySample,
+    DepolariseWithFailureStateSamplerFactory,
+    IStateDeliverySamplerFactory,
+    PerfectStateSamplerFactory,
+    StateDeliverySampler,
+)
 
 from qoala.lang.common import MultiQubit
 from qoala.runtime.config import (
     BaseModel,
+    DepolariseSamplerConfig,
     GateConfig,
     GateConfigRegistry,
     GateDepolariseConfig,
     GateNoiseConfigInterface,
     InstrConfigRegistry,
     LatenciesConfig,
+    LinkConfig,
     MultiGateConfig,
+    PerfectSamplerConfig,
     ProcNodeConfig,
     QubitConfig,
     QubitConfigRegistry,
@@ -687,6 +697,89 @@ def test_procnode_config_file_default_values():
     assert cfg.latencies.netstack_peer_latency == 1e6
 
 
+def test_perfect_sampler_config():
+    cfg = PerfectSamplerConfig()
+
+    assert cfg.to_sampler_factory() == PerfectStateSamplerFactory
+    assert cfg.to_sampler_kwargs() == {}
+
+
+def test_depolarise_sampler_config():
+    cfg = DepolariseSamplerConfig(cycle_time=10, prob_max_mixed=0.3, prob_success=0.1)
+
+    assert cfg.to_sampler_factory() == DepolariseWithFailureStateSamplerFactory
+    assert cfg.to_sampler_kwargs() == {
+        "cycle_time": 10,
+        "prob_max_mixed": 0.3,
+        "prob_success": 0.1,
+    }
+
+
+def test_link_config():
+    sampler_cfg = PerfectSamplerConfig()
+    cfg = LinkConfig(
+        state_delay=500,
+        sampler_config_cls="PerfectSamplerConfig",
+        sampler_config=sampler_cfg,
+    )
+
+    assert cfg.state_delay == 500
+    assert cfg.to_state_delay() == 500
+    assert cfg.to_sampler_factory() == PerfectStateSamplerFactory
+    assert cfg.to_sampler_kwargs() == {}
+
+
+def test_link_config2():
+    sampler_cfg = DepolariseSamplerConfig(
+        cycle_time=10, prob_max_mixed=0.3, prob_success=0.1
+    )
+    cfg = LinkConfig(
+        state_delay=500,
+        sampler_config_cls="DepolariseSamplerConfig",
+        sampler_config=sampler_cfg,
+    )
+
+    assert cfg.state_delay == 500
+    assert cfg.to_state_delay() == 500
+    assert cfg.to_sampler_factory() == DepolariseWithFailureStateSamplerFactory
+    assert cfg.to_sampler_kwargs() == {
+        "cycle_time": 10,
+        "prob_max_mixed": 0.3,
+        "prob_success": 0.1,
+    }
+
+
+def test_link_config_perfect():
+    cfg = LinkConfig.perfect_config(200)
+
+    assert cfg.state_delay == 200
+    assert cfg.to_state_delay() == 200
+    assert cfg.to_sampler_factory() == PerfectStateSamplerFactory
+    assert cfg.to_sampler_kwargs() == {}
+
+
+def test_link_config_from_file():
+    cfg = LinkConfig.from_file(relative_path("configs/link_cfg_1.yaml"))
+
+    assert cfg.state_delay == 750
+    assert cfg.to_state_delay() == 750
+    assert cfg.to_sampler_factory() == PerfectStateSamplerFactory
+    assert cfg.to_sampler_kwargs() == {}
+
+
+def test_link_config_from_file_2():
+    cfg = LinkConfig.from_file(relative_path("configs/link_cfg_2.yaml"))
+
+    assert cfg.state_delay == 750
+    assert cfg.to_state_delay() == 750
+    assert cfg.to_sampler_factory() == DepolariseWithFailureStateSamplerFactory
+    assert cfg.to_sampler_kwargs() == {
+        "cycle_time": 10,
+        "prob_max_mixed": 0.3,
+        "prob_success": 0.1,
+    }
+
+
 if __name__ == "__main__":
     test_qubit_t1t2_config()
     test_qubit_t1t2_config_file()
@@ -714,3 +807,10 @@ if __name__ == "__main__":
     test_latencies_config_file_default_values()
     test_procnode_config_file()
     test_procnode_config_file_default_values()
+    test_perfect_sampler_config()
+    test_depolarise_sampler_config()
+    test_link_config()
+    test_link_config2()
+    test_link_config_perfect()
+    test_link_config_from_file()
+    test_link_config_from_file_2()

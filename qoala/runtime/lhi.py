@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -23,6 +23,12 @@ from netsquid.components.models.qerrormodels import (
     DepolarNoiseModel,
     QuantumErrorModel,
     T1T2NoiseModel,
+)
+from netsquid_magic.state_delivery_sampler import (
+    DeliverySample,
+    IStateDeliverySamplerFactory,
+    PerfectStateSamplerFactory,
+    StateDeliverySampler,
 )
 
 from qoala.lang.common import MultiQubit
@@ -388,3 +394,53 @@ class LhiLatencies:
         # NOTE: can also just use LhiLatencies() which will default all values to 0
         # However, using this classmethod makes this behavior more explicit and clear.
         return LhiLatencies(0, 0, 0, 0, 0)
+
+
+class LhiLinkConfigInterface(ABC):
+    @abstractmethod
+    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_sampler_kwargs(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_state_delay(self) -> float:
+        raise NotImplementedError
+
+
+@dataclass
+class LhiLinkInfo:
+    sampler_factory: Type[IStateDeliverySamplerFactory]
+    sampler_kwargs: Dict[str, Any]
+    state_delay: float  # time between EPR generation and putting the state into memory
+
+    @classmethod
+    def from_config(cls, cfg: LhiLinkConfigInterface) -> LhiLinkInfo:
+        return LhiLinkInfo(
+            sampler_factory=cfg.to_sampler_factory(),
+            sampler_kwargs=cfg.to_sampler_kwargs(),
+            state_delay=cfg.to_state_delay(),
+        )
+
+    @classmethod
+    def perfect(cls, duration: float) -> LhiLinkInfo:
+        return LhiLinkInfo(
+            sampler_factory=PerfectStateSamplerFactory,
+            sampler_kwargs={},
+            state_delay=duration,
+        )
+
+
+@dataclass
+class LhiNetwork:
+    # Nodes: ID -> node topology
+    nodes: Dict[int, LhiTopology]
+
+    # Links: (node1 ID, node2 ID) -> link info
+    # Only one entry per pair; order does not matter.
+    # E.g.
+    #   having only an entry for key (0, 1) is the same as having only (1, 0)
+    #   it's not allowed to both have (0, 1) and (1, 0)
+    links: Dict[Tuple[int, int], LhiLinkInfo]

@@ -17,6 +17,7 @@ from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import (
+    DelayedSampler,
     EntDist,
     EntDistRequest,
     EprDeliverySample,
@@ -75,10 +76,13 @@ def test_add_sampler():
     entdist = create_entdist(nodes=[alice, bob])
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
+    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs, delay=1000)
 
     assert len(entdist._samplers) == 1
-    assert type(entdist._samplers[(alice.ID, bob.ID)]) == StateDeliverySampler
+    sampler = entdist._samplers[(alice.ID, bob.ID)]
+    assert type(sampler) == DelayedSampler
+    assert type(sampler.sampler) == StateDeliverySampler
+    assert sampler.delay == 1000
 
 
 def test_add_sampler_many_nodes():
@@ -88,21 +92,27 @@ def test_add_sampler_many_nodes():
     entdist = create_entdist(nodes=nodes)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(nodes[0].ID, nodes[1].ID, factory, kwargs=kwargs)
+    entdist.add_sampler(nodes[0].ID, nodes[1].ID, factory, kwargs=kwargs, delay=1000)
 
     with pytest.raises(ValueError):
-        entdist.add_sampler(nodes[0].ID, nodes[1].ID, factory, kwargs=kwargs)
+        entdist.add_sampler(
+            nodes[0].ID, nodes[1].ID, factory, kwargs=kwargs, delay=1000
+        )
     with pytest.raises(ValueError):
-        entdist.add_sampler(nodes[1].ID, nodes[0].ID, factory, kwargs=kwargs)
+        entdist.add_sampler(
+            nodes[1].ID, nodes[0].ID, factory, kwargs=kwargs, delay=1000
+        )
 
-    entdist.add_sampler(nodes[0].ID, nodes[2].ID, factory, kwargs=kwargs)
-    entdist.add_sampler(nodes[2].ID, nodes[9].ID, factory, kwargs=kwargs)
+    entdist.add_sampler(nodes[0].ID, nodes[2].ID, factory, kwargs=kwargs, delay=1000)
+    entdist.add_sampler(nodes[2].ID, nodes[9].ID, factory, kwargs=kwargs, delay=1000)
 
     assert len(entdist._samplers) == 3
     for (i, j) in [(0, 1), (0, 2), (2, 9)]:
         assert (
-            type(entdist._samplers[(nodes[i].ID, nodes[j].ID)]) == StateDeliverySampler
+            type(entdist._samplers[(nodes[i].ID, nodes[j].ID)].sampler)
+            == StateDeliverySampler
         )
+        assert entdist._samplers[(nodes[i].ID, nodes[j].ID)].delay == 1000
 
 
 def test_sample_perfect():
@@ -157,14 +167,14 @@ def test_deliver_perfect():
     entdist = create_entdist(nodes=[alice, bob])
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
+    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs, delay=1000)
 
     assert not alice.qmemory.mem_positions[0].in_use
     assert not bob.qmemory.mem_positions[0].in_use
 
     ns.sim_reset()
     assert ns.sim_time() == 0
-    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0, state_delay=1000))
+    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0))
     assert ns.sim_time() == 1000
 
     assert alice.qmemory.mem_positions[0].in_use
@@ -183,7 +193,7 @@ def test_deliver_depolar():
     entdist = create_entdist(nodes=[alice, bob])
     factory = DepolariseWithFailureStateSamplerFactory()
     kwargs = {"cycle_time": 10, "prob_max_mixed": 0.2, "prob_success": 1}
-    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
+    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs, delay=1000)
 
     assert not alice.qmemory.mem_positions[0].in_use
     assert not bob.qmemory.mem_positions[0].in_use
@@ -191,7 +201,7 @@ def test_deliver_depolar():
     ns.sim_reset()
     ns.set_qstate_formalism(QFormalism.DM)
     assert ns.sim_time() == 0
-    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0, state_delay=1000))
+    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0))
     assert ns.sim_time() == 1000
 
     assert alice.qmemory.mem_positions[0].in_use
@@ -365,7 +375,7 @@ def test_serve_request():
     entdist = create_entdist(nodes=[alice, bob])
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs)
+    entdist.add_sampler(alice.ID, bob.ID, factory, kwargs=kwargs, delay=1000)
 
     assert not alice.qmemory.mem_positions[0].in_use
     assert not bob.qmemory.mem_positions[0].in_use
@@ -401,7 +411,7 @@ def test_serve_request_multiple_nodes():
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     for (node1, node2) in itertools.combinations([alice, bob, charlie, david], 2):
-        entdist.add_sampler(node1.ID, node2.ID, factory, kwargs=kwargs)
+        entdist.add_sampler(node1.ID, node2.ID, factory, kwargs=kwargs, delay=1000)
 
     req_ab = create_joint_request(alice.ID, bob.ID, 0, 0)
     req_ac = create_joint_request(alice.ID, charlie.ID, 1, 0)

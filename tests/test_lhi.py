@@ -8,12 +8,20 @@ from netsquid.components.instructions import (
     INSTR_Z,
 )
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
+from netsquid_magic.state_delivery_sampler import (
+    DeliverySample,
+    DepolariseWithFailureStateSamplerFactory,
+    IStateDeliverySamplerFactory,
+    PerfectStateSamplerFactory,
+    StateDeliverySampler,
+)
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import LatenciesConfig, TopologyConfig
+from qoala.runtime.config import LatenciesConfig, LinkConfig, TopologyConfig
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
+    LhiLinkInfo,
     LhiQubitInfo,
     LhiTopology,
     LhiTopologyBuilder,
@@ -416,6 +424,28 @@ def test_latencies_from_config():
     assert latencies.netstack_peer_latency == 5
 
 
+def test_link_from_config():
+    cfg = LinkConfig.from_file(relative_path("configs/link_cfg_1.yaml"))
+    link = LhiLinkInfo.from_config(cfg)
+
+    assert link.state_delay == 750
+    assert link.sampler_factory == PerfectStateSamplerFactory
+    assert link.sampler_kwargs == {}
+
+
+def test_link_from_config_2():
+    cfg = LinkConfig.from_file(relative_path("configs/link_cfg_2.yaml"))
+    link = LhiLinkInfo.from_config(cfg)
+
+    assert link.state_delay == 750
+    assert link.sampler_factory == DepolariseWithFailureStateSamplerFactory
+    assert link.sampler_kwargs == {
+        "cycle_time": 10,
+        "prob_max_mixed": 0.3,
+        "prob_success": 0.1,
+    }
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
@@ -430,3 +460,5 @@ if __name__ == "__main__":
     test_perfect_star()
     test_generic_t1t2_star()
     test_latencies_from_config()
+    test_link_from_config()
+    test_link_from_config_2()

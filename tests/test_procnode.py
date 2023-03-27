@@ -923,7 +923,7 @@ def test_epr():
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     entdist.add_sampler(
-        alice_procnode.node.ID, bob_procnode.node.ID, factory, kwargs=kwargs
+        alice_procnode.node.ID, bob_procnode.node.ID, factory, kwargs=kwargs, delay=1000
     )
 
     # First start Bob, since Alice won't yield on anything (she only does a Send
@@ -1073,7 +1073,11 @@ REQUEST req1
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     entdist.add_sampler(
-        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+        client_procnode.node.ID,
+        server_procnode.node.ID,
+        factory,
+        kwargs=kwargs,
+        delay=1000,
     )
 
     # client_egp._ll_prot.start()
