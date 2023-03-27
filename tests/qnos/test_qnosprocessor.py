@@ -170,7 +170,7 @@ def create_process_with_subrt(
 ) -> IqoalaProcess:
     subrt = parse_text_subroutine(subrt_text)
     metadata = RoutineMetadata.use_none()
-    iqoala_subrt = LocalRoutine("subrt", subrt, return_map={}, metadata=metadata)
+    iqoala_subrt = LocalRoutine("subrt", subrt, return_vars=[], metadata=metadata)
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
     program = create_program(subroutines={"subrt": iqoala_subrt}, meta=meta)

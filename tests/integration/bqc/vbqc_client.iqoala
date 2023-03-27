@@ -68,7 +68,7 @@ META_END
 
 SUBROUTINE post_epr_0
     params: theta2, epr0_rot_y, epr0_rot_z
-    returns: M0 -> p2
+    returns: p2
     uses: 0
     keeps:
     request:
@@ -86,7 +86,7 @@ SUBROUTINE post_epr_0
 
 SUBROUTINE post_epr_1
     params: theta1, epr1_rot_y, epr1_rot_z
-    returns: M1 -> p1
+    returns: p1
     uses: 0
     keeps:
     request:
@@ -105,6 +105,7 @@ SUBROUTINE post_epr_1
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -118,6 +119,7 @@ REQUEST req1
 REQUEST req0
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1

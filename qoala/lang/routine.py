@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from netqasm.lang.subroutine import Subroutine
-
-from qoala.lang.hostlang import IqoalaSharedMemLoc
 
 
 @dataclass
@@ -32,13 +30,13 @@ class LocalRoutine:
         self,
         name: str,
         subrt: Subroutine,
-        return_map: Dict[str, IqoalaSharedMemLoc],
+        return_vars: List[str],
         metadata: RoutineMetadata,
         request_name: Optional[str] = None,
     ) -> None:
         self._name = name
         self._subrt = subrt
-        self._return_map = return_map
+        self._return_vars = return_vars
         self._metadata = metadata
         self._request_name = request_name
 
@@ -51,8 +49,8 @@ class LocalRoutine:
         return self._subrt
 
     @property
-    def return_map(self) -> Dict[str, IqoalaSharedMemLoc]:
-        return self._return_map
+    def return_vars(self) -> List[str]:
+        return self._return_vars
 
     @property
     def metadata(self) -> RoutineMetadata:
@@ -65,8 +63,7 @@ class LocalRoutine:
     def serialize(self) -> str:
         s = f"SUBROUTINE {self.name}"
         s += f"\nparams: {', '.join(self.subroutine.arguments)}"
-        rm = self.return_map  # just to make next line fit on one line
-        s += f"\nreturns: {', '.join(f'{v} -> {k}' for k, v in rm.items())}"
+        s += f"\nreturns: {', '.join(str(v) for v in self.return_vars)}"
         s += f"\nuses: {', '.join(str(q) for q in self.metadata.qubit_use)}"
         s += f"\nkeeps: {', '.join(str(q) for q in self.metadata.qubit_keep)}"
         s += "\nNETQASM_START\n"
@@ -76,8 +73,8 @@ class LocalRoutine:
 
     def __str__(self) -> str:
         s = "\n"
-        for key, value in self.return_map.items():
-            s += f"return {str(value)} -> {key}\n"
+        for value in self.return_vars:
+            s += f"return {str(value)}\n"
         s += "NETQASM_START\n"
         s += self.subroutine.print_instructions()
         s += "\nNETQASM_END"
@@ -90,5 +87,5 @@ class LocalRoutine:
             self.name == other.name
             and self.subroutine == other.subroutine
             and self.metadata == other.metadata
-            and self.return_map == other.return_map
+            and self.return_vars == other.return_vars
         )

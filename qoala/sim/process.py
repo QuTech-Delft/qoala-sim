@@ -6,6 +6,7 @@ from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import HostMemory, ProgramMemory, QnosMemory, SharedMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
+from qoala.runtime.sharedmem import SharedMemoryManager
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.host.csocket import ClassicalSocket
 
@@ -67,3 +68,7 @@ class IqoalaProcess:
     @property
     def shared_mem(self) -> SharedMemory:
         return self.prog_memory.shared_mem
+
+    @property
+    def shared_memmgr(self) -> SharedMemoryManager:
+        return self.prog_memory.shared_memmgr

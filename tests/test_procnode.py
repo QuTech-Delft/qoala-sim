@@ -55,7 +55,7 @@ from qoala.runtime.lhi_to_ehi import (
     NativeToFlavourInterface,
 )
 from qoala.runtime.memory import ProgramMemory, SharedMemory
-from qoala.runtime.message import Message
+from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
@@ -376,7 +376,9 @@ def create_procnode(
 
 def simple_subroutine(name: str, subrt_text: str) -> LocalRoutine:
     subrt = parse_text_subroutine(subrt_text)
-    return LocalRoutine(name, subrt, return_map={}, metadata=RoutineMetadata.use_none())
+    return LocalRoutine(
+        name, subrt, return_vars=[], metadata=RoutineMetadata.use_none()
+    )
 
 
 def parse_iqoala_subroutines(subrt_text: str) -> LocalRoutine:
@@ -454,6 +456,7 @@ def test_initialize():
 
     request_routine = RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -496,8 +499,8 @@ def test_initialize():
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
-    # netstack_processor.instantiate_routine(process, request_routine, {}, 0, 0)
-    netsquid_run(netstack_processor.assign_request_routine(process, "req1"))
+    rrcall = RrCallTuple.no_alloc("req1")
+    netsquid_run(netstack_processor.assign_request_routine(process, rrcall))
 
     assert process.host_mem.read("x") == 3
     assert process.qnos_mem.get_reg_value("R5") == 42
@@ -524,12 +527,12 @@ def test_2():
     ehi = LhiConverter.to_ehi(topology, ntf)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    instrs = [RunSubroutineOp(None, IqoalaVector([]), "subrt1")]
+    instrs = [RunSubroutineOp(IqoalaVector(["result"]), IqoalaVector([]), "subrt1")]
     subroutines = parse_iqoala_subroutines(
         """
 SUBROUTINE subrt1
     params: 
-    returns: R5 -> result
+    returns: result
     uses: 
     keeps: 
     request:
@@ -796,7 +799,8 @@ def test_epr():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            yield from self.netstack.processor.assign_request_routine(process, "req1")
+            rrcall = RrCallTuple.no_alloc("req1")
+            yield from self.netstack.processor.assign_request_routine(process, rrcall)
 
     alice_procnode = create_procnode(
         "alice",
@@ -825,6 +829,7 @@ def test_epr():
 
     alice_request_routine = RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -843,6 +848,7 @@ def test_epr():
 
     bob_request_routine = RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -955,6 +961,7 @@ META_END
 REQUEST req1
   callback_type: wait_all
   callback:
+  return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -981,7 +988,8 @@ REQUEST req1
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
-            yield from self.netstack.processor.assign_request_routine(process, "req1")
+            rrcall = RrCallTuple.no_alloc("req1")
+            yield from self.netstack.processor.assign_request_routine(process, rrcall)
 
     server_procnode = create_procnode(
         "server",
@@ -1017,6 +1025,7 @@ META_END
 REQUEST req1
   callback_type: wait_all
   callback:
+  return_vars: 
   remote_id: {server_id}
   epr_socket_id: 0
   num_pairs: 1

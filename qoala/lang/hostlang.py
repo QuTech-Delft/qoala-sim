@@ -31,14 +31,6 @@ class IqoalaAttribute:
         return self._value
 
 
-@dataclass(eq=True, frozen=True)
-class IqoalaSharedMemLoc:
-    loc: str
-
-    def __str__(self) -> str:
-        return str(self.loc)
-
-
 class IqoalaVector:
     def __init__(self, values: List[str]) -> None:
         self._values = values

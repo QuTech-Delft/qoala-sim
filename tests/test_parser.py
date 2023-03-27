@@ -8,7 +8,6 @@ from netqasm.lang.subroutine import Subroutine
 from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
-    IqoalaSharedMemLoc,
     IqoalaVector,
     RunSubroutineOp,
 )
@@ -248,7 +247,7 @@ def test_parse_subrt():
     text = """
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 
     keeps:
     request: 
@@ -270,7 +269,7 @@ SUBROUTINE subrt1
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.use_none(),
-        return_map={"m": IqoalaSharedMemLoc("M0")},
+        return_vars=["m"],
     )
 
 
@@ -278,7 +277,7 @@ def test_parse_subrt_2():
     text = """
 SUBROUTINE my_subroutine
     params: param1, param2
-    returns: M5 -> result1, M6 -> result2
+    returns: result1, result2
     uses: 0, 1
     keeps: 
     request: 
@@ -306,10 +305,7 @@ SUBROUTINE my_subroutine
         name="my_subroutine",
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
-        return_map={
-            "result1": IqoalaSharedMemLoc("M5"),
-            "result2": IqoalaSharedMemLoc("M6"),
-        },
+        return_vars=["result1", "result2"],
     )
 
 
@@ -317,7 +313,7 @@ def test_parse_multiple_subrt():
     text = """
 SUBROUTINE subrt1
     params: param1
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps:
     request: 
@@ -358,15 +354,13 @@ SUBROUTINE subrt2
         name="subrt1",
         subrt=Subroutine(instructions=expected_instrs_1, arguments=expected_args_1),
         metadata=RoutineMetadata.free_all([0]),
-        return_map={
-            "m": IqoalaSharedMemLoc("M0"),
-        },
+        return_vars=["m"],
     )
     assert subrt2 == LocalRoutine(
         name="subrt2",
         subrt=Subroutine(instructions=expected_instrs_2, arguments=expected_args_2),
         metadata=RoutineMetadata.use_none(),
-        return_map={},
+        return_vars=[],
     )
 
 
@@ -374,7 +368,7 @@ def test_parse_invalid_subrt():
     text = """
 SUBROUTINE my_subroutine
     params: param1, param2
-    returns: M5 -> result1, M6 -> result2
+    returns: result1, result2
     request: 
   NETQASM_START
     set R0 {param3}
@@ -390,6 +384,7 @@ def test_parse_request():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 5
@@ -408,6 +403,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -430,6 +426,7 @@ def test_parse_request_2():
 REQUEST req1
   callback_type: sequential
   callback: subrt1
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -448,6 +445,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=IqoalaRequest(
@@ -470,6 +468,7 @@ def test_parse_request_with_template():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 3
@@ -488,6 +487,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -510,6 +510,7 @@ def test_parse_multiple_request():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 5
@@ -523,6 +524,7 @@ REQUEST req1
 REQUEST req2
   callback_type: sequential
   callback: subrt1
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -543,6 +545,7 @@ REQUEST req2
 
     assert routine1 == RequestRoutine(
         name="req1",
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=IqoalaRequest(
@@ -560,6 +563,7 @@ REQUEST req2
     )
     assert routine2 == RequestRoutine(
         name="req2",
+        return_vars=[],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=IqoalaRequest(
@@ -582,6 +586,7 @@ def test_parse_invalid_request():
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -641,7 +646,7 @@ META_END
     subrt_text = """
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps:
     request: 
@@ -657,6 +662,7 @@ SUBROUTINE subrt1
 REQUEST req1
   callback_type: wait_all
   callback: 
+  return_vars: 
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -710,7 +716,7 @@ META_END
     subrt_text = """
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps:
     request: 
@@ -797,7 +803,7 @@ META_END
     subrt_text = """
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 
     keeps:
     request: 
@@ -837,7 +843,7 @@ META_END
     subrt_text = """
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 
     keeps:
     request: 
@@ -885,6 +891,7 @@ SUBROUTINE subrt1
 REQUEST req1
   callback_type: wait_all
   callback:
+  return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -972,6 +979,7 @@ META_END
 REQUEST req1
     callback_type: wait_all
     callback:
+  return_vars: 
     remote_id: {client_id}
     epr_socket_id: 0
     num_pairs: 1
@@ -1014,7 +1022,7 @@ META_END
 
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps:
     request: 

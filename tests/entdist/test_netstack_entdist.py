@@ -23,9 +23,10 @@ from qoala.runtime.environment import (
 )
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.memory import ProgramMemory
-from qoala.runtime.message import Message
+from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.entdist.entdist import EntDist, EntDistRequest
@@ -362,6 +363,7 @@ def simple_req_routine(
     return RequestRoutine(
         name="req1",
         request=create_simple_request(remote_id, num_pairs, virt_ids, typ, role),
+        return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
     )
@@ -425,7 +427,8 @@ def test_single_pair_qoala_ck_request_only_alice():
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.assign_request_routine(process_alice, "req1")
+            rrcall = RrCallTuple.no_alloc("req1")
+            yield from self.processor.assign_request_routine(process_alice, rrcall)
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -475,11 +478,13 @@ def test_single_pair_qoala_ck_request():
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.assign_request_routine(process_alice, "req1")
+            rrcall = RrCallTuple.no_alloc("req1")
+            yield from self.processor.assign_request_routine(process_alice, rrcall)
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.assign_request_routine(process_bob, "req1")
+            rrcall = RrCallTuple.no_alloc("req1")
+            yield from self.processor.assign_request_routine(process_bob, rrcall)
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
         num_qubits, alice_id, bob_id, AliceNetstack, BobNetstack
@@ -525,14 +530,32 @@ def test_single_pair_qoala_md_request_different_virt_ids():
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
+            shared_mem = process_alice.prog_memory.shared_memmgr
+            result_addr = shared_mem.allocate_rr_out(2)
+            rrcall = RrCallTuple(
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
+            )
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_alice, "req1"
+                process_alice, rrcall
             )
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
+            shared_mem = process_bob.prog_memory.shared_memmgr
+            result_addr = shared_mem.allocate_rr_out(2)
+            rrcall = RrCallTuple(
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
+            )
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_bob, "req1"
+                process_bob, rrcall
             )
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
@@ -580,14 +603,32 @@ def test_single_pair_qoala_md_request_same_virt_ids():
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
+            shared_mem = process_alice.prog_memory.shared_memmgr
+            self.result_addr = shared_mem.allocate_rr_out(2)
+            rrcall = RrCallTuple(
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=self.result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
+            )
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_alice, "req1"
+                process_alice, rrcall
             )
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
+            shared_mem = process_bob.prog_memory.shared_memmgr
+            self.result_addr = shared_mem.allocate_rr_out(2)
+            rrcall = RrCallTuple(
+                "req1",
+                input_addr=MemAddr(0),
+                result_addr=self.result_addr,
+                cb_input_addrs=[],
+                cb_output_addrs=[],
+            )
             self.outcomes = yield from self.processor.assign_request_routine(
-                process_bob, "req1"
+                process_bob, rrcall
             )
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
@@ -607,7 +648,12 @@ def test_single_pair_qoala_md_request_same_virt_ids():
     assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 0) is None
     assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 1) is None
 
-    assert alice_netstack.outcomes == bob_netstack.outcomes
+    alice_result = process_alice.shared_memmgr.read_rr_out(
+        alice_netstack.result_addr, 2
+    )
+    bob_result = process_bob.shared_memmgr.read_rr_out(bob_netstack.result_addr, 2)
+
+    assert alice_result == bob_result
 
 
 if __name__ == "__main__":

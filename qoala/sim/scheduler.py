@@ -229,18 +229,22 @@ class Scheduler(Protocol):
         # Free qubits that do not need to be kept.
         self.free_qubits_after_routine(process, lrcall.routine_name)
         # Let Host get results from shared memory.
-        self.host.processor.post_lr_call(process, lrcall)
+        self.host.processor.post_lr_call(process, host_instr, lrcall)
 
     def execute_netstack_task(
         self, process: IqoalaProcess, task: NetstackTask
     ) -> Generator[EventExpression, None, None]:
         host_instr = process.program.instructions[task.instr_index]
         assert isinstance(host_instr, RunRequestOp)
+
+        # Let Host setup shared memory.
         rrcall = self.host.processor.prepare_rr_call(process, host_instr)
+        assert rrcall.routine_name == task.request_routine_name
+        # TODO: refactor this. Bit of a hack to just pass the QnosProcessor around like this!
         yield from self.netstack.processor.assign_request_routine(
-            process, task.request_routine_name, rrcall.input_addr, rrcall.result_addr
+            process, rrcall, self.qnos.processor
         )
-        # self.host.processor.post_rr_call(process, rrcall)
+        self.host.processor.post_rr_call(process, host_instr, rrcall)
 
     def execute_single_task(
         self, process: IqoalaProcess, task: SingleProgramTask

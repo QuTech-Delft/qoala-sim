@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Generator
+from typing import Generator, List
+
+from netqasm.lang.operand import Template
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
+from qoala.lang.request import CallbackType
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.util.logging import LogManager
@@ -111,7 +115,7 @@ class HostProcessor:
             # Wait until Qnos says it has finished.
             yield from self._interface.receive_qnos_msg()
 
-            self.post_lr_call(process, lrcall)
+            self.post_lr_call(process, instr, lrcall)
         elif isinstance(instr, hostlang.RunRequestOp):
             rrcall = self.prepare_rr_call(process, instr)
 
@@ -158,20 +162,34 @@ class HostProcessor:
         shared_mem.write_lr_in(input_addr, list(arg_values.values()))
 
         # Allocate result memory.
-        result_addr = shared_mem.allocate_lr_out(len(routine.return_map))
+        result_addr = shared_mem.allocate_lr_out(len(routine.return_vars))
 
         return LrCallTuple(subrt_name, input_addr, result_addr)
 
-    def post_lr_call(self, process: IqoalaProcess, lrcall: LrCallTuple) -> None:
+    def post_lr_call(
+        self,
+        process: IqoalaProcess,
+        instr: hostlang.RunSubroutineOp,
+        lrcall: LrCallTuple,
+    ) -> None:
         shared_mem = process.prog_memory.shared_memmgr
-        routine = process.get_local_routine(lrcall.routine_name)
+
+        # Collect the host variables that should obtain the LR results.
+        result_vars: List[str]
+        if isinstance(instr.results, list):
+            result_vars = instr.results
+        elif isinstance(instr.results, hostlang.IqoalaVector):
+            result_vec: hostlang.IqoalaVector = instr.results
+            result_vars = result_vec.values
+        else:
+            raise RuntimeError
 
         # Read the results from shared memory.
-        result = shared_mem.read_lr_out(lrcall.result_addr, len(routine.return_map))
+        result = shared_mem.read_lr_out(lrcall.result_addr, len(result_vars))
 
         # Copy results to local host variables.
-        assert len(result) == len(routine.return_map)
-        for value, var in zip(result, routine.return_map.keys()):
+        assert len(result) == len(result_vars)
+        for value, var in zip(result, result_vars):
             process.host_mem.write(var, value)
 
     def prepare_rr_call(
@@ -192,12 +210,108 @@ class HostProcessor:
 
         shared_mem = process.prog_memory.shared_memmgr
 
-        # Allocate input memory and write args to it.
+        # Allocate input memory for RR itself and write args to it.
         input_addr = shared_mem.allocate_rr_in(len(arg_values))
         shared_mem.write_rr_in(input_addr, list(arg_values.values()))
 
-        # Allocate result memory.
-        # TODO: implement RR return values.
-        result_addr = shared_mem.allocate_rr_out(0)
+        cb_input_addrs: List[MemAddr] = []
+        cb_output_addrs: List[MemAddr] = []
 
-        return RrCallTuple(routine_name, input_addr, result_addr)
+        # TODO: refactor!!
+        # the `num_pairs` entry of an RR may be a template.
+        # Its value should be provided in the ProgramInput of this ProgamInstance.
+        # This value is filled in when `instantiating` the RR, but currently this only
+        # happens by the NetstackProcessor when it's assigned to execute the RR.
+        # The filled-in value is then part of a `RunningRequestRoutine`. However, it is
+        # not accessible by this code here.
+        # For now we use the following 'hack' where we peek in the ProgramInputs:
+        if isinstance(routine.request.num_pairs, Template):
+            template_name = routine.request.num_pairs.name
+            num_pairs = process.prog_instance.inputs.values[template_name]
+        else:
+            num_pairs = routine.request.num_pairs
+
+        # Allocate memory for callbacks.
+        if routine.callback is not None:
+            if routine.callback_type == CallbackType.SEQUENTIAL:
+                cb_routine = process.get_local_routine(routine.callback)
+                for _ in range(num_pairs):
+                    # Allocate input memory.
+                    cb_args = cb_routine.subroutine.arguments
+                    # TODO: can it just be LR_in instead of CR_in?
+                    cb_input_addrs.append(shared_mem.allocate_cr_in(len(cb_args)))
+
+                    # Allocate result memory.
+                    cb_results = cb_routine.return_vars
+                    cb_output_addrs.append(shared_mem.allocate_lr_out(len(cb_results)))
+            elif routine.callback_type == CallbackType.WAIT_ALL:
+                cb_routine = process.get_local_routine(routine.callback)
+                # Allocate input memory.
+                cb_args = cb_routine.subroutine.arguments
+                # TODO: can it just be LR_in instead of CR_in?
+                cb_input_addrs.append(shared_mem.allocate_cr_in(len(cb_args)))
+
+                # Allocate result memory.
+                cb_results = cb_routine.return_vars
+                cb_output_addrs.append(shared_mem.allocate_lr_out(len(cb_results)))
+
+        # Allocate result memory for RR itself.
+        result_addr = shared_mem.allocate_rr_out(len(routine.return_vars))
+
+        return RrCallTuple(
+            routine_name, input_addr, result_addr, cb_input_addrs, cb_output_addrs
+        )
+
+    def post_rr_call(
+        self, process: IqoalaProcess, instr: hostlang.RunRequestOp, rrcall: RrCallTuple
+    ) -> None:
+        shared_mem = process.prog_memory.shared_memmgr
+        routine = process.get_request_routine(rrcall.routine_name)
+
+        # Read the RR results from shared memory.
+        rr_result = shared_mem.read_rr_out(rrcall.result_addr, len(routine.return_vars))
+
+        # Bit of a hack; see prepare_rr_call comments.
+        if isinstance(routine.request.num_pairs, Template):
+            template_name = routine.request.num_pairs.name
+            num_pairs = process.prog_instance.inputs.values[template_name]
+        else:
+            num_pairs = routine.request.num_pairs
+
+        # Read the callback results from shared memory.
+        cb_results: List[int] = []
+        if routine.callback is not None:
+            if routine.callback_type == CallbackType.SEQUENTIAL:
+                cb_routine = process.get_local_routine(routine.callback)
+                for i in range(num_pairs):
+                    # Read result memory.
+                    cb_ret_vars = cb_routine.return_vars
+                    cb_output_addr = rrcall.cb_output_addrs[i]
+                    result = shared_mem.read_lr_out(cb_output_addr, len(cb_ret_vars))
+                    cb_results.extend(result)
+            elif routine.callback_type == CallbackType.WAIT_ALL:
+                cb_routine = process.get_local_routine(routine.callback)
+                # Read result memory.
+                cb_ret_vars = cb_routine.return_vars
+                cb_output_addr = rrcall.cb_output_addrs[0]
+                result = shared_mem.read_lr_out(cb_output_addr, len(cb_ret_vars))
+                cb_results.extend(result)
+
+        all_results = rr_result + cb_results
+        # At this point, `all_results` contains all the results of both the RR itself
+        # as well as from all the callbacks, in order.
+
+        # Collect the host variables to which to copy these results.
+        result_vars: List[str]
+        if isinstance(instr.results, list):
+            result_vars = instr.results
+        elif isinstance(instr.results, hostlang.IqoalaVector):
+            result_vec: hostlang.IqoalaVector = instr.results
+            result_vars = result_vec.values
+        else:
+            raise RuntimeError
+
+        # Copy all results to local host variables.
+        assert len(all_results) == len(result_vars)
+        for value, var in zip(all_results, result_vars):
+            process.host_mem.write(var, value)

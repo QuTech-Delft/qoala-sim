@@ -20,22 +20,15 @@ from qlink_interface import (
 )
 
 from pydynaa import EventExpression
-from qoala.lang.request import (
-    CallbackType,
-    EprRole,
-    EprType,
-    IqoalaRequest,
-    RequestRoutine,
-)
+from qoala.lang.request import CallbackType, EprRole, EprType, IqoalaRequest
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
-from qoala.runtime.message import Message
-from qoala.runtime.program import RequestRoutineResult
-from qoala.runtime.sharedmem import MemAddr
+from qoala.runtime.message import Message, RrCallTuple
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
+from qoala.sim.qnos.qnosprocessor import QnosProcessor
 from qoala.sim.requests import (
     NetstackBreakpointCreateRequest,
     NetstackBreakpointReceiveRequest,
@@ -62,10 +55,17 @@ class NetstackProcessor:
         # memory of current program, only not-None when processor is active
         self._current_prog_mem: Optional[ProgramMemory] = None
 
+        self._current_routine: Optional[RunningRequestRoutine] = None
+
     def _prog_mem(self) -> ProgramMemory:
         # May only be called when processor is active
         assert self._current_prog_mem is not None
         return self._current_prog_mem
+
+    def _routine(self) -> RunningRequestRoutine:
+        # May only be called when processor is active
+        assert self._current_routine is not None
+        return self._current_routine
 
     @property
     def qdevice(self) -> QDevice:
@@ -705,7 +705,7 @@ class NetstackProcessor:
 
     def handle_req_routine_md(
         self, process: IqoalaProcess, routine_name: str
-    ) -> Generator[EventExpression, None, RequestRoutineResult]:
+    ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
@@ -728,57 +728,117 @@ class NetstackProcessor:
                 self._interface.memmgr.free(process.pid, virt_id)
                 outcomes.append(m)
 
-        return RequestRoutineResult(meas_outcomes=outcomes)
+        shared_mem = process.prog_memory.shared_memmgr
+        results_addr = running_routine.result_addr
+        shared_mem.write_rr_out(results_addr, outcomes)
 
     def handle_req_routine_ck(
-        self, process: IqoalaProcess, routine_name: str
-    ) -> Generator[EventExpression, None, RequestRoutineResult]:
+        self,
+        process: IqoalaProcess,
+        routine_name: str,
+        qnosprocessor: Optional[QnosProcessor] = None,
+    ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
         num_pairs = request.num_pairs
 
         if routine.callback_type == CallbackType.SEQUENTIAL:
-            raise NotImplementedError
+            for i in range(num_pairs):
+                virt_id = self.allocate_for_pair(process, request, i)
+                entdist_req = self.create_entdist_request(process, request, virt_id)
+                yield from self.execute_entdist_request(entdist_req)
+
+                if routine.callback is not None:
+                    # TODO: write CR inputs to shared memory
+
+                    # Allocate qubits for CR
+                    cb_routine = process.get_local_routine(routine.callback)
+                    for virt_id in cb_routine.metadata.qubit_use:
+                        if (
+                            self._interface.memmgr.phys_id_for(process.pid, virt_id)
+                            is None
+                        ):
+                            self._interface.memmgr.allocate(process.pid, virt_id)
+
+                    assert qnosprocessor is not None
+                    yield from qnosprocessor.assign_local_routine(
+                        process=process,
+                        routine_name=routine.callback,
+                        input_addr=running_routine.cb_input_addrs[i],
+                        result_addr=running_routine.cb_output_addrs[i],
+                    )
+
+                    # Free CR qubits
+                    for virt_id in cb_routine.metadata.qubit_use:
+                        if virt_id not in cb_routine.metadata.qubit_keep:
+                            self._interface.memmgr.free(process.pid, virt_id)
         else:
             for i in range(num_pairs):
                 virt_id = self.allocate_for_pair(process, request, i)
                 entdist_req = self.create_entdist_request(process, request, virt_id)
                 yield from self.execute_entdist_request(entdist_req)
 
-        return RequestRoutineResult.empty()
+            if routine.callback is not None:
+                # TODO: write CR inputs to shared memory
+
+                # Allocate qubits for CR
+                cb_routine = process.get_local_routine(routine.callback)
+                for virt_id in cb_routine.metadata.qubit_use:
+                    if self._interface.memmgr.phys_id_for(process.pid, virt_id) is None:
+                        self._interface.memmgr.allocate(process.pid, virt_id)
+
+                # for WAIT_ALL, there should be at most 1 callback.
+                # So we can access index 0 of the cb input/output addresses.
+
+                assert qnosprocessor is not None
+                yield from qnosprocessor.assign_local_routine(
+                    process=process,
+                    routine_name=routine.callback,
+                    input_addr=running_routine.cb_input_addrs[0],
+                    result_addr=running_routine.cb_output_addrs[0],
+                )
+
+                # Free CR qubits
+                for virt_id in cb_routine.metadata.qubit_use:
+                    if virt_id not in cb_routine.metadata.qubit_keep:
+                        self._interface.memmgr.free(process.pid, virt_id)
 
     def instantiate_routine(
         self,
         process: IqoalaProcess,
-        routine: RequestRoutine,
+        rrcall: RrCallTuple,
         args: Dict[str, Any],
-        input_addr: MemAddr,
-        result_addr: MemAddr,
     ) -> None:
         """Instantiates and activates routine."""
+        routine = process.get_request_routine(rrcall.routine_name)
         instance = deepcopy(routine)
         instance.request.instantiate(args)
 
-        running_routine = RunningRequestRoutine(instance, input_addr, result_addr)
+        running_routine = RunningRequestRoutine(
+            instance,
+            rrcall.input_addr,
+            rrcall.result_addr,
+            rrcall.cb_input_addrs,
+            rrcall.cb_output_addrs,
+        )
         process.qnos_mem.add_running_request_routine(running_routine)
 
     def assign_request_routine(
         self,
         process: IqoalaProcess,
-        routine_name: str,
-        # Not used at the moment, therefore default values
-        input_addr: MemAddr = MemAddr(0),
-        result_addr: MemAddr = MemAddr(0),
-    ) -> Generator[EventExpression, None, RequestRoutineResult]:
-        # TODO: actually use input_addr and result_addr
-        routine = process.get_request_routine(routine_name)
+        rrcall: RrCallTuple,
+        qnosprocessor: Optional[QnosProcessor] = None,
+    ) -> Generator[EventExpression, None, None]:
+        routine = process.get_request_routine(rrcall.routine_name)
         global_args = process.prog_instance.inputs.values
-        self.instantiate_routine(process, routine, global_args, input_addr, result_addr)
+        self.instantiate_routine(process, rrcall, global_args)
 
         if routine.request.typ == EprType.CREATE_KEEP:
-            return (yield from self.handle_req_routine_ck(process, routine_name))
+            yield from self.handle_req_routine_ck(
+                process, rrcall.routine_name, qnosprocessor
+            )
         elif routine.request.typ == EprType.MEASURE_DIRECTLY:
-            return (yield from self.handle_req_routine_md(process, routine_name))
+            yield from self.handle_req_routine_md(process, rrcall.routine_name)
         else:
             raise NotImplementedError

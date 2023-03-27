@@ -12,7 +12,7 @@ def create_local_routine() -> LocalRoutine:
     text = """
 SUBROUTINE subrt1
     params: my_value
-    returns: M0 -> m
+    returns: m
     uses: 
     keeps:
     request: 

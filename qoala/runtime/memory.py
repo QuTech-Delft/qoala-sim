@@ -129,6 +129,8 @@ class RunningRequestRoutine:
     routine: RequestRoutine
     params_addr: MemAddr
     result_addr: MemAddr
+    cb_input_addrs: List[MemAddr]
+    cb_output_addrs: List[MemAddr]
 
 
 class QnosMemory:

@@ -31,7 +31,7 @@ SUBROUTINE subrt0
 
 SUBROUTINE subrt1
     params:
-    returns: M0 -> m
+    returns: m
     uses: 0
     keeps:
     request: 
