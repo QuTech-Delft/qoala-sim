@@ -339,7 +339,11 @@ def run_bqc(
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     entdist.add_sampler(
-        client_procnode.node.ID, server_procnode.node.ID, factory, kwargs=kwargs
+        client_procnode.node.ID,
+        server_procnode.node.ID,
+        factory,
+        kwargs=kwargs,
+        delay=1000,
     )
 
     server_procnode.start()

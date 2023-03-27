@@ -9,11 +9,8 @@ from netsquid.components.instructions import (
 )
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 from netsquid_magic.state_delivery_sampler import (
-    DeliverySample,
     DepolariseWithFailureStateSamplerFactory,
-    IStateDeliverySamplerFactory,
     PerfectStateSamplerFactory,
-    StateDeliverySampler,
 )
 
 from qoala.lang.common import MultiQubit
@@ -430,7 +427,7 @@ def test_link_from_config():
 
     assert link.state_delay == 750
     assert link.sampler_factory == PerfectStateSamplerFactory
-    assert link.sampler_kwargs == {}
+    assert link.sampler_kwargs == {"cycle_time": 25}
 
 
 def test_link_from_config_2():

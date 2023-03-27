@@ -1,6 +1,7 @@
 # type: ignore
 from __future__ import annotations
 
+import itertools
 from abc import ABC, abstractclassmethod, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -27,11 +28,9 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 from netsquid_magic.state_delivery_sampler import (
-    DeliverySample,
     DepolariseWithFailureStateSamplerFactory,
     IStateDeliverySamplerFactory,
     PerfectStateSamplerFactory,
-    StateDeliverySampler,
 )
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -43,6 +42,7 @@ from qoala.runtime.lhi import (
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
+from qoala.util.constants import fidelity_to_prob_max_mixed
 
 
 class BaseModel(PydanticBaseModel):
@@ -800,15 +800,6 @@ class OldLinkConfig(BaseModel):
         )
 
 
-class ProcNodeNetworkConfig(BaseModel):
-    nodes: List[ProcNodeConfig]
-    links: List[OldLinkConfig]
-
-    @classmethod
-    def from_file(cls, path: str) -> ProcNodeNetworkConfig:
-        return _from_file(path, ProcNodeNetworkConfig)  # type: ignore
-
-
 class LinkSamplerConfigInterface:
     @abstractclassmethod
     def from_dict(cls, dict: Any) -> LinkSamplerConfigInterface:
@@ -824,15 +815,17 @@ class LinkSamplerConfigInterface:
 
 
 class PerfectSamplerConfig(LinkSamplerConfigInterface, BaseModel):
+    cycle_time: float
+
     @classmethod
     def from_dict(cls, dict: Any) -> PerfectSamplerConfig:
-        return PerfectSamplerConfig()
+        return PerfectSamplerConfig(**dict)
 
     def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
         return PerfectStateSamplerFactory
 
     def to_sampler_kwargs(self) -> Dict[str, Any]:
-        return {}
+        return {"cycle_time": self.cycle_time}
 
 
 class DepolariseSamplerConfig(LinkSamplerConfigInterface, BaseModel):
@@ -880,7 +873,19 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
         return LinkConfig(
             state_delay=state_delay,
             sampler_config_cls="PerfectSamplerConfig",
-            sampler_config=PerfectSamplerConfig(),
+            sampler_config=PerfectSamplerConfig(cycle_time=0),
+        )
+
+    @classmethod
+    def depolarise_config(cls, fidelity: float, state_delay: float) -> LinkConfig:
+        prob_max_mixed = fidelity_to_prob_max_mixed(fidelity)
+        sampler_config = DepolariseSamplerConfig(
+            cycle_time=0, prob_max_mixed=prob_max_mixed, prob_success=1
+        )
+        return LinkConfig(
+            state_delay=state_delay,
+            sampler_config_cls="DepolariseSamplerConfig",
+            sampler_config=sampler_config,
         )
 
     @classmethod
@@ -917,7 +922,7 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
             sampler_config=sampler_config,
         )
 
-    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactor]:
+    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
         return self.sampler_config.to_sampler_factory()
 
     def to_sampler_kwargs(self) -> Dict[str, Any]:
@@ -925,3 +930,45 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
 
     def to_state_delay(self) -> float:
         return self.state_delay
+
+
+class LinkBetweenNodesConfig(BaseModel):
+    node_id1: int
+    node_id2: int
+    link_config: LinkConfig
+
+    @classmethod
+    def from_file(cls, path: str) -> LinkBetweenNodesConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> LinkBetweenNodesConfig:
+        return LinkBetweenNodesConfig(
+            node_id1=dict["node_id1"],
+            node_id2=dict["node_id2"],
+            link_config=LinkConfig.from_dict(dict["link_config"]),
+        )
+
+
+class ProcNodeNetworkConfig(BaseModel):
+    nodes: List[ProcNodeConfig]
+    links: List[LinkBetweenNodesConfig]
+
+    @classmethod
+    def from_file(cls, path: str) -> ProcNodeNetworkConfig:
+        return _from_file(path, ProcNodeNetworkConfig)  # type: ignore
+
+    @classmethod
+    def from_nodes_perfect_links(
+        cls, nodes: List[ProcNodeConfig], link_duration: float
+    ) -> ProcNodeNetworkConfig:
+        links: List[LinkBetweenNodesConfig] = []
+        for node1, node2 in itertools.combinations(nodes, 2):
+            links.append(
+                LinkBetweenNodesConfig(
+                    node_id1=node1.node_id,
+                    node_id2=node2.node_id,
+                    link_config=LinkConfig.perfect_config(link_duration),
+                )
+            )
+        return ProcNodeNetworkConfig(nodes=nodes, links=links)

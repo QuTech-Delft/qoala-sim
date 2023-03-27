@@ -15,6 +15,8 @@ from netsquid.components.qprocessor import MissingInstructionError, QuantumProce
 from qoala.runtime.config import (
     GenericQDeviceConfig,
     LatenciesConfig,
+    LinkBetweenNodesConfig,
+    LinkConfig,
     NVQDeviceConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -211,9 +213,9 @@ def test_build_network():
     global_env.add_node(42, GlobalNodeInfo("alice", 42))
     global_env.add_node(43, GlobalNodeInfo("bob", 43))
 
-    # TODO: implement entdist config!!
-    # 'links' not used at the moment
-    cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[])
+    link_cfg = LinkConfig.perfect_config(state_delay=1000)
+    link_ab = LinkBetweenNodesConfig(node_id1=42, node_id2=43, link_config=link_cfg)
+    cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[link_ab])
     network = build_network(cfg, global_env)
 
     assert len(network.nodes) == 2
@@ -224,6 +226,8 @@ def test_build_network():
     alice = network.nodes["alice"]
     bob = network.nodes["bob"]
     entdist = network.entdist
+
+    assert entdist.get_sampler(42, 43).delay == 1000
 
     # NOTE: alice.host_comp.peer_in_port("bob") does not have a 'connected_port'.
     # Rather, messages are forwarded from alice.node.host_peer_in_port("bob").
@@ -245,6 +249,32 @@ def test_build_network():
     assert bob_ent_out.connected_port == entdist.comp.node_in_port("bob")
 
 
+def test_build_network_perfect_links():
+    top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
+    cfg_alice = ProcNodeConfig(
+        node_name="alice", node_id=42, topology=top_cfg, latencies=LatenciesConfig()
+    )
+    cfg_bob = ProcNodeConfig(
+        node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
+    )
+    global_env = GlobalEnvironment()
+    global_env.add_node(42, GlobalNodeInfo("alice", 42))
+    global_env.add_node(43, GlobalNodeInfo("bob", 43))
+
+    cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
+        nodes=[cfg_alice, cfg_bob], link_duration=500
+    )
+    network = build_network(cfg, global_env)
+
+    assert len(network.nodes) == 2
+    assert "alice" in network.nodes
+    assert "bob" in network.nodes
+    assert network.entdist is not None
+
+    entdist = network.entdist
+    assert entdist.get_sampler(42, 43).delay == 500
+
+
 if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
@@ -252,3 +282,4 @@ if __name__ == "__main__":
     test_build_nv_perfect()
     test_build_procnode()
     test_build_network()
+    test_build_network_perfect_links()

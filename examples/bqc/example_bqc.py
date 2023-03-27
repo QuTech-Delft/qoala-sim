@@ -12,6 +12,8 @@ from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
     GenericQDeviceConfig,
     LatenciesConfig,
+    LinkBetweenNodesConfig,
+    LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -109,7 +111,15 @@ def create_network(
 
     node_cfgs = [server_cfg] + client_configs
 
-    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=[])
+    link_config = LinkConfig.from_file(relative_to_cwd("link_config.yaml"))
+    links = [
+        LinkBetweenNodesConfig(
+            node_id1=server_cfg.node_id, node_id2=cfg.node_id, link_config=link_config
+        )
+        for cfg in client_configs
+    ]
+
+    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=links)
     return build_network(network_cfg, global_env)
 
 

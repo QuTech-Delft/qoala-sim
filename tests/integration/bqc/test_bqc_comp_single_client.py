@@ -167,8 +167,8 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
     client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
 
-    network_cfg = ProcNodeNetworkConfig(
-        nodes=[server_node_cfg, client_node_cfg], links=[]
+    network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
+        nodes=[server_node_cfg, client_node_cfg], link_duration=1000
     )
     network = build_network(network_cfg, global_env)
     server_procnode = network.nodes["server"]

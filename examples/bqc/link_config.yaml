@@ -1,3 +1,9 @@
-fidelity: 0.8
-prob_success: 1
-t_cycle: 10e6
+depolarise_config: &depolarise_config
+  cycle_time: 10
+  prob_max_mixed: 0.1
+  prob_success: 1
+
+state_delay: 750
+sampler_config_cls: "DepolariseSamplerConfig"
+sampler_config:
+  <<: *depolarise_config

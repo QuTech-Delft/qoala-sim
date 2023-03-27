@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -25,10 +25,8 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 from netsquid_magic.state_delivery_sampler import (
-    DeliverySample,
     IStateDeliverySamplerFactory,
     PerfectStateSamplerFactory,
-    StateDeliverySampler,
 )
 
 from qoala.lang.common import MultiQubit
@@ -431,16 +429,3 @@ class LhiLinkInfo:
             sampler_kwargs={},
             state_delay=duration,
         )
-
-
-@dataclass
-class LhiNetwork:
-    # Nodes: ID -> node topology
-    nodes: Dict[int, LhiTopology]
-
-    # Links: (node1 ID, node2 ID) -> link info
-    # Only one entry per pair; order does not matter.
-    # E.g.
-    #   having only an entry for key (0, 1) is the same as having only (1, 0)
-    #   it's not allowed to both have (0, 1) and (1, 0)
-    links: Dict[Tuple[int, int], LhiLinkInfo]
