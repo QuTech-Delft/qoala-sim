@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import netsquid as ns
+import pytest
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
@@ -12,6 +13,8 @@ from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    LinkBetweenNodesConfig,
+    LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -20,6 +23,7 @@ from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import NoTimeSolver, ProgramTaskList, TaskBuilder
 from qoala.sim.build import build_network
+from qoala.util.constants import fidelity_to_prob_max_mixed
 
 
 def create_global_env(names: List[str]) -> GlobalEnvironment:
@@ -111,7 +115,11 @@ class QkdResult:
 
 
 def run_qkd(
-    num_iterations: int, alice_file: str, bob_file: str, num_pairs: Optional[int] = None
+    num_iterations: int,
+    link_fidelity: float,
+    alice_file: str,
+    bob_file: str,
+    num_pairs: Optional[int] = None,
 ):
     ns.sim_reset()
 
@@ -123,8 +131,12 @@ def run_qkd(
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
-    network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
+    link_cfg = LinkConfig.depolarise_config(fidelity=link_fidelity, state_delay=1000)
+    link_between_cfg = LinkBetweenNodesConfig(
+        node_id1=alice_id, node_id2=bob_id, link_config=link_cfg
+    )
+    network_cfg = ProcNodeNetworkConfig(
+        nodes=[alice_node_cfg, bob_node_cfg], links=[link_between_cfg]
     )
     network = build_network(network_cfg, global_env)
     alice_procnode = network.nodes["alice"]
@@ -181,11 +193,14 @@ def run_qkd(
 def test_qkd_md_1pair():
     ns.sim_reset()
 
-    num_iterations = 10
+    num_iterations = 1000
+
+    link_fidelity = 0.7
+
     alice_file = "qkd_md_1pair_alice.iqoala"
     bob_file = "qkd_md_1pair_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    qkd_result = run_qkd(num_iterations, link_fidelity, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -195,148 +210,20 @@ def test_qkd_md_1pair():
     alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
     bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
 
+    count_equal_outcomes = 0
     for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
+        if alice["m0"] == bob["m0"]:
+            count_equal_outcomes += 1
 
-
-def test_qkd_md_2pairs():
-    ns.sim_reset()
-
-    num_iterations = 10
-    alice_file = "qkd_md_2pairs_alice.iqoala"
-    bob_file = "qkd_md_2pairs_bob.iqoala"
-
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
-
-    alice_results = qkd_result.alice_result.results
-    bob_results = qkd_result.bob_result.results
-
-    assert len(alice_results) == num_iterations
-    assert len(bob_results) == num_iterations
-
-    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
-
-    for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
-        assert alice["m1"] == bob["m1"]
-
-
-def test_qkd_ck_1pair():
-    ns.sim_reset()
-
-    num_iterations = 10
-    alice_file = "qkd_ck_1pair_alice.iqoala"
-    bob_file = "qkd_ck_1pair_bob.iqoala"
-
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
-    alice_results = qkd_result.alice_result.results
-    bob_results = qkd_result.bob_result.results
-
-    assert len(alice_results) == num_iterations
-    assert len(bob_results) == num_iterations
-
-    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
-
-    for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
-
-
-def test_qkd_ck_2pairs():
-    ns.sim_reset()
-
-    num_iterations = 10
-    alice_file = "qkd_ck_2pairs_alice.iqoala"
-    bob_file = "qkd_ck_2pairs_bob.iqoala"
-
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
-    alice_results = qkd_result.alice_result.results
-    bob_results = qkd_result.bob_result.results
-
-    assert len(alice_results) == num_iterations
-    assert len(bob_results) == num_iterations
-
-    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
-
-    for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
-        assert alice["m1"] == bob["m1"]
-
-
-def test_qkd_ck_callback_1pair():
-    ns.sim_reset()
-
-    num_iterations = 10
-    alice_file = "qkd_ck_callback_1pair_alice.iqoala"
-    bob_file = "qkd_ck_callback_1pair_bob.iqoala"
-
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
-    alice_results = qkd_result.alice_result.results
-    bob_results = qkd_result.bob_result.results
-
-    assert len(alice_results) == num_iterations
-    assert len(bob_results) == num_iterations
-
-    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
-
-    for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
-
-
-def test_qkd_ck_callback_2pairs():
-    ns.sim_reset()
-
-    num_iterations = 10
-    alice_file = "qkd_ck_callback_2pairs_alice.iqoala"
-    bob_file = "qkd_ck_callback_2pairs_bob.iqoala"
-
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
-    alice_results = qkd_result.alice_result.results
-    bob_results = qkd_result.bob_result.results
-
-    assert len(alice_results) == num_iterations
-    assert len(bob_results) == num_iterations
-
-    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
-
-    for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
-        assert alice["m1"] == bob["m1"]
-
-
-# TODO: implement #38 to make this work.
-# def test_qkd_ck_callback_npairs():
-#     ns.sim_reset()
-
-#     num_iterations = 1
-#     alice_file = "qkd_ck_callback_npairs_alice.iqoala"
-#     bob_file = "qkd_ck_callback_npairs_bob.iqoala"
-
-#     qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=1)
-#     alice_results = qkd_result.alice_result.results
-#     bob_results = qkd_result.bob_result.results
-
-#     assert len(alice_results) == num_iterations
-#     assert len(bob_results) == num_iterations
-
-#     alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-#     bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
-
-#     for alice, bob in zip(alice_outcomes, bob_outcomes):
-#         assert alice["m0"] == bob["m0"]
-#         assert alice["m1"] == bob["m1"]
+    # We used a link fidelity of 0.7 for a depolarising sampler.
+    # This results in a produced state of 0.4 * <maximally mixed> + 0.6 * Phi+.
+    assert fidelity_to_prob_max_mixed(0.7) == pytest.approx(0.4)
+    # Hence we expect the ratio of pairs with equal outcomes to be
+    # 0.5 * 0.4                     +    1.0 * 0.6                   = 0.8
+    # (mixed state -> 50% success)       (Phi+ -> 100% success)
+    assert (count_equal_outcomes / num_iterations) <= 0.82
+    assert (count_equal_outcomes / num_iterations) >= 0.78
 
 
 if __name__ == "__main__":
     test_qkd_md_1pair()
-    test_qkd_md_2pairs()
-    test_qkd_ck_1pair()
-    test_qkd_ck_2pairs()
-    test_qkd_ck_callback_1pair()
-    test_qkd_ck_callback_2pairs()
-    # TODO: implement #38 to make this work.
-    # test_qkd_ck_callback_npairs()

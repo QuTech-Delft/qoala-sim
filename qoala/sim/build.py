@@ -33,31 +33,26 @@ from netsquid_magic.magic_distributor import (
     DoubleClickMagicDistributor,
     PerfectStateMagicDistributor,
 )
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 from netsquid_physlayer.heralded_connection import MiddleHeraldedConnection
 
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import (  # type: ignore
-    DepolariseLinkConfig,
+    DepolariseOldLinkConfig,
     GenericQDeviceConfig,
-    HeraldedLinkConfig,
+    HeraldedOldLinkConfig,
     LinkConfig,
     NVQDeviceConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
 )
 from qoala.runtime.environment import GlobalEnvironment
-from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
-
-
-# TODO: move this to somewhere else
-def fidelity_to_prob_max_mixed(fid: float) -> float:
-    return (1 - fid) * 4.0 / 3.0
+from qoala.util.constants import fidelity_to_prob_max_mixed
 
 
 def build_qprocessor_from_topology(
@@ -330,8 +325,8 @@ def build_ll_protocol(
         )
     elif config.typ == "depolarise":
         link_cfg = config.cfg
-        if not isinstance(link_cfg, DepolariseLinkConfig):
-            link_cfg = DepolariseLinkConfig(**config.cfg)
+        if not isinstance(link_cfg, DepolariseOldLinkConfig):
+            link_cfg = DepolariseOldLinkConfig(**config.cfg)
         prob_max_mixed = fidelity_to_prob_max_mixed(link_cfg.fidelity)
         link_dist = DepolariseWithFailureMagicDistributor(
             nodes=[proc_node1.node, proc_node2.node],
@@ -354,8 +349,8 @@ def build_ll_protocol(
     #     )
     elif config.typ == "heralded":
         link_cfg = config.cfg
-        if not isinstance(link_cfg, HeraldedLinkConfig):
-            link_cfg = HeraldedLinkConfig(**config.cfg)
+        if not isinstance(link_cfg, HeraldedOldLinkConfig):
+            link_cfg = HeraldedOldLinkConfig(**config.cfg)
         connection = MiddleHeraldedConnection(name="heralded_conn", **link_cfg.dict())
         link_dist = DoubleClickMagicDistributor(
             [proc_node1.node, proc_node2.node], connection
@@ -371,7 +366,8 @@ def build_ll_protocol(
 
 
 def build_network(
-    config: ProcNodeNetworkConfig, global_env: GlobalEnvironment
+    config: ProcNodeNetworkConfig,
+    global_env: GlobalEnvironment,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
@@ -382,12 +378,16 @@ def build_network(
     entdistcomp = EntDistComponent(global_env)
     entdist = EntDist(nodes=ns_nodes, global_env=global_env, comp=entdistcomp)
 
+    for link_between_nodes in config.links:
+        link = LhiLinkInfo.from_config(link_between_nodes.link_config)
+        n1 = link_between_nodes.node_id1
+        n2 = link_between_nodes.node_id2
+        entdist.add_sampler(
+            n1, n2, link.sampler_factory(), link.sampler_kwargs, link.state_delay
+        )
+
     for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
         s1.connect_to(s2)
-
-        factory = PerfectStateSamplerFactory()
-        kwargs = {"cycle_time": 1000}
-        entdist.add_sampler(s1.node.ID, s2.node.ID, factory, kwargs=kwargs)
 
     for name, procnode in procnodes.items():
         procnode.node.entdist_out_port.connect(entdistcomp.node_in_port(name))

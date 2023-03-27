@@ -10,9 +10,9 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
-    DepolariseLinkConfig,
     GenericQDeviceConfig,
     LatenciesConfig,
+    LinkBetweenNodesConfig,
     LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -109,18 +109,17 @@ def create_network(
 
     global_env = create_global_env(num_clients, global_schedule, timeslot_len)
 
-    link_cfg_file = relative_to_cwd("link_config.yaml")
-    depolarise_config = DepolariseLinkConfig.from_file(link_cfg_file)
-    link_cfgs = [
-        LinkConfig(
-            node1="server", node2=cfg.node_name, typ="depolarise", cfg=depolarise_config
+    node_cfgs = [server_cfg] + client_configs
+
+    link_config = LinkConfig.from_file(relative_to_cwd("link_config.yaml"))
+    links = [
+        LinkBetweenNodesConfig(
+            node_id1=server_cfg.node_id, node_id2=cfg.node_id, link_config=link_config
         )
         for cfg in client_configs
     ]
 
-    node_cfgs = [server_cfg] + client_configs
-
-    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=link_cfgs)
+    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=links)
     return build_network(network_cfg, global_env)
 
 

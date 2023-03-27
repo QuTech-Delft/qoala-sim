@@ -111,7 +111,7 @@ def setup_components() -> Tuple[
 
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(alice.node.ID, bob.node.ID, factory, kwargs=kwargs)
+    entdist.add_sampler(alice.node.ID, bob.node.ID, factory, kwargs=kwargs, delay=1000)
 
     return alice_comp, alice, bob_comp, bob, entdist
 
@@ -238,7 +238,7 @@ def setup_components_full_netstack(
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     entdist.add_sampler(
-        alice_qdevice.node.ID, bob_qdevice.node.ID, factory, kwargs=kwargs
+        alice_qdevice.node.ID, bob_qdevice.node.ID, factory, kwargs=kwargs, delay=1000
     )
 
     alice_netstack = alice_netstack_cls(

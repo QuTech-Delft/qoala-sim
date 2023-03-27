@@ -242,3 +242,9 @@ class ExposedLatencyInfo:
     qnos_instr_time: float  # duration of classical Qnos instr execution
     host_peer_latency: float  # processing time for Host messages from remote node
     netstack_peer_latency: float  # processing time for Netstack messages from remote node
+
+
+@dataclass(eq=True, frozen=True)
+class ExposedLinkInfo:
+    duration: float  # ns
+    fidelity: float

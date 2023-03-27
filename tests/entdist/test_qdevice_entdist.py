@@ -38,7 +38,9 @@ def create_entdist(qdevices: List[QDevice]) -> EntDist:
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     for qd1, qd2 in itertools.combinations(qdevices, 2):
-        entdist.add_sampler(qd1.node.ID, qd2.node.ID, factory, kwargs=kwargs)
+        entdist.add_sampler(
+            qd1.node.ID, qd2.node.ID, factory, kwargs=kwargs, delay=1000
+        )
 
     return entdist
 

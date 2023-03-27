@@ -1,7 +1,7 @@
 # type: ignore
-
 from __future__ import annotations
 
+import itertools
 from abc import ABC, abstractclassmethod, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -27,15 +27,22 @@ from netsquid.components.models.qerrormodels import (
     QuantumErrorModel,
     T1T2NoiseModel,
 )
+from netsquid_magic.state_delivery_sampler import (
+    DepolariseWithFailureStateSamplerFactory,
+    IStateDeliverySamplerFactory,
+    PerfectStateSamplerFactory,
+)
 from pydantic import BaseModel as PydanticBaseModel
 
 from qoala.lang.common import MultiQubit
 from qoala.runtime.lhi import (
     LhiGateConfigInterface,
     LhiLatenciesConfigInterface,
+    LhiLinkConfigInterface,
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
+from qoala.util.constants import fidelity_to_prob_max_mixed
 
 
 class BaseModel(PydanticBaseModel):
@@ -58,6 +65,12 @@ class QubitConfigRegistry(ABC):
 class GateConfigRegistry(ABC):
     @abstractclassmethod
     def map(cls) -> Dict[str, GateNoiseConfigInterface]:
+        raise NotImplementedError
+
+
+class SamplerFactoryRegistry(ABC):
+    @abstractclassmethod
+    def map(cls) -> Dict[str, IStateDeliverySamplerFactory]:
         raise NotImplementedError
 
 
@@ -151,7 +164,7 @@ class QubitConfig(LhiQubitConfigInterface, BaseModel):
             try:
                 typ = DefaultQubitConfigRegistry.map()[raw_typ]
             except KeyError:
-                raise RuntimeError("invalid instruction type")
+                raise RuntimeError("invalid qubit noise class type")
 
         raw_noise_config = dict["noise_config"]
         noise_config = typ.from_dict(raw_noise_config)
@@ -726,17 +739,17 @@ class ProcNodeConfig(BaseModel):
         )
 
 
-class DepolariseLinkConfig(BaseModel):
+class DepolariseOldLinkConfig(BaseModel):
     fidelity: float
     prob_success: float
     t_cycle: float
 
     @classmethod
-    def from_file(cls, path: str) -> DepolariseLinkConfig:
-        return _from_file(path, DepolariseLinkConfig)  # type: ignore
+    def from_file(cls, path: str) -> DepolariseOldLinkConfig:
+        return _from_file(path, DepolariseOldLinkConfig)  # type: ignore
 
 
-class NVLinkConfig(BaseModel):
+class NVOldLinkConfig(BaseModel):
     length_A: float
     length_B: float
     full_cycle: float
@@ -744,11 +757,11 @@ class NVLinkConfig(BaseModel):
     alpha: float
 
     @classmethod
-    def from_file(cls, path: str) -> NVLinkConfig:
-        return _from_file(path, NVLinkConfig)  # type: ignore
+    def from_file(cls, path: str) -> NVOldLinkConfig:
+        return _from_file(path, NVOldLinkConfig)  # type: ignore
 
 
-class HeraldedLinkConfig(BaseModel):
+class HeraldedOldLinkConfig(BaseModel):
     length: float
     p_loss_init: float = 0
     p_loss_length: float = 0.25
@@ -759,11 +772,11 @@ class HeraldedLinkConfig(BaseModel):
     num_resolving: bool = False
 
     @classmethod
-    def from_file(cls, path: str) -> HeraldedLinkConfig:
-        return _from_file(path, HeraldedLinkConfig)  # type: ignore
+    def from_file(cls, path: str) -> HeraldedOldLinkConfig:
+        return _from_file(path, HeraldedOldLinkConfig)  # type: ignore
 
 
-class LinkConfig(BaseModel):
+class OldLinkConfig(BaseModel):
     node1: str
     node2: str
     typ: str
@@ -772,12 +785,12 @@ class LinkConfig(BaseModel):
     qnos_qnos_latency: float = 0.0
 
     @classmethod
-    def from_file(cls, path: str) -> LinkConfig:
-        return _from_file(path, LinkConfig)  # type: ignore
+    def from_file(cls, path: str) -> OldLinkConfig:
+        return _from_file(path, OldLinkConfig)  # type: ignore
 
     @classmethod
-    def perfect_config(cls, node1: str, node2: str) -> LinkConfig:
-        return LinkConfig(
+    def perfect_config(cls, node1: str, node2: str) -> OldLinkConfig:
+        return OldLinkConfig(
             node1=node1,
             node2=node2,
             typ="perfect",
@@ -787,10 +800,175 @@ class LinkConfig(BaseModel):
         )
 
 
+class LinkSamplerConfigInterface:
+    @abstractclassmethod
+    def from_dict(cls, dict: Any) -> LinkSamplerConfigInterface:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_sampler_kwargs(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+
+class PerfectSamplerConfig(LinkSamplerConfigInterface, BaseModel):
+    cycle_time: float
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> PerfectSamplerConfig:
+        return PerfectSamplerConfig(**dict)
+
+    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
+        return PerfectStateSamplerFactory
+
+    def to_sampler_kwargs(self) -> Dict[str, Any]:
+        return {"cycle_time": self.cycle_time}
+
+
+class DepolariseSamplerConfig(LinkSamplerConfigInterface, BaseModel):
+    cycle_time: float
+    prob_max_mixed: float
+    prob_success: float
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> DepolariseSamplerConfig:
+        return DepolariseSamplerConfig(**dict)
+
+    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
+        return DepolariseWithFailureStateSamplerFactory
+
+    def to_sampler_kwargs(self) -> Dict[str, Any]:
+        return {
+            "cycle_time": self.cycle_time,
+            "prob_max_mixed": self.prob_max_mixed,
+            "prob_success": self.prob_success,
+        }
+
+
+class DefaultSamplerConfigRegistry(SamplerFactoryRegistry):
+    _MAP = {
+        "PerfectSamplerConfig": PerfectSamplerConfig,
+        "DepolariseSamplerConfig": DepolariseSamplerConfig,
+    }
+
+    @classmethod
+    def map(cls) -> Dict[str, LinkSamplerConfigInterface]:
+        return cls._MAP
+
+
+class LinkConfig(LhiLinkConfigInterface, BaseModel):
+    state_delay: float
+    sampler_config_cls: str
+    sampler_config: LinkSamplerConfigInterface
+
+    @classmethod
+    def from_file(cls, path: str) -> LinkConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def perfect_config(cls, state_delay: float) -> LinkConfig:
+        return LinkConfig(
+            state_delay=state_delay,
+            sampler_config_cls="PerfectSamplerConfig",
+            sampler_config=PerfectSamplerConfig(cycle_time=0),
+        )
+
+    @classmethod
+    def depolarise_config(cls, fidelity: float, state_delay: float) -> LinkConfig:
+        prob_max_mixed = fidelity_to_prob_max_mixed(fidelity)
+        sampler_config = DepolariseSamplerConfig(
+            cycle_time=0, prob_max_mixed=prob_max_mixed, prob_success=1
+        )
+        return LinkConfig(
+            state_delay=state_delay,
+            sampler_config_cls="DepolariseSamplerConfig",
+            sampler_config=sampler_config,
+        )
+
+    @classmethod
+    def from_dict(
+        cls, dict: Any, registry: Optional[List[Type[SamplerFactoryRegistry]]] = None
+    ) -> LinkConfig:
+        state_delay = dict["state_delay"]
+        raw_typ = dict["sampler_config_cls"]
+
+        # Try to get the type of the sampler config class.
+        typ: Optional[LinkSamplerConfigInterface] = None
+        # First try custom registries.
+        if registry is not None:
+            try:
+                for reg in registry:
+                    if raw_typ in reg.map():
+                        typ = reg.map()[raw_typ]
+                        break
+            except KeyError:
+                pass
+        # If not found in custom registries, try default registry.
+        if typ is None:
+            try:
+                typ = DefaultSamplerConfigRegistry.map()[raw_typ]
+            except KeyError:
+                raise RuntimeError("invalid sampler config type")
+
+        raw_sampler_config = dict["sampler_config"]
+        sampler_config = typ.from_dict(raw_sampler_config)
+
+        return LinkConfig(
+            state_delay=state_delay,
+            sampler_config_cls=raw_typ,
+            sampler_config=sampler_config,
+        )
+
+    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
+        return self.sampler_config.to_sampler_factory()
+
+    def to_sampler_kwargs(self) -> Dict[str, Any]:
+        return self.sampler_config.to_sampler_kwargs()
+
+    def to_state_delay(self) -> float:
+        return self.state_delay
+
+
+class LinkBetweenNodesConfig(BaseModel):
+    node_id1: int
+    node_id2: int
+    link_config: LinkConfig
+
+    @classmethod
+    def from_file(cls, path: str) -> LinkBetweenNodesConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> LinkBetweenNodesConfig:
+        return LinkBetweenNodesConfig(
+            node_id1=dict["node_id1"],
+            node_id2=dict["node_id2"],
+            link_config=LinkConfig.from_dict(dict["link_config"]),
+        )
+
+
 class ProcNodeNetworkConfig(BaseModel):
     nodes: List[ProcNodeConfig]
-    links: List[LinkConfig]
+    links: List[LinkBetweenNodesConfig]
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeNetworkConfig:
         return _from_file(path, ProcNodeNetworkConfig)  # type: ignore
+
+    @classmethod
+    def from_nodes_perfect_links(
+        cls, nodes: List[ProcNodeConfig], link_duration: float
+    ) -> ProcNodeNetworkConfig:
+        links: List[LinkBetweenNodesConfig] = []
+        for node1, node2 in itertools.combinations(nodes, 2):
+            links.append(
+                LinkBetweenNodesConfig(
+                    node_id1=node1.node_id,
+                    node_id2=node2.node_id,
+                    link_config=LinkConfig.perfect_config(link_duration),
+                )
+            )
+        return ProcNodeNetworkConfig(nodes=nodes, links=links)

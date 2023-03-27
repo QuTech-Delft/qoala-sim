@@ -53,6 +53,12 @@ class EprDeliverySample:
         )
 
 
+@dataclass
+class DelayedSampler:
+    sampler: StateDeliverySampler
+    delay: float
+
+
 class EntDist(Protocol):
     def __init__(
         self, nodes: List[Node], global_env: GlobalEnvironment, comp: EntDistComponent
@@ -70,7 +76,7 @@ class EntDist(Protocol):
         self._nodes: Dict[int, Node] = {node.ID: node for node in nodes}
 
         # (Node ID 1, Node ID 2) -> Sampler
-        self._samplers: Dict[Tuple[int, int], StateDeliverySampler] = {}
+        self._samplers: Dict[Tuple[int, int], DelayedSampler] = {}
 
         # Node ID -> list of requests
         self._requests: Dict[int, List[EntDistRequest]] = {
@@ -91,6 +97,7 @@ class EntDist(Protocol):
         node2_id: int,
         factory: IStateDeliverySamplerFactory,
         kwargs: Dict[str, Any],
+        delay: float,
     ) -> None:
         if (node1_id, node2_id) in self._samplers:
             raise ValueError(f"Sampler for ({node1_id}, {node2_id}) already registered")
@@ -100,9 +107,9 @@ class EntDist(Protocol):
                 "NOTE: only one sampler per node pair is allowed; order does not matter."
             )
         sampler = factory.create_state_delivery_sampler(**kwargs)
-        self._samplers[(node1_id, node2_id)] = sampler
+        self._samplers[(node1_id, node2_id)] = DelayedSampler(sampler, delay)
 
-    def get_sampler(self, node1_id: int, node2_id: int) -> StateDeliverySampler:
+    def get_sampler(self, node1_id: int, node2_id: int) -> DelayedSampler:
         try:
             return self._samplers[(node1_id, node2_id)]
         except KeyError:
@@ -127,13 +134,12 @@ class EntDist(Protocol):
         node1_phys_id: int,
         node2_id: int,
         node2_phys_id: int,
-        state_delay: float,
     ) -> Generator[EventExpression, None, None]:
-        sampler = self.get_sampler(node1_id, node2_id)
-        sample = self.sample_state(sampler)
+        timed_sampler = self.get_sampler(node1_id, node2_id)
+        sample = self.sample_state(timed_sampler.sampler)
         epr = self.create_epr_pair_with_state(sample.state)
 
-        total_delay = sample.duration + state_delay
+        total_delay = sample.duration + timed_sampler.delay
 
         node1_mem = self._nodes[node1_id].qmemory
         node2_mem = self._nodes[node2_id].qmemory
@@ -223,7 +229,6 @@ class EntDist(Protocol):
             node1_phys_id=request.node1_qubit_id,
             node2_id=request.node2_id,
             node2_phys_id=request.node2_qubit_id,
-            state_delay=1000,
         )
 
     def serve_all_requests(self) -> Generator[EventExpression, None, None]:
@@ -233,7 +238,6 @@ class EntDist(Protocol):
                 node1_phys_id=request.node1_qubit_id,
                 node2_id=request.node2_id,
                 node2_phys_id=request.node2_qubit_id,
-                state_delay=1000,
             )
 
     def start(self) -> None:

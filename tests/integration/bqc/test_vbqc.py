@@ -93,7 +93,9 @@ def create_network(
 
     node_cfgs = [server_cfg] + client_configs
 
-    network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=[])
+    network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
+        nodes=node_cfgs, link_duration=1000
+    )
     return build_network(network_cfg, global_env)
 
 

@@ -24,6 +24,10 @@ from netsquid.components.models.qerrormodels import (
     QuantumErrorModel,
     T1T2NoiseModel,
 )
+from netsquid_magic.state_delivery_sampler import (
+    IStateDeliverySamplerFactory,
+    PerfectStateSamplerFactory,
+)
 
 from qoala.lang.common import MultiQubit
 
@@ -388,3 +392,40 @@ class LhiLatencies:
         # NOTE: can also just use LhiLatencies() which will default all values to 0
         # However, using this classmethod makes this behavior more explicit and clear.
         return LhiLatencies(0, 0, 0, 0, 0)
+
+
+class LhiLinkConfigInterface(ABC):
+    @abstractmethod
+    def to_sampler_factory(self) -> Type[IStateDeliverySamplerFactory]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_sampler_kwargs(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_state_delay(self) -> float:
+        raise NotImplementedError
+
+
+@dataclass
+class LhiLinkInfo:
+    sampler_factory: Type[IStateDeliverySamplerFactory]
+    sampler_kwargs: Dict[str, Any]
+    state_delay: float  # time between EPR generation and putting the state into memory
+
+    @classmethod
+    def from_config(cls, cfg: LhiLinkConfigInterface) -> LhiLinkInfo:
+        return LhiLinkInfo(
+            sampler_factory=cfg.to_sampler_factory(),
+            sampler_kwargs=cfg.to_sampler_kwargs(),
+            state_delay=cfg.to_state_delay(),
+        )
+
+    @classmethod
+    def perfect(cls, duration: float) -> LhiLinkInfo:
+        return LhiLinkInfo(
+            sampler_factory=PerfectStateSamplerFactory,
+            sampler_kwargs={},
+            state_delay=duration,
+        )
