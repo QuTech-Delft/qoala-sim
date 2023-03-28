@@ -180,7 +180,7 @@ def test_assign_cvalue():
     process = create_process(program, interface)
     processor.initialize(process)
 
-    yield_from(processor.assign(process, 0))
+    yield_from(processor.assign_instr_index(process, 0))
     assert process.prog_memory.host_mem.read("x") == 3
 
 
@@ -195,7 +195,7 @@ def test_assign_cvalue_with_latencies():
     processor.initialize(process)
 
     assert ns.sim_time() == 0
-    netsquid_run(processor.assign(process, 0))
+    netsquid_run(processor.assign_instr_index(process, 0))
     assert process.prog_memory.host_mem.read("x") == 3
     assert ns.sim_time() == 500
 
@@ -209,7 +209,7 @@ def test_send_msg():
     process = create_process(program, interface, inputs={"bob": 0, "msg": 12})
     processor.initialize(process)
 
-    yield_from(processor.assign(process, 0))
+    yield_from(processor.assign_instr_index(process, 0))
     assert interface.send_events[0] == InterfaceEvent("bob", Message(content=12))
 
 
@@ -222,7 +222,7 @@ def test_recv_msg():
     process = create_process(program, interface, inputs={"bob": 0})
     processor.initialize(process)
 
-    yield_from(processor.assign(process, 0))
+    yield_from(processor.assign_instr_index(process, 0))
     assert interface.recv_events[0] == InterfaceEvent("bob", MOCK_MESSAGE)
     assert process.prog_memory.host_mem.read("msg") == MOCK_MESSAGE.content
 
@@ -240,7 +240,7 @@ def test_recv_msg_with_latencies():
     processor.initialize(process)
 
     assert ns.sim_time() == 0
-    netsquid_run(processor.assign(process, 0))
+    netsquid_run(processor.assign_instr_index(process, 0))
     assert interface.recv_events[0] == InterfaceEvent("bob", MOCK_MESSAGE)
     assert process.prog_memory.host_mem.read("msg") == MOCK_MESSAGE.content
     assert ns.sim_time() == 500 + 1e6
@@ -260,7 +260,7 @@ def test_add_cvalue():
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
+        yield_from(processor.assign_instr_index(process, i))
 
     assert process.prog_memory.host_mem.read("sum") == 5
 
@@ -282,7 +282,7 @@ def test_add_cvalue_with_latencies():
 
     assert ns.sim_time() == 0
     for i in range(len(program.instructions)):
-        netsquid_run(processor.assign(process, i))
+        netsquid_run(processor.assign_instr_index(process, i))
 
     assert process.prog_memory.host_mem.read("sum") == 5
     assert ns.sim_time() == len(program.instructions) * 1200
@@ -298,7 +298,7 @@ def test_multiply_const():
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
+        yield_from(processor.assign_instr_index(process, i))
 
     assert process.prog_memory.host_mem.read("result") == -4
 
@@ -320,7 +320,7 @@ def test_bit_cond_mult():
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
+        yield_from(processor.assign_instr_index(process, i))
 
     assert process.prog_memory.host_mem.read("result1") == 4
     assert process.prog_memory.host_mem.read("result2") == -7
@@ -342,7 +342,7 @@ def test_run_subroutine():
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
+        yield_from(processor.assign_instr_index(process, i))
 
     # Host processor should have communicated with the qnos processor.
     send_event = interface.send_events[0]
@@ -384,7 +384,7 @@ def test_run_subroutine_2():
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
+        yield_from(processor.assign_instr_index(process, i))
 
     send_event = interface.send_events[0]
     assert send_event.peer == "qnos"
@@ -445,7 +445,7 @@ def test_run_request():
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
+        yield_from(processor.assign_instr_index(process, i))
 
     # Host processor should have communicated with the netstack processor.
     send_event = interface.send_events[0]
@@ -466,7 +466,7 @@ def test_return_result():
     processor.initialize(process)
 
     for i in range(len(program.instructions)):
-        yield_from(processor.assign(process, i))
+        yield_from(processor.assign_instr_index(process, i))
 
     assert process.prog_memory.host_mem.read("result") == 2
     assert process.result.values == {"result": 2}

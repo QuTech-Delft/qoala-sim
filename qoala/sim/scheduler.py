@@ -164,34 +164,37 @@ class Scheduler(Protocol):
         schedule = self.solver_output_to_schedule(solver_output)
         self.install_schedule(schedule)
 
+    def create_process(self, prog_instance: ProgramInstance) -> IqoalaProcess:
+        prog_memory = ProgramMemory(prog_instance.pid)
+        meta = prog_instance.program.meta
+
+        csockets: Dict[int, ClassicalSocket] = {}
+        for i, remote_name in meta.csockets.items():
+            # TODO: check for already existing epr sockets
+            csockets[i] = self.host.create_csocket(remote_name)
+
+        epr_sockets: Dict[int, EprSocket] = {}
+        for i, remote_name in meta.epr_sockets.items():
+            global_env = self._local_env.get_global_env()
+            remote_id = global_env.get_node_id(remote_name)
+            # TODO: check for already existing epr sockets
+            # TODO: fidelity
+            epr_sockets[i] = EprSocket(i, remote_id, 1.0)
+
+        result = ProgramResult(values={})
+
+        return IqoalaProcess(
+            prog_instance=prog_instance,
+            prog_memory=prog_memory,
+            csockets=csockets,
+            epr_sockets=epr_sockets,
+            result=result,
+        )
+
     def create_processes_for_batches(self) -> None:
         for batch in self._batches.values():
             for prog_instance in batch.instances:
-                prog_memory = ProgramMemory(prog_instance.pid)
-                meta = prog_instance.program.meta
-
-                csockets: Dict[int, ClassicalSocket] = {}
-                for i, remote_name in meta.csockets.items():
-                    # TODO: check for already existing epr sockets
-                    csockets[i] = self.host.create_csocket(remote_name)
-
-                epr_sockets: Dict[int, EprSocket] = {}
-                for i, remote_name in meta.epr_sockets.items():
-                    global_env = self._local_env.get_global_env()
-                    remote_id = global_env.get_node_id(remote_name)
-                    # TODO: check for already existing epr sockets
-                    # TODO: fidelity
-                    epr_sockets[i] = EprSocket(i, remote_id, 1.0)
-
-                result = ProgramResult(values={})
-
-                process = IqoalaProcess(
-                    prog_instance=prog_instance,
-                    prog_memory=prog_memory,
-                    csockets=csockets,
-                    epr_sockets=epr_sockets,
-                    result=result,
-                )
+                process = self.create_process(prog_instance)
 
                 self.memmgr.add_process(process)
                 self.initialize_process(process)
@@ -210,7 +213,7 @@ class Scheduler(Protocol):
     def execute_host_task(
         self, process: IqoalaProcess, task: HostTask
     ) -> Generator[EventExpression, None, None]:
-        yield from self.host.processor.assign(process, task.instr_index)
+        yield from self.host.processor.assign_instr_index(process, task.instr_index)
 
     def execute_qnos_task(
         self, process: IqoalaProcess, task: QnosTask
@@ -336,3 +339,8 @@ class Scheduler(Protocol):
 
         self._logger.debug(f"{self.name} finished with schedule\n\n")
         self.collect_batch_results()
+
+    def submit_program_instance(self, prog_instance: ProgramInstance) -> None:
+        process = self.create_process(prog_instance)
+        self.memmgr.add_process(process)
+        self.initialize_process(process)

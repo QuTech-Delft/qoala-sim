@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.taskcreator import CpuTask
 
 
 class ProgramContext(abc.ABC):
@@ -16,6 +17,10 @@ class ProgramContext(abc.ABC):
 @dataclass
 class ProgramInput:
     values: Dict[str, Any]
+
+    @classmethod
+    def empty(cls) -> ProgramInput:
+        return ProgramInput({})
 
 
 @dataclass
@@ -44,6 +49,7 @@ class ProgramInstance:
     inputs: ProgramInput
     tasks: ProgramTaskList
     unit_module: UnitModule
+    cpu_tasks: Optional[List[CpuTask]] = None
 
 
 @dataclass

@@ -40,14 +40,25 @@ class HostProcessor:
         for name, value in inputs.values.items():
             host_mem.write(name, value)
 
-    def assign(
+    def assign_instr_index(
         self, process: IqoalaProcess, instr_idx: int
+    ) -> Generator[EventExpression, None, None]:
+        program = process.prog_instance.program
+        instr = program.instructions[instr_idx]
+        yield from self.assign_instr(process, instr)
+
+    def assign_block(
+        self, process: IqoalaProcess, block_name: str
+    ) -> Generator[EventExpression, None, None]:
+        block = process.program.get_block(block_name)
+        for instr in block.instructions:
+            yield from self.assign_instr(process, instr)
+
+    def assign_instr(
+        self, process: IqoalaProcess, instr: hostlang.ClassicalIqoalaOp
     ) -> Generator[EventExpression, None, None]:
         csockets = process.csockets
         host_mem = process.prog_memory.host_mem
-        program = process.prog_instance.program
-
-        instr = program.instructions[instr_idx]
 
         self._logger.info(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, hostlang.AssignCValueOp):

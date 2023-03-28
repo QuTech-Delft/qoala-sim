@@ -493,7 +493,7 @@ def test_initialize():
     assert host_mem.read("theta") == 3.14
     assert host_mem.read("name") == "alice"
 
-    netsquid_run(host_processor.assign(process, instr_idx=0))
+    netsquid_run(host_processor.assign_instr_index(process, instr_idx=0))
     routine = process.program.local_routines["subrt1"]
     qnos_processor.instantiate_routine(process, routine, {}, 0, 0)
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
@@ -556,7 +556,7 @@ SUBROUTINE subrt1
     host_processor.initialize(process)
 
     def host_run() -> Generator[EventExpression, None, None]:
-        yield from host_processor.assign(process, instr_idx=0)
+        yield from host_processor.assign_instr_index(process, instr_idx=0)
 
     def qnos_run() -> Generator[EventExpression, None, None]:
         yield from qnos_processor.await_local_routine_call(process)
@@ -584,7 +584,7 @@ def test_classical_comm():
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            yield from self.host.processor.assign(process, 0)
+            yield from self.host.processor.assign_instr_index(process, 0)
 
     alice_procnode = create_procnode(
         "alice",
@@ -670,13 +670,13 @@ def test_classical_comm_three_nodes():
     class SenderProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            yield from self.host.processor.assign(process, 0)
+            yield from self.host.processor.assign_instr_index(process, 0)
 
     class ReceiverProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
-            yield from self.host.processor.assign(process, 0)
-            yield from self.host.processor.assign(process, 1)
+            yield from self.host.processor.assign_instr_index(process, 0)
+            yield from self.host.processor.assign_instr_index(process, 1)
 
     alice_procnode = create_procnode(
         "alice",
