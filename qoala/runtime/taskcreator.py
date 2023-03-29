@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from qoala.lang.hostlang import (
     BasicBlock,
@@ -37,7 +39,14 @@ class CpuTask:
 
 @dataclass
 class CpuSchedule:
-    tasks: List[Tuple[int, CpuTask]]  # time -> task
+    # list of (time -> task) entries
+    # if time is None, it means "no time restriction", which in general means:
+    # execute immediately after previous task
+    tasks: List[Tuple[Optional[int], CpuTask]]  # time -> task
+
+    @classmethod
+    def no_constraints(cls, tasks: List[CpuTask]) -> CpuSchedule:
+        return CpuSchedule(tasks=[(None, t) for t in tasks])
 
 
 @dataclass

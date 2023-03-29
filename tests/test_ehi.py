@@ -6,6 +6,7 @@ from netqasm.lang.instr.flavour import NVFlavour
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import (
     EhiBuilder,
+    EhiLatencies,
     ExposedGateInfo,
     ExposedHardwareInfo,
     ExposedQubitInfo,
@@ -49,7 +50,11 @@ def create_ehi() -> ExposedHardwareInfo:
     }
 
     return ExposedHardwareInfo(
-        qubit_infos, flavour, single_gate_infos, multi_gate_infos
+        qubit_infos,
+        flavour,
+        single_gate_infos,
+        multi_gate_infos,
+        EhiLatencies.all_zero(),
     )
 
 

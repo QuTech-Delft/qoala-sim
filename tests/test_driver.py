@@ -103,6 +103,31 @@ def test_cpu_driver():
     assert ns.sim_time() == 1000
 
 
+def test_cpu_driver_no_time():
+    procnode = ObjectBuilder.simple_procnode("alice", 1)
+    program = get_pure_host_program()
+
+    pid = 0
+    instance = ObjectBuilder.simple_program_instance(program, pid)
+
+    procnode.scheduler.submit_program_instance(instance)
+
+    cpu_schedule = CpuSchedule.no_constraints([CpuTask(0, "b0"), CpuTask(0, "b1")])
+
+    driver = CpuDriver("alice", procnode.host.processor, procnode.memmgr)
+    driver.upload_schedule(cpu_schedule)
+
+    ns.sim_reset()
+    driver.start()
+    ns.sim_run()
+
+    assert procnode.memmgr.get_process(pid).host_mem.read("var_x") == 3
+    assert procnode.memmgr.get_process(pid).host_mem.read("var_y") == 5
+    assert procnode.memmgr.get_process(pid).host_mem.read("var_z") == 9
+
+    assert ns.sim_time() == 0
+
+
 def test_cpu_driver_2_processes():
     procnode = ObjectBuilder.simple_procnode("alice", 1)
     program = get_pure_host_program()
@@ -238,6 +263,7 @@ def test_qpu_driver_2_processes():
 
 if __name__ == "__main__":
     test_cpu_driver()
+    test_cpu_driver_no_time()
     test_cpu_driver_2_processes()
     test_qpu_driver()
     test_qpu_driver_2_processes()

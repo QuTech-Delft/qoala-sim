@@ -36,7 +36,7 @@ from qoala.runtime.environment import (
     GlobalNodeInfo,
     LocalEnvironment,
 )
-from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
@@ -742,9 +742,10 @@ def test_4_with_latencies():
     netstack_peer_latency = 200e3
     epr_creation_duration = 100e3
 
+    latencies = NetstackLatencies(netstack_peer_latency=netstack_peer_latency)
+
     alice_processor, bob_processor = setup_components_generic(
-        num_qubits=3,
-        latencies=NetstackLatencies(netstack_peer_latency=netstack_peer_latency),
+        num_qubits=3, latencies=latencies
     )
 
     alice_topology = alice_processor.qdevice.topology

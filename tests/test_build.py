@@ -183,9 +183,9 @@ def test_build_procnode():
     assert procnode.node.name == "the_node"
     procnode.host_comp.peer_in_port("other_node")  # should not raise error
     procnode.netstack_comp.peer_in_port("other_node")  # should not raise error
-    procnode.qnos.processor._latencies.qnos_instr_time == 3
-    procnode.host.processor._latencies.host_instr_time == 17
-    procnode.host.processor._latencies.host_peer_latency == 5
+    assert procnode.qnos.processor._latencies.qnos_instr_time == 20
+    assert procnode.host.processor._latencies.host_instr_time == 17
+    assert procnode.host.processor._latencies.host_peer_latency == 5
 
     expected_topology = LhiTopologyBuilder.from_config(top_cfg)
     expected_qprocessor = build_qprocessor_from_topology("the_node", expected_topology)

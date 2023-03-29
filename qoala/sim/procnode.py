@@ -71,7 +71,7 @@ class ProcNode(Protocol):
         # Create internal components.
         self._qdevice: QDevice = QDevice(self._node, qdevice_topology)
         self._ehi: ExposedHardwareInfo = LhiConverter.to_ehi(
-            qdevice_topology, ntf_interface
+            qdevice_topology, ntf_interface, latencies
         )
 
         host_latencies = HostLatencies(

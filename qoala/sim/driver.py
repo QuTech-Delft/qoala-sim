@@ -52,8 +52,10 @@ class CpuDriver(Protocol):
         while True:
             try:
                 time, task = self._task_list.pop(0)
-                now = ns.sim_time()
-                yield from self.wait(time - now)
+                if time is not None:
+                    now = ns.sim_time()
+                    yield from self.wait(time - now)
+
                 process = self._memmgr.get_process(task.pid)
                 yield from self._hostprocessor.assign_block(process, task.block_name)
             except IndexError:
@@ -154,8 +156,9 @@ class QpuDriver(Protocol):
         while True:
             try:
                 time, task = self._task_list.pop(0)
-                now = ns.sim_time()
-                yield from self.wait(time - now)
+                if time is not None:
+                    now = ns.sim_time()
+                    yield from self.wait(time - now)
 
                 if task.routine_type == RoutineType.LOCAL:
                     yield from self._handle_lr(task)

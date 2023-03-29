@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Type
+from typing import Any, Dict, Optional, Type
 
 from netqasm.lang.instr import core, nv, vanilla
 from netqasm.lang.instr.base import NetQASMInstruction
@@ -27,12 +27,18 @@ from netsquid.components.models.qerrormodels import (
 )
 
 from qoala.lang.ehi import (
+    EhiLatencies,
     ExposedGateInfo,
     ExposedHardwareInfo,
-    ExposedLatencyInfo,
     ExposedQubitInfo,
 )
-from qoala.runtime.lhi import LhiGateInfo, LhiLatencies, LhiQubitInfo, LhiTopology
+from qoala.runtime.lhi import (
+    LhiGateInfo,
+    LhiLatencies,
+    LhiLinkInfo,
+    LhiQubitInfo,
+    LhiTopology,
+)
 
 
 class NativeToFlavourInterface(abc.ABC):
@@ -126,8 +132,14 @@ class LhiConverter:
 
     @classmethod
     def to_ehi(
-        cls, topology: LhiTopology, ntf: NativeToFlavourInterface
+        cls,
+        topology: LhiTopology,
+        ntf: NativeToFlavourInterface,
+        latencies: Optional[LhiLatencies] = None,
     ) -> ExposedHardwareInfo:
+        if latencies is None:
+            latencies = LhiLatencies.all_zero()
+
         qubit_infos = {
             id: cls.qubit_info_to_ehi(qi) for (id, qi) in topology.qubit_infos.items()
         }
@@ -139,19 +151,18 @@ class LhiConverter:
             ids: [cls.gate_info_to_ehi(gi, ntf) for gi in gis]
             for (ids, gis) in topology.multi_gate_infos.items()
         }
-        return ExposedHardwareInfo(
-            qubit_infos=qubit_infos,
-            flavour=ntf.flavour(),
-            single_gate_infos=single_gate_infos,
-            multi_gate_infos=multi_gate_infos,
+        flavour = ntf.flavour()
+
+        latencies = EhiLatencies(
+            latencies.host_instr_time,
+            latencies.qnos_instr_time,
+            latencies.host_peer_latency,
         )
 
-    @classmethod
-    def lhi_latencies_to_ehi(cls, latencies: LhiLatencies) -> ExposedLatencyInfo:
-        return ExposedLatencyInfo(
-            host_qnos_latency=latencies.host_qnos_latency,
-            host_instr_time=latencies.host_instr_time,
-            qnos_instr_time=latencies.qnos_instr_time,
-            host_peer_latency=latencies.host_peer_latency,
-            netstack_peer_latency=latencies.netstack_peer_latency,
+        return ExposedHardwareInfo(
+            qubit_infos=qubit_infos,
+            flavour=flavour,
+            single_gate_infos=single_gate_infos,
+            multi_gate_infos=multi_gate_infos,
+            latencies=latencies,
         )

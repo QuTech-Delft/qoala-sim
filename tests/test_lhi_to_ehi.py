@@ -30,8 +30,16 @@ def test_topology_to_ehi():
         two_duration=100e3,
     )
 
+    latencies = LhiLatencies(
+        host_qnos_latency=1,
+        host_instr_time=2,
+        qnos_instr_time=3,
+        host_peer_latency=4,
+        netstack_peer_latency=5,
+    )
+
     interface = NvToNvInterface()
-    ehi = LhiConverter.to_ehi(topology, interface)
+    ehi = LhiConverter.to_ehi(topology, interface, latencies)
 
     assert ehi.qubit_infos == {
         0: ExposedQubitInfo(is_communication=True, decoherence_rate=0),
@@ -59,25 +67,10 @@ def test_topology_to_ehi():
         MultiQubit([1, 0]): multi_gates,
     }
 
-
-def test_latencies_to_ehi():
-    lhi_latencies = LhiLatencies(
-        host_qnos_latency=1,
-        host_instr_time=2,
-        qnos_instr_time=3,
-        host_peer_latency=4,
-        netstack_peer_latency=5,
-    )
-
-    ehi_latencies = LhiConverter.lhi_latencies_to_ehi(lhi_latencies)
-
-    assert ehi_latencies.host_qnos_latency == 1
-    assert ehi_latencies.host_instr_time == 2
-    assert ehi_latencies.qnos_instr_time == 3
-    assert ehi_latencies.host_peer_latency == 4
-    assert ehi_latencies.netstack_peer_latency == 5
+    assert ehi.latencies.host_instr_time == 2
+    assert ehi.latencies.qnos_instr_time == 3
+    assert ehi.latencies.host_peer_latency == 4
 
 
 if __name__ == "__main__":
     test_topology_to_ehi()
-    test_latencies_to_ehi()

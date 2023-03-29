@@ -443,7 +443,7 @@ def test_initialize():
     qnos_processor = procnode.qnos.processor
     netstack_processor = procnode.netstack.processor
 
-    ehi = LhiConverter.to_ehi(topology, ntf)
+    ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
     instrs = [AssignCValueOp("x", 3)]
@@ -524,7 +524,7 @@ def test_2():
     host_processor = procnode.host.processor
     qnos_processor = procnode.qnos.processor
 
-    ehi = LhiConverter.to_ehi(topology, ntf)
+    ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
     instrs = [RunSubroutineOp(IqoalaVector(["result"]), IqoalaVector([]), "subrt1")]
@@ -608,7 +608,7 @@ def test_classical_comm():
     alice_host_processor = alice_procnode.host.processor
     bob_host_processor = bob_procnode.host.processor
 
-    ehi = LhiConverter.to_ehi(topology, ntf)
+    ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_instrs = [SendCMsgOp("csocket_id", "message")]
@@ -710,7 +710,7 @@ def test_classical_comm_three_nodes():
     bob_host_processor = bob_procnode.host.processor
     charlie_host_processor = charlie_procnode.host.processor
 
-    ehi = LhiConverter.to_ehi(topology, ntf)
+    ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_instrs = [SendCMsgOp("csocket_id", "message")]
@@ -824,7 +824,7 @@ def test_epr():
     alice_host_processor = alice_procnode.host.processor
     bob_host_processor = bob_procnode.host.processor
 
-    ehi = LhiConverter.to_ehi(topology, ntf)
+    ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
     alice_request_routine = RequestRoutine(
@@ -978,7 +978,7 @@ REQUEST req1
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
-    ehi = LhiConverter.to_ehi(topology, ntf)
+    ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
     global_env = create_global_env(num_qubits, names=["client", "server"])
     server_id = global_env.get_node_id("server")

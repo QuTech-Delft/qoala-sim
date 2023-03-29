@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Type
+from re import L
+from typing import Dict, List, Optional, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
@@ -23,6 +24,23 @@ class ExposedGateInfo:
 
 
 @dataclass(eq=True, frozen=True)
+class ExposedLinkInfo:
+    duration: float  # ns
+    fidelity: float
+
+
+@dataclass(eq=True, frozen=True)
+class EhiLatencies:
+    host_instr_time: float  # duration of classical Host instr execution (CL)
+    qnos_instr_time: float  # duration of classical Qnos instr execution (QL)
+    host_peer_latency: float  # processing time for Host messages from remote node (CC)
+
+    @classmethod
+    def all_zero(cls) -> EhiLatencies:
+        return EhiLatencies(0, 0, 0)
+
+
+@dataclass(eq=True, frozen=True)
 class ExposedHardwareInfo:
     """Hardware made available to offline compiler."""
 
@@ -35,6 +53,8 @@ class ExposedHardwareInfo:
     multi_gate_infos: Dict[
         MultiQubit, List[ExposedGateInfo]
     ]  # ordered qubit ID list -> gates
+
+    latencies: EhiLatencies
 
 
 class EhiBuilder:
@@ -83,6 +103,7 @@ class EhiBuilder:
         single_duration: float,
         two_instructions: List[Type[NetQASMInstruction]],
         two_duration: float,
+        latencies: Optional[EhiLatencies] = None,
     ) -> ExposedHardwareInfo:
         return cls.fully_uniform(
             num_qubits=num_qubits,
@@ -90,6 +111,7 @@ class EhiBuilder:
             qubit_info=cls.perfect_qubit(is_communication=True),
             single_gate_infos=cls.perfect_gates(single_duration, single_instructions),
             two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
+            latencies=latencies,
         )
 
     @classmethod
@@ -100,6 +122,7 @@ class EhiBuilder:
         flavour: Type[Flavour],
         single_gate_infos: List[ExposedGateInfo],
         two_gate_infos: List[ExposedGateInfo],
+        latencies: Optional[EhiLatencies] = None,
     ) -> ExposedHardwareInfo:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}
@@ -109,7 +132,10 @@ class EhiBuilder:
                 if i != j:
                     multi = MultiQubit([i, j])
                     mg_infos[multi] = two_gate_infos
-        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos)
+
+        if latencies is None:
+            latencies = EhiLatencies.all_zero()
+        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
 
     @classmethod
     def perfect_star(
@@ -122,6 +148,7 @@ class EhiBuilder:
         mem_duration: float,
         two_instructions: List[Type[NetQASMInstruction]],
         two_duration: float,
+        latencies: Optional[EhiLatencies] = None,
     ) -> ExposedHardwareInfo:
         comm_qubit_info = cls.perfect_qubit(is_communication=True)
         mem_qubit_info = cls.perfect_qubit(is_communication=False)
@@ -141,7 +168,9 @@ class EhiBuilder:
         for i in range(1, num_qubits):
             mg_infos[MultiQubit([0, i])] = two_gate_infos
 
-        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos)
+        if latencies is None:
+            latencies = EhiLatencies.all_zero()
+        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
 
     @classmethod
     def generic_t1t2_star(
@@ -159,6 +188,7 @@ class EhiBuilder:
         two_instructions: List[Type[NetQASMInstruction]],
         two_duration: float,
         two_instr_decoherence: float,
+        latencies: Optional[EhiLatencies] = None,
     ) -> ExposedHardwareInfo:
         comm_qubit_info = cls.decoherence_qubit(
             is_communication=True, decoherence_rate=comm_decoherence
@@ -188,7 +218,9 @@ class EhiBuilder:
         for i in range(1, num_qubits):
             mg_infos[MultiQubit([0, i])] = two_gate_infos
 
-        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos)
+        if latencies is None:
+            latencies = EhiLatencies.all_zero()
+        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
 
 
 @dataclass(eq=True, frozen=True)
@@ -221,7 +253,11 @@ class UnitModule:
 
         return UnitModule(
             info=ExposedHardwareInfo(
-                qubit_infos, ehi.flavour, single_gate_infos, multi_gate_infos
+                qubit_infos,
+                ehi.flavour,
+                single_gate_infos,
+                multi_gate_infos,
+                ehi.latencies,
             )
         )
 
@@ -233,18 +269,3 @@ class UnitModule:
 
     def get_all_qubit_ids(self) -> List[int]:
         return list(self.info.qubit_infos.keys())
-
-
-@dataclass
-class ExposedLatencyInfo:
-    host_qnos_latency: float  # delay for Host <-> Qnos communication
-    host_instr_time: float  # duration of classical Host instr execution
-    qnos_instr_time: float  # duration of classical Qnos instr execution
-    host_peer_latency: float  # processing time for Host messages from remote node
-    netstack_peer_latency: float  # processing time for Netstack messages from remote node
-
-
-@dataclass(eq=True, frozen=True)
-class ExposedLinkInfo:
-    duration: float  # ns
-    fidelity: float
