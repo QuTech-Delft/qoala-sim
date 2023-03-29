@@ -243,7 +243,7 @@ def test_recv_msg_with_latencies():
     netsquid_run(processor.assign_instr_index(process, 0))
     assert interface.recv_events[0] == InterfaceEvent("bob", MOCK_MESSAGE)
     assert process.prog_memory.host_mem.read("msg") == MOCK_MESSAGE.content
-    assert ns.sim_time() == 500 + 1e6
+    assert ns.sim_time() == 1e6  # no host_instr_time used !
 
 
 def test_add_cvalue():

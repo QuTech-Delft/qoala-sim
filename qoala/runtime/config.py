@@ -36,6 +36,7 @@ from pydantic import BaseModel as PydanticBaseModel
 
 from qoala.lang.common import MultiQubit
 from qoala.runtime.lhi import (
+    INSTR_MEASURE_INSTANT,
     LhiGateConfigInterface,
     LhiLatenciesConfigInterface,
     LhiLinkConfigInterface,
@@ -327,6 +328,7 @@ class DefaultInstrConfigRegistry(InstrConfigRegistry):
         "INSTR_CROT_X": INSTR_CROT_X,
         "INSTR_CROT_Y": INSTR_CROT_Y,
         "INSTR_MEASURE": INSTR_MEASURE,
+        "INSTR_MEASURE_INSTANT": INSTR_MEASURE_INSTANT,
     }
 
     @classmethod
@@ -465,6 +467,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
                 "INSTR_Z",
                 "INSTR_H",
                 "INSTR_MEASURE",
+                "INSTR_MEASURE_INSTANT",
             ],
             single_duration=5e3,
             two_instructions=["INSTR_CNOT", "INSTR_CZ"],

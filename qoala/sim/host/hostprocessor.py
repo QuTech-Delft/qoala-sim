@@ -71,18 +71,18 @@ class HostProcessor:
         instr_time = self._latencies.host_instr_time
         first_half = instr_time / 2
         second_half = instr_time - first_half  # just to make it adds up
-        yield from self._interface.wait(first_half)
 
         self._logger.info(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, hostlang.AssignCValueOp):
+            yield from self._interface.wait(first_half)
             value = instr.attributes[0]
             assert isinstance(value, int)
             loc = instr.results[0]  # type: ignore
             self._logger.info(f"writing {value} to {loc}")
-            # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.SendCMsgOp):
+            yield from self._interface.wait(first_half)
             assert isinstance(instr.arguments[0], str)
             assert isinstance(instr.arguments[1], str)
 
@@ -103,6 +103,7 @@ class HostProcessor:
             host_mem.write(instr.results[0], msg)
             self._logger.info(f"received msg {msg}")
         elif isinstance(instr, hostlang.AddCValueOp):
+            yield from self._interface.wait(first_half)
             assert isinstance(instr.arguments[0], str)
             assert isinstance(instr.arguments[1], str)
             arg0 = host_mem.read(instr.arguments[0])
@@ -114,6 +115,7 @@ class HostProcessor:
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.MultiplyConstantCValueOp):
+            yield from self._interface.wait(first_half)
             assert isinstance(instr.arguments[0], str)
             arg0 = host_mem.read(instr.arguments[0])
             const = instr.attributes[0]
@@ -125,6 +127,7 @@ class HostProcessor:
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.BitConditionalMultiplyConstantCValueOp):
+            yield from self._interface.wait(first_half)
             assert isinstance(instr.arguments[0], str)
             assert isinstance(instr.arguments[1], str)
             arg0 = host_mem.read(instr.arguments[0])
@@ -151,6 +154,7 @@ class HostProcessor:
 
             self.post_lr_call(process, instr, lrcall)
         elif isinstance(instr, hostlang.RunRequestOp):
+            yield from self._interface.wait(first_half)
             rrcall = self.prepare_rr_call(process, instr)
 
             # Send a message to the Netstack asking to run the routine.
