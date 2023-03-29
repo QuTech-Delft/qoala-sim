@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ctypes import Union
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Optional, Tuple
@@ -48,6 +49,20 @@ class CpuSchedule:
     def no_constraints(cls, tasks: List[CpuTask]) -> CpuSchedule:
         return CpuSchedule(tasks=[(None, t) for t in tasks])
 
+    @classmethod
+    def consecutive(cls, task_list: CpuQpuTaskList) -> CpuSchedule:
+        cpu_tasks: List[Tuple[Optional[float], CpuTask]] = []
+
+        time = 0.0
+        for task in task_list.tasks:
+            if isinstance(task, CpuTask):
+                cpu_tasks.append((time, task))
+                time += task.duration
+            else:
+                assert isinstance(task, QpuTask)
+                time += task.duration
+        return CpuSchedule(cpu_tasks)
+
 
 @dataclass(eq=True, frozen=True)
 class QpuTask:
@@ -66,6 +81,31 @@ class QpuSchedule:
     def no_constraints(cls, tasks: List[QpuTask]) -> QpuSchedule:
         return QpuSchedule(tasks=[(None, t) for t in tasks])
 
+    @classmethod
+    def consecutive(cls, task_list: CpuQpuTaskList) -> QpuSchedule:
+        qpu_tasks: List[Tuple[Optional[float], QpuTask]] = []
+
+        time = 0.0
+        for task in task_list.tasks:
+            if isinstance(task, QpuTask):
+                qpu_tasks.append((time, task))
+                time += task.duration
+            else:
+                assert isinstance(task, CpuTask)
+                time += task.duration
+        return QpuSchedule(qpu_tasks)
+
+
+@dataclass
+class CpuQpuTaskList:
+    tasks: List[Tuple[Union[CpuTask, QpuTask]]]
+
+    def cpu_tasks(self) -> List[CpuTask]:
+        return [task for task in self.tasks if isinstance(task, CpuTask)]
+
+    def qpu_tasks(self) -> List[QpuTask]:
+        return [task for task in self.tasks if isinstance(task, QpuTask)]
+
 
 class TaskCreator:
     def __init__(self, mode: TaskExecutionMode) -> None:
@@ -77,7 +117,7 @@ class TaskCreator:
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,
-    ) -> Tuple[List[CpuTask], List[QpuTask]]:
+    ) -> CpuQpuTaskList:
         if self._mode == TaskExecutionMode.ROUTINE_ATOMIC:
             return self._from_program_routine_atomic(program, pid, ehi, network_ehi)
         else:
@@ -89,9 +129,8 @@ class TaskCreator:
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,
-    ) -> Tuple[List[CpuTask], List[QpuTask]]:
-        cpu_tasks: List[CpuTask] = []
-        qpu_tasks: List[QpuTask] = []
+    ) -> CpuQpuTaskList:
+        tasks: List[Union[CpuTask, QpuTask]] = []
 
         for block in program.blocks:
             if block.typ == BasicBlockType.HOST:
@@ -100,7 +139,7 @@ class TaskCreator:
                 else:
                     duration = None
                 cputask = CpuTask(pid, block.name, duration)
-                cpu_tasks.append(cputask)
+                tasks.append(cputask)
             elif block.typ == BasicBlockType.LR:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
@@ -111,7 +150,7 @@ class TaskCreator:
                 else:
                     duration = None
                 qputask = QpuTask(pid, RoutineType.LOCAL, block.name, duration)
-                qpu_tasks.append(qputask)
+                tasks.append(qputask)
             elif block.typ == BasicBlockType.RR:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
@@ -124,9 +163,9 @@ class TaskCreator:
                 else:
                     duration = None
                 qputask = QpuTask(pid, RoutineType.REQUEST, block.name, duration)
-                qpu_tasks.append(qputask)
+                tasks.append(qputask)
 
-        return cpu_tasks, qpu_tasks
+        return CpuQpuTaskList(tasks)
 
     def _compute_lr_duration(
         self, ehi: ExposedHardwareInfo, routine: LocalRoutine

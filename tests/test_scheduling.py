@@ -24,6 +24,8 @@ from qoala.runtime.taskcreator import (
     QpuSchedule,
     QpuTask,
     RoutineType,
+    TaskCreator,
+    TaskExecutionMode,
 )
 from qoala.sim import host
 from qoala.sim.build import build_network_from_lhi, build_qprocessor_from_topology
@@ -292,6 +294,51 @@ def test_epr_ck_2():
     assert alice_outcomes == bob_outcomes
 
 
+def test_full_program():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_scheduling_alice.iqoala")
+    program_bob = load_program("test_scheduling_bob.iqoala")
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    inputs_bob = ProgramInput({"alice_id": 0})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
+
+    alice.scheduler.submit_program_instance(instance_alice)
+    bob.scheduler.submit_program_instance(instance_bob)
+
+    task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
+    tasks_alice = task_creator.from_program(
+        program_alice, pid, alice.local_ehi, alice.network_ehi
+    )
+    tasks_bob = task_creator.from_program(
+        program_bob, pid, bob.local_ehi, bob.network_ehi
+    )
+
+    cpu_alice = CpuSchedule.consecutive(tasks_alice)
+    qpu_alice = QpuSchedule.consecutive(tasks_alice)
+    cpu_bob = CpuSchedule.consecutive(tasks_bob)
+    qpu_bob = QpuSchedule.consecutive(tasks_bob)
+
+    alice.scheduler.upload_cpu_schedule(cpu_alice)
+    alice.scheduler.upload_qpu_schedule(qpu_alice)
+    bob.scheduler.upload_cpu_schedule(cpu_bob)
+    bob.scheduler.upload_qpu_schedule(qpu_bob)
+
+    ns.sim_reset()
+    network.start()
+    ns.sim_run()
+
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    bob_mem = bob.memmgr.get_process(pid).host_mem
+    alice_outcomes = [alice_mem.read("p0"), alice_mem.read("p1")]
+    bob_outcomes = [bob_mem.read("p0"), bob_mem.read("p1")]
+    assert alice_outcomes == bob_outcomes
+
+
 if __name__ == "__main__":
     test_host_program()
     test_lr_program()
@@ -299,3 +346,4 @@ if __name__ == "__main__":
     test_epr_md_2()
     test_epr_ck_1()
     test_epr_ck_2()
+    test_full_program()
