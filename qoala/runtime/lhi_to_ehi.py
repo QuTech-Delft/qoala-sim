@@ -25,14 +25,27 @@ from netsquid.components.models.qerrormodels import (
     QuantumErrorModel,
     T1T2NoiseModel,
 )
+from netsquid_magic.state_delivery_sampler import (
+    DepolariseWithFailureStateSamplerFactory,
+    IStateDeliverySamplerFactory,
+    PerfectStateSamplerFactory,
+)
 
 from qoala.lang.ehi import (
     EhiLatencies,
     ExposedGateInfo,
     ExposedHardwareInfo,
+    ExposedLinkInfo,
     ExposedQubitInfo,
 )
-from qoala.runtime.lhi import LhiGateInfo, LhiLatencies, LhiQubitInfo, LhiTopology
+from qoala.runtime.lhi import (
+    LhiGateInfo,
+    LhiLatencies,
+    LhiLinkInfo,
+    LhiQubitInfo,
+    LhiTopology,
+)
+from qoala.util.constants import prob_max_mixed_to_fidelity
 
 
 class NativeToFlavourInterface(abc.ABC):
@@ -160,3 +173,17 @@ class LhiConverter:
             multi_gate_infos=multi_gate_infos,
             latencies=ehi_latencies,
         )
+
+    @classmethod
+    def link_info_to_ehi(cls, info: LhiLinkInfo) -> ExposedLinkInfo:
+        if info.sampler_factory == PerfectStateSamplerFactory:
+            return ExposedLinkInfo(duration=info.state_delay, fidelity=1.0)
+        elif info.sampler_factory == DepolariseWithFailureStateSamplerFactory:
+            expected_gen_duration = (
+                info.sampler_kwargs["cycle_time"] / info.sampler_kwargs["prob_success"]
+            )
+            duration = expected_gen_duration + info.state_delay
+            fidelity = prob_max_mixed_to_fidelity(info.sampler_kwargs["prob_max_mixed"])
+            return ExposedLinkInfo(duration=duration, fidelity=fidelity)
+        else:
+            raise NotImplementedError
