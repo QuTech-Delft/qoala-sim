@@ -26,7 +26,7 @@ from netsquid.qubits import ketstates, qubitapi
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
 from qoala.lang.routine import RoutineMetadata
-from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
+from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult

@@ -45,7 +45,7 @@ from qoala.runtime.config import (  # type: ignore
     ProcNodeConfig,
     ProcNodeNetworkConfig,
 )
-from qoala.runtime.environment import GlobalEnvironment
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
 from qoala.sim.entdist.entdist import EntDist
@@ -293,13 +293,13 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     return qmem
 
 
-def build_procnode(cfg: ProcNodeConfig, global_env: GlobalEnvironment) -> ProcNode:
+def build_procnode(cfg: ProcNodeConfig, network_ehi: NetworkEhi) -> ProcNode:
     topology = LhiTopologyBuilder.from_config(cfg.topology)
     qprocessor = build_qprocessor_from_topology(name=cfg.node_name, topology=topology)
     latencies = LhiLatencies.from_config(cfg.latencies)
     procnode = ProcNode(
         cfg.node_name,
-        global_env=global_env,
+        network_ehi=network_ehi,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
@@ -367,16 +367,16 @@ def build_ll_protocol(
 
 def build_network(
     config: ProcNodeNetworkConfig,
-    global_env: GlobalEnvironment,
+    network_ehi: NetworkEhi,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
     for cfg in config.nodes:
-        procnodes[cfg.node_name] = build_procnode(cfg, global_env)
+        procnodes[cfg.node_name] = build_procnode(cfg, network_ehi)
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
-    entdistcomp = EntDistComponent(global_env)
-    entdist = EntDist(nodes=ns_nodes, global_env=global_env, comp=entdistcomp)
+    entdistcomp = EntDistComponent(network_ehi)
+    entdist = EntDist(nodes=ns_nodes, network_ehi=network_ehi, comp=entdistcomp)
 
     for link_between_nodes in config.links:
         link = LhiLinkInfo.from_config(link_between_nodes.link_config)

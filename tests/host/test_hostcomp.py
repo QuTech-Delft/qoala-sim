@@ -6,11 +6,7 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import (
-    GlobalEnvironment,
-    GlobalNodeInfo,
-    LocalEnvironment,
-)
+from qoala.runtime.environment import LocalEnvironment, NetworkEhi
 from qoala.runtime.message import Message
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.host.hostinterface import HostInterface
@@ -18,14 +14,12 @@ from qoala.sim.host.hostinterface import HostInterface
 
 def create_hostcomp(num_other_nodes: int) -> HostComponent:
     node = Node(name="alice", ID=0)
-    env = GlobalEnvironment()
+    env = NetworkEhi()
 
-    node_info = GlobalNodeInfo(node.name, node.ID)
-    env.add_node(node.ID, node_info)
+    env.add_node(node.ID, node.name)
 
     for id in range(1, num_other_nodes + 1):
-        node_info = GlobalNodeInfo(f"node_{id}", id)
-        env.add_node(id, node_info)
+        env.add_node(id, f"node_{id}")
 
     return HostComponent(node, env)
 
@@ -82,12 +76,10 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = GlobalEnvironment()
+    env = NetworkEhi()
 
-    alice_info = GlobalNodeInfo(alice.name, alice.ID)
-    env.add_node(alice.ID, alice_info)
-    bob_info = GlobalNodeInfo(bob.name, bob.ID)
-    env.add_node(bob.ID, bob_info)
+    env.add_node(alice.ID, alice.name)
+    env.add_node(bob.ID, bob.name)
 
     alice_comp = HostComponent(alice, env)
     bob_comp = HostComponent(bob, env)
@@ -119,14 +111,11 @@ def test_three_way_connection():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = GlobalEnvironment()
+    env = NetworkEhi()
 
-    alice_info = GlobalNodeInfo(alice.name, alice.ID)
-    env.add_node(alice.ID, alice_info)
-    bob_info = GlobalNodeInfo(bob.name, bob.ID)
-    env.add_node(bob.ID, bob_info)
-    charlie_info = GlobalNodeInfo(charlie.name, charlie.ID)
-    env.add_node(charlie.ID, charlie_info)
+    env.add_node(alice.ID, alice.name)
+    env.add_node(bob.ID, bob.name)
+    env.add_node(charlie.ID, charlie.name)
 
     alice_comp = HostComponent(alice, env)
     bob_comp = HostComponent(bob, env)

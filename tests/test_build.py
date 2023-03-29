@@ -22,7 +22,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology, LhiTopologyBuilder
 from qoala.sim.build import (
     build_generic_qprocessor,
@@ -174,11 +174,11 @@ def test_build_procnode():
     cfg = ProcNodeConfig(
         node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
     )
-    global_env = GlobalEnvironment()
-    global_env.add_node(42, GlobalNodeInfo("the_node", 42))
-    global_env.add_node(43, GlobalNodeInfo("other_node", 43))
+    network_ehi = NetworkEhi()
+    network_ehi.add_node(42, "the_node")
+    network_ehi.add_node(43, "other_node")
 
-    procnode = build_procnode(cfg, global_env)
+    procnode = build_procnode(cfg, network_ehi)
 
     assert procnode.node.name == "the_node"
     procnode.host_comp.peer_in_port("other_node")  # should not raise error
@@ -209,14 +209,14 @@ def test_build_network():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    global_env = GlobalEnvironment()
-    global_env.add_node(42, GlobalNodeInfo("alice", 42))
-    global_env.add_node(43, GlobalNodeInfo("bob", 43))
+    network_ehi = NetworkEhi()
+    network_ehi.add_node(42, "alice")
+    network_ehi.add_node(43, "bob")
 
     link_cfg = LinkConfig.perfect_config(state_delay=1000)
     link_ab = LinkBetweenNodesConfig(node_id1=42, node_id2=43, link_config=link_cfg)
     cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[link_ab])
-    network = build_network(cfg, global_env)
+    network = build_network(cfg, network_ehi)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -257,14 +257,14 @@ def test_build_network_perfect_links():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    global_env = GlobalEnvironment()
-    global_env.add_node(42, GlobalNodeInfo("alice", 42))
-    global_env.add_node(43, GlobalNodeInfo("bob", 43))
+    network_ehi = NetworkEhi()
+    network_ehi.add_node(42, "alice")
+    network_ehi.add_node(43, "bob")
 
     cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[cfg_alice, cfg_bob], link_duration=500
     )
-    network = build_network(cfg, global_env)
+    network = build_network(cfg, network_ehi)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes

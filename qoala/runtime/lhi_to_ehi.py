@@ -32,13 +32,7 @@ from qoala.lang.ehi import (
     ExposedHardwareInfo,
     ExposedQubitInfo,
 )
-from qoala.runtime.lhi import (
-    LhiGateInfo,
-    LhiLatencies,
-    LhiLinkInfo,
-    LhiQubitInfo,
-    LhiTopology,
-)
+from qoala.runtime.lhi import LhiGateInfo, LhiLatencies, LhiQubitInfo, LhiTopology
 
 
 class NativeToFlavourInterface(abc.ABC):
@@ -153,7 +147,7 @@ class LhiConverter:
         }
         flavour = ntf.flavour()
 
-        latencies = EhiLatencies(
+        ehi_latencies = EhiLatencies(
             latencies.host_instr_time,
             latencies.qnos_instr_time,
             latencies.host_peer_latency,
@@ -164,5 +158,5 @@ class LhiConverter:
             flavour=flavour,
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
-            latencies=latencies,
+            latencies=ehi_latencies,
         )

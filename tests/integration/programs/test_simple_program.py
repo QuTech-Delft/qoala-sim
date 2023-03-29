@@ -14,16 +14,16 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.program import BatchInfo, ProgramInput
 from qoala.runtime.schedule import NaiveSolver, ProgramTaskList, TaskBuilder
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
 
-def create_global_env() -> GlobalEnvironment:
-    env = GlobalEnvironment()
-    env.add_node(0, GlobalNodeInfo("alice", 0))
+def create_network_ehi() -> NetworkEhi:
+    env = NetworkEhi()
+    env.add_node(0, "alice")
 
     env.set_global_schedule([0])
     env.set_timeslot_len(1e6)
@@ -44,10 +44,10 @@ def get_config() -> ProcNodeConfig:
 def create_network(
     node_cfg: ProcNodeConfig,
 ) -> ProcNodeNetwork:
-    global_env = create_global_env()
+    network_ehi = create_network_ehi()
 
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
-    return build_network(network_cfg, global_env)
+    return build_network(network_cfg, network_ehi)
 
 
 def load_program() -> IqoalaProgram:

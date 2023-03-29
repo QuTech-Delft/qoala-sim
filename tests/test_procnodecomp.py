@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.sim.procnodecomp import ProcNodeComponent
 
 
 def create_procnodecomp(num_other_nodes: int) -> ProcNodeComponent:
-    env = GlobalEnvironment()
+    env = NetworkEhi()
 
-    node_info = GlobalNodeInfo("alice", 0)
-    env.add_node(0, node_info)
+    env.add_node(0, "alice")
 
     for id in range(1, num_other_nodes + 1):
-        node_info = GlobalNodeInfo(f"node_{id}", id)
-        env.add_node(id, node_info)
+        env.add_node(id, f"node_{id}")
 
-    return ProcNodeComponent(name="alice", qprocessor=None, global_env=env)
+    return ProcNodeComponent(name="alice", qprocessor=None, network_ehi=env)
 
 
 def test_no_other_nodes():

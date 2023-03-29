@@ -1,26 +1,17 @@
 import netsquid as ns
 import pytest
 
-from qoala.lang.ehi import UnitModule
-from qoala.lang.parse import IqoalaParseError, IqoalaParser
+from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
-from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import (
     CpuSchedule,
     CpuTask,
     QpuSchedule,
     QpuTask,
     RoutineType,
-    TaskExecutionMode,
 )
-from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.driver import CpuDriver, QpuDriver
-from qoala.sim.procnode import ProcNode
-from qoala.util.tests import ObjectBuilder, netsquid_run
+from qoala.util.tests import ObjectBuilder
 
 
 def get_pure_host_program() -> IqoalaProgram:

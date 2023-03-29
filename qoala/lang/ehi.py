@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from re import L
 from typing import Dict, List, Optional, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction

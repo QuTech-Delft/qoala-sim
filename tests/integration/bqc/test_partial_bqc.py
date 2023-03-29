@@ -20,7 +20,7 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
 from qoala.runtime.memory import ProgramMemory
@@ -69,17 +69,17 @@ def create_process(
     return process
 
 
-def create_global_env(names: List[str]) -> GlobalEnvironment:
-    env = GlobalEnvironment()
+def create_network_ehi(names: List[str]) -> NetworkEhi:
+    env = NetworkEhi()
     for i, name in enumerate(names):
-        env.add_node(i, GlobalNodeInfo(name, i))
+        env.add_node(i, name)
     return env
 
 
 def create_procnode(
     part: str,
     name: str,
-    env: GlobalEnvironment,
+    env: NetworkEhi,
     num_qubits: int,
     procnode_cls: Type[ProcNode] = ProcNode,
     asynchronous: bool = False,
@@ -92,7 +92,7 @@ def create_procnode(
     procnode = procnode_cls(
         part=part,
         name=name,
-        global_env=env,
+        network_ehi=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=LhiLatencies(qnos_instr_time=1000),
@@ -119,7 +119,7 @@ class BqcProcNode(ProcNode):
     def __init__(
         self,
         name: str,
-        global_env: GlobalEnvironment,
+        network_ehi: NetworkEhi,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
@@ -130,7 +130,7 @@ class BqcProcNode(ProcNode):
     ) -> None:
         super().__init__(
             name=name,
-            global_env=global_env,
+            network_ehi=network_ehi,
             qprocessor=qprocessor,
             qdevice_topology=qdevice_topology,
             latencies=latencies,
@@ -281,9 +281,9 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    global_env = create_global_env(names=["client", "server"])
-    server_id = global_env.get_node_id("server")
-    client_id = global_env.get_node_id("client")
+    network_ehi = create_network_ehi(names=["client", "server"])
+    server_id = network_ehi.get_node_id("server")
+    client_id = network_ehi.get_node_id("client")
 
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:
@@ -291,7 +291,7 @@ def run_bqc(
     server_program = IqoalaParser(server_text).parse()
 
     server_procnode = create_procnode(
-        part, "server", global_env, num_qubits, ServerProcNode, pid=server_pid
+        part, "server", network_ehi, num_qubits, ServerProcNode, pid=server_pid
     )
     server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
@@ -309,7 +309,7 @@ def run_bqc(
     client_program = IqoalaParser(client_text).parse()
 
     client_procnode = create_procnode(
-        part, "client", global_env, num_qubits, ClientProcNode, pid=client_pid
+        part, "client", network_ehi, num_qubits, ClientProcNode, pid=client_pid
     )
     client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
@@ -330,12 +330,12 @@ def run_bqc(
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(global_env)
+    entdistcomp = EntDistComponent(network_ehi)
     client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, network_ehi=network_ehi, comp=entdistcomp)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     entdist.add_sampler(

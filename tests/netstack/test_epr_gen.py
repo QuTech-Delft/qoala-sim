@@ -31,12 +31,8 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
-from qoala.runtime.environment import (
-    GlobalEnvironment,
-    GlobalNodeInfo,
-    LocalEnvironment,
-)
-from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
+from qoala.runtime.environment import LocalEnvironment, NetworkEhi
+from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
@@ -140,12 +136,12 @@ def setup_components(
     alice_node = alice_qdevice._node
     bob_node = bob_qdevice._node
 
-    env = GlobalEnvironment()
-    env.add_node(alice_node.ID, GlobalNodeInfo(alice_node.name, alice_node.ID))
-    env.add_node(bob_node.ID, GlobalNodeInfo(bob_node.name, bob_node.ID))
+    env = NetworkEhi()
+    env.add_node(alice_node.ID, alice_node.name)
+    env.add_node(bob_node.ID, bob_node.name)
 
-    alice_comp = NetstackComponent(node=alice_node, global_env=env)
-    bob_comp = NetstackComponent(node=bob_node, global_env=env)
+    alice_comp = NetstackComponent(node=alice_node, network_ehi=env)
+    bob_comp = NetstackComponent(node=bob_node, network_ehi=env)
 
     alice_comp.peer_out_port("bob").connect(bob_comp.peer_in_port("alice"))
     alice_comp.peer_in_port("bob").connect(bob_comp.peer_out_port("alice"))

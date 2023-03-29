@@ -6,7 +6,7 @@ from netsquid.components import QuantumProcessor
 from netsquid.components.component import Port
 from netsquid.nodes import Node
 
-from qoala.runtime.environment import GlobalEnvironment
+from qoala.runtime.environment import NetworkEhi
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.netstack import NetstackComponent
 from qoala.sim.qnos import QnosComponent
@@ -36,7 +36,7 @@ class ProcNodeComponent(Node):
         self,
         name: str,
         qprocessor: QuantumProcessor,
-        global_env: GlobalEnvironment,
+        network_ehi: NetworkEhi,
         node_id: Optional[int] = None,
     ) -> None:
         """ProcNodeComponent constructor. Typically created indirectly through
@@ -47,10 +47,10 @@ class ProcNodeComponent(Node):
         qnos_comp = QnosComponent(self)
         self.add_subcomponent(qnos_comp, "qnos")
 
-        host_comp = HostComponent(self, global_env)
+        host_comp = HostComponent(self, network_ehi)
         self.add_subcomponent(host_comp, "host")
 
-        netstack_comp = NetstackComponent(self, global_env)
+        netstack_comp = NetstackComponent(self, network_ehi)
         self.add_subcomponent(netstack_comp, "netstack")
 
         self.host_comp.ports["qnos_out"].connect(self.qnos_comp.ports["host_in"])
@@ -67,39 +67,39 @@ class ProcNodeComponent(Node):
         self.netstack_comp.entdist_out_port.forward_output(self.entdist_out_port)
         self.entdist_in_port.forward_input(self.netstack_comp.entdist_in_port)
 
-        for other_node in global_env.get_nodes().values():
-            if other_node.name == self.name:
+        for other_node in network_ehi.get_nodes().values():
+            if other_node == self.name:
                 continue
 
-            netstack_port_in_name = f"netstack_peer_{other_node.name}_in"
-            netstack_port_out_name = f"netstack_peer_{other_node.name}_out"
-            self._netstack_peer_in_ports[other_node.name] = netstack_port_in_name
-            self._netstack_peer_out_ports[other_node.name] = netstack_port_out_name
+            netstack_port_in_name = f"netstack_peer_{other_node}_in"
+            netstack_port_out_name = f"netstack_peer_{other_node}_out"
+            self._netstack_peer_in_ports[other_node] = netstack_port_in_name
+            self._netstack_peer_out_ports[other_node] = netstack_port_out_name
 
-            host_port_in_name = f"host_peer_{other_node.name}_in"
-            host_port_out_name = f"host_peer_{other_node.name}_out"
-            self._host_peer_in_ports[other_node.name] = host_port_in_name
-            self._host_peer_out_ports[other_node.name] = host_port_out_name
+            host_port_in_name = f"host_peer_{other_node}_in"
+            host_port_out_name = f"host_peer_{other_node}_out"
+            self._host_peer_in_ports[other_node] = host_port_in_name
+            self._host_peer_out_ports[other_node] = host_port_out_name
 
         self.add_ports(self._netstack_peer_in_ports.values())
         self.add_ports(self._netstack_peer_out_ports.values())
         self.add_ports(self._host_peer_in_ports.values())
         self.add_ports(self._host_peer_out_ports.values())
 
-        for other_node in global_env.get_nodes().values():
-            if other_node.name == self.name:
+        for other_node in network_ehi.get_nodes().values():
+            if other_node == self.name:
                 continue
-            self.netstack_comp.peer_out_port(other_node.name).forward_output(
-                self.netstack_peer_out_port(other_node.name)
+            self.netstack_comp.peer_out_port(other_node).forward_output(
+                self.netstack_peer_out_port(other_node)
             )
-            self.netstack_peer_in_port(other_node.name).forward_input(
-                self.netstack_comp.peer_in_port(other_node.name)
+            self.netstack_peer_in_port(other_node).forward_input(
+                self.netstack_comp.peer_in_port(other_node)
             )
-            self.host_comp.peer_out_port(other_node.name).forward_output(
-                self.host_peer_out_port(other_node.name)
+            self.host_comp.peer_out_port(other_node).forward_output(
+                self.host_peer_out_port(other_node)
             )
-            self.host_peer_in_port(other_node.name).forward_input(
-                self.host_comp.peer_in_port(other_node.name)
+            self.host_peer_in_port(other_node).forward_input(
+                self.host_comp.peer_in_port(other_node)
             )
 
     @property

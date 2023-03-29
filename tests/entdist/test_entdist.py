@@ -13,7 +13,7 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import (
@@ -62,12 +62,11 @@ def create_joint_request(
 
 
 def create_entdist(nodes: List[Node]) -> EntDist:
-    env = GlobalEnvironment()
+    env = NetworkEhi()
     for node in nodes:
-        node_info = GlobalNodeInfo(node.name, node.ID)
-        env.add_node(node.ID, node_info)
+        env.add_node(node.ID, node.name)
     comp = EntDistComponent(env)
-    return EntDist(nodes=nodes, global_env=env, comp=comp)
+    return EntDist(nodes=nodes, network_ehi=env, comp=comp)
 
 
 def test_add_sampler():

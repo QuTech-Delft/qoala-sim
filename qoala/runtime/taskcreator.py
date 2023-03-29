@@ -2,16 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-from qoala.lang.hostlang import (
-    BasicBlock,
-    BasicBlockType,
-    RunRequestOp,
-    RunSubroutineOp,
-)
+from qoala.lang.hostlang import BasicBlockType, RunRequestOp, RunSubroutineOp
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.schedule import NoTimeSolver
 
 
 class TaskExecutionMode(Enum):
@@ -81,19 +75,19 @@ class TaskCreator:
 
         for block in program.blocks:
             if block.typ == BasicBlockType.HOST:
-                task = CpuTask(pid, block.name)
-                cpu_tasks.append(task)
+                cputask = CpuTask(pid, block.name)
+                cpu_tasks.append(cputask)
             elif block.typ == BasicBlockType.LR:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
                 assert isinstance(instr, RunSubroutineOp)
-                task = QpuTask(pid, RoutineType.LOCAL, block.name)
-                qpu_tasks.append(task)
+                qputask = QpuTask(pid, RoutineType.LOCAL, block.name)
+                qpu_tasks.append(qputask)
             elif block.typ == BasicBlockType.RR:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
                 assert isinstance(instr, RunRequestOp)
-                task = QpuTask(pid, RoutineType.REQUEST, block.name)
-                qpu_tasks.append(task)
+                qputask = QpuTask(pid, RoutineType.REQUEST, block.name)
+                qpu_tasks.append(qputask)
 
         return cpu_tasks, qpu_tasks

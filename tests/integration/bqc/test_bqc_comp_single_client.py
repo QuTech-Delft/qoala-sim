@@ -15,16 +15,16 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import NoTimeSolver, ProgramTaskList, TaskBuilder
 from qoala.sim.build import build_network
 
 
-def create_global_env(names: List[str]) -> GlobalEnvironment:
-    env = GlobalEnvironment()
+def create_network_ehi(names: List[str]) -> NetworkEhi:
+    env = NetworkEhi()
     for i, name in enumerate(names):
-        env.add_node(i, GlobalNodeInfo(name, i))
+        env.add_node(i, name)
     env.set_global_schedule([0, 1, 2])
     env.set_timeslot_len(1e6)
     return env
@@ -160,9 +160,9 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     ns.sim_reset()
 
     num_qubits = 3
-    global_env = create_global_env(names=["client", "server"])
-    server_id = global_env.get_node_id("server")
-    client_id = global_env.get_node_id("client")
+    network_ehi = create_network_ehi(names=["client", "server"])
+    server_id = network_ehi.get_node_id("server")
+    client_id = network_ehi.get_node_id("client")
 
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
     client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
@@ -170,7 +170,7 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg, global_env)
+    network = build_network(network_cfg, network_ehi)
     server_procnode = network.nodes["server"]
     client_procnode = network.nodes["client"]
 

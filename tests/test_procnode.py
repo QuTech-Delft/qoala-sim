@@ -43,11 +43,7 @@ from qoala.lang.request import (
 )
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.config import GenericQDeviceConfig
-from qoala.runtime.environment import (
-    GlobalEnvironment,
-    GlobalNodeInfo,
-    LocalEnvironment,
-)
+from qoala.runtime.environment import LocalEnvironment, NetworkEhi
 from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -338,18 +334,18 @@ def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
     return build_generic_qprocessor(name=f"{name}_processor", cfg=cfg)
 
 
-def create_global_env(
+def create_network_ehi(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
-) -> GlobalEnvironment:
-    env = GlobalEnvironment()
+) -> NetworkEhi:
+    env = NetworkEhi()
     for i, name in enumerate(names):
-        env.add_node(i, GlobalNodeInfo(name, i))
+        env.add_node(i, name)
     return env
 
 
 def create_procnode(
     name: str,
-    env: GlobalEnvironment,
+    env: NetworkEhi,
     num_qubits: int,
     topology: LhiTopology,
     latencies: LhiLatencies,
@@ -362,7 +358,7 @@ def create_procnode(
     node_id = env.get_node_id(name)
     procnode = procnode_cls(
         name=name,
-        global_env=env,
+        network_ehi=env,
         qprocessor=alice_qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
@@ -425,10 +421,10 @@ def test_initialize():
     latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
-    global_env = create_global_env(num_qubits)
-    local_env = LocalEnvironment(global_env, global_env.get_node_id("alice"))
+    network_ehi = create_network_ehi(num_qubits)
+    local_env = LocalEnvironment(network_ehi, network_ehi.get_node_id("alice"))
     procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, latencies, ntf
+        "alice", network_ehi, num_qubits, topology, latencies, ntf
     )
     procnode.qdevice = MockQDevice(topology)
 
@@ -515,9 +511,9 @@ def test_2():
     latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
-    global_env = create_global_env(num_qubits)
+    network_ehi = create_network_ehi(num_qubits)
     procnode = create_procnode(
-        "alice", global_env, num_qubits, topology, latencies, ntf, asynchronous=True
+        "alice", network_ehi, num_qubits, topology, latencies, ntf, asynchronous=True
     )
     procnode.qdevice = MockQDevice(topology)
 
@@ -579,7 +575,7 @@ def test_classical_comm():
     latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
-    global_env = create_global_env(num_qubits)
+    network_ehi = create_network_ehi(num_qubits)
 
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -588,7 +584,7 @@ def test_classical_comm():
 
     alice_procnode = create_procnode(
         "alice",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -597,7 +593,7 @@ def test_classical_comm():
     )
     bob_procnode = create_procnode(
         "bob",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -665,7 +661,7 @@ def test_classical_comm_three_nodes():
     latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
-    global_env = create_global_env(num_qubits)
+    network_ehi = create_network_ehi(num_qubits)
 
     class SenderProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -680,7 +676,7 @@ def test_classical_comm_three_nodes():
 
     alice_procnode = create_procnode(
         "alice",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -689,7 +685,7 @@ def test_classical_comm_three_nodes():
     )
     bob_procnode = create_procnode(
         "bob",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -698,7 +694,7 @@ def test_classical_comm_three_nodes():
     )
     charlie_procnode = create_procnode(
         "charlie",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -792,9 +788,9 @@ def test_epr():
     latencies = LhiLatencies.all_zero()
     ntf = GenericToVanillaInterface()
 
-    global_env = create_global_env(num_qubits)
-    alice_id = global_env.get_node_id("alice")
-    bob_id = global_env.get_node_id("bob")
+    network_ehi = create_network_ehi(num_qubits)
+    alice_id = network_ehi.get_node_id("alice")
+    bob_id = network_ehi.get_node_id("bob")
 
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -804,7 +800,7 @@ def test_epr():
 
     alice_procnode = create_procnode(
         "alice",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -813,7 +809,7 @@ def test_epr():
     )
     bob_procnode = create_procnode(
         "bob",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -914,12 +910,12 @@ def test_epr():
     bob_process.shared_mem.init_new_array(0, 10)
 
     nodes = [alice_procnode.node, bob_procnode.node]
-    entdistcomp = EntDistComponent(global_env)
+    entdistcomp = EntDistComponent(network_ehi)
     alice_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("alice"))
     alice_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("alice"))
     bob_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("bob"))
     bob_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("bob"))
-    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, network_ehi=network_ehi, comp=entdistcomp)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     entdist.add_sampler(
@@ -980,9 +976,9 @@ REQUEST req1
     ntf = GenericToVanillaInterface()
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
-    global_env = create_global_env(num_qubits, names=["client", "server"])
-    server_id = global_env.get_node_id("server")
-    client_id = global_env.get_node_id("client")
+    network_ehi = create_network_ehi(num_qubits, names=["client", "server"])
+    server_id = network_ehi.get_node_id("server")
+    client_id = network_ehi.get_node_id("client")
 
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -993,7 +989,7 @@ REQUEST req1
 
     server_procnode = create_procnode(
         "server",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -1039,7 +1035,7 @@ REQUEST req1
     client_program = IqoalaParser(client_text).parse()
     client_procnode = create_procnode(
         "client",
-        global_env,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -1064,12 +1060,12 @@ REQUEST req1
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(global_env)
+    entdistcomp = EntDistComponent(network_ehi)
     client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, network_ehi=network_ehi, comp=entdistcomp)
     factory = PerfectStateSamplerFactory()
     kwargs = {"cycle_time": 1000}
     entdist.add_sampler(

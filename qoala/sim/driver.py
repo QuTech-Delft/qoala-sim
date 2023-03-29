@@ -1,11 +1,10 @@
-from typing import Dict, Generator, List, Optional, Tuple, Type
+from typing import Generator, List, Optional, Tuple
 
 import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.hostlang import RunSubroutineOp
-from qoala.runtime.schedule import Schedule
 from qoala.runtime.taskcreator import (
     CpuSchedule,
     CpuTask,
@@ -35,8 +34,10 @@ class CpuDriver(Protocol):
         self._hostprocessor = hostprocessor
         self._memmgr = memmgr
 
+        self._task_list: List[Tuple[Optional[int], CpuTask]]
+
         if schedule is None:
-            self._task_list: List[Tuple[int, CpuTask]] = []
+            self._task_list = []
         else:
             self._task_list = schedule.tasks
 
@@ -149,8 +150,7 @@ class QpuDriver(Protocol):
     def _handle_atomic_rr(
         self, task: QpuTask
     ) -> Generator[EventExpression, None, None]:
-        process = self._memmgr.get_process(task.pid)
-        yield from self._qnosprocessor.assign_local_routine(process, task.routine_type)
+        raise NotImplementedError
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:

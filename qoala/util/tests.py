@@ -7,9 +7,9 @@ from netsquid.qubits import ketstates, qubitapi
 from netsquid.qubits.qubit import Qubit
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import EhiBuilder, ExposedHardwareInfo, UnitModule
+from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance
@@ -108,13 +108,13 @@ def has_max_mixed_state(qubit: Qubit, margin: float = 0.001) -> bool:
 class ObjectBuilder:
     @classmethod
     def simple_procnode(cls, name: str, num_qubits: int) -> ProcNode:
-        env = GlobalEnvironment()
-        env.add_node(0, GlobalNodeInfo(name, 0))
+        env = NetworkEhi()
+        env.add_node(0, name)
         topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
         qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
         return ProcNode(
             name=name,
-            global_env=env,
+            network_ehi=env,
             qprocessor=qprocessor,
             qdevice_topology=topology,
             latencies=LhiLatencies.all_zero(),

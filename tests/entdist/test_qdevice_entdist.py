@@ -5,7 +5,7 @@ import netsquid as ns
 from netsquid.nodes import Node
 from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkEhi
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist, EntDistRequest
@@ -26,13 +26,12 @@ def create_n_qdevices(n: int, num_qubits: int = 1) -> List[QDevice]:
 
 
 def create_entdist(qdevices: List[QDevice]) -> EntDist:
-    env = GlobalEnvironment()
+    env = NetworkEhi()
     for qdevice in qdevices:
-        node_info = GlobalNodeInfo(qdevice.node.name, qdevice.node.ID)
-        env.add_node(qdevice.node.ID, node_info)
+        env.add_node(qdevice.node.ID, qdevice.node.name)
     comp = EntDistComponent(env)
     entdist = EntDist(
-        nodes=[qdevice.node for qdevice in qdevices], global_env=env, comp=comp
+        nodes=[qdevice.node for qdevice in qdevices], network_ehi=env, comp=comp
     )
 
     factory = PerfectStateSamplerFactory()
