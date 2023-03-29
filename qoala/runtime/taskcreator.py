@@ -191,7 +191,11 @@ class TaskCreator:
                 duration += ehi.latencies.qnos_instr_time
             else:
                 # TODO: can we always use index 0 ??
-                info = ehi.find_single_gate(0, type(instr))
-                assert info is not None
-                duration += info.duration
+                if info := ehi.find_single_gate(0, type(instr)):
+                    duration += info.duration
+                # TODO: can we always use indices 0, 1 ??
+                elif info := ehi.find_multi_gate([0, 1], type(instr)):
+                    duration += info.duration
+                else:
+                    raise RuntimeError
         return duration

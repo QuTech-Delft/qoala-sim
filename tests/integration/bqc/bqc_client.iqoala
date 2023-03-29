@@ -8,11 +8,11 @@ META_END
 ^b0 {type = host}:
     csocket = assign_cval() : 0
 
-^b1 {type = LR}:
+^b1 {type = RR}:
     run_request(vec<>) : req0
 ^b2 {type = LR}:
     vec<p2> = run_subroutine(vec<theta2>) : post_epr_0
-^b3 {type = LR}:
+^b3 {type = RR}:
     run_request(vec<>) : req1
 ^b4 {type = LR}:
     vec<p1> = run_subroutine(vec<theta1>) : post_epr_1
