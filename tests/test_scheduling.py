@@ -1,5 +1,10 @@
-import netsquid as ns
+import os
+from typing import Optional
 
+import netsquid as ns
+from netqasm.lang.instr.flavour import core
+
+from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.environment import NetworkInfo
@@ -11,7 +16,8 @@ from qoala.runtime.lhi import (
     NetworkLhi,
 )
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
-from qoala.runtime.program import ProgramInput
+from qoala.runtime.program import ProgramInput, ProgramInstance
+from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import (
     CpuSchedule,
     CpuTask,
@@ -22,120 +28,20 @@ from qoala.runtime.taskcreator import (
 from qoala.sim import host
 from qoala.sim.build import build_network_from_lhi, build_qprocessor_from_topology
 from qoala.sim.driver import CpuDriver
+from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
 from qoala.util.builder import ObjectBuilder
 from qoala.util.tests import netsquid_run
 
 
-def get_pure_host_program() -> IqoalaProgram:
-    program_text = """
-META_START
-    name: alice
-    parameters:
-    csockets:
-    epr_sockets:
-META_END
-
-^b0 {type = host}:
-    var_x = assign_cval() : 3
-    var_y = assign_cval() : 5
-^b1 {type = host}:
-    var_z = assign_cval() : 9
-    """
-
-    return IqoalaParser(program_text).parse()
+def load_program(path: str) -> IqoalaProgram:
+    path = os.path.join(os.path.dirname(__file__), path)
+    with open(path) as file:
+        text = file.read()
+    return IqoalaParser(text).parse()
 
 
-def get_lr_program() -> IqoalaProgram:
-    program_text = """
-META_START
-    name: alice
-    parameters:
-    csockets:
-    epr_sockets:
-META_END
-
-^b0 {type = host}:
-    x = assign_cval() : 3
-^b1 {type = LR}:
-    vec<y> = run_subroutine(vec<x>) : add_one
-
-SUBROUTINE add_one
-    params: x
-    returns: y
-    uses: 
-    keeps:
-    request:
-  NETQASM_START
-    set C15 0
-    load C0 @input[C15]
-    set C1 1
-    add R0 C0 C1
-    store R0 @output[C15]
-  NETQASM_END
-    """
-    return IqoalaParser(program_text).parse()
-
-
-def get_rr_program_alice() -> IqoalaProgram:
-    program_text = """
-META_START
-    name: alice
-    parameters:
-    csockets:
-    epr_sockets:
-META_END
-
-^b0 {type = RR}:
-    vec<m> = run_request(vec<>) : req0
-
-REQUEST req0
-  callback_type: wait_all
-  callback: 
-  return_vars: m
-  remote_id: {bob_id}
-  epr_socket_id: 0
-  num_pairs: 1
-  virt_ids: all 0
-  timeout: 1000
-  fidelity: 1.0
-  typ: measure_directly
-  role: create
-  result_array_addr: 0
-    """
-    return IqoalaParser(program_text).parse()
-
-
-def get_rr_program_bob() -> IqoalaProgram:
-    program_text = """
-META_START
-    name: bob
-    parameters:
-    csockets:
-    epr_sockets:
-META_END
-
-^b0 {type = RR}:
-    vec<m> = run_request(vec<>) : req0
-
-REQUEST req0
-  callback_type: wait_all
-  callback: 
-  return_vars: m
-  remote_id: {alice_id}
-  epr_socket_id: 0
-  num_pairs: 1
-  virt_ids: all 0
-  timeout: 1000
-  fidelity: 1.0
-  typ: measure_directly
-  role: receive
-  result_array_addr: 0
-    """
-    return IqoalaParser(program_text).parse()
-
-
-def test_host_program():
+def setup_network() -> ProcNodeNetwork:
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
     latencies = LhiLatencies(
         host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
@@ -148,19 +54,47 @@ def test_host_program():
     network_lhi = NetworkLhi.fully_connected([0, 1], link_info)
     network_info = NetworkInfo.with_nodes({0: "alice", 1: "bob"})
     bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
-    network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
+    return build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
 
+
+def instantiate(
+    program: IqoalaProgram,
+    ehi: ExposedHardwareInfo,
+    pid: int = 0,
+    inputs: Optional[ProgramInput] = None,
+) -> ProgramInstance:
+    unit_module = UnitModule.from_full_ehi(ehi)
+
+    if inputs is None:
+        inputs = ProgramInput.empty()
+
+    return ProgramInstance(
+        pid,
+        program,
+        inputs,
+        tasks=ProgramTaskList.empty(program),
+        unit_module=unit_module,
+    )
+
+
+def test_host_program():
+    network = setup_network()
     alice = network.nodes["alice"]
     bob = network.nodes["bob"]
 
-    program = get_pure_host_program()
+    program = load_program("test_scheduling_alice.iqoala")
     pid = 0
-    instance = ObjectBuilder.simple_program_instance(program, pid)
+    instance = instantiate(program, alice.local_ehi, pid)
 
     alice.scheduler.submit_program_instance(instance)
     bob.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = CpuSchedule.no_constraints([CpuTask(pid, "b0"), CpuTask(pid, "b1")])
+    cpu_schedule = CpuSchedule.no_constraints(
+        [
+            CpuTask(pid, "blk_host0"),
+            CpuTask(pid, "blk_host1"),
+        ]
+    )
     alice.scheduler.upload_cpu_schedule(cpu_schedule)
     bob.scheduler.upload_cpu_schedule(cpu_schedule)
 
@@ -174,34 +108,21 @@ def test_host_program():
 
 
 def test_lr_program():
-    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
-    latencies = LhiLatencies(
-        host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
-    )
-    link_info = LhiLinkInfo.perfect(duration=20_000)
-
-    alice_lhi = LhiProcNodeInfo(
-        name="alice", id=0, topology=topology, latencies=latencies
-    )
-    network_lhi = NetworkLhi.fully_connected([0, 1], link_info)
-    network_info = NetworkInfo.with_nodes({0: "alice", 1: "bob"})
-    bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
-    network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
-
+    network = setup_network()
     alice = network.nodes["alice"]
     bob = network.nodes["bob"]
 
-    program = get_lr_program()
+    program = load_program("test_scheduling_alice.iqoala")
     pid = 0
-    instance = ObjectBuilder.simple_program_instance(program, pid)
+    instance = instantiate(program, alice.local_ehi, pid)
 
     alice.scheduler.submit_program_instance(instance)
     bob.scheduler.submit_program_instance(instance)
 
     host_instr_time = alice.local_ehi.latencies.host_instr_time
-    cpu_schedule = CpuSchedule.no_constraints([CpuTask(pid, "b0")])
+    cpu_schedule = CpuSchedule.no_constraints([CpuTask(pid, "blk_host2")])
     qpu_schedule = QpuSchedule(
-        [(host_instr_time, QpuTask(pid, RoutineType.LOCAL, "b1"))]
+        [(host_instr_time, QpuTask(pid, RoutineType.LOCAL, "blk_add_one"))]
     )
     alice.scheduler.upload_cpu_schedule(cpu_schedule)
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
@@ -220,38 +141,25 @@ def test_lr_program():
     bob.memmgr.get_process(pid).host_mem.read("y") == 4
 
 
-def test_rr_program():
-    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
-    latencies = LhiLatencies(
-        host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
-    )
-    link_info = LhiLinkInfo.perfect(duration=20_000)
-
-    alice_lhi = LhiProcNodeInfo(
-        name="alice", id=0, topology=topology, latencies=latencies
-    )
-    network_lhi = NetworkLhi.fully_connected([0, 1], link_info)
-    network_info = NetworkInfo.with_nodes({0: "alice", 1: "bob"})
-    bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
-    network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
-
+def test_epr_md_1():
+    network = setup_network()
     alice = network.nodes["alice"]
     bob = network.nodes["bob"]
 
-    program_alice = get_rr_program_alice()
-    program_bob = get_rr_program_bob()
+    program_alice = load_program("test_scheduling_alice.iqoala")
+    program_bob = load_program("test_scheduling_bob.iqoala")
     pid = 0
     inputs_alice = ProgramInput({"bob_id": 1})
     inputs_bob = ProgramInput({"alice_id": 0})
-    instance_alice = ObjectBuilder.simple_program_instance(
-        program_alice, pid, inputs_alice
-    )
-    instance_bob = ObjectBuilder.simple_program_instance(program_bob, pid, inputs_bob)
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = QpuSchedule([(None, QpuTask(pid, RoutineType.REQUEST, "b0"))])
+    qpu_schedule = QpuSchedule(
+        [(None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_md_1"))]
+    )
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
     bob.scheduler.upload_qpu_schedule(qpu_schedule)
 
@@ -261,11 +169,133 @@ def test_rr_program():
 
     expected_duration = alice.network_ehi.get_link(0, 1).duration
     assert ns.sim_time() == expected_duration
-    alice.memmgr.get_process(pid).host_mem.read("m") == 4
-    bob.memmgr.get_process(pid).host_mem.read("m") == 4
+    alice_outcome = alice.memmgr.get_process(pid).host_mem.read("m")
+    bob_outcome = bob.memmgr.get_process(pid).host_mem.read("m")
+    assert alice_outcome == bob_outcome
+
+
+def test_epr_md_2():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_scheduling_alice.iqoala")
+    program_bob = load_program("test_scheduling_bob.iqoala")
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    inputs_bob = ProgramInput({"alice_id": 0})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
+
+    alice.scheduler.submit_program_instance(instance_alice)
+    bob.scheduler.submit_program_instance(instance_bob)
+
+    qpu_schedule = QpuSchedule(
+        [(None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_md_2"))]
+    )
+    alice.scheduler.upload_qpu_schedule(qpu_schedule)
+    bob.scheduler.upload_qpu_schedule(qpu_schedule)
+
+    ns.sim_reset()
+    network.start()
+    ns.sim_run()
+
+    expected_duration = alice.network_ehi.get_link(0, 1).duration * 2
+    assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    bob_mem = bob.memmgr.get_process(pid).host_mem
+    alice_outcomes = [alice_mem.read("m0"), alice_mem.read("m1")]
+    bob_outcomes = [bob_mem.read("m0"), bob_mem.read("m1")]
+    assert alice_outcomes == bob_outcomes
+
+
+def test_epr_ck_1():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_scheduling_alice.iqoala")
+    program_bob = load_program("test_scheduling_bob.iqoala")
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    inputs_bob = ProgramInput({"alice_id": 0})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
+
+    alice.scheduler.submit_program_instance(instance_alice)
+    bob.scheduler.submit_program_instance(instance_bob)
+
+    qpu_schedule = QpuSchedule(
+        [
+            (None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_ck_1")),
+            (None, QpuTask(pid, RoutineType.LOCAL, "blk_meas_q0")),
+        ]
+    )
+    alice.scheduler.upload_qpu_schedule(qpu_schedule)
+    bob.scheduler.upload_qpu_schedule(qpu_schedule)
+
+    ns.sim_reset()
+    network.start()
+    ns.sim_run()
+
+    # subrt meas_q0 has 3 classical instructions + 1 meas instruction
+    subrt_class_time = 3 * alice.local_ehi.latencies.qnos_instr_time
+    subrt_meas_time = alice.local_ehi.find_single_gate(0, core.MeasInstruction).duration
+    subrt_time = subrt_class_time + subrt_meas_time
+    expected_duration = alice.network_ehi.get_link(0, 1).duration + subrt_time
+    assert ns.sim_time() == expected_duration
+    alice_outcome = alice.memmgr.get_process(pid).host_mem.read("p")
+    bob_outcome = bob.memmgr.get_process(pid).host_mem.read("p")
+    assert alice_outcome == bob_outcome
+
+
+def test_epr_ck_2():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_scheduling_alice.iqoala")
+    program_bob = load_program("test_scheduling_bob.iqoala")
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    inputs_bob = ProgramInput({"alice_id": 0})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
+
+    alice.scheduler.submit_program_instance(instance_alice)
+    bob.scheduler.submit_program_instance(instance_bob)
+
+    qpu_schedule = QpuSchedule(
+        [
+            (None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_ck_2")),
+            (None, QpuTask(pid, RoutineType.LOCAL, "blk_meas_q0_q1")),
+        ]
+    )
+    alice.scheduler.upload_qpu_schedule(qpu_schedule)
+    bob.scheduler.upload_qpu_schedule(qpu_schedule)
+
+    ns.sim_reset()
+    network.start()
+    ns.sim_run()
+
+    # subrt meas_q0_q1 has 6 classical instructions + 2 meas instruction
+    subrt_class_time = 6 * alice.local_ehi.latencies.qnos_instr_time
+    meas_time = alice.local_ehi.find_single_gate(0, core.MeasInstruction).duration
+    subrt_time = subrt_class_time + 2 * meas_time
+    epr_time = alice.network_ehi.get_link(0, 1).duration
+    expected_duration = 2 * epr_time + subrt_time
+    assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    bob_mem = bob.memmgr.get_process(pid).host_mem
+    alice_outcomes = [alice_mem.read("p0"), alice_mem.read("p1")]
+    bob_outcomes = [bob_mem.read("p0"), bob_mem.read("p1")]
+    assert alice_outcomes == bob_outcomes
 
 
 if __name__ == "__main__":
-    # test_host_program()
-    # test_lr_program()
-    test_rr_program()
+    test_host_program()
+    test_lr_program()
+    test_epr_md_1()
+    test_epr_md_2()
+    test_epr_ck_1()
+    test_epr_ck_2()

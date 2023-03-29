@@ -699,6 +699,8 @@ class NetstackProcessor:
         phys_id = self._interface.memmgr.phys_id_for(process.pid, virt_id)
         # Should have been allocated by `handle_req_routine_md`
         assert phys_id is not None
+        # Use the special INSTR_MEASURE_INSTANT instruction so that measuring
+        # doesn't take time.
         commands = [QDeviceCommand(INSTR_MEASURE_INSTANT, [phys_id])]
         m = yield from self.qdevice.execute_commands(commands=commands)
         assert m is not None

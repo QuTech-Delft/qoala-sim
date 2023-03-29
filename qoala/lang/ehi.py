@@ -57,6 +57,27 @@ class ExposedHardwareInfo:
 
     latencies: EhiLatencies
 
+    def find_single_gate(
+        self, qubit_id: int, instr: Type[NetQASMInstruction]
+    ) -> Optional[ExposedGateInfo]:
+        if qubit_id not in self.single_gate_infos:
+            return None
+        for info in self.single_gate_infos[qubit_id]:
+            if info.instruction == instr:
+                return info
+        return None
+
+    def find_multi_gate(
+        self, qubit_ids: List[int], instr: Type[NetQASMInstruction]
+    ) -> Optional[ExposedGateInfo]:
+        multi = MultiQubit(qubit_ids)
+        if multi not in self.multi_gate_infos:
+            return None
+        for info in self.multi_gate_infos[multi]:
+            if info.instruction == instr:
+                return info
+        return None
+
 
 class EhiBuilder:
     @classmethod
