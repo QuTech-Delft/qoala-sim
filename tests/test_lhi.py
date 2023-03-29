@@ -22,6 +22,7 @@ from qoala.runtime.lhi import (
     LhiQubitInfo,
     LhiTopology,
     LhiTopologyBuilder,
+    NetworkLhi,
 )
 
 
@@ -406,19 +407,15 @@ def test_generic_t1t2_star():
 
 def test_latencies_from_config():
     cfg = LatenciesConfig(
-        host_qnos_latency=1,
         host_instr_time=2,
         qnos_instr_time=3,
         host_peer_latency=4,
-        netstack_peer_latency=5,
     )
     latencies = LhiLatencies.from_config(cfg)
 
-    assert latencies.host_qnos_latency == 1
     assert latencies.host_instr_time == 2
     assert latencies.qnos_instr_time == 3
     assert latencies.host_peer_latency == 4
-    assert latencies.netstack_peer_latency == 5
 
 
 def test_link_from_config():
@@ -443,6 +440,14 @@ def test_link_from_config_2():
     }
 
 
+def test_network_lhi():
+    network_lhi = NetworkLhi.perfect_fully_connected(node_ids=[0, 1, 2], duration=1000)
+
+    assert network_lhi.get_link(0, 1) == LhiLinkInfo.perfect(duration=1000)
+    assert network_lhi.get_link(0, 2) == LhiLinkInfo.perfect(duration=1000)
+    assert network_lhi.get_link(1, 2) == LhiLinkInfo.perfect(duration=1000)
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
@@ -459,3 +464,4 @@ if __name__ == "__main__":
     test_latencies_from_config()
     test_link_from_config()
     test_link_from_config_2()
+    test_network_lhi()

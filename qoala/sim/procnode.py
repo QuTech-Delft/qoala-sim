@@ -72,7 +72,7 @@ class ProcNode(Protocol):
 
         # Create internal components.
         self._qdevice: QDevice = QDevice(self._node, qdevice_topology)
-        self._ehi: ExposedHardwareInfo = LhiConverter.to_ehi(
+        self._local_ehi: ExposedHardwareInfo = LhiConverter.to_ehi(
             qdevice_topology, ntf_interface, latencies
         )
 
@@ -83,14 +83,13 @@ class ProcNode(Protocol):
         qnos_latencies = QnosLatencies(
             latencies.qnos_instr_time,
         )
-        netstack_latencies = NetstackLatencies(
-            latencies.netstack_peer_latency,
-        )
+        # TODO: decide if still needed
+        netstack_latencies = NetstackLatencies(0)
 
         self._host = Host(
             self.host_comp, self._local_env, host_latencies, self._asynchronous
         )
-        self._memmgr = MemoryManager(self.node.name, self._qdevice, self._ehi)
+        self._memmgr = MemoryManager(self.node.name, self._qdevice, self._local_ehi)
         self._egpmgr = EgpManager()
         self._qnos = Qnos(
             self.qnos_comp,
@@ -199,6 +198,14 @@ class ProcNode(Protocol):
     @scheduler.setter
     def scheduler(self, scheduler: Scheduler) -> None:
         self._scheduler = scheduler
+
+    @property
+    def local_ehi(self) -> ExposedHardwareInfo:
+        return self._local_ehi
+
+    @local_ehi.setter
+    def local_ehi(self, local_ehi: ExposedHardwareInfo) -> None:
+        self._local_ehi = local_ehi
 
     @property
     def network_ehi(self) -> NetworkEhi:

@@ -7,16 +7,7 @@ from netsquid.qubits import ketstates, qubitapi
 from netsquid.qubits.qubit import Qubit
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import NetworkEhi, UnitModule
-from qoala.lang.program import IqoalaProgram
-from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
-from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import ProgramTaskList
-from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.procnode import ProcNode
 
 B00_DENS = np.outer(ketstates.b00, ketstates.b00)
 B01_DENS = np.outer(ketstates.b01, ketstates.b01)
@@ -103,37 +94,3 @@ def has_max_mixed_state(qubit: Qubit, margin: float = 0.001) -> bool:
     max_mixed = np.array([[0.5, 0], [0, 0.5]])
     qubit_state = qubitapi.reduced_dm(qubit)
     return density_matrices_equal(qubit_state, max_mixed)
-
-
-class ObjectBuilder:
-    @classmethod
-    def simple_procnode(cls, name: str, num_qubits: int) -> ProcNode:
-        env = NetworkInfo.with_nodes({0: name})
-        network_ehi = NetworkEhi(links={})
-        topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
-        qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
-        return ProcNode(
-            name=name,
-            network_info=env,
-            qprocessor=qprocessor,
-            qdevice_topology=topology,
-            latencies=LhiLatencies.all_zero(),
-            ntf_interface=GenericToVanillaInterface(),
-            network_ehi=network_ehi,
-        )
-
-    @classmethod
-    def simple_program_instance(
-        cls, program: IqoalaProgram, pid: int = 0
-    ) -> ProgramInstance:
-        topology = LhiTopologyBuilder.perfect_uniform_default_gates(1)
-        ehi = LhiConverter.to_ehi(topology, GenericToVanillaInterface())
-        unit_module = UnitModule.from_full_ehi(ehi)
-
-        return ProgramInstance(
-            pid,
-            program,
-            ProgramInput.empty(),
-            tasks=ProgramTaskList.empty(program),
-            unit_module=unit_module,
-        )

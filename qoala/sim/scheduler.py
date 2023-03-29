@@ -33,6 +33,8 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     SingleProgramTask,
 )
+from qoala.runtime.taskcreator import CpuSchedule, QpuSchedule
+from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
 from qoala.sim.host.csocket import ClassicalSocket
@@ -75,6 +77,11 @@ class Scheduler(Protocol):
         self._batch_results: Dict[int, BatchResult] = {}  # batch ID -> result
 
         self._schedule: Optional[Schedule] = None
+
+        self._cpudriver: CpuDriver = CpuDriver(node_name, host.processor, memmgr)
+        self._qpudriver: QpuDriver = QpuDriver(
+            node_name, host.processor, qnos.processor, netstack.processor, memmgr
+        )
 
     @property
     def host(self) -> Host:
@@ -307,6 +314,22 @@ class Scheduler(Protocol):
         for virt_id in routine.metadata.qubit_use:
             if virt_id not in routine.metadata.qubit_keep:
                 self.memmgr.free(process.pid, virt_id)
+
+    def upload_cpu_schedule(self, schedule: CpuSchedule) -> None:
+        self._cpudriver.upload_schedule(schedule)
+
+    def upload_qpu_schedule(self, schedule: QpuSchedule) -> None:
+        self._qpudriver.upload_schedule(schedule)
+
+    def start(self) -> None:
+        super().start()
+        self._cpudriver.start()
+        self._qpudriver.start()
+
+    def stop(self) -> None:
+        self._qpudriver.stop()
+        self._cpudriver.stop()
+        super().stop()
 
     def run(self) -> Generator[EventExpression, None, None]:
         if self._schedule is None:

@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional, Tuple, Type
 
 from netqasm.lang.instr import core, nv, vanilla
 from netqasm.lang.instr.base import NetQASMInstruction
@@ -36,6 +36,7 @@ from qoala.lang.ehi import (
     ExposedHardwareInfo,
     ExposedLinkInfo,
     ExposedQubitInfo,
+    NetworkEhi,
 )
 from qoala.runtime.lhi import (
     LhiGateInfo,
@@ -43,6 +44,7 @@ from qoala.runtime.lhi import (
     LhiLinkInfo,
     LhiQubitInfo,
     LhiTopology,
+    NetworkLhi,
 )
 from qoala.util.constants import prob_max_mixed_to_fidelity
 
@@ -186,3 +188,11 @@ class LhiConverter:
             return ExposedLinkInfo(duration=duration, fidelity=fidelity)
         else:
             raise NotImplementedError
+
+    @classmethod
+    def network_to_ehi(cls, info: NetworkLhi) -> NetworkEhi:
+        links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+        for ([n1, n2], info) in info.links.items():
+            ehi_link = cls.link_info_to_ehi(info)
+            links[(n1, n2)] = ehi_link
+        return NetworkEhi(links)

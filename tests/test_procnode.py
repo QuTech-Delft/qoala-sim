@@ -15,7 +15,6 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 from qlink_interface import ReqCreateBase, ResCreateAndKeep
 from qlink_interface.interface import ResCreate
 

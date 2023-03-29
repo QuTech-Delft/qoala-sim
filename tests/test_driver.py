@@ -11,7 +11,7 @@ from qoala.runtime.taskcreator import (
     RoutineType,
 )
 from qoala.sim.driver import CpuDriver, QpuDriver
-from qoala.util.tests import ObjectBuilder
+from qoala.util.builder import ObjectBuilder
 
 
 def get_pure_host_program() -> IqoalaProgram:

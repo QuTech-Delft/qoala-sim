@@ -665,13 +665,9 @@ class NVQDeviceConfig(BaseModel):
 
 
 class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
-    host_qnos_latency: float = 0.0  # delay for Host <-> Qnos communication
     host_instr_time: float = 0.0  # duration of classical Host instr execution
     qnos_instr_time: float = 0.0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0.0  # processing time for Host messages from remote node
-    netstack_peer_latency: float = (
-        0.0  # processing time for Netstack messages from remote node
-    )
 
     @classmethod
     def from_file(cls, path: str) -> LatenciesConfig:
@@ -679,9 +675,6 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
 
     @classmethod
     def from_dict(cls, dict: Any) -> LatenciesConfig:
-        host_qnos_latency = 0.0
-        if "host_qnos_latency" in dict:
-            host_qnos_latency = dict["host_qnos_latency"]
         host_instr_time = 0.0
         if "host_instr_time" in dict:
             host_instr_time = dict["host_instr_time"]
@@ -691,19 +684,11 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
         host_peer_latency = 0.0
         if "host_peer_latency" in dict:
             host_peer_latency = dict["host_peer_latency"]
-        netstack_peer_latency = 0.0
-        if "netstack_peer_latency" in dict:
-            netstack_peer_latency = dict["netstack_peer_latency"]
         return LatenciesConfig(
-            host_qnos_latency=host_qnos_latency,
             host_instr_time=host_instr_time,
             qnos_instr_time=qnos_instr_time,
             host_peer_latency=host_peer_latency,
-            netstack_peer_latency=netstack_peer_latency,
         )
-
-    def get_host_qnos_latency(self) -> float:
-        return self.host_qnos_latency
 
     def get_host_instr_time(self) -> float:
         return self.host_instr_time
@@ -713,9 +698,6 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
 
     def get_host_peer_latency(self) -> float:
         return self.host_peer_latency
-
-    def get_netstack_peer_latency(self) -> float:
-        return self.netstack_peer_latency
 
 
 class ProcNodeConfig(BaseModel):

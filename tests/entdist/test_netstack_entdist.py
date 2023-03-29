@@ -2,7 +2,6 @@ from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
 from netsquid.nodes import Node
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiBuilder, UnitModule

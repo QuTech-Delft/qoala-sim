@@ -1,5 +1,4 @@
 import itertools
-from os import link
 from typing import List
 
 import netsquid as ns

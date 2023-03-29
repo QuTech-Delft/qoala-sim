@@ -13,7 +13,7 @@ from netsquid.components.instructions import (
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import ExposedGateInfo, ExposedQubitInfo
 from qoala.runtime.config import DepolariseSamplerConfig, LinkConfig
-from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopologyBuilder
+from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopologyBuilder, NetworkLhi
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 from qoala.util.constants import prob_max_mixed_to_fidelity
 
@@ -34,11 +34,9 @@ def test_topology_to_ehi():
     )
 
     latencies = LhiLatencies(
-        host_qnos_latency=1,
         host_instr_time=2,
         qnos_instr_time=3,
         host_peer_latency=4,
-        netstack_peer_latency=5,
     )
 
     interface = NvToNvInterface()
@@ -109,7 +107,28 @@ def test_link_info_to_ehi_depolarise():
     assert ehi_info.fidelity == pytest.approx(expected_fidelity)
 
 
+def test_network_to_ehi():
+    depolar_link = LhiLinkInfo.depolarise(
+        cycle_time=10, prob_max_mixed=0.2, prob_success=0.5, state_delay=2000
+    )
+    perfect_link = LhiLinkInfo.perfect(1000)
+    lhi_network = NetworkLhi(links={(0, 1): depolar_link, (1, 3): perfect_link})
+
+    ehi_network = LhiConverter.network_to_ehi(lhi_network)
+    expected_duration_0_1 = (10 / 0.5) + 2000
+    expected_fidelty_0_1 = prob_max_mixed_to_fidelity(0.2)
+
+    ehi_link_0_1 = ehi_network.get_link(0, 1)
+    assert ehi_link_0_1.duration == pytest.approx(expected_duration_0_1)
+    assert ehi_link_0_1.fidelity == pytest.approx(expected_fidelty_0_1)
+
+    ehi_link_1_3 = ehi_network.get_link(1, 3)
+    assert ehi_link_1_3.duration == 1000
+    assert ehi_link_1_3.fidelity == 1.0
+
+
 if __name__ == "__main__":
     test_topology_to_ehi()
     test_link_info_to_ehi_perfect()
     test_link_info_to_ehi_depolarise()
+    test_network_to_ehi()

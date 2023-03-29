@@ -3,7 +3,6 @@ from typing import List, Tuple
 
 import netsquid as ns
 from netsquid.nodes import Node
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder

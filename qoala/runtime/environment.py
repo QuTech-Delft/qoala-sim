@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import itertools
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.ehi import ExposedLinkInfo

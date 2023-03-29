@@ -1,5 +1,9 @@
+import pytest
+
 from qoala.runtime.config import (
     LatenciesConfig,
+    LinkBetweenNodesConfig,
+    LinkConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -17,7 +21,7 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     )
 
 
-def test1():
+def test_perfect_links():
     server_id = 0
     client_id = 1
     network_info = NetworkInfo.with_nodes({server_id: "server", client_id: "client"})
@@ -31,6 +35,37 @@ def test1():
     )
     network = build_network(network_cfg, network_info)
 
+    server = network.nodes["server"]
+    link_info = server.network_ehi.get_link(server_id, client_id)
+    assert link_info.duration == 1000
+    assert link_info.fidelity == 1.0
+
+
+def test_depolarise_links():
+    server_id = 0
+    client_id = 1
+    network_info = NetworkInfo.with_nodes({server_id: "server", client_id: "client"})
+
+    num_qubits = 1
+    server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
+    client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
+
+    link_fidelity = 0.8
+    link_cfg = LinkConfig.depolarise_config(fidelity=link_fidelity, state_delay=1000)
+    link_between_cfg = LinkBetweenNodesConfig(
+        node_id1=server_id, node_id2=client_id, link_config=link_cfg
+    )
+    network_cfg = ProcNodeNetworkConfig(
+        nodes=[server_node_cfg, client_node_cfg], links=[link_between_cfg]
+    )
+    network = build_network(network_cfg, network_info)
+
+    server = network.nodes["server"]
+    link_info = server.network_ehi.get_link(server_id, client_id)
+    assert link_info.duration == 1000
+    assert link_info.fidelity == pytest.approx(0.8)
+
 
 if __name__ == "__main__":
-    test1()
+    test_perfect_links()
+    test_depolarise_links()

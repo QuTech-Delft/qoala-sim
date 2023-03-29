@@ -14,7 +14,6 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import NetworkEhi, UnitModule

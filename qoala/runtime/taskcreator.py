@@ -52,7 +52,11 @@ class QpuTask:
 
 @dataclass
 class QpuSchedule:
-    tasks: List[Tuple[int, QpuTask]]  # time -> task
+    tasks: List[Tuple[Optional[int], QpuTask]]  # time -> task
+
+    @classmethod
+    def no_constraints(cls, tasks: List[QpuTask]) -> QpuSchedule:
+        return QpuSchedule(tasks=[(None, t) for t in tasks])
 
 
 class TaskCreator:

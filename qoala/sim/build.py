@@ -49,7 +49,14 @@ from qoala.runtime.config import (  # type: ignore
     ProcNodeNetworkConfig,
 )
 from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi import (
+    LhiLatencies,
+    LhiLinkInfo,
+    LhiProcNodeInfo,
+    LhiTopology,
+    LhiTopologyBuilder,
+    NetworkLhi,
+)
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -397,6 +404,58 @@ def build_network(
         n1 = link_between_nodes.node_id1
         n2 = link_between_nodes.node_id2
         entdist.add_sampler(n1, n2, link)
+
+    for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
+        s1.connect_to(s2)
+
+    for name, procnode in procnodes.items():
+        procnode.node.entdist_out_port.connect(entdistcomp.node_in_port(name))
+        procnode.node.entdist_in_port.connect(entdistcomp.node_out_port(name))
+
+    return ProcNodeNetwork(procnodes, entdist)
+
+
+def build_procnode_from_lhi(
+    id: int,
+    name: str,
+    topology: LhiTopology,
+    latencies: LhiLatencies,
+    network_info: NetworkInfo,
+    network_lhi: NetworkLhi,
+) -> ProcNode:
+    qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
+    network_ehi = LhiConverter.network_to_ehi(network_lhi)
+    return ProcNode(
+        name=name,
+        node_id=id,
+        network_info=network_info,
+        qprocessor=qprocessor,
+        qdevice_topology=topology,
+        latencies=latencies,
+        ntf_interface=GenericToVanillaInterface(),
+        network_ehi=network_ehi,
+    )
+
+
+def build_network_from_lhi(
+    procnode_infos: List[LhiProcNodeInfo],
+    network_info: NetworkInfo,
+    network_lhi: NetworkLhi,
+) -> ProcNodeNetwork:
+    procnodes: Dict[str, ProcNode] = {}
+
+    for info in procnode_infos:
+        procnode = build_procnode_from_lhi(
+            info.id, info.name, info.topology, info.latencies, network_info, network_lhi
+        )
+        procnodes[info.name] = procnode
+
+    ns_nodes = [procnode.node for procnode in procnodes.values()]
+    entdistcomp = EntDistComponent(network_info)
+    entdist = EntDist(nodes=ns_nodes, network_info=network_info, comp=entdistcomp)
+
+    for ([n1, n2], link_info) in network_lhi.links.items():
+        entdist.add_sampler(n1, n2, link_info)
 
     for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
         s1.connect_to(s2)
