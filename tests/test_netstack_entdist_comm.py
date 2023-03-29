@@ -23,10 +23,7 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkEhi()
-
-    env.add_node(alice.ID, alice.name)
-    env.add_node(bob.ID, bob.name)
+    env = NetworkEhi.with_nodes_no_links({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = NetstackComponent(alice, env)
     bob_comp = NetstackComponent(bob, env)
@@ -75,10 +72,7 @@ def test_wait_for_any_node():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkEhi()
-
-    env.add_node(alice.ID, alice.name)
-    env.add_node(bob.ID, bob.name)
+    env = NetworkEhi.with_nodes_no_links({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = NetstackComponent(alice, env)
     bob_comp = NetstackComponent(bob, env)
@@ -137,11 +131,9 @@ def test_wait_for_any_node_2():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = NetworkEhi()
-
-    env.add_node(alice.ID, alice.name)
-    env.add_node(bob.ID, bob.name)
-    env.add_node(charlie.ID, charlie.name)
+    env = NetworkEhi.with_nodes_no_links(
+        {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
+    )
 
     alice_comp = NetstackComponent(alice, env)
     bob_comp = NetstackComponent(bob, env)

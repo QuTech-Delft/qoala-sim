@@ -5,12 +5,9 @@ from qoala.sim.procnodecomp import ProcNodeComponent
 
 
 def create_procnodecomp(num_other_nodes: int) -> ProcNodeComponent:
-    env = NetworkEhi()
-
-    env.add_node(0, "alice")
-
-    for id in range(1, num_other_nodes + 1):
-        env.add_node(id, f"node_{id}")
+    nodes = {id: f"node_{id}" for id in range(1, num_other_nodes + 1)}
+    nodes[0] = "alice"
+    env = NetworkEhi.with_nodes_no_links(nodes)
 
     return ProcNodeComponent(name="alice", qprocessor=None, network_ehi=env)
 

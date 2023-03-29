@@ -14,12 +14,10 @@ from qoala.sim.host.hostinterface import HostInterface
 
 def create_hostcomp(num_other_nodes: int) -> HostComponent:
     node = Node(name="alice", ID=0)
-    env = NetworkEhi()
 
-    env.add_node(node.ID, node.name)
-
-    for id in range(1, num_other_nodes + 1):
-        env.add_node(id, f"node_{id}")
+    nodes = {id: f"node_{id}" for id in range(1, num_other_nodes + 1)}
+    nodes[0] = "alice"
+    env = NetworkEhi.with_nodes_no_links(nodes)
 
     return HostComponent(node, env)
 
@@ -76,10 +74,7 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkEhi()
-
-    env.add_node(alice.ID, alice.name)
-    env.add_node(bob.ID, bob.name)
+    env = NetworkEhi.with_nodes_no_links({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = HostComponent(alice, env)
     bob_comp = HostComponent(bob, env)
@@ -111,11 +106,9 @@ def test_three_way_connection():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = NetworkEhi()
-
-    env.add_node(alice.ID, alice.name)
-    env.add_node(bob.ID, bob.name)
-    env.add_node(charlie.ID, charlie.name)
+    env = NetworkEhi.with_nodes_no_links(
+        {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
+    )
 
     alice_comp = HostComponent(alice, env)
     bob_comp = HostComponent(bob, env)

@@ -27,7 +27,6 @@ from netsquid.components.models.qerrormodels import (
 )
 from netsquid_magic.state_delivery_sampler import (
     DepolariseWithFailureStateSamplerFactory,
-    IStateDeliverySamplerFactory,
     PerfectStateSamplerFactory,
 )
 

@@ -26,9 +26,9 @@ def create_n_qdevices(n: int, num_qubits: int = 1) -> List[QDevice]:
 
 
 def create_entdist(qdevices: List[QDevice]) -> EntDist:
-    env = NetworkEhi()
-    for qdevice in qdevices:
-        env.add_node(qdevice.node.ID, qdevice.node.name)
+    env = NetworkEhi.with_nodes_no_links(
+        {qdevice.node.ID: qdevice.node.name for qdevice in qdevices}
+    )
     comp = EntDistComponent(env)
     entdist = EntDist(
         nodes=[qdevice.node for qdevice in qdevices], network_ehi=env, comp=comp

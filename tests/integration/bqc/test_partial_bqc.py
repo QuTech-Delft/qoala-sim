@@ -70,10 +70,7 @@ def create_process(
 
 
 def create_network_ehi(names: List[str]) -> NetworkEhi:
-    env = NetworkEhi()
-    for i, name in enumerate(names):
-        env.add_node(i, name)
-    return env
+    return NetworkEhi.with_nodes_no_links({i: name for i, name in enumerate(names)})
 
 
 def create_procnode(

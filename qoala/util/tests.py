@@ -108,8 +108,7 @@ def has_max_mixed_state(qubit: Qubit, margin: float = 0.001) -> bool:
 class ObjectBuilder:
     @classmethod
     def simple_procnode(cls, name: str, num_qubits: int) -> ProcNode:
-        env = NetworkEhi()
-        env.add_node(0, name)
+        env = NetworkEhi.with_nodes_no_links({0: name})
         topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
         qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
         return ProcNode(

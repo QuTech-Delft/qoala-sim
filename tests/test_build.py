@@ -174,9 +174,7 @@ def test_build_procnode():
     cfg = ProcNodeConfig(
         node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
     )
-    network_ehi = NetworkEhi()
-    network_ehi.add_node(42, "the_node")
-    network_ehi.add_node(43, "other_node")
+    network_ehi = NetworkEhi.with_nodes_no_links({42: "the_node", 43: "other_node"})
 
     procnode = build_procnode(cfg, network_ehi)
 
@@ -209,9 +207,7 @@ def test_build_network():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    network_ehi = NetworkEhi()
-    network_ehi.add_node(42, "alice")
-    network_ehi.add_node(43, "bob")
+    network_ehi = NetworkEhi.with_nodes_no_links({42: "alice", 43: "bob"})
 
     link_cfg = LinkConfig.perfect_config(state_delay=1000)
     link_ab = LinkBetweenNodesConfig(node_id1=42, node_id2=43, link_config=link_cfg)
@@ -257,9 +253,7 @@ def test_build_network_perfect_links():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    network_ehi = NetworkEhi()
-    network_ehi.add_node(42, "alice")
-    network_ehi.add_node(43, "bob")
+    network_ehi = NetworkEhi.with_nodes_no_links({42: "alice", 43: "bob"})
 
     cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[cfg_alice, cfg_bob], link_duration=500

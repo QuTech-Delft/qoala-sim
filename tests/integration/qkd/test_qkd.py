@@ -23,9 +23,7 @@ from qoala.sim.build import build_network
 
 
 def create_network_ehi(names: List[str]) -> NetworkEhi:
-    env = NetworkEhi()
-    for i, name in enumerate(names):
-        env.add_node(i, name)
+    env = NetworkEhi.with_nodes_no_links({i: name for i, name in enumerate(names)})
     env.set_global_schedule([0, 1, 2])
     env.set_timeslot_len(1e6)
     return env

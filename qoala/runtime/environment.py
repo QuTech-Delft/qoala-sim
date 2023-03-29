@@ -7,16 +7,22 @@ from qoala.runtime.program import ProgramInstance
 
 
 class NetworkEhi:
-    def __init__(self) -> None:
+    def __init__(
+        self, nodes: Dict[int, str], links: Dict[Tuple[int, int], ExposedLinkInfo]
+    ) -> None:
         # node ID -> node name
-        self._nodes: Dict[int, str] = {}
+        self._nodes = nodes
 
         # (node A ID, node B ID) -> link info
         # for a pair (a, b) there exists no separate (b, a) info (it is the same)
-        self._links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+        self._links = links
 
         self._global_schedule: Optional[List[int]] = None
         self._timeslot_len: Optional[int] = None
+
+    @classmethod
+    def with_nodes_no_links(cls, nodes: Dict[int, str]) -> NetworkEhi:
+        return NetworkEhi(nodes, links={})
 
     def get_nodes(self) -> Dict[int, str]:
         return self._nodes

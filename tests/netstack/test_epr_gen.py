@@ -136,9 +136,9 @@ def setup_components(
     alice_node = alice_qdevice._node
     bob_node = bob_qdevice._node
 
-    env = NetworkEhi()
-    env.add_node(alice_node.ID, alice_node.name)
-    env.add_node(bob_node.ID, bob_node.name)
+    env = NetworkEhi.with_nodes_no_links(
+        {alice_node.ID: alice_node.name, bob_node.ID: bob_node.name}
+    )
 
     alice_comp = NetstackComponent(node=alice_node, network_ehi=env)
     bob_comp = NetstackComponent(node=bob_node, network_ehi=env)

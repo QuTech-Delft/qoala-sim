@@ -38,10 +38,9 @@ QC_EXPECTATION = 30e6
 def create_network_ehi(
     num_clients: int, global_schedule: List[int], timeslot_len: int
 ) -> NetworkEhi:
-    env = NetworkEhi()
-    env.add_node(0, "server")
-    for i in range(1, num_clients + 1):
-        env.add_node(i, f"client_{i}")
+    nodes = {i: f"client_{i}" for i in range(1, num_clients + 1)}
+    nodes[0] = "server"
+    env = NetworkEhi.with_nodes_no_links(nodes)
 
     env.set_global_schedule(global_schedule)
     env.set_timeslot_len(timeslot_len)

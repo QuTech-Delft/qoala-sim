@@ -5,10 +5,8 @@ from qoala.sim.entdist.entdistcomp import EntDistComponent
 
 
 def create_entdistcomp(num_nodes: int) -> EntDistComponent:
-    env = NetworkEhi()
-
-    for id in range(num_nodes):
-        env.add_node(id, f"node_{id}")
+    nodes = {id: f"node_{id}" for id in range(num_nodes)}
+    env = NetworkEhi.with_nodes_no_links(nodes)
 
     return EntDistComponent(env)
 

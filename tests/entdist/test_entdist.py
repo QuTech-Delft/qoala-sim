@@ -62,9 +62,7 @@ def create_joint_request(
 
 
 def create_entdist(nodes: List[Node]) -> EntDist:
-    env = NetworkEhi()
-    for node in nodes:
-        env.add_node(node.ID, node.name)
+    env = NetworkEhi.with_nodes_no_links({node.ID: node.name for node in nodes})
     comp = EntDistComponent(env)
     return EntDist(nodes=nodes, network_ehi=env, comp=comp)
 

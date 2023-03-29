@@ -89,9 +89,9 @@ def setup_components() -> Tuple[
 ]:
     alice, bob = create_alice_bob_qdevices(num_qubits=3)
 
-    env = NetworkEhi()
-    env.add_node(alice.node.ID, alice.node.name)
-    env.add_node(bob.node.ID, bob.node.name)
+    env = NetworkEhi.with_nodes_no_links(
+        {alice.node.ID: alice.node.name, bob.node.ID: bob.node.name}
+    )
     alice_comp = NetstackComponent(alice.node, env)
     bob_comp = NetstackComponent(bob.node, env)
     entdist_comp = EntDistComponent(env)
@@ -211,9 +211,12 @@ def setup_components_full_netstack(
         num_qubits=num_qubits, alice_id=alice_id, bob_id=bob_id
     )
 
-    env = NetworkEhi()
-    env.add_node(alice_qdevice.node.ID, alice_qdevice.node.name)
-    env.add_node(bob_qdevice.node.ID, bob_qdevice.node.name)
+    env = NetworkEhi.with_nodes_no_links(
+        {
+            alice_qdevice.node.ID: alice_qdevice.node.name,
+            bob_qdevice.node.ID: bob_qdevice.node.name,
+        }
+    )
     alice_comp = NetstackComponent(alice_qdevice.node, env)
     bob_comp = NetstackComponent(bob_qdevice.node, env)
     entdist_comp = EntDistComponent(env)

@@ -337,10 +337,8 @@ def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
 def create_network_ehi(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
 ) -> NetworkEhi:
-    env = NetworkEhi()
-    for i, name in enumerate(names):
-        env.add_node(i, name)
-    return env
+    nodes = {i: name for i, name in enumerate(names)}
+    return NetworkEhi.with_nodes_no_links(nodes)
 
 
 def create_procnode(

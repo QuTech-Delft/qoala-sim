@@ -22,8 +22,7 @@ from qoala.sim.network import ProcNodeNetwork
 
 
 def create_network_ehi() -> NetworkEhi:
-    env = NetworkEhi()
-    env.add_node(0, "alice")
+    env = NetworkEhi.with_nodes_no_links({0: "alice"})
 
     env.set_global_schedule([0])
     env.set_timeslot_len(1e6)

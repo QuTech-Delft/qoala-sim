@@ -44,7 +44,8 @@ def run(
     :return: program results
     """
     # Create global runtime environment.
-    rte = NetworkEhi()
+    # TODO: use new way of creating NetworkEhi objects
+    rte = NetworkEhi.with_nodes_no_links({})
 
     # Build the network. Info about created nodes will be added to the runtime environment.
     network = build_network(config, rte)
