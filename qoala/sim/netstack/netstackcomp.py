@@ -5,7 +5,7 @@ from typing import Dict
 from netsquid.components.component import Component, Port
 from netsquid.nodes import Node
 
-from qoala.runtime.environment import NetworkEhi
+from qoala.runtime.environment import NetworkInfo
 
 
 class NetstackComponent(Component):
@@ -23,14 +23,14 @@ class NetstackComponent(Component):
     which is a subclass of `Protocol`.
     """
 
-    def __init__(self, node: Node, network_ehi: NetworkEhi) -> None:
+    def __init__(self, node: Node, network_info: NetworkInfo) -> None:
         super().__init__(f"{node.name}_netstack")
         self._node = node
 
         self._peer_in_ports: Dict[str, str] = {}  # peer name -> port name
         self._peer_out_ports: Dict[str, str] = {}  # peer name -> port name
 
-        for other_node in network_ehi.get_nodes().values():
+        for other_node in network_info.get_nodes().values():
             if other_node == node.name:
                 continue
             port_in_name = f"peer_{other_node}_in"

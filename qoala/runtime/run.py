@@ -7,7 +7,7 @@ import netsquid as ns
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.context import SimulationContext
-from qoala.runtime.environment import NetworkEhi
+from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchResult, ProgramInstance
 from qoala.sim.build import build_network
 from qoala.sim.globals import GlobalSimData
@@ -44,8 +44,8 @@ def run(
     :return: program results
     """
     # Create global runtime environment.
-    # TODO: use new way of creating NetworkEhi objects
-    rte = NetworkEhi.with_nodes_no_links({})
+    # TODO: use new way of creating NetworkInfo objects
+    rte = NetworkInfo.with_nodes({})
 
     # Build the network. Info about created nodes will be added to the runtime environment.
     network = build_network(config, rte)
@@ -55,7 +55,7 @@ def run(
     ###########################################
     sim_data = GlobalSimData()
     sim_data.set_network(network)
-    context = SimulationContext(network_ehi=rte, global_sim_data=sim_data)
+    context = SimulationContext(network_info=rte, global_sim_data=sim_data)
     print(context)
 
     for name, program_list in programs.items():

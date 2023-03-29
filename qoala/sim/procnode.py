@@ -6,8 +6,8 @@ from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
 from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
-from qoala.lang.ehi import ExposedHardwareInfo
-from qoala.runtime.environment import LocalEnvironment, NetworkEhi
+from qoala.lang.ehi import ExposedHardwareInfo, NetworkEhi
+from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
@@ -32,11 +32,12 @@ class ProcNode(Protocol):
     def __init__(
         self,
         name: str,
-        network_ehi: NetworkEhi,
+        network_info: NetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
+        network_ehi: NetworkEhi,
         node: Optional[ProcNodeComponent] = None,
         node_id: Optional[int] = None,
         scheduler: Optional[Scheduler] = None,
@@ -61,10 +62,11 @@ class ProcNode(Protocol):
         if node:
             self._node = node
         else:
-            self._node = ProcNodeComponent(name, qprocessor, network_ehi, node_id)
+            self._node = ProcNodeComponent(name, qprocessor, network_info, node_id)
 
+        self._network_info = network_info
         self._network_ehi = network_ehi
-        self._local_env = LocalEnvironment(network_ehi, network_ehi.get_node_id(name))
+        self._local_env = LocalEnvironment(network_info, network_info.get_node_id(name))
         self._ntf_interface = ntf_interface
         self._asynchronous = asynchronous
 
@@ -197,6 +199,14 @@ class ProcNode(Protocol):
     @scheduler.setter
     def scheduler(self, scheduler: Scheduler) -> None:
         self._scheduler = scheduler
+
+    @property
+    def network_ehi(self) -> NetworkEhi:
+        return self._network_ehi
+
+    @network_ehi.setter
+    def network_ehi(self, network_ehi: NetworkEhi) -> None:
+        self._network_ehi = network_ehi
 
     def connect_to(self, other: ProcNode) -> None:
         """Create connections between ports of this ProcNode and those of

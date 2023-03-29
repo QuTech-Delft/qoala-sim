@@ -6,7 +6,7 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import LocalEnvironment, NetworkEhi
+from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.host.hostinterface import HostInterface
@@ -17,7 +17,7 @@ def create_hostcomp(num_other_nodes: int) -> HostComponent:
 
     nodes = {id: f"node_{id}" for id in range(1, num_other_nodes + 1)}
     nodes[0] = "alice"
-    env = NetworkEhi.with_nodes_no_links(nodes)
+    env = NetworkInfo.with_nodes(nodes)
 
     return HostComponent(node, env)
 
@@ -74,7 +74,7 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkEhi.with_nodes_no_links({alice.ID: alice.name, bob.ID: bob.name})
+    env = NetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = HostComponent(alice, env)
     bob_comp = HostComponent(bob, env)
@@ -106,7 +106,7 @@ def test_three_way_connection():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = NetworkEhi.with_nodes_no_links(
+    env = NetworkInfo.with_nodes(
         {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
     )
 

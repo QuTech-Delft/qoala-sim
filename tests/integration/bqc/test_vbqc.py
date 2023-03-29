@@ -16,7 +16,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkEhi
+from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.schedule import (
     NaiveSolver,
@@ -28,12 +28,12 @@ from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
 
-def create_network_ehi(
+def create_network_info(
     num_clients: int, global_schedule: List[int], timeslot_len: int
-) -> NetworkEhi:
+) -> NetworkInfo:
     nodes = {i: f"client_{i}" for i in range(1, num_clients + 1)}
     nodes[0] = "server"
-    env = NetworkEhi.with_nodes_no_links(nodes)
+    env = NetworkInfo.with_nodes(nodes)
 
     env.set_global_schedule(global_schedule)
     env.set_timeslot_len(timeslot_len)
@@ -88,14 +88,14 @@ def create_network(
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
-    network_ehi = create_network_ehi(num_clients, global_schedule, timeslot_len)
+    network_info = create_network_info(num_clients, global_schedule, timeslot_len)
 
     node_cfgs = [server_cfg] + client_configs
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=node_cfgs, link_duration=1000
     )
-    return build_network(network_cfg, network_ehi)
+    return build_network(network_cfg, network_info)
 
 
 @dataclass

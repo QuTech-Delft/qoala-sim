@@ -187,7 +187,7 @@ class NetstackInterface(ComponentProtocol):
         return self._egpmgr
 
     def remote_id_to_peer_name(self, remote_id: int) -> str:
-        return self._local_env.get_network_ehi().get_nodes()[remote_id]
+        return self._local_env.get_network_info().get_nodes()[remote_id]
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)

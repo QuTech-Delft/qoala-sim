@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+from ast import Tuple
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Type
 
@@ -268,3 +270,30 @@ class UnitModule:
 
     def get_all_qubit_ids(self) -> List[int]:
         return list(self.info.qubit_infos.keys())
+
+
+@dataclass
+class NetworkEhi:
+    # (node A ID, node B ID) -> link info
+    # for a pair (a, b) there exists no separate (b, a) info (it is the same)
+    links: Dict[Tuple[int, int], ExposedLinkInfo]
+
+    @classmethod
+    def fully_connected(cls, node_ids: List[int], info: ExposedLinkInfo) -> NetworkEhi:
+        links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+        for n1, n2 in itertools.combinations(node_ids, 2):
+            links[(n1, n2)] = info
+        return NetworkEhi(links)
+
+    @classmethod
+    def perfect_fully_connected(
+        cls, node_ids: List[int], duration: float
+    ) -> NetworkEhi:
+        link = ExposedLinkInfo(duration=duration, fidelity=1.0)
+        return cls.fully_connected(node_ids, link)
+
+    def get_link(self, node_id1: int, node_id2: int) -> ExposedLinkInfo:
+        try:
+            return self.links[(node_id1, node_id2)]
+        except KeyError:
+            return self.links[(node_id2, node_id1)]

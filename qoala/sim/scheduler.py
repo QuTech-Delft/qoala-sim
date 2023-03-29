@@ -129,8 +129,8 @@ class Scheduler(Protocol):
             [t.instr_type for t in task.tasks.values()] for _, task in tasks.items()
         ]
 
-        global_schedule = self._local_env.get_network_ehi().get_global_schedule()
-        timeslot_len = self._local_env.get_network_ehi().get_timeslot_len()
+        global_schedule = self._local_env.get_network_info().get_global_schedule()
+        timeslot_len = self._local_env.get_network_info().get_timeslot_len()
 
         return SchedulerInput(
             global_schedule=global_schedule,
@@ -175,8 +175,8 @@ class Scheduler(Protocol):
 
         epr_sockets: Dict[int, EprSocket] = {}
         for i, remote_name in meta.epr_sockets.items():
-            network_ehi = self._local_env.get_network_ehi()
-            remote_id = network_ehi.get_node_id(remote_name)
+            network_info = self._local_env.get_network_info()
+            remote_id = network_info.get_node_id(remote_name)
             # TODO: check for already existing epr sockets
             # TODO: fidelity
             epr_sockets[i] = EprSocket(i, remote_id, 1.0)

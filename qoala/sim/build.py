@@ -1,4 +1,5 @@
 import itertools
+from ast import Tuple
 from typing import Dict, List
 
 import numpy as np
@@ -35,6 +36,8 @@ from netsquid_magic.magic_distributor import (
 )
 from netsquid_physlayer.heralded_connection import MiddleHeraldedConnection
 
+from qoala.lang.ehi import ExposedLinkInfo, NetworkEhi
+
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import (  # type: ignore
     DepolariseOldLinkConfig,
@@ -45,9 +48,9 @@ from qoala.runtime.config import (  # type: ignore
     ProcNodeConfig,
     ProcNodeNetworkConfig,
 )
-from qoala.runtime.environment import NetworkEhi
+from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface
+from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
@@ -293,18 +296,21 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     return qmem
 
 
-def build_procnode(cfg: ProcNodeConfig, network_ehi: NetworkEhi) -> ProcNode:
+def build_procnode(
+    cfg: ProcNodeConfig, network_info: NetworkInfo, network_ehi: NetworkEhi
+) -> ProcNode:
     topology = LhiTopologyBuilder.from_config(cfg.topology)
     qprocessor = build_qprocessor_from_topology(name=cfg.node_name, topology=topology)
     latencies = LhiLatencies.from_config(cfg.latencies)
     procnode = ProcNode(
         cfg.node_name,
-        network_ehi=network_ehi,
+        network_info=network_info,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
         ntf_interface=GenericToVanillaInterface(),  # TODO: make configurable
         node_id=cfg.node_id,
+        network_ehi=network_ehi,
     )
 
     # TODO: refactor this hack
@@ -367,24 +373,30 @@ def build_ll_protocol(
 
 def build_network(
     config: ProcNodeNetworkConfig,
-    network_ehi: NetworkEhi,
+    network_info: NetworkInfo,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
+    ehi_links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+    for link_between_nodes in config.links:
+        lhi_link = LhiLinkInfo.from_config(link_between_nodes.link_config)
+        ehi_link = LhiConverter.link_info_to_ehi(lhi_link)
+        ids = (link_between_nodes.node_id1, link_between_nodes.node_id2)
+        ehi_links[ids] = ehi_link
+    network_ehi = NetworkEhi(ehi_links)
+
     for cfg in config.nodes:
-        procnodes[cfg.node_name] = build_procnode(cfg, network_ehi)
+        procnodes[cfg.node_name] = build_procnode(cfg, network_info, network_ehi)
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
-    entdistcomp = EntDistComponent(network_ehi)
-    entdist = EntDist(nodes=ns_nodes, network_ehi=network_ehi, comp=entdistcomp)
+    entdistcomp = EntDistComponent(network_info)
+    entdist = EntDist(nodes=ns_nodes, network_info=network_info, comp=entdistcomp)
 
     for link_between_nodes in config.links:
         link = LhiLinkInfo.from_config(link_between_nodes.link_config)
         n1 = link_between_nodes.node_id1
         n2 = link_between_nodes.node_id2
-        entdist.add_sampler(
-            n1, n2, link.sampler_factory(), link.sampler_kwargs, link.state_delay
-        )
+        entdist.add_sampler(n1, n2, link)
 
     for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
         s1.connect_to(s2)

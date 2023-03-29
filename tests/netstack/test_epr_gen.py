@@ -31,7 +31,7 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
-from qoala.runtime.environment import LocalEnvironment, NetworkEhi
+from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -136,12 +136,12 @@ def setup_components(
     alice_node = alice_qdevice._node
     bob_node = bob_qdevice._node
 
-    env = NetworkEhi.with_nodes_no_links(
+    env = NetworkInfo.with_nodes(
         {alice_node.ID: alice_node.name, bob_node.ID: bob_node.name}
     )
 
-    alice_comp = NetstackComponent(node=alice_node, network_ehi=env)
-    bob_comp = NetstackComponent(node=bob_node, network_ehi=env)
+    alice_comp = NetstackComponent(node=alice_node, network_info=env)
+    bob_comp = NetstackComponent(node=bob_node, network_info=env)
 
     alice_comp.peer_out_port("bob").connect(bob_comp.peer_in_port("alice"))
     alice_comp.peer_in_port("bob").connect(bob_comp.peer_out_port("alice"))

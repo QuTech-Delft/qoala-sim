@@ -5,8 +5,8 @@ import netsquid as ns
 from netsquid.nodes import Node
 from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
-from qoala.runtime.environment import NetworkEhi
-from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist, EntDistRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -26,20 +26,17 @@ def create_n_qdevices(n: int, num_qubits: int = 1) -> List[QDevice]:
 
 
 def create_entdist(qdevices: List[QDevice]) -> EntDist:
-    env = NetworkEhi.with_nodes_no_links(
+    env = NetworkInfo.with_nodes(
         {qdevice.node.ID: qdevice.node.name for qdevice in qdevices}
     )
     comp = EntDistComponent(env)
     entdist = EntDist(
-        nodes=[qdevice.node for qdevice in qdevices], network_ehi=env, comp=comp
+        nodes=[qdevice.node for qdevice in qdevices], network_info=env, comp=comp
     )
 
-    factory = PerfectStateSamplerFactory()
-    kwargs = {"cycle_time": 1000}
+    link_info = LhiLinkInfo.perfect(1000)
     for qd1, qd2 in itertools.combinations(qdevices, 2):
-        entdist.add_sampler(
-            qd1.node.ID, qd2.node.ID, factory, kwargs=kwargs, delay=1000
-        )
+        entdist.add_sampler(qd1.node.ID, qd2.node.ID, link_info)
 
     return entdist
 

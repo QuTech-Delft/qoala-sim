@@ -16,14 +16,14 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkEhi
+from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import NoTimeSolver, ProgramTaskList, TaskBuilder
 from qoala.sim.build import build_network
 
 
-def create_network_ehi(names: List[str]) -> NetworkEhi:
-    env = NetworkEhi.with_nodes_no_links({i: name for i, name in enumerate(names)})
+def create_network_info(names: List[str]) -> NetworkInfo:
+    env = NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
     env.set_global_schedule([0, 1, 2])
     env.set_timeslot_len(1e6)
     return env
@@ -114,9 +114,9 @@ def run_qkd(
     ns.sim_reset()
 
     num_qubits = 3
-    network_ehi = create_network_ehi(names=["alice", "bob"])
-    alice_id = network_ehi.get_node_id("alice")
-    bob_id = network_ehi.get_node_id("bob")
+    network_info = create_network_info(names=["alice", "bob"])
+    alice_id = network_info.get_node_id("alice")
+    bob_id = network_info.get_node_id("bob")
 
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
@@ -124,7 +124,7 @@ def run_qkd(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg, network_ehi)
+    network = build_network(network_cfg, network_info)
     alice_procnode = network.nodes["alice"]
     bob_procnode = network.nodes["bob"]
 

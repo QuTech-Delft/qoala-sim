@@ -17,12 +17,16 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import UnitModule
+from qoala.lang.ehi import NetworkEhi, UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.environment import NetworkEhi
-from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
+from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import (
+    GenericToVanillaInterface,
+    LhiConverter,
+    NativeToFlavourInterface,
+)
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.schedule import ProgramTaskList, QnosTask
@@ -69,15 +73,16 @@ def create_process(
     return process
 
 
-def create_network_ehi(names: List[str]) -> NetworkEhi:
-    return NetworkEhi.with_nodes_no_links({i: name for i, name in enumerate(names)})
+def create_network_info(names: List[str]) -> NetworkInfo:
+    return NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
 
 
 def create_procnode(
     part: str,
     name: str,
-    env: NetworkEhi,
+    env: NetworkInfo,
     num_qubits: int,
+    network_ehi: NetworkEhi,
     procnode_cls: Type[ProcNode] = ProcNode,
     asynchronous: bool = False,
     pid: int = 0,
@@ -89,11 +94,12 @@ def create_procnode(
     procnode = procnode_cls(
         part=part,
         name=name,
-        network_ehi=env,
+        network_info=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=LhiLatencies(qnos_instr_time=1000),
         ntf_interface=GenericToVanillaInterface(),
+        network_ehi=network_ehi,
         node_id=node_id,
         asynchronous=asynchronous,
         pid=pid,
@@ -116,22 +122,24 @@ class BqcProcNode(ProcNode):
     def __init__(
         self,
         name: str,
-        network_ehi: NetworkEhi,
+        network_info: NetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
+        network_ehi: NetworkEhi,
         node_id: Optional[int] = None,
         asynchronous: bool = False,
         pid: int = 0,
     ) -> None:
         super().__init__(
             name=name,
-            network_ehi=network_ehi,
+            network_info=network_info,
             qprocessor=qprocessor,
             qdevice_topology=qdevice_topology,
             latencies=latencies,
             ntf_interface=ntf_interface,
+            network_ehi=network_ehi,
             node_id=node_id,
             asynchronous=asynchronous,
         )
@@ -278,9 +286,13 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    network_ehi = create_network_ehi(names=["client", "server"])
-    server_id = network_ehi.get_node_id("server")
-    client_id = network_ehi.get_node_id("client")
+    network_info = create_network_info(names=["client", "server"])
+    server_id = network_info.get_node_id("server")
+    client_id = network_info.get_node_id("client")
+
+    link_info = LhiLinkInfo.perfect(1000)
+    ehi_link = LhiConverter.link_info_to_ehi(link_info)
+    network_ehi = NetworkEhi.fully_connected([server_id, client_id], ehi_link)
 
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:
@@ -288,7 +300,13 @@ def run_bqc(
     server_program = IqoalaParser(server_text).parse()
 
     server_procnode = create_procnode(
-        part, "server", network_ehi, num_qubits, ServerProcNode, pid=server_pid
+        part,
+        "server",
+        network_info,
+        num_qubits,
+        network_ehi,
+        ServerProcNode,
+        pid=server_pid,
     )
     server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
@@ -306,7 +324,13 @@ def run_bqc(
     client_program = IqoalaParser(client_text).parse()
 
     client_procnode = create_procnode(
-        part, "client", network_ehi, num_qubits, ClientProcNode, pid=client_pid
+        part,
+        "client",
+        network_info,
+        num_qubits,
+        network_ehi,
+        ClientProcNode,
+        pid=client_pid,
     )
     client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
@@ -327,21 +351,13 @@ def run_bqc(
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(network_ehi)
+    entdistcomp = EntDistComponent(network_info)
     client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, network_ehi=network_ehi, comp=entdistcomp)
-    factory = PerfectStateSamplerFactory()
-    kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(
-        client_procnode.node.ID,
-        server_procnode.node.ID,
-        factory,
-        kwargs=kwargs,
-        delay=1000,
-    )
+    entdist = EntDist(nodes=nodes, network_info=network_info, comp=entdistcomp)
+    entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 
     server_procnode.start()
     client_procnode.start()

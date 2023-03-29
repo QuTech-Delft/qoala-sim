@@ -16,8 +16,8 @@ from qoala.lang.request import (
     RequestVirtIdMapping,
 )
 from qoala.lang.routine import LocalRoutine
-from qoala.runtime.environment import LocalEnvironment, NetworkEhi
-from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.environment import LocalEnvironment, NetworkInfo
+from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
@@ -89,23 +89,22 @@ def setup_components() -> Tuple[
 ]:
     alice, bob = create_alice_bob_qdevices(num_qubits=3)
 
-    env = NetworkEhi.with_nodes_no_links(
+    env = NetworkInfo.with_nodes(
         {alice.node.ID: alice.node.name, bob.node.ID: bob.node.name}
     )
     alice_comp = NetstackComponent(alice.node, env)
     bob_comp = NetstackComponent(bob.node, env)
     entdist_comp = EntDistComponent(env)
 
-    entdist = EntDist(nodes=[alice.node, bob.node], network_ehi=env, comp=entdist_comp)
+    entdist = EntDist(nodes=[alice.node, bob.node], network_info=env, comp=entdist_comp)
 
     alice_comp.entdist_out_port.connect(entdist_comp.node_in_port("alice"))
     alice_comp.entdist_in_port.connect(entdist_comp.node_out_port("alice"))
     bob_comp.entdist_out_port.connect(entdist_comp.node_in_port("bob"))
     bob_comp.entdist_in_port.connect(entdist_comp.node_out_port("bob"))
 
-    factory = PerfectStateSamplerFactory()
-    kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(alice.node.ID, bob.node.ID, factory, kwargs=kwargs, delay=1000)
+    link_info = LhiLinkInfo.perfect(1000)
+    entdist.add_sampler(alice.node.ID, bob.node.ID, link_info)
 
     return alice_comp, alice, bob_comp, bob, entdist
 
@@ -122,7 +121,7 @@ def test_single_pair_only_netstack_interface():
             self.send_entdist_msg(Message(self._requests[0]))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
-    env: NetworkEhi = entdist._network_ehi
+    env: NetworkInfo = entdist._network_info
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
@@ -163,7 +162,7 @@ def test_multiple_pairs_only_netstack_interface():
                 self.send_entdist_msg(Message(request))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
-    env: NetworkEhi = entdist._network_ehi
+    env: NetworkInfo = entdist._network_info
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
@@ -211,7 +210,7 @@ def setup_components_full_netstack(
         num_qubits=num_qubits, alice_id=alice_id, bob_id=bob_id
     )
 
-    env = NetworkEhi.with_nodes_no_links(
+    env = NetworkInfo.with_nodes(
         {
             alice_qdevice.node.ID: alice_qdevice.node.name,
             bob_qdevice.node.ID: bob_qdevice.node.name,
@@ -222,7 +221,9 @@ def setup_components_full_netstack(
     entdist_comp = EntDistComponent(env)
 
     entdist = EntDist(
-        nodes=[alice_qdevice.node, bob_qdevice.node], network_ehi=env, comp=entdist_comp
+        nodes=[alice_qdevice.node, bob_qdevice.node],
+        network_info=env,
+        comp=entdist_comp,
     )
 
     alice_comp.entdist_out_port.connect(entdist_comp.node_in_port("alice"))
@@ -230,11 +231,8 @@ def setup_components_full_netstack(
     bob_comp.entdist_out_port.connect(entdist_comp.node_in_port("bob"))
     bob_comp.entdist_in_port.connect(entdist_comp.node_out_port("bob"))
 
-    factory = PerfectStateSamplerFactory()
-    kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(
-        alice_qdevice.node.ID, bob_qdevice.node.ID, factory, kwargs=kwargs, delay=1000
-    )
+    link_info = LhiLinkInfo.perfect(1000)
+    entdist.add_sampler(alice_qdevice.node.ID, bob_qdevice.node.ID, link_info)
 
     alice_netstack = alice_netstack_cls(
         comp=alice_comp,

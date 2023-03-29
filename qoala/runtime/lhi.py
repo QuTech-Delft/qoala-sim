@@ -25,8 +25,11 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 from netsquid_magic.state_delivery_sampler import (
+    DeliverySample,
+    DepolariseWithFailureStateSamplerFactory,
     IStateDeliverySamplerFactory,
     PerfectStateSamplerFactory,
+    StateDeliverySampler,
 )
 
 from qoala.lang.common import MultiQubit
@@ -426,6 +429,24 @@ class LhiLinkInfo:
     def perfect(cls, duration: float) -> LhiLinkInfo:
         return LhiLinkInfo(
             sampler_factory=PerfectStateSamplerFactory,
-            sampler_kwargs={},
+            sampler_kwargs={"cycle_time": 0},
             state_delay=duration,
+        )
+
+    @classmethod
+    def depolarise(
+        cls,
+        cycle_time: float,
+        prob_max_mixed: float,
+        prob_success: float,
+        state_delay: float,
+    ) -> LhiLinkInfo:
+        return LhiLinkInfo(
+            sampler_factory=DepolariseWithFailureStateSamplerFactory,
+            sampler_kwargs={
+                "cycle_time": cycle_time,
+                "prob_max_mixed": prob_max_mixed,
+                "prob_success": prob_success,
+            },
+            state_delay=state_delay,
         )

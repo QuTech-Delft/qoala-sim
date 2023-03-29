@@ -6,7 +6,7 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import LocalEnvironment, NetworkEhi
+from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
 from qoala.sim.netstack.netstackcomp import NetstackComponent
@@ -23,7 +23,7 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkEhi.with_nodes_no_links({alice.ID: alice.name, bob.ID: bob.name})
+    env = NetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = NetstackComponent(alice, env)
     bob_comp = NetstackComponent(bob, env)
@@ -44,7 +44,7 @@ def test_connection():
             self.send_entdist_msg("hello this is Bob")
 
     class TestEntDistInterface(EntDistInterface):
-        def __init__(self, comp: EntDistComponent, env: NetworkEhi) -> None:
+        def __init__(self, comp: EntDistComponent, env: NetworkInfo) -> None:
             super().__init__(comp, env)
             self.msg_alice = None
             self.msg_bob = None
@@ -72,7 +72,7 @@ def test_wait_for_any_node():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkEhi.with_nodes_no_links({alice.ID: alice.name, bob.ID: bob.name})
+    env = NetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = NetstackComponent(alice, env)
     bob_comp = NetstackComponent(bob, env)
@@ -97,7 +97,7 @@ def test_wait_for_any_node():
             self.send_entdist_msg("hello again from Bob")
 
     class TestEntDistInterface(EntDistInterface):
-        def __init__(self, comp: EntDistComponent, env: NetworkEhi) -> None:
+        def __init__(self, comp: EntDistComponent, env: NetworkInfo) -> None:
             super().__init__(comp, env)
             self.messages: List[str] = []
 
@@ -131,7 +131,7 @@ def test_wait_for_any_node_2():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = NetworkEhi.with_nodes_no_links(
+    env = NetworkInfo.with_nodes(
         {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
     )
 
@@ -169,7 +169,7 @@ def test_wait_for_any_node_2():
             self.send_entdist_msg("hello again from Charlie at time 1800")
 
     class TestEntDistInterface(EntDistInterface):
-        def __init__(self, comp: EntDistComponent, env: NetworkEhi) -> None:
+        def __init__(self, comp: EntDistComponent, env: NetworkInfo) -> None:
             super().__init__(comp, env)
             self.messages: List[str] = []
 

@@ -9,7 +9,9 @@ from qoala.lang.ehi import (
     EhiLatencies,
     ExposedGateInfo,
     ExposedHardwareInfo,
+    ExposedLinkInfo,
     ExposedQubitInfo,
+    NetworkEhi,
     UnitModule,
 )
 
@@ -314,6 +316,14 @@ def test_generic_t1t2_star():
         )
 
 
+def test_network_ehi():
+    network_ehi = NetworkEhi.perfect_fully_connected(node_ids=[0, 1, 2], duration=1000)
+
+    assert network_ehi.get_link(0, 1) == ExposedLinkInfo(duration=1000, fidelity=1.0)
+    assert network_ehi.get_link(0, 2) == ExposedLinkInfo(duration=1000, fidelity=1.0)
+    assert network_ehi.get_link(1, 2) == ExposedLinkInfo(duration=1000, fidelity=1.0)
+
+
 if __name__ == "__main__":
     test_1_qubit()
     test_2_qubits()
@@ -326,3 +336,4 @@ if __name__ == "__main__":
     test_build_fully_uniform()
     test_perfect_star()
     test_generic_t1t2_star()
+    test_network_ehi()

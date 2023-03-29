@@ -1,28 +1,26 @@
 from __future__ import annotations
 
+import itertools
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.ehi import ExposedLinkInfo
 from qoala.runtime.program import ProgramInstance
 
 
-class NetworkEhi:
-    def __init__(
-        self, nodes: Dict[int, str], links: Dict[Tuple[int, int], ExposedLinkInfo]
-    ) -> None:
+class NetworkInfo:
+    """Static network info: node IDs. EPR links are managed by NetworkEhi."""
+
+    def __init__(self, nodes: Dict[int, str]) -> None:
         # node ID -> node name
         self._nodes = nodes
-
-        # (node A ID, node B ID) -> link info
-        # for a pair (a, b) there exists no separate (b, a) info (it is the same)
-        self._links = links
 
         self._global_schedule: Optional[List[int]] = None
         self._timeslot_len: Optional[int] = None
 
     @classmethod
-    def with_nodes_no_links(cls, nodes: Dict[int, str]) -> NetworkEhi:
-        return NetworkEhi(nodes, links={})
+    def with_nodes(cls, nodes: Dict[int, str]) -> NetworkInfo:
+        return NetworkInfo(nodes)
 
     def get_nodes(self) -> Dict[int, str]:
         return self._nodes
@@ -69,10 +67,10 @@ class NetworkEhi:
 class LocalEnvironment:
     def __init__(
         self,
-        network_ehi: NetworkEhi,
+        network_info: NetworkInfo,
         node_id: int,
     ) -> None:
-        self._network_ehi: NetworkEhi = network_ehi
+        self._network_info: NetworkInfo = network_info
 
         # node ID of self
         self._node_id: int = node_id
@@ -81,8 +79,8 @@ class LocalEnvironment:
         self._csockets: List[str] = []
         self._epr_sockets: List[str] = []
 
-    def get_network_ehi(self) -> NetworkEhi:
-        return self._network_ehi
+    def get_network_info(self) -> NetworkInfo:
+        return self._network_info
 
     def get_node_id(self) -> int:
         return self._node_id
@@ -94,12 +92,12 @@ class LocalEnvironment:
         pass
 
     def get_all_node_names(self) -> List[str]:
-        return self.get_network_ehi().get_all_node_names()
+        return self.get_network_info().get_all_node_names()
 
     def get_all_other_node_names(self) -> List[str]:
         return [
             name
-            for id, name in self.get_network_ehi().get_nodes().items()
+            for id, name in self.get_network_info().get_nodes().items()
             if id != self._node_id
         ]
 
