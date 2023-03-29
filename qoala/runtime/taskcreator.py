@@ -36,7 +36,7 @@ class CpuSchedule:
     # list of (time -> task) entries
     # if time is None, it means "no time restriction", which in general means:
     # execute immediately after previous task
-    tasks: List[Tuple[Optional[int], CpuTask]]  # time -> task
+    tasks: List[Tuple[Optional[float], CpuTask]]  # time -> task
 
     @classmethod
     def no_constraints(cls, tasks: List[CpuTask]) -> CpuSchedule:
@@ -52,7 +52,7 @@ class QpuTask:
 
 @dataclass
 class QpuSchedule:
-    tasks: List[Tuple[Optional[int], QpuTask]]  # time -> task
+    tasks: List[Tuple[Optional[float], QpuTask]]  # time -> task
 
     @classmethod
     def no_constraints(cls, tasks: List[QpuTask]) -> QpuSchedule:

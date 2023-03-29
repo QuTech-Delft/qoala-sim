@@ -260,8 +260,11 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         self._logger.debug(f"Set register {instr.reg} to {instr.imm}")
         qnos_mem = self._prog_mem().qnos_mem
-        qnos_mem.set_reg_value(instr.reg, instr.imm.value)
+
+        # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
+
+        qnos_mem.set_reg_value(instr.reg, instr.imm.value)
         return None
 
     def _interpret_store(
@@ -279,7 +282,6 @@ class QnosProcessor:
             f"Storing value {value} from register {instr.reg} "
             f"to array entry {instr.entry}"
         )
-
         addr = instr.entry.address.address
         # Only allow NetQASM 2.0 input/output addresses
         assert isinstance(addr, str)
@@ -287,9 +289,12 @@ class QnosProcessor:
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
+
+        # Simulate instruction duration.
+        yield from self._interface.wait(self._latencies.qnos_instr_time)
+
         new_shared_mem.write_lr_out(result_addr, [value], offset=index)
 
-        yield from self._interface.wait(self._latencies.qnos_instr_time)
         return None
 
     def _interpret_load(
@@ -316,8 +321,10 @@ class QnosProcessor:
             f"to register {instr.reg}"
         )
 
-        qnos_mem.set_reg_value(instr.reg, value)
+        # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
+
+        qnos_mem.set_reg_value(instr.reg, value)
         return None
 
     def _interpret_lea(
@@ -327,8 +334,11 @@ class QnosProcessor:
         self._logger.debug(
             f"Storing address of {instr.address} to register {instr.reg}"
         )
-        qnos_mem.set_reg_value(instr.reg, instr.address.address)
+
+        # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
+
+        qnos_mem.set_reg_value(instr.reg, instr.address.address)
         return None
 
     def _interpret_branch_instr(
@@ -359,6 +369,7 @@ class QnosProcessor:
         elif isinstance(instr, core.BranchBinaryInstruction):
             condition = instr.check_condition(a, b)
 
+        # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
         if condition:
             jump_address = instr.line
@@ -398,8 +409,11 @@ class QnosProcessor:
             f"Performing {instr} of a={a} and b={b} {mod_str} "
             f"and storing the value {value} at register {instr.regout}"
         )
-        qnos_mem.set_reg_value(instr.regout, value)
+
+        # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
+
+        qnos_mem.set_reg_value(instr.regout, value)
         return None
 
     def _compute_binary_classical_instr(

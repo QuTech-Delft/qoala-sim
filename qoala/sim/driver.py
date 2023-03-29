@@ -167,5 +167,6 @@ class QpuDriver(Protocol):
                     yield from self._handle_rr(task)
                 else:
                     raise RuntimeError
+                print(f"{ns.sim_time()}: {self.name}: finished task {task}")
             except IndexError:
                 break

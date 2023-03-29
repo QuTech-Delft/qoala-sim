@@ -60,12 +60,17 @@ class HostProcessor:
         csockets = process.csockets
         host_mem = process.prog_memory.host_mem
 
+        # Instruction duration is simulated for each instruction by adding a "wait".
+        # The "wait" is always *after* reading any data, and *before* writing any data.
+
         self._logger.info(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, hostlang.AssignCValueOp):
             value = instr.attributes[0]
             assert isinstance(value, int)
             loc = instr.results[0]  # type: ignore
             self._logger.info(f"writing {value} to {loc}")
+            # Simulate instruction duration.
+            yield from self._interface.wait(self._latencies.host_instr_time)
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.SendCMsgOp):
             assert isinstance(instr.arguments[0], str)
@@ -75,6 +80,8 @@ class HostProcessor:
             csck = csockets[csck_id]
             value = host_mem.read(instr.arguments[1])
             self._logger.info(f"sending msg {value}")
+            # Simulate instruction duration.
+            yield from self._interface.wait(self._latencies.host_instr_time)
             csck.send_int(value)
         elif isinstance(instr, hostlang.ReceiveCMsgOp):
             assert isinstance(instr.arguments[0], str)
@@ -93,6 +100,8 @@ class HostProcessor:
             loc = instr.results[0]  # type: ignore
             result = arg0 + arg1
             self._logger.info(f"computing {loc} = {arg0} + {arg1} = {result}")
+            # Simulate instruction duration.
+            yield from self._interface.wait(self._latencies.host_instr_time)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.MultiplyConstantCValueOp):
             assert isinstance(instr.arguments[0], str)
@@ -102,6 +111,8 @@ class HostProcessor:
             loc = instr.results[0]  # type: ignore
             result = arg0 * const
             self._logger.info(f"computing {loc} = {arg0} * {const} = {result}")
+            # Simulate instruction duration.
+            yield from self._interface.wait(self._latencies.host_instr_time)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.BitConditionalMultiplyConstantCValueOp):
             assert isinstance(instr.arguments[0], str)
@@ -116,6 +127,8 @@ class HostProcessor:
             else:
                 result = arg0
             self._logger.info(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
+            # Simulate instruction duration.
+            yield from self._interface.wait(self._latencies.host_instr_time)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.RunSubroutineOp):
             lrcall = self.prepare_lr_call(process, instr)
@@ -143,9 +156,9 @@ class HostProcessor:
             loc = instr.arguments[0]
             value = host_mem.read(loc)
             self._logger.info(f"returning {loc} = {value}")
+            # Simulate instruction duration.
+            yield from self._interface.wait(self._latencies.host_instr_time)
             process.result.values[loc] = value
-
-        yield from self._interface.wait(self._latencies.host_instr_time)
 
     def prepare_lr_call(
         self, process: IqoalaProcess, instr: hostlang.RunSubroutineOp

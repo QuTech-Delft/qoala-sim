@@ -139,8 +139,11 @@ def test_lr_program():
     alice.scheduler.submit_program_instance(instance)
     bob.scheduler.submit_program_instance(instance)
 
+    host_instr_time = alice.local_ehi.latencies.host_instr_time
     cpu_schedule = CpuSchedule.no_constraints([CpuTask(pid, "b0")])
-    qpu_schedule = QpuSchedule.no_constraints([QpuTask(pid, RoutineType.LOCAL, "b1")])
+    qpu_schedule = QpuSchedule(
+        [(host_instr_time, QpuTask(pid, RoutineType.LOCAL, "b1"))]
+    )
     alice.scheduler.upload_cpu_schedule(cpu_schedule)
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
     bob.scheduler.upload_cpu_schedule(cpu_schedule)
