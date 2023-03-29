@@ -15,7 +15,6 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
     NetworkLhi,
 )
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import (
@@ -27,13 +26,8 @@ from qoala.runtime.taskcreator import (
     TaskCreator,
     TaskExecutionMode,
 )
-from qoala.sim import host
-from qoala.sim.build import build_network_from_lhi, build_qprocessor_from_topology
-from qoala.sim.driver import CpuDriver
+from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
-from qoala.sim.procnode import ProcNode
-from qoala.util.builder import ObjectBuilder
-from qoala.util.tests import netsquid_run
 
 
 def load_program(path: str) -> IqoalaProgram:

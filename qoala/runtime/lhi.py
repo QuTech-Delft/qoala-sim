@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractmethod
-from ast import Tuple
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,

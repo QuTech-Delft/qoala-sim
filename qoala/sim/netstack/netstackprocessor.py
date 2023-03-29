@@ -8,7 +8,7 @@ from netqasm.sdk.build_epr import (
     SER_RESPONSE_KEEP_IDX_GOODNESS,
     SER_RESPONSE_KEEP_LEN,
 )
-from netsquid.components.instructions import INSTR_MEASURE, INSTR_ROT_X, INSTR_ROT_Z
+from netsquid.components.instructions import INSTR_ROT_X, INSTR_ROT_Z
 from netsquid.qubits.ketstates import BellIndex
 from qlink_interface import (
     ReqCreateAndKeep,

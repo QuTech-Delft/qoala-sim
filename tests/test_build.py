@@ -1,5 +1,3 @@
-from re import A
-
 import pytest
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -302,7 +300,6 @@ def test_build_network_from_lhi():
     assert network.entdist is not None
 
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
     entdist = network.entdist
 
     assert entdist.get_sampler(42, 43).delay == 100_000

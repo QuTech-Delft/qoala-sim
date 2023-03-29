@@ -194,7 +194,7 @@ class LhiConverter:
     @classmethod
     def network_to_ehi(cls, info: NetworkLhi) -> NetworkEhi:
         links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
-        for ([n1, n2], info) in info.links.items():
-            ehi_link = cls.link_info_to_ehi(info)
+        for ([n1, n2], link_info) in info.links.items():
+            ehi_link = cls.link_info_to_ehi(link_info)
             links[(n1, n2)] = ehi_link
         return NetworkEhi(links)

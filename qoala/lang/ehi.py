@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import itertools
-from ast import Tuple
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Tuple, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour

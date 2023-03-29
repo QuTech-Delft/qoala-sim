@@ -3,13 +3,7 @@ from typing import Optional
 from qoala.lang.ehi import NetworkEhi, UnitModule
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.lhi import (
-    LhiLatencies,
-    LhiLinkInfo,
-    LhiTopology,
-    LhiTopologyBuilder,
-    NetworkLhi,
-)
+from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder, NetworkLhi
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.schedule import ProgramTaskList

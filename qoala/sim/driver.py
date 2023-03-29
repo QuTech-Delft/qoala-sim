@@ -34,7 +34,7 @@ class CpuDriver(Protocol):
         self._hostprocessor = hostprocessor
         self._memmgr = memmgr
 
-        self._task_list: List[Tuple[Optional[int], CpuTask]]
+        self._task_list: List[Tuple[Optional[float], CpuTask]]
 
         if schedule is None:
             self._task_list = []
@@ -84,7 +84,7 @@ class QpuDriver(Protocol):
         self._tem = tem
 
         if schedule is None:
-            self._task_list: List[Tuple[int, QpuTask]] = []
+            self._task_list: List[Tuple[Optional[float], QpuTask]] = []
         else:
             self._task_list = schedule.tasks
 

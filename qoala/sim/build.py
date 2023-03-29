@@ -1,7 +1,5 @@
 import itertools
-from ast import Tuple
-from dis import Instruction
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 from netsquid.components.instructions import (
@@ -84,7 +82,7 @@ def build_qprocessor_from_topology(
         for gate_info in gate_infos:
             # TODO: refactor this hack
             if gate_info.instruction == INSTR_MEASURE_INSTANT:
-                duration = 0
+                duration = 0.0
             else:
                 duration = gate_info.duration
 

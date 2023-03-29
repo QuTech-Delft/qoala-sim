@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from ctypes import Union
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from netqasm.lang.instr import core
 
@@ -57,9 +56,10 @@ class CpuSchedule:
         for task in task_list.tasks:
             if isinstance(task, CpuTask):
                 cpu_tasks.append((time, task))
-                time += task.duration
             else:
                 assert isinstance(task, QpuTask)
+            # TODO: is a None value for duration even allowed here?
+            if task.duration:
                 time += task.duration
         return CpuSchedule(cpu_tasks)
 
@@ -89,16 +89,17 @@ class QpuSchedule:
         for task in task_list.tasks:
             if isinstance(task, QpuTask):
                 qpu_tasks.append((time, task))
-                time += task.duration
             else:
                 assert isinstance(task, CpuTask)
+            # TODO: is a None value for duration even allowed here?
+            if task.duration:
                 time += task.duration
         return QpuSchedule(qpu_tasks)
 
 
 @dataclass
 class CpuQpuTaskList:
-    tasks: List[Tuple[Union[CpuTask, QpuTask]]]
+    tasks: List[Union[CpuTask, QpuTask]]
 
     def cpu_tasks(self) -> List[CpuTask]:
         return [task for task in self.tasks if isinstance(task, CpuTask)]
@@ -145,8 +146,8 @@ class TaskCreator:
                 instr = block.instructions[0]
                 assert isinstance(instr, RunSubroutineOp)
                 if ehi is not None:
-                    routine = program.local_routines[instr.subroutine]
-                    duration = self._compute_lr_duration(ehi, routine)
+                    local_routine = program.local_routines[instr.subroutine]
+                    duration = self._compute_lr_duration(ehi, local_routine)
                 else:
                     duration = None
                 qputask = QpuTask(pid, RoutineType.LOCAL, block.name, duration)
@@ -158,8 +159,8 @@ class TaskCreator:
                 if network_ehi is not None:
                     # TODO: refactor!!
                     epr_time = list(network_ehi.links.values())[0].duration
-                    routine = program.request_routines[instr.req_routine]
-                    duration = epr_time * routine.request.num_pairs
+                    req_routine = program.request_routines[instr.req_routine]
+                    duration = epr_time * req_routine.request.num_pairs
                 else:
                     duration = None
                 qputask = QpuTask(pid, RoutineType.REQUEST, block.name, duration)
@@ -189,5 +190,8 @@ class TaskCreator:
             ):
                 duration += ehi.latencies.qnos_instr_time
             else:
-                duration += ehi.find_single_gate(0, type(instr)).duration
+                # TODO: can we always use index 0 ??
+                info = ehi.find_single_gate(0, type(instr))
+                assert info is not None
+                duration += info.duration
         return duration
