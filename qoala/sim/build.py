@@ -1,5 +1,6 @@
 import itertools
 from ast import Tuple
+from dis import Instruction
 from typing import Dict, List
 
 import numpy as np
@@ -50,6 +51,7 @@ from qoala.runtime.config import (  # type: ignore
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
+    INSTR_MEASURE_INSTANT,
     LhiLatencies,
     LhiLinkInfo,
     LhiProcNodeInfo,
@@ -80,9 +82,15 @@ def build_qprocessor_from_topology(
     # single-qubit gates
     for qubit_id, gate_infos in topology.single_gate_infos.items():
         for gate_info in gate_infos:
+            # TODO: refactor this hack
+            if gate_info.instruction == INSTR_MEASURE_INSTANT:
+                duration = 0
+            else:
+                duration = gate_info.duration
+
             phys_instr = PhysicalInstruction(
                 instruction=gate_info.instruction,
-                duration=gate_info.duration,
+                duration=duration,
                 topology=[qubit_id],
                 quantum_noise_model=gate_info.error_model(
                     **gate_info.error_model_kwargs

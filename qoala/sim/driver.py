@@ -4,7 +4,7 @@ import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.hostlang import RunSubroutineOp
+from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
 from qoala.runtime.taskcreator import (
     CpuSchedule,
     CpuTask,
@@ -151,7 +151,19 @@ class QpuDriver(Protocol):
     def _handle_atomic_rr(
         self, task: QpuTask
     ) -> Generator[EventExpression, None, None]:
-        raise NotImplementedError
+        process = self._memmgr.get_process(task.pid)
+        block = process.program.get_block(task.block_name)
+        assert len(block.instructions) == 1
+        instr = block.instructions[0]
+        assert isinstance(instr, RunRequestOp)
+
+        # Let Host setup shared memory.
+        rrcall = self._hostprocessor.prepare_rr_call(process, instr)
+        # TODO: refactor this. Bit of a hack to just pass the QnosProcessor around like this!
+        yield from self._netstackprocessor.assign_request_routine(
+            process, rrcall, self._qnosprocessor
+        )
+        self._hostprocessor.post_rr_call(process, instr, rrcall)
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:

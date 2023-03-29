@@ -39,6 +39,7 @@ from qoala.lang.ehi import (
     NetworkEhi,
 )
 from qoala.runtime.lhi import (
+    INSTR_MEASURE_INSTANT,
     LhiGateInfo,
     LhiLatencies,
     LhiLinkInfo,
@@ -74,6 +75,7 @@ class GenericToVanillaInterface(NativeToFlavourInterface):
         INSTR_CNOT: vanilla.CnotInstruction,
         INSTR_CZ: vanilla.CphaseInstruction,
         INSTR_MEASURE: core.MeasInstruction,
+        INSTR_MEASURE_INSTANT: core.MeasInstruction,
     }
 
     def flavour(self) -> Type[Flavour]:

@@ -61,7 +61,17 @@ class HostProcessor:
         host_mem = process.prog_memory.host_mem
 
         # Instruction duration is simulated for each instruction by adding a "wait".
-        # The "wait" is always *after* reading any data, and *before* writing any data.
+        # Duration of wait is "host_instr_time".
+        # Half of it is applied *before* any operations.
+        # The other half is applied *after* all 'reads' from shared memory,
+        # and *before* any 'writes' to shared memory.
+        # See #29 for rationale.
+
+        # Apply half of the instruction duration.
+        instr_time = self._latencies.host_instr_time
+        first_half = instr_time / 2
+        second_half = instr_time - first_half  # just to make it adds up
+        yield from self._interface.wait(first_half)
 
         self._logger.info(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, hostlang.AssignCValueOp):
@@ -70,7 +80,7 @@ class HostProcessor:
             loc = instr.results[0]  # type: ignore
             self._logger.info(f"writing {value} to {loc}")
             # Simulate instruction duration.
-            yield from self._interface.wait(self._latencies.host_instr_time)
+            yield from self._interface.wait(second_half)
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.SendCMsgOp):
             assert isinstance(instr.arguments[0], str)
@@ -81,7 +91,7 @@ class HostProcessor:
             value = host_mem.read(instr.arguments[1])
             self._logger.info(f"sending msg {value}")
             # Simulate instruction duration.
-            yield from self._interface.wait(self._latencies.host_instr_time)
+            yield from self._interface.wait(second_half)
             csck.send_int(value)
         elif isinstance(instr, hostlang.ReceiveCMsgOp):
             assert isinstance(instr.arguments[0], str)
@@ -101,7 +111,7 @@ class HostProcessor:
             result = arg0 + arg1
             self._logger.info(f"computing {loc} = {arg0} + {arg1} = {result}")
             # Simulate instruction duration.
-            yield from self._interface.wait(self._latencies.host_instr_time)
+            yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.MultiplyConstantCValueOp):
             assert isinstance(instr.arguments[0], str)
@@ -112,7 +122,7 @@ class HostProcessor:
             result = arg0 * const
             self._logger.info(f"computing {loc} = {arg0} * {const} = {result}")
             # Simulate instruction duration.
-            yield from self._interface.wait(self._latencies.host_instr_time)
+            yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.BitConditionalMultiplyConstantCValueOp):
             assert isinstance(instr.arguments[0], str)
@@ -128,7 +138,7 @@ class HostProcessor:
                 result = arg0
             self._logger.info(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
             # Simulate instruction duration.
-            yield from self._interface.wait(self._latencies.host_instr_time)
+            yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.RunSubroutineOp):
             lrcall = self.prepare_lr_call(process, instr)
@@ -157,7 +167,7 @@ class HostProcessor:
             value = host_mem.read(loc)
             self._logger.info(f"returning {loc} = {value}")
             # Simulate instruction duration.
-            yield from self._interface.wait(self._latencies.host_instr_time)
+            yield from self._interface.wait(second_half)
             process.result.values[loc] = value
 
     def prepare_lr_call(

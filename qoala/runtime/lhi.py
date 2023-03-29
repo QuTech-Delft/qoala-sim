@@ -19,6 +19,7 @@ from netsquid.components.instructions import (
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
+    IMeasure,
 )
 from netsquid.components.instructions import Instruction as NetSquidInstruction
 from netsquid.components.models.qerrormodels import (
@@ -33,6 +34,10 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from qoala.lang.common import MultiQubit
+
+# A measurement that is meant to take 0 time.
+# Used in e.g. Measure Directly EPR generation.
+INSTR_MEASURE_INSTANT = IMeasure("measurement_instant_op")
 
 # Config Interface
 
@@ -231,6 +236,7 @@ class LhiTopologyBuilder:
                 INSTR_ROT_Y,
                 INSTR_ROT_Z,
                 INSTR_MEASURE,
+                INSTR_MEASURE_INSTANT,
             ],
             single_duration=5e3,
             two_instructions=[INSTR_CNOT, INSTR_CZ],

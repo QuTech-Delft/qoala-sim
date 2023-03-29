@@ -1,3 +1,5 @@
+from typing import Optional
+
 from qoala.lang.ehi import NetworkEhi, UnitModule
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.environment import NetworkInfo
@@ -81,16 +83,19 @@ class ObjectBuilder:
 
     @classmethod
     def simple_program_instance(
-        cls, program: IqoalaProgram, pid: int = 0
+        cls, program: IqoalaProgram, pid: int = 0, inputs: Optional[ProgramInput] = None
     ) -> ProgramInstance:
         topology = LhiTopologyBuilder.perfect_uniform_default_gates(1)
         ehi = LhiConverter.to_ehi(topology, GenericToVanillaInterface())
         unit_module = UnitModule.from_full_ehi(ehi)
 
+        if inputs is None:
+            inputs = ProgramInput.empty()
+
         return ProgramInstance(
             pid,
             program,
-            ProgramInput.empty(),
+            inputs,
             tasks=ProgramTaskList.empty(program),
             unit_module=unit_module,
         )

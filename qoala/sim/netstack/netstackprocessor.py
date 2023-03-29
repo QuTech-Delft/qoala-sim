@@ -21,6 +21,7 @@ from qlink_interface import (
 
 from pydynaa import EventExpression
 from qoala.lang.request import CallbackType, EprRole, EprType, IqoalaRequest
+from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.sim.entdist.entdist import EntDistRequest
@@ -698,7 +699,7 @@ class NetstackProcessor:
         phys_id = self._interface.memmgr.phys_id_for(process.pid, virt_id)
         # Should have been allocated by `handle_req_routine_md`
         assert phys_id is not None
-        commands = [QDeviceCommand(INSTR_MEASURE, [phys_id])]
+        commands = [QDeviceCommand(INSTR_MEASURE_INSTANT, [phys_id])]
         m = yield from self.qdevice.execute_commands(commands=commands)
         assert m is not None
         return m
