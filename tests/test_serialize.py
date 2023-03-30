@@ -54,22 +54,22 @@ META_END
 
 def test_serialize_host_code_1():
     expected = """
-^b0 {type = HOST}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
     remote_id = assign_cval() : 0
     send_cmsg(remote_id, my_value)
     received_value = recv_cmsg(remote_id)
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<m> = run_subroutine(vec<my_value>) : subrt1
-^b2 {type = HOST}:
+^b2 {type = CL}:
     return_result(m)
     """
 
     b0 = BasicBlock(
         "b0",
-        BasicBlockType.HOST,
+        BasicBlockType.CL,
         instructions=[
             AssignCValueOp("my_value", 1),
             AssignCValueOp("remote_id", 0),
@@ -81,14 +81,14 @@ def test_serialize_host_code_1():
     )
     b1 = BasicBlock(
         "b1",
-        BasicBlockType.LR,
+        BasicBlockType.QL,
         instructions=[
             RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
         ],
     )
     b2 = BasicBlock(
         "b2",
-        BasicBlockType.HOST,
+        BasicBlockType.CL,
         instructions=[
             ReturnResultOp("m"),
         ],
@@ -202,16 +202,16 @@ csockets: 0 -> bob
 epr_sockets: 
 META_END
 
-^b0 {type = HOST}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
     remote_id = assign_cval() : 0
     send_cmsg(remote_id, my_value)
     received_value = recv_cmsg(remote_id)
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<m> = run_subroutine(vec<my_value>) : subrt1
-^b2 {type = HOST}:
+^b2 {type = CL}:
     return_result(m)
 
 SUBROUTINE subrt1
@@ -240,9 +240,9 @@ SUBROUTINE subrt1
         RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1")
     ]
     b2_instructions = [ReturnResultOp("m")]
-    b0 = BasicBlock("b0", BasicBlockType.HOST, b0_instructions)
-    b1 = BasicBlock("b1", BasicBlockType.LR, b1_instructions)
-    b2 = BasicBlock("b2", BasicBlockType.HOST, b2_instructions)
+    b0 = BasicBlock("b0", BasicBlockType.CL, b0_instructions)
+    b1 = BasicBlock("b1", BasicBlockType.QL, b1_instructions)
+    b2 = BasicBlock("b2", BasicBlockType.CL, b2_instructions)
     Q0 = Register.from_str("Q0")
     M0 = Register.from_str("M0")
     subrt = LocalRoutine(

@@ -5,35 +5,35 @@ META_START
     epr_sockets:
 META_END
 
-^blk_host0 {type = host}:
+^blk_host0 {type = CL}:
     var_x = assign_cval() : 3
     var_y = assign_cval() : 5
 
-^blk_host1 {type = host}:
+^blk_host1 {type = CL}:
     var_z = assign_cval() : 9
 
-^blk_host2 {type = host}:
+^blk_host2 {type = CL}:
     x = assign_cval() : 3
 
-^blk_add_one {type = LR}:
+^blk_add_one {type = QL}:
     vec<y> = run_subroutine(vec<x>) : add_one
 
-^blk_epr_md_1 {type = RR}:
+^blk_epr_md_1 {type = QC}:
     vec<m> = run_request(vec<>) : epr_md_1
 
-^blk_epr_md_2 {type = RR}:
+^blk_epr_md_2 {type = QC}:
     vec<m0; m1> = run_request(vec<>) : epr_md_2
 
-^blk_epr_ck_1 {type = RR}:
+^blk_epr_ck_1 {type = QC}:
     run_request(vec<>) : epr_ck_1
 
-^blk_meas_q0 {type = LR}:
+^blk_meas_q0 {type = QL}:
     vec<p> = run_subroutine(vec<>) : meas_q0
 
-^blk_epr_ck_2 {type = RR}:
+^blk_epr_ck_2 {type = QC}:
     run_request(vec<>) : epr_ck_2
 
-^blk_meas_q0_q1 {type = LR}:
+^blk_meas_q0_q1 {type = QL}:
     vec<p0; p1> = run_subroutine(vec<>) : meas_q0_q1
 
 

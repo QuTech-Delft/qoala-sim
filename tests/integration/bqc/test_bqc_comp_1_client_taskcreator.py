@@ -16,9 +16,10 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput, ProgramInstance
-from qoala.runtime.schedule import NoTimeSolver, ProgramTaskList, TaskBuilder
+from qoala.runtime.program import BatchResult, ProgramInput, ProgramInstance
+from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import (
+    CpuQpuSchedule,
     CpuSchedule,
     QpuSchedule,
     TaskCreator,
@@ -39,7 +40,9 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         node_name=name,
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        latencies=LatenciesConfig(qnos_instr_time=1000),
+        latencies=LatenciesConfig(
+            host_instr_time=500, host_peer_latency=200_000, qnos_instr_time=1000
+        ),
     )
 
 
@@ -48,110 +51,6 @@ def load_program(path: str) -> IqoalaProgram:
     with open(path) as file:
         text = file.read()
     return IqoalaParser(text).parse()
-
-
-def create_batch(
-    program: IqoalaProgram,
-    unit_module: UnitModule,
-    inputs: List[ProgramInput],
-    num_iterations: int,
-    tasks: ProgramTaskList,
-) -> BatchInfo:
-    return BatchInfo(
-        program=program,
-        unit_module=unit_module,
-        inputs=inputs,
-        num_iterations=num_iterations,
-        deadline=0,
-        tasks=tasks,
-    )
-
-
-def create_server_tasks(
-    server_program: IqoalaProgram, cfg: ProcNodeConfig
-) -> ProgramTaskList:
-    tasks = []
-
-    cl_dur = 1e3
-    cc_dur = 10e6
-    # ql_dur = 1e4
-    qc_dur = 1e6
-
-    topology_cfg: TopologyConfig = cfg.topology
-
-    single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
-    two_qubit_gate_time = list(topology_cfg.get_multi_gate_configs().values())[0][
-        0
-    ].to_duration()
-
-    set_dur = cfg.latencies.qnos_instr_time
-    rot_dur = single_qubit_gate_time
-    h_dur = single_qubit_gate_time
-    meas_dur = single_qubit_gate_time
-    free_dur = cfg.latencies.qnos_instr_time
-    cphase_dur = two_qubit_gate_time
-
-    tasks.append(TaskBuilder.CL(cl_dur, 0))
-    tasks.append(TaskBuilder.QC(qc_dur, 1, "req0"))
-    tasks.append(TaskBuilder.QC(qc_dur, 2, "req1"))
-    dur = cl_dur + 2 * set_dur + cphase_dur
-    tasks.append(TaskBuilder.QL(dur, 3, "local_cphase"))
-    tasks.append(TaskBuilder.CC(cc_dur, 4))
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, 5, "meas_qubit_1"))
-    tasks.append(TaskBuilder.CC(cc_dur, 6))
-    tasks.append(TaskBuilder.CC(cc_dur, 7))
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, 8, "meas_qubit_0"))
-    tasks.append(TaskBuilder.CL(cl_dur, 9))
-    tasks.append(TaskBuilder.CL(cl_dur, 10))
-
-    return ProgramTaskList(server_program, {i: task for i, task in enumerate(tasks)})
-
-
-def create_client_tasks(
-    client_program: IqoalaProgram, cfg: ProcNodeConfig
-) -> ProgramTaskList:
-    tasks = []
-
-    cl_dur = 1e3
-    cc_dur = 10e6
-    # ql_dur = 1e3
-    qc_dur = 1e6
-
-    topology_cfg: TopologyConfig = cfg.topology
-
-    single_qubit_gate_time = topology_cfg.get_single_gate_configs()[0][0].to_duration()
-
-    set_dur = cfg.latencies.qnos_instr_time
-    rot_dur = single_qubit_gate_time
-    h_dur = single_qubit_gate_time
-    meas_dur = single_qubit_gate_time
-    free_dur = cfg.latencies.qnos_instr_time
-
-    tasks.append(TaskBuilder.CL(cl_dur, 0))
-    tasks.append(TaskBuilder.QC(qc_dur, 1, "req0"))
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, 2, "post_epr_0"))
-    tasks.append(TaskBuilder.QC(qc_dur, 3, "req1"))
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, 4, "post_epr_1"))
-    tasks.append(TaskBuilder.CL(cl_dur, 5))
-    tasks.append(TaskBuilder.CL(cl_dur, 6))
-    tasks.append(TaskBuilder.CL(cl_dur, 7))
-    tasks.append(TaskBuilder.CL(cl_dur, 8))
-    tasks.append(TaskBuilder.CC(cc_dur, 9))
-    tasks.append(TaskBuilder.CC(cc_dur, 10))
-    tasks.append(TaskBuilder.CL(cl_dur, 11))
-    tasks.append(TaskBuilder.CL(cl_dur, 12))
-    tasks.append(TaskBuilder.CL(cl_dur, 13))
-    tasks.append(TaskBuilder.CL(cl_dur, 14))
-    tasks.append(TaskBuilder.CL(cl_dur, 15))
-    tasks.append(TaskBuilder.CC(cc_dur, 16))
-    tasks.append(TaskBuilder.CL(cl_dur, 17))
-    tasks.append(TaskBuilder.CL(cl_dur, 18))
-
-    return ProgramTaskList(client_program, {i: task for i, task in enumerate(tasks)})
 
 
 @dataclass
@@ -231,6 +130,10 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     qpu_server = QpuSchedule.consecutive(tasks_server)
     cpu_client = CpuSchedule.consecutive(tasks_client)
     qpu_client = QpuSchedule.consecutive(tasks_client)
+
+    schedule_server = CpuQpuSchedule(cpu_server, qpu_server)
+    schedule_client = CpuQpuSchedule(cpu_client, qpu_client)
+    print(schedule_server)
 
     server_procnode.scheduler.upload_cpu_schedule(cpu_server)
     server_procnode.scheduler.upload_qpu_schedule(qpu_server)

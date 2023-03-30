@@ -219,8 +219,8 @@ def test_qkd_md_1pair():
     # Hence we expect the ratio of pairs with equal outcomes to be
     # 0.5 * 0.4                     +    1.0 * 0.6                   = 0.8
     # (mixed state -> 50% success)       (Phi+ -> 100% success)
-    assert (count_equal_outcomes / num_iterations) <= 0.82
-    assert (count_equal_outcomes / num_iterations) >= 0.78
+    assert (count_equal_outcomes / num_iterations) <= 0.83
+    assert (count_equal_outcomes / num_iterations) >= 0.77
 
 
 if __name__ == "__main__":

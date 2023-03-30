@@ -180,23 +180,23 @@ vec<m1; m2> = run_subroutine(vec<x; y>) : subrt1
 
 
 def test_parse_block_header():
-    text = "^b0 {type = host}:"
+    text = "^b0 {type = CL}:"
 
     name, typ = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
-    assert typ == BasicBlockType.HOST
+    assert typ == BasicBlockType.CL
 
 
 def test_parse_block():
     text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     x = assign_cval() : 1
     y = assign_cval() : 17
     """
 
     block = HostCodeParser("").parse_block(text)
     assert block.name == "b0"
-    assert block.typ == BasicBlockType.HOST
+    assert block.typ == BasicBlockType.CL
     assert len(block.instructions) == 2
     assert block.instructions[0] == AssignCValueOp(result="x", value=1)
     assert block.instructions[1] == AssignCValueOp(result="y", value=17)
@@ -204,11 +204,11 @@ def test_parse_block():
 
 def test_get_block_texts():
     text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     x = assign_cval() : 1
     y = assign_cval() : 17
 
-^b1 {type = LR}:
+^b1 {type = QL}:
     run_subroutine(vec<x>) : subrt1
     """
 
@@ -218,11 +218,11 @@ def test_get_block_texts():
 
 def test_parse_multiple_blocks():
     text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     x = assign_cval() : 1
     y = assign_cval() : 17
 
-^b1 {type = LR}:
+^b1 {type = QL}:
     run_subroutine(vec<x>) : subrt1
     """
 
@@ -230,13 +230,13 @@ def test_parse_multiple_blocks():
     assert len(blocks) == 2
 
     assert blocks[0].name == "b0"
-    assert blocks[0].typ == BasicBlockType.HOST
+    assert blocks[0].typ == BasicBlockType.CL
     assert len(blocks[0].instructions) == 2
     assert blocks[0].instructions[0] == AssignCValueOp(result="x", value=1)
     assert blocks[0].instructions[1] == AssignCValueOp(result="y", value=17)
 
     assert blocks[1].name == "b1"
-    assert blocks[1].typ == BasicBlockType.LR
+    assert blocks[1].typ == BasicBlockType.QL
     assert len(blocks[1].instructions) == 1
     assert blocks[1].instructions[0] == RunSubroutineOp(
         result=None, values=IqoalaVector(["x"]), subrt="subrt1"
@@ -625,7 +625,7 @@ META_END
     """
 
     program_text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
     remote_id = assign_cval() : 0
     send_cmsg(remote_id, my_value)
@@ -633,13 +633,13 @@ META_END
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
 
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<m> = run_subroutine(vec<my_value>) : subrt1
 
-^b2 {type = RR}:
+^b2 {type = QC}:
     vec<m> = run_request(vec<my_value>) : req1
 
-^b3 {type = host}:
+^b3 {type = CL}:
     return_result(m)
     """
 
@@ -698,7 +698,7 @@ META_END
     """
 
     program_text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
     remote_id = assign_cval() : 0
     send_cmsg(remote_id, my_value)
@@ -706,10 +706,10 @@ META_END
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
 
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<m> = run_subroutine(vec<my_value>) : subrt1
 
-^b1 {type = host}:
+^b1 {type = CL}:
     return_result(m)
     """
 
@@ -754,7 +754,7 @@ META_END
     """
 
     program_text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
     remote_id = assign_cval() : 0
     send_cmsg(remote_id, my_value)
@@ -792,11 +792,11 @@ META_END
     """
 
     program_text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<m> = run_subroutine(vec<my_value>) : non_existing_subrt
-^b2 {type = host}:
+^b2 {type = CL}:
     return_result(m)
     """
 
@@ -832,11 +832,11 @@ META_END
     """
 
     program_text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<m> = run_request(vec<my_value>) : non_existing_req
-^b2 {type = host}:
+^b2 {type = CL}:
     return_result(m)
     """
 
@@ -872,7 +872,7 @@ META_END
     """
 
     host_text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     m = assign_cval() : 1
     return_result(m)
     """
@@ -923,7 +923,7 @@ META_END
     """
 
     host_text = """
-^b0 {type = host}:
+^b0 {type = CL}:
     m = assign_cval() : 1
     return_result(m)
     """
@@ -969,9 +969,9 @@ META_END
     """
 
     host_text = """
-    ^b0 {type = host}:
+    ^b0 {type = CL}:
         remote_id = assign_cval() : {client_id}
-    ^b1 {type = RR}:
+    ^b1 {type = QC}:
         run_request(vec<>) : req1
         """
 
@@ -1008,16 +1008,16 @@ csockets: 0 -> bob
 epr_sockets: 
 META_END
 
-^b0 {type = host}:
+^b0 {type = CL}:
     my_value = assign_cval() : 1
     remote_id = assign_cval() : 0
     send_cmsg(remote_id, my_value)
     received_value = recv_cmsg(remote_id)
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<m> = run_subroutine(vec<my_value>) : subrt1
-^b2 {type = host}:
+^b2 {type = CL}:
     return_result(m)
 
 SUBROUTINE subrt1

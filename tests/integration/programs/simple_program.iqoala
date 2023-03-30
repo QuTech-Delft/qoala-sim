@@ -5,16 +5,16 @@ META_START
     epr_sockets: 
 META_END
 
-^b0 {type = LR}:
+^b0 {type = QL}:
     vec<> = run_subroutine(vec<>) : subrt0
 
-^b1 {type = host}:
+^b1 {type = CL}:
     x = assign_cval() : 0
 
-^b2 {type = LR}:
+^b2 {type = QL}:
     vec<m> = run_subroutine(vec<>) : subrt1
 
-^b3 {type = host}:
+^b3 {type = CL}:
     return_result(m)
 
 SUBROUTINE subrt0

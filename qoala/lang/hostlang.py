@@ -319,9 +319,9 @@ class ReturnResultOp(ClassicalIqoalaOp):
 
 
 class BasicBlockType(Enum):
-    HOST = 0
-    LR = auto()
-    RR = auto()
+    CL = 0
+    QL = auto()
+    QC = auto()
 
 
 @dataclass

@@ -112,7 +112,7 @@ def create_program(
     if meta is None:
         meta = ProgramMeta.empty("prog")
     # TODO: split into proper blocks
-    block = BasicBlock("b0", BasicBlockType.HOST, instrs)
+    block = BasicBlock("b0", BasicBlockType.CL, instrs)
     return IqoalaProgram(
         blocks=[block], local_routines=subroutines, request_routines=requests, meta=meta
     )

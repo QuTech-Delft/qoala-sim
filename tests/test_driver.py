@@ -23,10 +23,10 @@ META_START
     epr_sockets:
 META_END
 
-^b0 {type = host}:
+^b0 {type = CL}:
     var_x = assign_cval() : 3
     var_y = assign_cval() : 5
-^b1 {type = host}:
+^b1 {type = CL}:
     var_z = assign_cval() : 9
     """
 
@@ -42,9 +42,9 @@ META_START
     epr_sockets:
 META_END
 
-^b0 {type = host}:
+^b0 {type = CL}:
     x = assign_cval() : 3
-^b1 {type = LR}:
+^b1 {type = QL}:
     vec<y> = run_subroutine(vec<x>) : add_one
 
 SUBROUTINE add_one

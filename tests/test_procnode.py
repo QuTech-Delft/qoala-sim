@@ -287,7 +287,7 @@ def create_program(
     if meta is None:
         meta = ProgramMeta.empty("prog")
     # TODO: split into proper blocks
-    block = BasicBlock("b0", BasicBlockType.HOST, instrs)
+    block = BasicBlock("b0", BasicBlockType.CL, instrs)
     return IqoalaProgram(
         blocks=[block],
         local_routines=subroutines,
@@ -944,9 +944,9 @@ META_START
     epr_sockets: 0 -> client
 META_END
 
-^b0 {type = host}:
+^b0 {type = CL}:
     remote_id = assign_cval() : {client_id}
-^b1 {type = RR}:
+^b1 {type = QC}:
     run_request(vec<>) : req1
 
 REQUEST req1
@@ -1008,9 +1008,9 @@ META_START
     epr_sockets: 0 -> server
 META_END
 
-^b0 {type = host}:
+^b0 {type = CL}:
     remote_id = assign_cval() : {server_id}
-^b1 {type = LR}:
+^b1 {type = QL}:
     run_request(vec<>) : req1
 
 REQUEST req1

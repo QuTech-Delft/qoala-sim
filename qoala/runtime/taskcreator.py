@@ -98,6 +98,68 @@ class QpuSchedule:
 
 
 @dataclass
+class CpuQpuSchedule:
+    cpu_schedule: CpuSchedule
+    qpu_schedule: QpuSchedule
+
+    def __str__(self) -> str:
+        timeline = "time "
+        cpu_task_str = "CPU  "
+        qpu_task_str = "QPU  "
+        cpu_tasks = self.cpu_schedule.tasks
+        qpu_tasks = self.qpu_schedule.tasks
+        cpu_index = 0
+        qpu_index = 0
+        while cpu_index < len(cpu_tasks) and qpu_index < len(qpu_tasks):
+            try:
+                cpu_time, cpu_task = cpu_tasks[cpu_index]
+            except KeyError:
+                cpu_time is None
+            try:
+                qpu_time, qpu_task = qpu_tasks[qpu_index]
+            except KeyError:
+                qpu_time is None
+            assert cpu_time is not None or qpu_time is not None
+            if qpu_time is None:  # cpu_time is not None
+                cpu_index += 1
+                width = max(len(cpu_task.block_name), len(str(cpu_time))) + 2
+                cpu_task_str += f"{cpu_task.block_name:<{width}}"
+            elif cpu_time is None:  # qpu_time is not None
+                qpu_index += 1
+                width = max(len(qpu_task.block_name), len(str(qpu_time))) + 2
+                qpu_task_str += f"{qpu_task.block_name:<{width}}"
+            else:  # both not None
+                if cpu_time < qpu_time:
+                    cpu_index += 1
+                    width = max(len(cpu_task.block_name), len(str(cpu_time))) + 2
+                    timeline += f"{cpu_time:<{width}}"
+                    cpu_task_str += f"{cpu_task.block_name:<{width}}"
+                    qpu_task_str += " " * width
+                elif qpu_time < cpu_time:
+                    qpu_index += 1
+                    width = max(len(qpu_task.block_name), len(str(qpu_time))) + 2
+                    timeline += f"{qpu_time:<{width}}"
+                    qpu_task_str += f"{qpu_task.block_name:<{width}}"
+                    cpu_task_str += " " * width
+                else:  # times equal
+                    cpu_index += 1
+                    qpu_index += 1
+                    width = (
+                        max(
+                            len(cpu_task.block_name),
+                            len(qpu_task.block_name),
+                            len(str(cpu_time)),
+                        )
+                        + 2
+                    )
+                    timeline += f"{cpu_time:<{width}}"
+                    cpu_task_str += f"{cpu_task.block_name:<{width}}"
+                    qpu_task_str += f"{qpu_task.block_name:<{width}}"
+
+        return timeline + "\n" + cpu_task_str + "\n" + qpu_task_str
+
+
+@dataclass
 class CpuQpuTaskList:
     tasks: List[Union[CpuTask, QpuTask]]
 
@@ -134,14 +196,14 @@ class TaskCreator:
         tasks: List[Union[CpuTask, QpuTask]] = []
 
         for block in program.blocks:
-            if block.typ == BasicBlockType.HOST:
+            if block.typ == BasicBlockType.CL:
                 if ehi is not None:
                     duration = ehi.latencies.host_instr_time * len(block.instructions)
                 else:
                     duration = None
                 cputask = CpuTask(pid, block.name, duration)
                 tasks.append(cputask)
-            elif block.typ == BasicBlockType.LR:
+            elif block.typ == BasicBlockType.QL:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
                 assert isinstance(instr, RunSubroutineOp)
@@ -152,7 +214,7 @@ class TaskCreator:
                     duration = None
                 qputask = QpuTask(pid, RoutineType.LOCAL, block.name, duration)
                 tasks.append(qputask)
-            elif block.typ == BasicBlockType.RR:
+            elif block.typ == BasicBlockType.QC:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
                 assert isinstance(instr, RunRequestOp)

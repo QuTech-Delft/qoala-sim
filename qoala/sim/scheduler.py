@@ -33,7 +33,7 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     SingleProgramTask,
 )
-from qoala.runtime.taskcreator import CpuSchedule, QpuSchedule
+from qoala.runtime.taskcreator import CpuQpuSchedule, CpuSchedule, QpuSchedule
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
@@ -320,6 +320,10 @@ class Scheduler(Protocol):
 
     def upload_qpu_schedule(self, schedule: QpuSchedule) -> None:
         self._qpudriver.upload_schedule(schedule)
+
+    def upload_schedule(self, schedule: CpuQpuSchedule) -> None:
+        self._cpudriver.upload_schedule(schedule.cpu_schedule)
+        self._qpudriver.upload_schedule(schedule.qpu_schedule)
 
     def start(self) -> None:
         super().start()
