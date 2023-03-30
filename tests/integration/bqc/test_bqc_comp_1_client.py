@@ -154,7 +154,7 @@ class BqcResult:
     server_results: Dict[int, BatchResult]
 
 
-def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
+def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     ns.sim_reset()
 
     num_qubits = 3

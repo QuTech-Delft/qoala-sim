@@ -82,7 +82,6 @@ class HostProcessor:
             yield from self._interface.wait(second_half)
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.SendCMsgOp):
-            yield from self._interface.wait(first_half)
             assert isinstance(instr.arguments[0], str)
             assert isinstance(instr.arguments[1], str)
 
@@ -90,15 +89,25 @@ class HostProcessor:
             csck = csockets[csck_id]
             value = host_mem.read(instr.arguments[1])
             self._logger.info(f"sending msg {value}")
-            # Simulate instruction duration.
-            yield from self._interface.wait(second_half)
             csck.send_int(value)
+            # Simulate instruction duration.
+            yield from self._interface.wait(first_half)
+            yield from self._interface.wait(second_half)
         elif isinstance(instr, hostlang.ReceiveCMsgOp):
             assert isinstance(instr.arguments[0], str)
             assert isinstance(instr.results, list)
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
             msg = yield from csck.recv_int()
+
+            # Just like local instructions, first apply half of the latency (before
+            # doing anything), and the other half after writing to shared memory.
+            # The actual receiving is done as soon as possible, however (see above).
+            # peer_latency = self._latencies.host_peer_latency
+            # peer_first_half = peer_latency / 2
+            # peer_second_half = peer_latency - peer_first_half  # just to make it adds up
+            # yield from self._interface.wait(peer_first_half)
+            # yield from self._interface.wait(peer_second_half)
             yield from self._interface.wait(self._latencies.host_peer_latency)
             host_mem.write(instr.results[0], msg)
             self._logger.info(f"received msg {msg}")

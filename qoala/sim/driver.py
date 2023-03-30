@@ -1,3 +1,4 @@
+import logging
 from typing import Generator, List, Optional, Tuple
 
 import netsquid as ns
@@ -19,6 +20,7 @@ from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qnos.qnosprocessor import QnosProcessor
+from qoala.util.logging import LogManager
 
 
 class CpuDriver(Protocol):
@@ -30,6 +32,10 @@ class CpuDriver(Protocol):
         schedule: Optional[CpuSchedule] = None,
     ) -> None:
         super().__init__(name=f"{node_name}_cpu_driver")
+
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}({node_name})"
+        )
 
         self._hostprocessor = hostprocessor
         self._memmgr = memmgr
@@ -55,11 +61,21 @@ class CpuDriver(Protocol):
                 time, task = self._task_list.pop(0)
                 if time is not None:
                     now = ns.sim_time()
+                    self._logger.debug(
+                        f"{ns.sim_time()}: {self.name}: checking next task {task}"
+                    )
+                    self._logger.debug(f"scheduled for {time}")
+                    self._logger.debug(f"waiting for {time - now}...")
                     yield from self.wait(time - now)
 
-                print(f"{ns.sim_time()}: {self.name}: executing task {task}")
+                self._logger.debug(
+                    f"{ns.sim_time()}: {self.name}: executing task {task}"
+                )
                 process = self._memmgr.get_process(task.pid)
                 yield from self._hostprocessor.assign_block(process, task.block_name)
+                self._logger.debug(
+                    f"{ns.sim_time()}: {self.name}: finished task {task}"
+                )
             except IndexError:
                 break
 
@@ -76,6 +92,10 @@ class QpuDriver(Protocol):
         schedule: Optional[QpuSchedule] = None,
     ) -> None:
         super().__init__(name=f"{node_name}_qpu_driver")
+
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}({node_name})"
+        )
 
         self._hostprocessor = hostprocessor
         self._qnosprocessor = qnosprocessor
@@ -171,14 +191,23 @@ class QpuDriver(Protocol):
                 time, task = self._task_list.pop(0)
                 if time is not None:
                     now = ns.sim_time()
+                    self._logger.debug(
+                        f"{ns.sim_time()}: {self.name}: checking next task {task}"
+                    )
+                    self._logger.debug(f"scheduled for {time}")
+                    self._logger.debug(f"waiting for {time - now}...")
                     yield from self.wait(time - now)
-                print(f"{ns.sim_time()}: {self.name}: executing task {task}")
+                self._logger.debug(
+                    f"{ns.sim_time()}: {self.name}: executing task {task}"
+                )
                 if task.routine_type == RoutineType.LOCAL:
                     yield from self._handle_lr(task)
                 elif task.routine_type == RoutineType.REQUEST:
                     yield from self._handle_rr(task)
                 else:
                     raise RuntimeError
-                print(f"{ns.sim_time()}: {self.name}: finished task {task}")
+                self._logger.debug(
+                    f"{ns.sim_time()}: {self.name}: finished task {task}"
+                )
             except IndexError:
                 break

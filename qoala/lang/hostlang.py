@@ -320,6 +320,7 @@ class ReturnResultOp(ClassicalIqoalaOp):
 
 class BasicBlockType(Enum):
     CL = 0
+    CC = auto()
     QL = auto()
     QC = auto()
 

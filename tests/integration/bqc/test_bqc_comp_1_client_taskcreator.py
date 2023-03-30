@@ -41,7 +41,7 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(
-            host_instr_time=500, host_peer_latency=200_000, qnos_instr_time=1000
+            host_instr_time=500, host_peer_latency=1_000_000, qnos_instr_time=1000
         ),
     )
 
@@ -54,9 +54,9 @@ def load_program(path: str) -> IqoalaProgram:
 
 
 @dataclass
-class BqcResult:
-    client_results: Dict[int, BatchResult]
-    server_results: Dict[int, BatchResult]
+class SimpleBqcResult:
+    client_result: Dict[str, int]
+    server_result: Dict[str, int]
 
 
 def instantiate(
@@ -79,7 +79,7 @@ def instantiate(
     )
 
 
-def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
+def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     ns.sim_reset()
 
     num_qubits = 3
@@ -126,27 +126,26 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int):
     tasks_client = task_creator.from_program(
         client_program, 0, client_procnode.local_ehi, client_procnode.network_ehi
     )
-    cpu_server = CpuSchedule.consecutive(tasks_server)
-    qpu_server = QpuSchedule.consecutive(tasks_server)
-    cpu_client = CpuSchedule.consecutive(tasks_client)
-    qpu_client = QpuSchedule.consecutive(tasks_client)
 
-    schedule_server = CpuQpuSchedule(cpu_server, qpu_server)
-    schedule_client = CpuQpuSchedule(cpu_client, qpu_client)
-    print(schedule_server)
-
-    server_procnode.scheduler.upload_cpu_schedule(cpu_server)
-    server_procnode.scheduler.upload_qpu_schedule(qpu_server)
-    client_procnode.scheduler.upload_cpu_schedule(cpu_client)
-    client_procnode.scheduler.upload_qpu_schedule(qpu_client)
+    schedule_server = CpuQpuSchedule.consecutive_with_QC_constraint(
+        tasks_server, qc_slots=[350_000, 700_000], cc_buffer=1_000_000
+    )
+    schedule_client = CpuQpuSchedule.consecutive_with_QC_constraint(
+        tasks_client,
+        qc_slots=[350_000, 700_000],
+        cc_buffer=1000_000,
+        free_after_index=6,
+    )
+    server_procnode.scheduler.upload_schedule(schedule_server)
+    client_procnode.scheduler.upload_schedule(schedule_client)
 
     network.start()
     ns.sim_run()
 
-    client_results = client_procnode.scheduler.get_batch_results()
-    server_results = server_procnode.scheduler.get_batch_results()
+    client_result = client_procnode.memmgr.get_process(0).result.values
+    server_result = server_procnode.memmgr.get_process(0).result.values
 
-    return BqcResult(client_results, server_results)
+    return SimpleBqcResult(client_result, server_result)
 
 
 def test_bqc():
@@ -156,31 +155,17 @@ def test_bqc():
 
     # angles are in multiples of pi/16
 
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("test_run.log")
-
     def check(alpha, beta, theta1, theta2, expected, num_iterations):
         ns.sim_reset()
-        bqc_result = run_bqc(
-            alpha=alpha,
-            beta=beta,
-            theta1=theta1,
-            theta2=theta2,
-            num_iterations=num_iterations,
-        )
-        assert len(bqc_result.client_results) > 0
-        assert len(bqc_result.server_results) > 0
 
-        server_batch_results = bqc_result.server_results
-        for _, batch_results in server_batch_results.items():
-            program_results = batch_results.results
-            m2s = [result.values["m2"] for result in program_results]
-            assert all(m2 == expected for m2 in m2s)
+        for _ in range(num_iterations):
+            bqc_result = run_bqc(alpha=alpha, beta=beta, theta1=theta1, theta2=theta2)
+            assert bqc_result.server_result["m2"] == expected
 
     check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
-    # check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
-    # check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)
-    # check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 META_START
     name: bob
     parameters:
-    csockets:
+    csockets: 0 -> alice
     epr_sockets:
 META_END
 
@@ -14,6 +14,16 @@ META_END
 
 ^blk_host2 {type = CL}:
     x = assign_cval() : 3
+
+^blk_prep_cc {type = CL}:
+    csocket = assign_cval() : 0
+    to_send = assign_cval() : 25
+
+^blk_recv {type = CC}:
+    msg = recv_cmsg(csocket)
+
+^blk_send {type = CL}:
+    send_cmsg(csocket, to_send)
 
 ^blk_add_one {type = QL}:
     vec<y> = run_subroutine(vec<x>) : add_one

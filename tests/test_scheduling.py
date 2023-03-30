@@ -288,6 +288,54 @@ def test_epr_ck_2():
     assert alice_outcomes == bob_outcomes
 
 
+def test_cc():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_scheduling_alice.iqoala")
+    program_bob = load_program("test_scheduling_bob.iqoala")
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    inputs_bob = ProgramInput({"alice_id": 0})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
+
+    alice.scheduler.submit_program_instance(instance_alice)
+    bob.scheduler.submit_program_instance(instance_bob)
+
+    assert alice.local_ehi.latencies.host_peer_latency == 3000
+    assert alice.local_ehi.latencies.host_instr_time == 1000
+
+    schedule_alice = CpuSchedule(
+        [
+            (0, CpuTask(pid, "blk_prep_cc")),
+            (2000, CpuTask(pid, "blk_send")),
+            (10000, CpuTask(pid, "blk_host1")),
+        ]
+    )
+    schedule_bob = CpuSchedule(
+        [
+            (0, CpuTask(pid, "blk_prep_cc")),
+            (3000, CpuTask(pid, "blk_recv")),
+            (10000, CpuTask(pid, "blk_host1")),
+        ]
+    )
+    alice.scheduler.upload_cpu_schedule(schedule_alice)
+    bob.scheduler.upload_cpu_schedule(schedule_bob)
+
+    ns.sim_reset()
+    network.start()
+    ns.sim_run()
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    bob_mem = bob.memmgr.get_process(pid).host_mem
+    assert bob_mem.read("msg") == 25
+    assert alice_mem.read("var_z") == 9
+    assert bob_mem.read("var_z") == 9
+
+
 def test_full_program():
     network = setup_network()
     alice = network.nodes["alice"]
@@ -334,10 +382,11 @@ def test_full_program():
 
 
 if __name__ == "__main__":
-    test_host_program()
-    test_lr_program()
-    test_epr_md_1()
-    test_epr_md_2()
-    test_epr_ck_1()
-    test_epr_ck_2()
-    test_full_program()
+    # test_host_program()
+    # test_lr_program()
+    # test_epr_md_1()
+    # test_epr_md_2()
+    # test_epr_ck_1()
+    # test_epr_ck_2()
+    test_cc()
+    # test_full_program()
