@@ -155,26 +155,54 @@ class TaskSchedule:
     entries: List[TaskScheduleEntry]
 
     @classmethod
-    def consecutive(
-        cls,
-        task_list: List[BlockTask],
-        qc_slots: Optional[List[float]] = None,
-        cc_buffer: float = 0,
-        free_after_index: Optional[int] = None,
-    ) -> TaskSchedule:
-        entries: List[TaskScheduleEntry] = []
-
-        if qc_slots is None:
-            qc_slots = []
-
+    def _compute_timestamps(
+        cls, task_list: List[BlockTask], qc_slots: List[float]
+    ) -> List[float]:
         # Get QC task indices
         qc_indices = []
         for i, task in enumerate(task_list):
             if task.typ == BasicBlockType.QC:
                 qc_indices.append(i)
 
-        for task in task_list:
-            entry = TaskScheduleEntry(task=task, timestamp=None, prev=None)
+        # list of timestamps for each task (same order as tasks in task_list)
+        timestamps: List[float] = []
+        # Naive approach: first schedule all tasks consecutively. Then, move the first
+        # QC task forward by X until it aligns with a qc_slot. Also move all tasks
+        # coming fater this QC task by X (so they are still consecutive).
+        # Repeat for the next QC task in the list.
+        time = 0.0
+        for i, task in enumerate(task_list):
+            timestamps.append(time)
+            if task.duration:
+                time += task.duration
+
+        for index in qc_indices:
+            for qc_slot in qc_slots:
+                if qc_slot >= timestamps[index]:
+                    delta = qc_slot - timestamps[index]
+                    for i in range(index, len(timestamps)):
+                        if timestamps[i] is not None:
+                            timestamps[i] += delta
+                    break
+        return timestamps
+
+    @classmethod
+    def consecutive(
+        cls,
+        task_list: List[BlockTask],
+        qc_slots: Optional[List[float]] = None,
+    ) -> TaskSchedule:
+        entries: List[TaskScheduleEntry] = []
+
+        if qc_slots is not None:
+            timestamps = cls._compute_timestamps(task_list, qc_slots)
+
+        for i, task in enumerate(task_list):
+            if qc_slots is not None and task.typ == BasicBlockType.QC:
+                time = timestamps[i]
+            else:
+                time = None
+            entry = TaskScheduleEntry(task=task, timestamp=time, prev=None)
             entries.append(entry)
 
         for i in range(len(entries) - 1):
@@ -190,46 +218,13 @@ class TaskSchedule:
         cls,
         task_list: List[BlockTask],
         qc_slots: Optional[List[float]] = None,
-        cc_buffer: float = 0,
-        free_after_index: Optional[int] = None,
     ) -> TaskSchedule:
         entries: List[TaskScheduleEntry] = []
 
         if qc_slots is None:
             qc_slots = []
 
-        # Get QC task indices
-        qc_indices = []
-        for i, task in enumerate(task_list):
-            if task.typ == BasicBlockType.QC:
-                qc_indices.append(i)
-
-        # Naive approach: first schedule all tasks consecutively. Then, move the first
-        # QC task forward by X until it aligns with a qc_slot. Also move all tasks
-        # coming fater this QC task by X (so they are still consecutive).
-        # Repeat for the next QC task in the list.
-
-        # list of timestamps for each task (same order as tasks in task_list)
-        timestamps: List[float] = []
-        time = 0.0
-        for i, task in enumerate(task_list):
-            if free_after_index is not None and i >= free_after_index:
-                timestamps.append(None)
-            else:
-                timestamps.append(time)
-                if task.duration:
-                    time += task.duration
-                    if task.typ == BasicBlockType.CC:
-                        time += cc_buffer
-
-        for index in qc_indices:
-            for qc_slot in qc_slots:
-                if qc_slot >= timestamps[index]:
-                    delta = qc_slot - timestamps[index]
-                    for i in range(index, len(timestamps)):
-                        if timestamps[i] is not None:
-                            timestamps[i] += delta
-                    break
+        timestamps = cls._compute_timestamps(task_list, qc_slots)
 
         for i, task in enumerate(task_list):
             time = timestamps[i]

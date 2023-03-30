@@ -33,7 +33,23 @@ QL = BasicBlockType.QL
 QC = BasicBlockType.QC
 
 
-def test1():
+def setup_network() -> ProcNodeNetwork:
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
+    latencies = LhiLatencies(
+        host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
+    )
+    link_info = LhiLinkInfo.perfect(duration=20_000)
+
+    alice_lhi = LhiProcNodeInfo(
+        name="alice", id=0, topology=topology, latencies=latencies
+    )
+    network_lhi = NetworkLhi.fully_connected([0, 1], link_info)
+    network_info = NetworkInfo.with_nodes({0: "alice", 1: "bob"})
+    bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
+    return build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
+
+
+def test_from_program_1():
     path = relative_path("integration/bqc/vbqc_client.iqoala")
     with open(path) as file:
         text = file.read()
@@ -53,23 +69,7 @@ def test1():
     ]
 
 
-def setup_network() -> ProcNodeNetwork:
-    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
-    latencies = LhiLatencies(
-        host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
-    )
-    link_info = LhiLinkInfo.perfect(duration=20_000)
-
-    alice_lhi = LhiProcNodeInfo(
-        name="alice", id=0, topology=topology, latencies=latencies
-    )
-    network_lhi = NetworkLhi.fully_connected([0, 1], link_info)
-    network_info = NetworkInfo.with_nodes({0: "alice", 1: "bob"})
-    bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
-    return build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
-
-
-def test2():
+def test_from_program_2():
     network = setup_network()
     alice = network.nodes["alice"]
 
@@ -105,7 +105,7 @@ def test2():
     ]
 
 
-def test3():
+def test_consecutive():
     pid = 0
     tasks = [
         BlockTask(pid, "blk_host0", CL, 1000),
@@ -126,7 +126,28 @@ def test3():
     ]
 
 
-def test_consecutive():
+def test_consecutive_qc_slots():
+    pid = 0
+    tasks = [
+        BlockTask(pid, "blk_host0", CL, 1000),
+        BlockTask(pid, "blk_recv", CC, 1000),
+        BlockTask(pid, "blk_add_one", QL, 1000),
+        BlockTask(pid, "blk_epr_md_1", QC, 1000),
+        BlockTask(pid, "blk_host1", CL, 1000),
+    ]
+
+    schedule = TaskSchedule.consecutive(tasks, qc_slots=[50_000, 60_000])
+
+    assert schedule.entries == [
+        TaskScheduleEntry(tasks[0], timestamp=None, prev=None),
+        TaskScheduleEntry(tasks[1], timestamp=None, prev=None),
+        TaskScheduleEntry(tasks[2], timestamp=None, prev=tasks[1]),  # CPU -> QPU
+        TaskScheduleEntry(tasks[3], timestamp=50_000, prev=None),  # QC task
+        TaskScheduleEntry(tasks[4], timestamp=None, prev=tasks[3]),  # QPU -> CPU
+    ]
+
+
+def test_consecutive_timestamps():
     pid = 0
 
     tasks = [
@@ -159,7 +180,8 @@ def test_consecutive():
 
 
 if __name__ == "__main__":
-    test1()
-    test2()
-    test3()
+    test_from_program_1()
+    test_from_program_2()
     test_consecutive()
+    test_consecutive_qc_slots()
+    test_consecutive_timestamps()

@@ -18,13 +18,7 @@ from qoala.runtime.config import (
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchResult, ProgramInput, ProgramInstance
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.runtime.taskcreator import (
-    CpuQpuSchedule,
-    CpuSchedule,
-    QpuSchedule,
-    TaskCreator,
-    TaskExecutionMode,
-)
+from qoala.runtime.taskcreator import TaskCreator, TaskExecutionMode, TaskSchedule
 from qoala.sim.build import build_network
 from qoala.util.logging import LogManager
 
@@ -128,20 +122,17 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
         client_program, 0, client_procnode.local_ehi, client_procnode.network_ehi
     )
 
-    schedule_server = CpuQpuSchedule.consecutive_with_QC_constraint(
+    schedule_server = TaskSchedule.consecutive(
         tasks_server,
         qc_slots=[350_000, 700_000],
-        cc_buffer=1_000_000,
     )
-    schedule_client = CpuQpuSchedule.consecutive_with_QC_constraint(
+    schedule_client = TaskSchedule.consecutive(
         tasks_client,
         qc_slots=[350_000, 700_000],
-        cc_buffer=1000_000,
-        free_after_index=6,
     )
-    print(schedule_server)
-    print()
-    print(schedule_client)
+    # print(schedule_server)
+    # print()
+    # print(schedule_client)
     server_procnode.scheduler.upload_schedule(schedule_server)
     client_procnode.scheduler.upload_schedule(schedule_client)
 
