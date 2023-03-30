@@ -26,7 +26,6 @@ from qoala.runtime.taskcreator import (
     TaskExecutionMode,
 )
 from qoala.sim.build import build_network
-from qoala.util.logging import LogManager
 
 
 def create_network_info(names: List[str]) -> NetworkInfo:
@@ -129,9 +128,7 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     )
 
     schedule_server = CpuQpuSchedule.consecutive_with_QC_constraint(
-        tasks_server,
-        qc_slots=[350_000, 700_000],
-        cc_buffer=1_000_000,
+        tasks_server, qc_slots=[350_000, 700_000], cc_buffer=1_000_000
     )
     schedule_client = CpuQpuSchedule.consecutive_with_QC_constraint(
         tasks_client,
@@ -139,9 +136,6 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
         cc_buffer=1000_000,
         free_after_index=6,
     )
-    print(schedule_server)
-    print()
-    print(schedule_client)
     server_procnode.scheduler.upload_schedule(schedule_server)
     client_procnode.scheduler.upload_schedule(schedule_client)
 
@@ -160,8 +154,6 @@ def test_bqc():
     # m2 should be this outcome
 
     # angles are in multiples of pi/16
-
-    LogManager.set_log_level("WARNING")
 
     def check(alpha, beta, theta1, theta2, expected, num_iterations):
         ns.sim_reset()

@@ -1,18 +1,19 @@
+from __future__ import annotations
+
 import logging
+from abc import abstractmethod
 from typing import Generator, List, Optional, Tuple
 
 import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
+from qoala.lang.hostlang import BasicBlockType, RunRequestOp, RunSubroutineOp
 from qoala.runtime.taskcreator import (
-    CpuSchedule,
-    CpuTask,
-    QpuSchedule,
-    QpuTask,
-    RoutineType,
+    BlockTask,
     TaskExecutionMode,
+    TaskSchedule,
+    TaskScheduleEntry,
 )
 from qoala.sim.events import EVENT_WAIT
 from qoala.sim.host.hostprocessor import HostProcessor
@@ -23,42 +24,29 @@ from qoala.sim.qnos.qnosprocessor import QnosProcessor
 from qoala.util.logging import LogManager
 
 
-class CpuDriver(Protocol):
-    def __init__(
-        self,
-        node_name: str,
-        hostprocessor: HostProcessor,
-        memmgr: MemoryManager,
-        schedule: Optional[CpuSchedule] = None,
-    ) -> None:
-        super().__init__(name=f"{node_name}_cpu_driver")
+class Driver(Protocol):
+    def __init__(self, name: str) -> None:
+        super().__init__(name=name)
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
-            f"{self.__class__.__name__}({node_name})"
+            f"{self.__class__.__name__}({name})"
         )
 
-        self._hostprocessor = hostprocessor
-        self._memmgr = memmgr
+        self._other_driver: Optional[Driver] = None
+        self._task_list: List[TaskScheduleEntry] = []
 
-        self._task_list: List[Tuple[Optional[float], CpuTask]]
+        self._finished_tasks: List[BlockTask] = []
 
-        if schedule is None:
-            self._task_list = []
-        else:
-            self._task_list = schedule.tasks
-
-    def upload_schedule(self, schedule: CpuSchedule) -> None:
-        self._task_list.extend(schedule.tasks)
-
-    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
-        self._schedule_after(delta_time, EVENT_WAIT)
-        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
-        yield event_expr
+    def set_other_driver(self, other: Driver) -> None:
+        self._other_driver = other
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             try:
-                time, task = self._task_list.pop(0)
+                entry = self._task_list.pop(0)
+                time = entry.timestamp
+                task = entry.task
+                prev = entry.prev
                 if time is not None:
                     now = ns.sim_time()
                     self._logger.debug(
@@ -67,20 +55,49 @@ class CpuDriver(Protocol):
                     self._logger.debug(f"scheduled for {time}")
                     self._logger.debug(f"waiting for {time - now}...")
                     yield from self.wait(time - now)
+                if prev is not None:
+                    # TODO: REWRITE USING LISTENERS AND WAKE UP SIGNALS
+                    while not prev in self._other_driver._finished_tasks:
+                        yield from self.wait(1000)
 
-                self._logger.debug(
-                    f"{ns.sim_time()}: {self.name}: executing task {task}"
-                )
-                process = self._memmgr.get_process(task.pid)
-                yield from self._hostprocessor.assign_block(process, task.block_name)
-                self._logger.debug(
-                    f"{ns.sim_time()}: {self.name}: finished task {task}"
-                )
+                self._logger.info(f"executing task {task}")
+                yield from self._handle_task(task)
+                self._finished_tasks.append(task)
+                self._logger.info(f"finished task {task}")
             except IndexError:
                 break
 
+    @abstractmethod
+    def _handle_task(self, task: BlockTask) -> Generator[EventExpression, None, None]:
+        raise NotImplementedError
 
-class QpuDriver(Protocol):
+
+class CpuDriver(Driver):
+    def __init__(
+        self,
+        node_name: str,
+        hostprocessor: HostProcessor,
+        memmgr: MemoryManager,
+    ) -> None:
+        super().__init__(name=f"{node_name}_cpu_driver")
+
+        self._hostprocessor = hostprocessor
+        self._memmgr = memmgr
+
+    def upload_schedule(self, schedule: TaskSchedule) -> None:
+        self._task_list.extend(schedule.entries)
+
+    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
+        self._schedule_after(delta_time, EVENT_WAIT)
+        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
+        yield event_expr
+
+    def _handle_task(self, task: BlockTask) -> Generator[EventExpression, None, None]:
+        process = self._memmgr.get_process(task.pid)
+        yield from self._hostprocessor.assign_block(process, task.block_name)
+
+
+class QpuDriver(Driver):
     def __init__(
         self,
         node_name: str,
@@ -89,13 +106,8 @@ class QpuDriver(Protocol):
         netstackprocessor: NetstackProcessor,
         memmgr: MemoryManager,
         tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
-        schedule: Optional[QpuSchedule] = None,
     ) -> None:
         super().__init__(name=f"{node_name}_qpu_driver")
-
-        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
-            f"{self.__class__.__name__}({node_name})"
-        )
 
         self._hostprocessor = hostprocessor
         self._qnosprocessor = qnosprocessor
@@ -103,26 +115,21 @@ class QpuDriver(Protocol):
         self._memmgr = memmgr
         self._tem = tem
 
-        if schedule is None:
-            self._task_list: List[Tuple[Optional[float], QpuTask]] = []
-        else:
-            self._task_list = schedule.tasks
-
-    def upload_schedule(self, schedule: QpuSchedule) -> None:
-        self._task_list.extend(schedule.tasks)
+    def upload_schedule(self, schedule: TaskSchedule) -> None:
+        self._task_list.extend(schedule.entries)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
 
-    def _handle_lr(self, task: QpuTask) -> Generator[EventExpression, None, None]:
+    def _handle_lr(self, task: BlockTask) -> Generator[EventExpression, None, None]:
         if self._tem == TaskExecutionMode.ROUTINE_ATOMIC:
             yield from self._handle_atomic_lr(task)
         else:
             raise NotImplementedError
 
-    def _handle_rr(self, task: QpuTask) -> Generator[EventExpression, None, None]:
+    def _handle_rr(self, task: BlockTask) -> Generator[EventExpression, None, None]:
         if self._tem == TaskExecutionMode.ROUTINE_ATOMIC:
             yield from self._handle_atomic_rr(task)
         else:
@@ -147,7 +154,7 @@ class QpuDriver(Protocol):
                 self._memmgr.free(process.pid, virt_id)
 
     def _handle_atomic_lr(
-        self, task: QpuTask
+        self, task: BlockTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
         block = process.program.get_block(task.block_name)
@@ -169,7 +176,7 @@ class QpuDriver(Protocol):
         self._hostprocessor.post_lr_call(process, instr, lrcall)
 
     def _handle_atomic_rr(
-        self, task: QpuTask
+        self, task: BlockTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
         block = process.program.get_block(task.block_name)
@@ -185,29 +192,10 @@ class QpuDriver(Protocol):
         )
         self._hostprocessor.post_rr_call(process, instr, rrcall)
 
-    def run(self) -> Generator[EventExpression, None, None]:
-        while True:
-            try:
-                time, task = self._task_list.pop(0)
-                if time is not None:
-                    now = ns.sim_time()
-                    self._logger.debug(
-                        f"{ns.sim_time()}: {self.name}: checking next task {task}"
-                    )
-                    self._logger.debug(f"scheduled for {time}")
-                    self._logger.debug(f"waiting for {time - now}...")
-                    yield from self.wait(time - now)
-                self._logger.debug(
-                    f"{ns.sim_time()}: {self.name}: executing task {task}"
-                )
-                if task.routine_type == RoutineType.LOCAL:
-                    yield from self._handle_lr(task)
-                elif task.routine_type == RoutineType.REQUEST:
-                    yield from self._handle_rr(task)
-                else:
-                    raise RuntimeError
-                self._logger.debug(
-                    f"{ns.sim_time()}: {self.name}: finished task {task}"
-                )
-            except IndexError:
-                break
+    def _handle_task(self, task: BlockTask) -> Generator[EventExpression, None, None]:
+        if task.typ == BasicBlockType.QL:
+            yield from self._handle_lr(task)
+        elif task.typ == BasicBlockType.QC:
+            yield from self._handle_rr(task)
+        else:
+            raise RuntimeError

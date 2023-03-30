@@ -1,15 +1,10 @@
 import netsquid as ns
 import pytest
 
+from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.taskcreator import (
-    CpuSchedule,
-    CpuTask,
-    QpuSchedule,
-    QpuTask,
-    RoutineType,
-)
+from qoala.runtime.taskcreator import BlockTask, TaskSchedule, TaskScheduleEntry
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.util.builder import ObjectBuilder
 
@@ -64,6 +59,11 @@ SUBROUTINE add_one
     return IqoalaParser(program_text).parse()
 
 
+CL = BasicBlockType.CL
+QL = BasicBlockType.QL
+QC = BasicBlockType.QC
+
+
 def test_cpu_driver():
     procnode = ObjectBuilder.simple_procnode("alice", 1)
     program = get_pure_host_program()
@@ -73,10 +73,10 @@ def test_cpu_driver():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = CpuSchedule(
+    cpu_schedule = TaskSchedule(
         [
-            (0, CpuTask(0, "b0")),
-            (1000, CpuTask(0, "b1")),
+            TaskScheduleEntry(BlockTask(0, "b0", CL), 0),
+            TaskScheduleEntry(BlockTask(0, "b1", CL), 1000),
         ]
     )
 
@@ -103,7 +103,9 @@ def test_cpu_driver_no_time():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = CpuSchedule.no_constraints([CpuTask(0, "b0"), CpuTask(0, "b1")])
+    cpu_schedule = TaskSchedule.consecutive(
+        [BlockTask(0, "b0", CL), BlockTask(0, "b1", CL)]
+    )
 
     driver = CpuDriver("alice", procnode.host.processor, procnode.memmgr)
     driver.upload_schedule(cpu_schedule)
@@ -131,12 +133,12 @@ def test_cpu_driver_2_processes():
     procnode.scheduler.submit_program_instance(instance0)
     procnode.scheduler.submit_program_instance(instance1)
 
-    cpu_schedule = CpuSchedule(
+    cpu_schedule = TaskSchedule(
         [
-            (0, CpuTask(pid0, "b0")),
-            (500, CpuTask(pid1, "b0")),
-            (1000, CpuTask(pid0, "b1")),
-            (1500, CpuTask(pid1, "b1")),
+            TaskScheduleEntry(BlockTask(pid0, "b0", CL), 0),
+            TaskScheduleEntry(BlockTask(pid1, "b0", CL), 500),
+            TaskScheduleEntry(BlockTask(pid0, "b1", CL), 1000),
+            TaskScheduleEntry(BlockTask(pid1, "b1", CL), 1500),
         ]
     )
 
@@ -171,14 +173,14 @@ def test_qpu_driver():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = CpuSchedule(
+    cpu_schedule = TaskSchedule(
         [
-            (0, CpuTask(0, "b0")),
+            TaskScheduleEntry(BlockTask(0, "b0", CL), 0),
         ]
     )
-    qpu_schedule = QpuSchedule(
+    qpu_schedule = TaskSchedule(
         [
-            (1000, QpuTask(0, RoutineType.LOCAL, "b1")),
+            TaskScheduleEntry(BlockTask(0, "b1", QL), 1000),
         ]
     )
 
@@ -216,16 +218,16 @@ def test_qpu_driver_2_processes():
     procnode.scheduler.submit_program_instance(instance0)
     procnode.scheduler.submit_program_instance(instance1)
 
-    cpu_schedule = CpuSchedule(
+    cpu_schedule = TaskSchedule(
         [
-            (0, CpuTask(pid0, "b0")),
-            (500, CpuTask(pid1, "b0")),
+            TaskScheduleEntry(BlockTask(pid0, "b0", CL), 0),
+            TaskScheduleEntry(BlockTask(pid1, "b0", CL), 500),
         ]
     )
-    qpu_schedule = QpuSchedule(
+    qpu_schedule = TaskSchedule(
         [
-            (500, QpuTask(pid0, RoutineType.LOCAL, "b1")),
-            (1000, QpuTask(pid1, RoutineType.LOCAL, "b1")),
+            TaskScheduleEntry(BlockTask(pid0, "b1", QL), 500),
+            TaskScheduleEntry(BlockTask(pid1, "b1", QL), 1000),
         ]
     )
 

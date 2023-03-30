@@ -5,6 +5,7 @@ import netsquid as ns
 from netqasm.lang.instr.flavour import core
 
 from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
+from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.environment import NetworkInfo
@@ -18,13 +19,11 @@ from qoala.runtime.lhi import (
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import (
-    CpuSchedule,
-    CpuTask,
-    QpuSchedule,
-    QpuTask,
-    RoutineType,
+    BlockTask,
     TaskCreator,
     TaskExecutionMode,
+    TaskSchedule,
+    TaskScheduleEntry,
 )
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
@@ -73,6 +72,12 @@ def instantiate(
     )
 
 
+CL = BasicBlockType.CL
+CC = BasicBlockType.CC
+QL = BasicBlockType.QL
+QC = BasicBlockType.QC
+
+
 def test_host_program():
     network = setup_network()
     alice = network.nodes["alice"]
@@ -85,10 +90,10 @@ def test_host_program():
     alice.scheduler.submit_program_instance(instance)
     bob.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = CpuSchedule.no_constraints(
+    cpu_schedule = TaskSchedule.consecutive(
         [
-            CpuTask(pid, "blk_host0"),
-            CpuTask(pid, "blk_host1"),
+            BlockTask(pid, "blk_host0", CL),
+            BlockTask(pid, "blk_host1", CL),
         ]
     )
     alice.scheduler.upload_cpu_schedule(cpu_schedule)
@@ -116,14 +121,15 @@ def test_lr_program():
     bob.scheduler.submit_program_instance(instance)
 
     host_instr_time = alice.local_ehi.latencies.host_instr_time
-    cpu_schedule = CpuSchedule.no_constraints([CpuTask(pid, "blk_host2")])
-    qpu_schedule = QpuSchedule(
-        [(host_instr_time, QpuTask(pid, RoutineType.LOCAL, "blk_add_one"))]
+    schedule = TaskSchedule.consecutive(
+        [
+            BlockTask(pid, "blk_host2", CL),
+            BlockTask(pid, "blk_add_one", QL),
+        ]
     )
-    alice.scheduler.upload_cpu_schedule(cpu_schedule)
-    alice.scheduler.upload_qpu_schedule(qpu_schedule)
-    bob.scheduler.upload_cpu_schedule(cpu_schedule)
-    bob.scheduler.upload_qpu_schedule(qpu_schedule)
+    alice.scheduler.upload_schedule(schedule)
+    bob.scheduler.upload_schedule(schedule)
+    print(schedule)
 
     ns.sim_reset()
     network.start()
@@ -153,9 +159,7 @@ def test_epr_md_1():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = QpuSchedule(
-        [(None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_md_1"))]
-    )
+    qpu_schedule = TaskSchedule([TaskScheduleEntry(BlockTask(pid, "blk_epr_md_1", QC))])
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
     bob.scheduler.upload_qpu_schedule(qpu_schedule)
 
@@ -186,9 +190,7 @@ def test_epr_md_2():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = QpuSchedule(
-        [(None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_md_2"))]
-    )
+    qpu_schedule = TaskSchedule([TaskScheduleEntry(BlockTask(pid, "blk_epr_md_2", QC))])
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
     bob.scheduler.upload_qpu_schedule(qpu_schedule)
 
@@ -221,10 +223,10 @@ def test_epr_ck_1():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = QpuSchedule(
+    qpu_schedule = TaskSchedule(
         [
-            (None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_ck_1")),
-            (None, QpuTask(pid, RoutineType.LOCAL, "blk_meas_q0")),
+            TaskScheduleEntry(BlockTask(pid, "blk_epr_ck_1", QC)),
+            TaskScheduleEntry(BlockTask(pid, "blk_meas_q0", QL)),
         ]
     )
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
@@ -261,10 +263,10 @@ def test_epr_ck_2():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = QpuSchedule(
+    qpu_schedule = TaskSchedule(
         [
-            (None, QpuTask(pid, RoutineType.REQUEST, "blk_epr_ck_2")),
-            (None, QpuTask(pid, RoutineType.LOCAL, "blk_meas_q0_q1")),
+            TaskScheduleEntry(BlockTask(pid, "blk_epr_ck_2", QC)),
+            TaskScheduleEntry(BlockTask(pid, "blk_meas_q0_q1", QL)),
         ]
     )
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
@@ -307,18 +309,18 @@ def test_cc():
     assert alice.local_ehi.latencies.host_peer_latency == 3000
     assert alice.local_ehi.latencies.host_instr_time == 1000
 
-    schedule_alice = CpuSchedule(
+    schedule_alice = TaskSchedule(
         [
-            (0, CpuTask(pid, "blk_prep_cc")),
-            (2000, CpuTask(pid, "blk_send")),
-            (10000, CpuTask(pid, "blk_host1")),
+            TaskScheduleEntry(BlockTask(pid, "blk_prep_cc", CL), 0),
+            TaskScheduleEntry(BlockTask(pid, "blk_send", CL), 2000),
+            TaskScheduleEntry(BlockTask(pid, "blk_host1", CL), 10000),
         ]
     )
-    schedule_bob = CpuSchedule(
+    schedule_bob = TaskSchedule(
         [
-            (0, CpuTask(pid, "blk_prep_cc")),
-            (3000, CpuTask(pid, "blk_recv")),
-            (10000, CpuTask(pid, "blk_host1")),
+            TaskScheduleEntry(BlockTask(pid, "blk_prep_cc", CL), 0),
+            TaskScheduleEntry(BlockTask(pid, "blk_recv", CC), 3000),
+            TaskScheduleEntry(BlockTask(pid, "blk_host1", CL), 10000),
         ]
     )
     alice.scheduler.upload_cpu_schedule(schedule_alice)
@@ -359,16 +361,11 @@ def test_full_program():
     tasks_bob = task_creator.from_program(
         program_bob, pid, bob.local_ehi, bob.network_ehi
     )
+    schedule_alice = TaskSchedule.consecutive(tasks_alice)
+    schedule_bob = TaskSchedule.consecutive(tasks_bob)
 
-    cpu_alice = CpuSchedule.consecutive(tasks_alice)
-    qpu_alice = QpuSchedule.consecutive(tasks_alice)
-    cpu_bob = CpuSchedule.consecutive(tasks_bob)
-    qpu_bob = QpuSchedule.consecutive(tasks_bob)
-
-    alice.scheduler.upload_cpu_schedule(cpu_alice)
-    alice.scheduler.upload_qpu_schedule(qpu_alice)
-    bob.scheduler.upload_cpu_schedule(cpu_bob)
-    bob.scheduler.upload_qpu_schedule(qpu_bob)
+    alice.scheduler.upload_schedule(schedule_alice)
+    bob.scheduler.upload_schedule(schedule_bob)
 
     ns.sim_reset()
     network.start()
@@ -382,11 +379,11 @@ def test_full_program():
 
 
 if __name__ == "__main__":
-    # test_host_program()
-    # test_lr_program()
-    # test_epr_md_1()
-    # test_epr_md_2()
-    # test_epr_ck_1()
-    # test_epr_ck_2()
+    test_host_program()
+    test_lr_program()
+    test_epr_md_1()
+    test_epr_md_2()
+    test_epr_ck_1()
+    test_epr_ck_2()
     test_cc()
-    # test_full_program()
+    test_full_program()

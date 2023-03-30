@@ -2,6 +2,7 @@ import os
 
 from netqasm.lang.instr import core
 
+from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import IqoalaParser
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
@@ -12,14 +13,11 @@ from qoala.runtime.lhi import (
     NetworkLhi,
 )
 from qoala.runtime.taskcreator import (
-    CpuQpuTaskList,
-    CpuSchedule,
-    CpuTask,
-    QpuSchedule,
-    QpuTask,
-    RoutineType,
+    BlockTask,
     TaskCreator,
     TaskExecutionMode,
+    TaskSchedule,
+    TaskScheduleEntry,
 )
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
@@ -27,6 +25,12 @@ from qoala.sim.network import ProcNodeNetwork
 
 def relative_path(path: str) -> str:
     return os.path.join(os.getcwd(), os.path.dirname(__file__), path)
+
+
+CL = BasicBlockType.CL
+CC = BasicBlockType.CC
+QL = BasicBlockType.QL
+QC = BasicBlockType.QC
 
 
 def test1():
@@ -39,12 +43,13 @@ def test1():
     pid = 3
     tasks = creator.from_program(program, pid)
 
-    assert tasks.cpu_tasks() == [CpuTask(pid, "b0"), CpuTask(pid, "b5")]
-    assert tasks.qpu_tasks() == [
-        QpuTask(pid, RoutineType.REQUEST, "b1"),
-        QpuTask(pid, RoutineType.LOCAL, "b2"),
-        QpuTask(pid, RoutineType.REQUEST, "b3"),
-        QpuTask(pid, RoutineType.LOCAL, "b4"),
+    assert tasks == [
+        BlockTask(pid, "b0", CL),
+        BlockTask(pid, "b1", QC),
+        BlockTask(pid, "b2", QL),
+        BlockTask(pid, "b3", QC),
+        BlockTask(pid, "b4", QL),
+        BlockTask(pid, "b5", CL),
     ]
 
 
@@ -78,24 +83,46 @@ def test2():
     tasks = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
 
     cpu_time = alice.local_ehi.latencies.host_instr_time
-
-    assert tasks.cpu_tasks() == [
-        CpuTask(pid, "blk_host0", 2 * cpu_time),
-        CpuTask(pid, "blk_host1", 1 * cpu_time),
-        CpuTask(pid, "blk_host2", 1 * cpu_time),
-    ]
-
+    recv_time = alice.local_ehi.latencies.host_peer_latency
     qpu_time = alice.local_ehi.latencies.qnos_instr_time
     meas_time = alice.local_ehi.find_single_gate(0, core.MeasInstruction).duration
     epr_time = alice.network_ehi.get_link(0, 1).duration
-    assert tasks.qpu_tasks() == [
-        QpuTask(pid, RoutineType.LOCAL, "blk_add_one", 5 * qpu_time),
-        QpuTask(pid, RoutineType.REQUEST, "blk_epr_md_1", 1 * epr_time),
-        QpuTask(pid, RoutineType.REQUEST, "blk_epr_md_2", 2 * epr_time),
-        QpuTask(pid, RoutineType.REQUEST, "blk_epr_ck_1", 1 * epr_time),
-        QpuTask(pid, RoutineType.LOCAL, "blk_meas_q0", 3 * qpu_time + 1 * meas_time),
-        QpuTask(pid, RoutineType.REQUEST, "blk_epr_ck_2", 2 * epr_time),
-        QpuTask(pid, RoutineType.LOCAL, "blk_meas_q0_q1", 6 * qpu_time + 2 * meas_time),
+
+    assert tasks == [
+        BlockTask(pid, "blk_host0", CL, 2 * cpu_time),
+        BlockTask(pid, "blk_host1", CL, 1 * cpu_time),
+        BlockTask(pid, "blk_host2", CL, 1 * cpu_time),
+        BlockTask(pid, "blk_prep_cc", CL, 2 * cpu_time),
+        BlockTask(pid, "blk_send", CL, 1 * cpu_time),
+        BlockTask(pid, "blk_recv", CC, 1 * recv_time),
+        BlockTask(pid, "blk_add_one", QL, 5 * qpu_time),
+        BlockTask(pid, "blk_epr_md_1", QC, 1 * epr_time),
+        BlockTask(pid, "blk_epr_md_2", QC, 2 * epr_time),
+        BlockTask(pid, "blk_epr_ck_1", QC, 1 * epr_time),
+        BlockTask(pid, "blk_meas_q0", QL, 3 * qpu_time + 1 * meas_time),
+        BlockTask(pid, "blk_epr_ck_2", QC, 2 * epr_time),
+        BlockTask(pid, "blk_meas_q0_q1", QL, 6 * qpu_time + 2 * meas_time),
+    ]
+
+
+def test3():
+    pid = 0
+    tasks = [
+        BlockTask(pid, "blk_host0", CL, 1000),
+        BlockTask(pid, "blk_recv", CC, 1000),
+        BlockTask(pid, "blk_add_one", QL, 1000),
+        BlockTask(pid, "blk_epr_md_1", QC, 1000),
+        BlockTask(pid, "blk_host1", CL, 1000),
+    ]
+
+    schedule = TaskSchedule.consecutive(tasks)
+
+    assert schedule.entries == [
+        TaskScheduleEntry(tasks[0], None, prev=None),
+        TaskScheduleEntry(tasks[1], None, prev=None),
+        TaskScheduleEntry(tasks[2], None, prev=tasks[1]),  # CPU -> QPU
+        TaskScheduleEntry(tasks[3], None, prev=None),
+        TaskScheduleEntry(tasks[4], None, prev=tasks[3]),  # QPU -> CPU
     ]
 
 
@@ -103,28 +130,36 @@ def test_consecutive():
     pid = 0
 
     tasks = [
-        CpuTask(pid, "blk_host0", 1000),
-        QpuTask(pid, RoutineType.LOCAL, "blk_lr0", 5000),
-        CpuTask(pid, "blk_host1", 200),
-        QpuTask(pid, RoutineType.REQUEST, "blk_rr0", 30_000),
-        CpuTask(pid, "blk_host2", 4000),
+        BlockTask(pid, "blk_host0", CL, 1000),
+        BlockTask(pid, "blk_lr0", QL, 5000),
+        BlockTask(pid, "blk_host1", CL, 200),
+        BlockTask(pid, "blk_rr0", QC, 30_000),
+        BlockTask(pid, "blk_host2", CL, 4000),
     ]
 
-    cpu_schedule = CpuSchedule.consecutive(CpuQpuTaskList(tasks))
-    qpu_schedule = QpuSchedule.consecutive(CpuQpuTaskList(tasks))
+    schedule = TaskSchedule.consecutive_timestamps(tasks)
 
-    assert cpu_schedule.tasks == [
-        (0, tasks[0]),
-        (1000 + 5000, tasks[2]),
-        (1000 + 5000 + 200 + 30_000, tasks[4]),
+    assert schedule.entries == [
+        TaskScheduleEntry(tasks[0], 0),
+        TaskScheduleEntry(tasks[1], 1000),
+        TaskScheduleEntry(tasks[2], 1000 + 5000),
+        TaskScheduleEntry(tasks[3], 1000 + 5000 + 200),
+        TaskScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
     ]
-    assert qpu_schedule.tasks == [
-        (1000, tasks[1]),
-        (1000 + 5000 + 200, tasks[3]),
+
+    assert schedule.cpu_schedule.entries == [
+        TaskScheduleEntry(tasks[0], 0),
+        TaskScheduleEntry(tasks[2], 1000 + 5000),
+        TaskScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
+    ]
+    assert schedule.qpu_schedule.entries == [
+        TaskScheduleEntry(tasks[1], 1000),
+        TaskScheduleEntry(tasks[3], 1000 + 5000 + 200),
     ]
 
 
 if __name__ == "__main__":
     test1()
     test2()
+    test3()
     test_consecutive()

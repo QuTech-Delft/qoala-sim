@@ -33,7 +33,7 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     SingleProgramTask,
 )
-from qoala.runtime.taskcreator import CpuQpuSchedule, CpuSchedule, QpuSchedule
+from qoala.runtime.taskcreator import TaskSchedule
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
@@ -78,10 +78,13 @@ class Scheduler(Protocol):
 
         self._schedule: Optional[Schedule] = None
 
-        self._cpudriver: CpuDriver = CpuDriver(node_name, host.processor, memmgr)
-        self._qpudriver: QpuDriver = QpuDriver(
+        self._cpudriver = CpuDriver(node_name, host.processor, memmgr)
+        self._qpudriver = QpuDriver(
             node_name, host.processor, qnos.processor, netstack.processor, memmgr
         )
+
+        self._cpudriver.set_other_driver(self._qpudriver)
+        self._qpudriver.set_other_driver(self._cpudriver)
 
     @property
     def host(self) -> Host:
@@ -315,13 +318,13 @@ class Scheduler(Protocol):
             if virt_id not in routine.metadata.qubit_keep:
                 self.memmgr.free(process.pid, virt_id)
 
-    def upload_cpu_schedule(self, schedule: CpuSchedule) -> None:
+    def upload_cpu_schedule(self, schedule: TaskSchedule) -> None:
         self._cpudriver.upload_schedule(schedule)
 
-    def upload_qpu_schedule(self, schedule: QpuSchedule) -> None:
+    def upload_qpu_schedule(self, schedule: TaskSchedule) -> None:
         self._qpudriver.upload_schedule(schedule)
 
-    def upload_schedule(self, schedule: CpuQpuSchedule) -> None:
+    def upload_schedule(self, schedule: TaskSchedule) -> None:
         self._cpudriver.upload_schedule(schedule.cpu_schedule)
         self._qpudriver.upload_schedule(schedule.qpu_schedule)
 

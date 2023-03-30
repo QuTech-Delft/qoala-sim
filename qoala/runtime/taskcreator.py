@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from symbol import compound_stmt
 from typing import Dict, List, Optional, Tuple, Union
 
 from netqasm.lang.instr import core
@@ -30,122 +29,67 @@ class TriggerType(Enum):
     OTHER_SIGNAL = auto()
 
 
-class RoutineType(Enum):
-    LOCAL = 0
-    REQUEST = auto()
-
-
 @dataclass(eq=True, frozen=True)
-class CpuTask:
+class BlockTask:
     pid: int
     block_name: str
     typ: BasicBlockType
     duration: Optional[float] = None
     max_time: Optional[float] = None
 
-
-@dataclass
-class CpuSchedule:
-    # list of (time -> task) entries
-    # if time is None, it means "no time restriction", which in general means:
-    # execute immediately after previous task
-    tasks: List[Tuple[Optional[float], CpuTask]]  # time -> task
-
-    @classmethod
-    def no_constraints(cls, tasks: List[CpuTask]) -> CpuSchedule:
-        return CpuSchedule(tasks=[(None, t) for t in tasks])
-
-    @classmethod
-    def consecutive(cls, task_list: CpuQpuTaskList) -> CpuSchedule:
-        cpu_tasks: List[Tuple[Optional[float], CpuTask]] = []
-
-        time = 0.0
-        for task in task_list.tasks:
-            if isinstance(task, CpuTask):
-                cpu_tasks.append((time, task))
-            else:
-                assert isinstance(task, QpuTask)
-            # TODO: is a None value for duration even allowed here?
-            if task.duration:
-                time += task.duration
-        return CpuSchedule(cpu_tasks)
-
-
-@dataclass(eq=True, frozen=True)
-class QpuTask:
-    pid: int
-    routine_type: RoutineType
-    block_name: str
-    typ: BasicBlockType
-    duration: Optional[float] = None
-    max_time: Optional[float] = None
-
-
-@dataclass
-class QpuSchedule:
-    tasks: List[Tuple[Optional[float], QpuTask]]  # time -> task
-
-    @classmethod
-    def no_constraints(cls, tasks: List[QpuTask]) -> QpuSchedule:
-        return QpuSchedule(tasks=[(None, t) for t in tasks])
-
-    @classmethod
-    def consecutive(cls, task_list: CpuQpuTaskList) -> QpuSchedule:
-        qpu_tasks: List[Tuple[Optional[float], QpuTask]] = []
-
-        time = 0.0
-        for task in task_list.tasks:
-            if isinstance(task, QpuTask):
-                qpu_tasks.append((time, task))
-            else:
-                assert isinstance(task, CpuTask)
-            # TODO: is a None value for duration even allowed here?
-            if task.duration:
-                time += task.duration
-        return QpuSchedule(qpu_tasks)
+    def __str__(self) -> str:
+        return f"{self.block_name} ({self.typ.name}), dur={self.duration}"
 
 
 class ScheduleWriter:
-    def __init__(self, schedule: CpuQpuSchedule) -> None:
+    def __init__(self, schedule: TaskSchedule) -> None:
         self._timeline = "time "
         self._cpu_task_str = "CPU  "
         self._qpu_task_str = "QPU  "
-        self._cpu_tasks = schedule.cpu_schedule.tasks
-        self._qpu_tasks = schedule.qpu_schedule.tasks
+        self._cpu_entries = schedule.cpu_schedule.entries
+        self._qpu_entries = schedule.qpu_schedule.entries
+        self._entry_width = 12
+
+    def _entry_content(self, task: BlockTask) -> str:
+        if task.duration:
+            return f"{task.block_name} ({task.typ.name}, {int(task.duration)})"
+        else:
+            return f"{task.block_name} ({task.typ.name})"
 
     def _add_cpu_entry(
-        self, cpu_time: Optional[float], cpu_task: CpuTask
+        self, cpu_time: Optional[float], cpu_task: BlockTask
     ) -> Tuple[str, str]:
-        width = max(len(cpu_task.block_name), len(str(cpu_time))) + 7
+        width = max(len(cpu_task.block_name), len(str(cpu_time))) + self._entry_width
         if cpu_time is None:
             cpu_time = "<none>"
         self._timeline += f"{cpu_time:<{width}}"
-        cpu_name = f"{cpu_task.block_name} ({cpu_task.typ.name})"
-        self._cpu_task_str += f"{cpu_name:<{width}}"
+        entry = self._entry_content(cpu_task)
+        self._cpu_task_str += f"{entry:<{width}}"
         self._qpu_task_str += " " * width
 
     def _add_qpu_entry(
-        self, qpu_time: Optional[float], qpu_task: CpuTask
+        self, qpu_time: Optional[float], qpu_task: BlockTask
     ) -> Tuple[str, str]:
-        width = max(len(qpu_task.block_name), len(str(qpu_time))) + 7
+        width = max(len(qpu_task.block_name), len(str(qpu_time))) + self._entry_width
         if qpu_time is None:
             qpu_time = "<none>"
         self._timeline += f"{qpu_time:<{width}}"
-        qpu_name = f"{qpu_task.block_name} ({qpu_task.typ.name})"
+        entry = self._entry_content(qpu_task)
         self._cpu_task_str += " " * width
-        self._qpu_task_str += f"{qpu_name:<{width}}"
+        self._qpu_task_str += f"{entry:<{width}}"
 
     def _add_double_entry(
-        self, time: Optional[float], cpu_task: CpuTask, qpu_task: QpuTask
+        self, time: Optional[float], cpu_task: BlockTask, qpu_task: BlockTask
     ) -> Tuple[str, str]:
         width = (
-            max(len(cpu_task.block_name), len(qpu_task.block_name), len(str(time))) + 7
+            max(len(cpu_task.block_name), len(qpu_task.block_name), len(str(time)))
+            + self._entry_width
         )
         self._timeline += f"{time:<{width}}"
-        cpu_name = f"{cpu_task.block_name} ({cpu_task.typ.name})"
-        self._cpu_task_str += f"{cpu_name:<{width}}"
-        qpu_name = f"{qpu_task.block_name} ({qpu_task.typ.name})"
-        self._qpu_task_str += f"{qpu_name:<{width}}"
+        cpu_entry = self._entry_content(cpu_task)
+        qpu_entry = self._entry_content(qpu_task)
+        self._cpu_task_str += f"{cpu_entry:<{width}}"
+        self._qpu_task_str += f"{qpu_entry:<{width}}"
 
     def write(self) -> str:
         cpu_index = 0
@@ -154,11 +98,15 @@ class ScheduleWriter:
         qpu_done = False
         while True:
             try:
-                cpu_time, cpu_task = self._cpu_tasks[cpu_index]
+                cpu_entry = self._cpu_entries[cpu_index]
+                cpu_task = cpu_entry.task
+                cpu_time = cpu_entry.timestamp
             except IndexError:
                 cpu_done = True
             try:
-                qpu_time, qpu_task = self._qpu_tasks[qpu_index]
+                qpu_entry = self._qpu_entries[qpu_index]
+                qpu_task = qpu_entry.task
+                qpu_time = qpu_entry.timestamp
             except IndexError:
                 qpu_done = True
             if cpu_done and qpu_done:
@@ -190,25 +138,70 @@ class ScheduleWriter:
 
 
 @dataclass
-class CpuQpuSchedule:
-    cpu_schedule: CpuSchedule
-    qpu_schedule: QpuSchedule
+class TaskScheduleEntry:
+    task: BlockTask
+    timestamp: Optional[float] = None
+    prev: Optional[BlockTask] = None
+
+    def is_cpu_task(self) -> bool:
+        return self.task.typ == BasicBlockType.CL or self.task.typ == BasicBlockType.CC
+
+    def is_qpu_task(self) -> bool:
+        return self.task.typ == BasicBlockType.QL or self.task.typ == BasicBlockType.QC
+
+
+@dataclass
+class TaskSchedule:
+    entries: List[TaskScheduleEntry]
 
     @classmethod
-    def consecutive_with_QC_constraint(
+    def consecutive(
         cls,
-        task_list: CpuQpuTaskList,
-        qc_slots: List[float],
-        cc_buffer: float,
+        task_list: List[BlockTask],
+        qc_slots: Optional[List[float]] = None,
+        cc_buffer: float = 0,
         free_after_index: Optional[int] = None,
-    ) -> CpuQpuSchedule:
-        cpu_tasks: List[Tuple[Optional[float], CpuTask]] = []
-        qpu_tasks: List[Tuple[Optional[float], QpuTask]] = []
+    ) -> TaskSchedule:
+        entries: List[TaskScheduleEntry] = []
+
+        if qc_slots is None:
+            qc_slots = []
 
         # Get QC task indices
         qc_indices = []
-        for i, task in enumerate(task_list.tasks):
-            if isinstance(task, QpuTask) and task.routine_type == RoutineType.REQUEST:
+        for i, task in enumerate(task_list):
+            if task.typ == BasicBlockType.QC:
+                qc_indices.append(i)
+
+        for task in task_list:
+            entry = TaskScheduleEntry(task=task, timestamp=None, prev=None)
+            entries.append(entry)
+
+        for i in range(len(entries) - 1):
+            e1 = entries[i]
+            e2 = entries[i + 1]
+            if e1.is_cpu_task() != e2.is_cpu_task():
+                e2.prev = e1.task
+
+        return TaskSchedule(entries)
+
+    @classmethod
+    def consecutive_timestamps(
+        cls,
+        task_list: List[BlockTask],
+        qc_slots: Optional[List[float]] = None,
+        cc_buffer: float = 0,
+        free_after_index: Optional[int] = None,
+    ) -> TaskSchedule:
+        entries: List[TaskScheduleEntry] = []
+
+        if qc_slots is None:
+            qc_slots = []
+
+        # Get QC task indices
+        qc_indices = []
+        for i, task in enumerate(task_list):
+            if task.typ == BasicBlockType.QC:
                 qc_indices.append(i)
 
         # Naive approach: first schedule all tasks consecutively. Then, move the first
@@ -219,7 +212,7 @@ class CpuQpuSchedule:
         # list of timestamps for each task (same order as tasks in task_list)
         timestamps: List[float] = []
         time = 0.0
-        for i, task in enumerate(task_list.tasks):
+        for i, task in enumerate(task_list):
             if free_after_index is not None and i >= free_after_index:
                 timestamps.append(None)
             else:
@@ -238,29 +231,24 @@ class CpuQpuSchedule:
                             timestamps[i] += delta
                     break
 
-        for i, task in enumerate(task_list.tasks):
+        for i, task in enumerate(task_list):
             time = timestamps[i]
-            if isinstance(task, CpuTask):
-                cpu_tasks.append((time, task))
-            else:
-                assert isinstance(task, QpuTask)
-                qpu_tasks.append((time, task))
+            entries.append(TaskScheduleEntry(task, time, None))
 
-        return CpuQpuSchedule(CpuSchedule(cpu_tasks), QpuSchedule(qpu_tasks))
+        return TaskSchedule(entries)
+
+    @property
+    def cpu_schedule(self) -> TaskSchedule:
+        entries = [e for e in self.entries if e.is_cpu_task()]
+        return TaskSchedule(entries)
+
+    @property
+    def qpu_schedule(self) -> TaskSchedule:
+        entries = [e for e in self.entries if e.is_qpu_task()]
+        return TaskSchedule(entries)
 
     def __str__(self) -> str:
         return ScheduleWriter(self).write()
-
-
-@dataclass
-class CpuQpuTaskList:
-    tasks: List[Union[CpuTask, QpuTask]]
-
-    def cpu_tasks(self) -> List[CpuTask]:
-        return [task for task in self.tasks if isinstance(task, CpuTask)]
-
-    def qpu_tasks(self) -> List[QpuTask]:
-        return [task for task in self.tasks if isinstance(task, QpuTask)]
 
 
 class TaskCreator:
@@ -273,7 +261,7 @@ class TaskCreator:
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,
-    ) -> CpuQpuTaskList:
+    ) -> List[BlockTask]:
         if self._mode == TaskExecutionMode.ROUTINE_ATOMIC:
             return self._from_program_routine_atomic(program, pid, ehi, network_ehi)
         else:
@@ -285,8 +273,8 @@ class TaskCreator:
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,
-    ) -> CpuQpuTaskList:
-        tasks: List[Union[CpuTask, QpuTask]] = []
+    ) -> List[BlockTask]:
+        tasks: List[BlockTask] = []
 
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
@@ -294,17 +282,17 @@ class TaskCreator:
                     duration = ehi.latencies.host_instr_time * len(block.instructions)
                 else:
                     duration = None
-                cputask = CpuTask(pid, block.name, block.typ, duration)
+                cputask = BlockTask(pid, block.name, block.typ, duration)
                 tasks.append(cputask)
             elif block.typ == BasicBlockType.CC:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
                 assert isinstance(instr, ReceiveCMsgOp)
                 if ehi is not None:
-                    duration = ehi.latencies.host_peer_latency * 5
+                    duration = ehi.latencies.host_peer_latency
                 else:
                     duration = None
-                cputask = CpuTask(pid, block.name, block.typ, duration)
+                cputask = BlockTask(pid, block.name, block.typ, duration)
                 tasks.append(cputask)
             elif block.typ == BasicBlockType.QL:
                 assert len(block.instructions) == 1
@@ -315,9 +303,7 @@ class TaskCreator:
                     duration = self._compute_lr_duration(ehi, local_routine)
                 else:
                     duration = None
-                qputask = QpuTask(
-                    pid, RoutineType.LOCAL, block.name, block.typ, duration
-                )
+                qputask = BlockTask(pid, block.name, block.typ, duration)
                 tasks.append(qputask)
             elif block.typ == BasicBlockType.QC:
                 assert len(block.instructions) == 1
@@ -330,12 +316,10 @@ class TaskCreator:
                     duration = epr_time * req_routine.request.num_pairs
                 else:
                     duration = None
-                qputask = QpuTask(
-                    pid, RoutineType.REQUEST, block.name, block.typ, duration
-                )
+                qputask = BlockTask(pid, block.name, block.typ, duration)
                 tasks.append(qputask)
 
-        return CpuQpuTaskList(tasks)
+        return tasks
 
     def _compute_lr_duration(
         self, ehi: ExposedHardwareInfo, routine: LocalRoutine
