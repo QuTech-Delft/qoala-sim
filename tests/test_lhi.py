@@ -2,7 +2,15 @@ import os
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
     INSTR_CZ,
+    INSTR_H,
+    INSTR_INIT,
+    INSTR_MEASURE,
+    INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -14,7 +22,12 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import LatenciesConfig, LinkConfig, TopologyConfig
+from qoala.runtime.config import (
+    LatenciesConfig,
+    LinkConfig,
+    NVQDeviceConfig,
+    TopologyConfig,
+)
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
@@ -24,6 +37,7 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
     NetworkLhi,
 )
+from qoala.runtime.nv_old import LhiTopologyBuilderForOldNV
 
 
 def relative_path(path: str) -> str:
@@ -132,6 +146,36 @@ def test_topology_from_config_2():
             info.instruction for info in topology.multi_gate_infos[MultiQubit([0, i])]
         ]
         assert q0i_gates == [INSTR_CNOT]
+
+
+def test_topology_from_nv_config():
+    cfg = NVQDeviceConfig.perfect_config(num_qubits=2)
+    topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg)
+
+    assert topology.qubit_infos[0].is_communication
+    assert not topology.qubit_infos[1].is_communication
+
+    q0_gates = [info.instruction for info in topology.single_gate_infos[0]]
+    assert all(
+        instr in q0_gates
+        for instr in [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z, INSTR_INIT, INSTR_MEASURE]
+    )
+
+    q1_gates = [info.instruction for info in topology.single_gate_infos[1]]
+    assert all(
+        instr in q1_gates
+        for instr in [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z, INSTR_INIT]
+    )
+
+    q01_gates = [
+        info.instruction for info in topology.multi_gate_infos[MultiQubit([0, 1])]
+    ]
+    assert all(instr in q01_gates for instr in [INSTR_CXDIR, INSTR_CYDIR])
+
+    assert topology.find_single_gate(0, INSTR_ROT_X).duration == cfg.electron_rot_x
+    assert topology.find_single_gate(0, INSTR_ROT_X).error_model_kwargs == {
+        "depolar_rate": 0
+    }
 
 
 def test_find_gates():
@@ -452,6 +496,7 @@ if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
     test_topology_from_config_2()
+    test_topology_from_nv_config()
     test_find_gates()
     test_perfect_qubit()
     test_t1t2_qubit()

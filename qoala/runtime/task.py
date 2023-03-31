@@ -134,12 +134,19 @@ class TaskCreator:
             ):
                 duration += ehi.latencies.qnos_instr_time
             else:
-                # TODO: can we always use index 0 ??
-                if info := ehi.find_single_gate(0, type(instr)):
-                    duration += info.duration
-                # TODO: can we always use indices 0, 1 ??
-                elif info := ehi.find_multi_gate([0, 1], type(instr)):
-                    duration += info.duration
+                max_duration = -1
+                # TODO: gate duration depends on which qubit!!
+                # currently we always take the worst case scenario but this is not ideal
+                for i in ehi.single_gate_infos.keys():
+                    if info := ehi.find_single_gate(i, type(instr)):
+                        max_duration = max(max_duration, info.duration)
+
+                for multi in ehi.multi_gate_infos.keys():
+                    if info := ehi.find_multi_gate(multi.qubit_ids, type(instr)):
+                        max_duration = max(max_duration, info.duration)
+
+                if max_duration != -1:
+                    duration += max_duration
                 else:
                     raise RuntimeError
         return duration

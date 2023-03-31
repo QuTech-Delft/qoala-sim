@@ -57,7 +57,12 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
     NetworkLhi,
 )
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
+from qoala.runtime.lhi_to_ehi import (
+    GenericToVanillaInterface,
+    LhiConverter,
+    NvToNvInterface,
+)
+from qoala.runtime.nv_old import LhiTopologyBuilderForOldNV
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
@@ -312,7 +317,15 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 def build_procnode(
     cfg: ProcNodeConfig, network_info: NetworkInfo, network_ehi: NetworkEhi
 ) -> ProcNode:
-    topology = LhiTopologyBuilder.from_config(cfg.topology)
+    # TODO: Refactor ad-hoc way of old NV config
+    # TODO: Refactor how ntf interface is configured!
+    if cfg.topology is not None:
+        topology = LhiTopologyBuilder.from_config(cfg.topology)
+        ntf_interface = GenericToVanillaInterface()
+    if cfg.nv_config is not None:
+        topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg.nv_config)
+        ntf_interface = NvToNvInterface()
+
     qprocessor = build_qprocessor_from_topology(name=cfg.node_name, topology=topology)
     latencies = LhiLatencies.from_config(cfg.latencies)
     procnode = ProcNode(
@@ -321,7 +334,7 @@ def build_procnode(
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
-        ntf_interface=GenericToVanillaInterface(),  # TODO: make configurable
+        ntf_interface=ntf_interface,
         node_id=cfg.node_id,
         network_ehi=network_ehi,
     )

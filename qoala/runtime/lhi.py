@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
     INSTR_CZ,
     INSTR_H,
     INSTR_INIT,

@@ -43,6 +43,10 @@ from qoala.util.constants import PI, PI_OVER_2
 from qoala.util.logging import LogManager
 
 
+class UnsupportedNetqasmInstructionError(Exception):
+    pass
+
+
 class QnosProcessor:
     """Does not have state itself."""
 
@@ -585,7 +589,7 @@ class GenericProcessor(QnosProcessor):
             commands = [QDeviceCommand(INSTR_H, [phys_id])]
             yield from self.qdevice.execute_commands(commands)
         else:
-            raise RuntimeError(f"Unsupported instruction {instr}")
+            raise UnsupportedNetqasmInstructionError
         return None
 
     def _interpret_single_rotation_instr(
@@ -598,13 +602,13 @@ class GenericProcessor(QnosProcessor):
         elif isinstance(instr, vanilla.RotZInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_Z)
         else:
-            raise RuntimeError(f"Unsupported instruction {instr}")
+            raise UnsupportedNetqasmInstructionError
         return None
 
     def _interpret_controlled_rotation_instr(
         self, pid: int, instr: core.ControlledRotationInstruction
     ) -> Generator[EventExpression, None, None]:
-        raise RuntimeError(f"Unsupported instruction {instr}")
+        raise UnsupportedNetqasmInstructionError
 
     def _interpret_two_qubit_instr(
         self, pid: int, instr: core.SingleQubitInstruction
@@ -625,7 +629,7 @@ class GenericProcessor(QnosProcessor):
             commands = [QDeviceCommand(INSTR_CZ, [phys_id0, phys_id1])]
             yield from self.qdevice.execute_commands(commands)
         else:
-            raise RuntimeError(f"Unsupported instruction {instr}")
+            raise UnsupportedNetqasmInstructionError
         return None
 
 
@@ -702,7 +706,8 @@ class NVProcessor(QnosProcessor):
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.qreg)
         phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
-        assert phys_id is not None
+        if phys_id is None:
+            raise NotAllocatedError
 
         # Only the electron (phys ID 0) can be measured.
         # Measuring any other physical qubit (i.e one of the carbons) requires
@@ -719,7 +724,6 @@ class NVProcessor(QnosProcessor):
             # Measuring a comm qubit. This can be done immediately.
             outcome = yield from self._measure_electron()
             qnos_mem.set_reg_value(instr.creg, outcome)
-            memmgr.free(pid, virt_id)
             return None
         # else:
 
@@ -728,47 +732,47 @@ class NVProcessor(QnosProcessor):
         # Check if comm qubit is already used by this process:
         if memmgr.phys_id_for(pid, 0) is not None:
             # Comm qubit is already allocated. Try to move it to a free mem qubit.
-            mem_virt_id = memmgr.get_unmapped_non_comm_qubit(pid)
-            memmgr.allocate(pid, mem_virt_id)
-            mem_phys_id = memmgr.phys_id_for(pid, mem_virt_id)
-            assert mem_phys_id is not None
+            # mem_virt_id = memmgr.get_unmapped_non_comm_qubit(pid)
+            # memmgr.allocate(pid, mem_virt_id)
+            # mem_phys_id = memmgr.phys_id_for(pid, mem_virt_id)
+            # assert mem_phys_id is not None
 
             # Move (temporarily) state from comm qubit to mem qubit.
-            yield from self._move_electron_to_carbon(mem_phys_id)
+            # yield from self._move_electron_to_carbon(mem_phys_id)
 
             # Move state from qubit-to-measure to comm qubit.
             yield from self._move_carbon_to_electron_for_measure(phys_id)
-            memmgr.free(pid, virt_id)
-            self._interface.signal_memory_freed()
+            # memmgr.free(pid, virt_id)
+            # self._interface.signal_memory_freed()
 
             # Measure comm qubit (containing state of qubit-to-measure).
             outcome = yield from self._measure_electron()
             qnos_mem.set_reg_value(instr.creg, outcome)
 
             # Move temporarily-moved state back to comm qubit.
-            yield from self._move_carbon_to_electron(mem_phys_id)
+            # yield from self._move_carbon_to_electron(mem_phys_id)
 
             # Free mem qubit that was temporarily used.
-            memmgr.free(pid, mem_virt_id)
-            self._interface.signal_memory_freed()
+            # memmgr.free(pid, mem_virt_id)
+            # self._interface.signal_memory_freed()
         else:  # comm qubit not in use.
             # Allocate comm qubit.
-            memmgr.allocate(pid, 0)
+            # memmgr.allocate(pid, 0)
 
             # Move state-to-measure to comm qubit.
             yield from self._move_carbon_to_electron_for_measure(phys_id)
 
             # Free qubit that contained state-to-measure.
-            memmgr.free(pid, virt_id)
-            self._interface.signal_memory_freed()
+            # memmgr.free(pid, virt_id)
+            # self._interface.signal_memory_freed()
 
             # Measure comm qubit.
             outcome = yield from self._measure_electron()
             qnos_mem.set_reg_value(instr.creg, outcome)
 
             # Free comm qubit.
-            memmgr.free(pid, 0)
-            self._interface.signal_memory_freed()
+            # memmgr.free(pid, 0)
+            # self._interface.signal_memory_freed()
         return None
 
     def _interpret_single_rotation_instr(
@@ -781,7 +785,7 @@ class NVProcessor(QnosProcessor):
         elif isinstance(instr, nv.RotZInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_Z)
         else:
-            raise RuntimeError(f"Unsupported instruction {instr}")
+            raise UnsupportedNetqasmInstructionError
 
     def _interpret_controlled_rotation_instr(
         self, pid: int, instr: core.ControlledRotationInstruction
@@ -791,4 +795,4 @@ class NVProcessor(QnosProcessor):
         elif isinstance(instr, nv.ControlledRotYInstruction):
             yield from self._do_controlled_rotation(pid, instr, INSTR_CYDIR)
         else:
-            raise RuntimeError(f"Unsupported instruction {instr}")
+            raise UnsupportedNetqasmInstructionError

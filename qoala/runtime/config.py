@@ -706,8 +706,10 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
 class ProcNodeConfig(BaseModel):
     node_name: str
     node_id: int
-    topology: TopologyConfig
+    # TODO: Refactor ad-hoc way of old NV config!
+    topology: Optional[TopologyConfig] = None
     latencies: LatenciesConfig
+    nv_config: Optional[NVQDeviceConfig] = None  # TODO: remove!
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:
