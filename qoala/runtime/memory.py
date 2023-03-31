@@ -47,9 +47,7 @@ class HostMemory:
 
 class SharedMemory:
     """Classical program memory available to both Host and Qnos.
-    Implemented as NetQASM arrays and registers.
-
-    TODO: registers should be moved to QnosMemory."""
+    Implemented as NetQASM arrays."""
 
     def __init__(self, pid: int) -> None:
         self._pid = pid
@@ -82,14 +80,6 @@ class SharedMemory:
             array_part=operand.ArrayEntry(operand.Address(addr), offset)
         )
         self._arrays[address, index] = value
-
-    def get_array_slice(
-        self, array_slice: operand.ArraySlice
-    ) -> Optional[List[Optional[int]]]:
-        address, index = self.expand_array_part(array_part=array_slice)
-        result = self._arrays[address, index]
-        assert (result is None) or isinstance(result, list)
-        return result
 
     def expand_array_part(
         self, array_part: Union[operand.ArrayEntry, operand.ArraySlice]
@@ -206,9 +196,6 @@ class ProgramMemory:
 
         self._shared_memmgr: SharedMemoryManager = SharedMemoryManager()
 
-        # TODO: remove?
-        self._prog_counter: int = 0
-
     @property
     def host_mem(self) -> HostMemory:
         return self._host_memory
@@ -224,13 +211,3 @@ class ProgramMemory:
     @property
     def qnos_mem(self) -> QnosMemory:
         return self._qnos_memory
-
-    @property
-    def prog_counter(self) -> int:
-        return self._prog_counter
-
-    def increment_prog_counter(self) -> None:
-        self._prog_counter += 1
-
-    def set_prog_counter(self, value: int) -> None:
-        self._prog_counter = value

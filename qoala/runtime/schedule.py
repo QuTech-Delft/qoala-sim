@@ -7,98 +7,6 @@ from qoala.lang.hostlang import BasicBlockType
 from qoala.runtime.task import BlockTask
 
 
-class ScheduleWriter:
-    def __init__(self, schedule: TaskSchedule) -> None:
-        self._timeline = "time "
-        self._cpu_task_str = "CPU  "
-        self._qpu_task_str = "QPU  "
-        self._cpu_entries = schedule.cpu_schedule.entries
-        self._qpu_entries = schedule.qpu_schedule.entries
-        self._entry_width = 12
-
-    def _entry_content(self, task: BlockTask) -> str:
-        if task.duration:
-            return f"{task.block_name} ({task.typ.name}, {int(task.duration)})"
-        else:
-            return f"{task.block_name} ({task.typ.name})"
-
-    def _add_cpu_entry(self, cpu_time: Optional[float], cpu_task: BlockTask) -> None:
-        width = max(len(cpu_task.block_name), len(str(cpu_time))) + self._entry_width
-        if cpu_time is None:
-            cpu_time = "<none>"  # type: ignore
-        self._timeline += f"{cpu_time:<{width}}"
-        entry = self._entry_content(cpu_task)
-        self._cpu_task_str += f"{entry:<{width}}"
-        self._qpu_task_str += " " * width
-
-    def _add_qpu_entry(self, qpu_time: Optional[float], qpu_task: BlockTask) -> None:
-        width = max(len(qpu_task.block_name), len(str(qpu_time))) + self._entry_width
-        if qpu_time is None:
-            qpu_time = "<none>"  # type: ignore
-        self._timeline += f"{qpu_time:<{width}}"
-        entry = self._entry_content(qpu_task)
-        self._cpu_task_str += " " * width
-        self._qpu_task_str += f"{entry:<{width}}"
-
-    def _add_double_entry(
-        self, time: Optional[float], cpu_task: BlockTask, qpu_task: BlockTask
-    ) -> None:
-        width = (
-            max(len(cpu_task.block_name), len(qpu_task.block_name), len(str(time)))
-            + self._entry_width
-        )
-        self._timeline += f"{time:<{width}}"
-        cpu_entry = self._entry_content(cpu_task)
-        qpu_entry = self._entry_content(qpu_task)
-        self._cpu_task_str += f"{cpu_entry:<{width}}"
-        self._qpu_task_str += f"{qpu_entry:<{width}}"
-
-    def write(self) -> str:
-        cpu_index = 0
-        qpu_index = 0
-        cpu_done = False
-        qpu_done = False
-        while True:
-            try:
-                cpu_entry = self._cpu_entries[cpu_index]
-                cpu_task = cpu_entry.task
-                cpu_time = cpu_entry.timestamp
-            except IndexError:
-                cpu_done = True
-            try:
-                qpu_entry = self._qpu_entries[qpu_index]
-                qpu_task = qpu_entry.task
-                qpu_time = qpu_entry.timestamp
-            except IndexError:
-                qpu_done = True
-            if cpu_done and qpu_done:
-                break
-            if qpu_done:  # cpu_done is False
-                cpu_index += 1
-                self._add_cpu_entry(cpu_time, cpu_task)
-            elif cpu_done:  # qpu_done is False
-                qpu_index += 1
-                self._add_qpu_entry(qpu_time, qpu_task)
-            else:  # both not done
-                if qpu_time is None:
-                    cpu_index += 1
-                    self._add_cpu_entry(cpu_time, cpu_task)
-                elif cpu_time is None:
-                    qpu_index += 1
-                    self._add_qpu_entry(qpu_time, qpu_task)
-                elif cpu_time < qpu_time:
-                    cpu_index += 1
-                    self._add_cpu_entry(cpu_time, cpu_task)
-                elif qpu_time < cpu_time:
-                    qpu_index += 1
-                    self._add_qpu_entry(qpu_time, qpu_task)
-                else:  # times equal
-                    cpu_index += 1
-                    qpu_index += 1
-                    self._add_double_entry(cpu_time, cpu_task, qpu_task)
-        return self._timeline + "\n" + self._cpu_task_str + "\n" + self._qpu_task_str
-
-
 @dataclass
 class TaskScheduleEntry:
     task: BlockTask
@@ -230,3 +138,95 @@ class TaskSchedule:
 
     def __str__(self) -> str:
         return ScheduleWriter(self).write()
+
+
+class ScheduleWriter:
+    def __init__(self, schedule: TaskSchedule) -> None:
+        self._timeline = "time "
+        self._cpu_task_str = "CPU  "
+        self._qpu_task_str = "QPU  "
+        self._cpu_entries = schedule.cpu_schedule.entries
+        self._qpu_entries = schedule.qpu_schedule.entries
+        self._entry_width = 12
+
+    def _entry_content(self, task: BlockTask) -> str:
+        if task.duration:
+            return f"{task.block_name} ({task.typ.name}, {int(task.duration)})"
+        else:
+            return f"{task.block_name} ({task.typ.name})"
+
+    def _add_cpu_entry(self, cpu_time: Optional[float], cpu_task: BlockTask) -> None:
+        width = max(len(cpu_task.block_name), len(str(cpu_time))) + self._entry_width
+        if cpu_time is None:
+            cpu_time = "<none>"  # type: ignore
+        self._timeline += f"{cpu_time:<{width}}"
+        entry = self._entry_content(cpu_task)
+        self._cpu_task_str += f"{entry:<{width}}"
+        self._qpu_task_str += " " * width
+
+    def _add_qpu_entry(self, qpu_time: Optional[float], qpu_task: BlockTask) -> None:
+        width = max(len(qpu_task.block_name), len(str(qpu_time))) + self._entry_width
+        if qpu_time is None:
+            qpu_time = "<none>"  # type: ignore
+        self._timeline += f"{qpu_time:<{width}}"
+        entry = self._entry_content(qpu_task)
+        self._cpu_task_str += " " * width
+        self._qpu_task_str += f"{entry:<{width}}"
+
+    def _add_double_entry(
+        self, time: Optional[float], cpu_task: BlockTask, qpu_task: BlockTask
+    ) -> None:
+        width = (
+            max(len(cpu_task.block_name), len(qpu_task.block_name), len(str(time)))
+            + self._entry_width
+        )
+        self._timeline += f"{time:<{width}}"
+        cpu_entry = self._entry_content(cpu_task)
+        qpu_entry = self._entry_content(qpu_task)
+        self._cpu_task_str += f"{cpu_entry:<{width}}"
+        self._qpu_task_str += f"{qpu_entry:<{width}}"
+
+    def write(self) -> str:
+        cpu_index = 0
+        qpu_index = 0
+        cpu_done = False
+        qpu_done = False
+        while True:
+            try:
+                cpu_entry = self._cpu_entries[cpu_index]
+                cpu_task = cpu_entry.task
+                cpu_time = cpu_entry.timestamp
+            except IndexError:
+                cpu_done = True
+            try:
+                qpu_entry = self._qpu_entries[qpu_index]
+                qpu_task = qpu_entry.task
+                qpu_time = qpu_entry.timestamp
+            except IndexError:
+                qpu_done = True
+            if cpu_done and qpu_done:
+                break
+            if qpu_done:  # cpu_done is False
+                cpu_index += 1
+                self._add_cpu_entry(cpu_time, cpu_task)
+            elif cpu_done:  # qpu_done is False
+                qpu_index += 1
+                self._add_qpu_entry(qpu_time, qpu_task)
+            else:  # both not done
+                if qpu_time is None:
+                    cpu_index += 1
+                    self._add_cpu_entry(cpu_time, cpu_task)
+                elif cpu_time is None:
+                    qpu_index += 1
+                    self._add_qpu_entry(qpu_time, qpu_task)
+                elif cpu_time < qpu_time:
+                    cpu_index += 1
+                    self._add_cpu_entry(cpu_time, cpu_task)
+                elif qpu_time < cpu_time:
+                    qpu_index += 1
+                    self._add_qpu_entry(qpu_time, qpu_task)
+                else:  # times equal
+                    cpu_index += 1
+                    qpu_index += 1
+                    self._add_double_entry(cpu_time, cpu_task, qpu_task)
+        return self._timeline + "\n" + self._cpu_task_str + "\n" + self._qpu_task_str
