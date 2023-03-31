@@ -91,6 +91,14 @@ class Scheduler(Protocol):
         return self._memmgr
 
     @property
+    def cpudriver(self) -> CpuDriver:
+        return self._cpudriver
+
+    @property
+    def qpudriver(self) -> QpuDriver:
+        return self._qpudriver
+
+    @property
     def block_schedule(self) -> TaskSchedule:
         assert self._block_schedule is not None
         return self._block_schedule
@@ -196,22 +204,6 @@ class Scheduler(Protocol):
         self._schedule_after(delta_time, EVENT_WAIT)
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
-
-    def allocate_qubits_for_routine(
-        self, process: IqoalaProcess, routine_name: str
-    ) -> None:
-        routine = process.get_local_routine(routine_name)
-        for virt_id in routine.metadata.qubit_use:
-            if self.memmgr.phys_id_for(process.pid, virt_id) is None:
-                self.memmgr.allocate(process.pid, virt_id)
-
-    def free_qubits_after_routine(
-        self, process: IqoalaProcess, routine_name: str
-    ) -> None:
-        routine = process.get_local_routine(routine_name)
-        for virt_id in routine.metadata.qubit_use:
-            if virt_id not in routine.metadata.qubit_keep:
-                self.memmgr.free(process.pid, virt_id)
 
     def upload_cpu_schedule(self, schedule: TaskSchedule) -> None:
         self._cpudriver.upload_schedule(schedule)

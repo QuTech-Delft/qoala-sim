@@ -150,11 +150,13 @@ class BqcProcNode(ProcNode):
         host_instr = process.program.instructions[host_instr_index]
         assert isinstance(host_instr, RunSubroutineOp)
         lrcall = self.host.processor.prepare_lr_call(process, host_instr)
-        self.scheduler.allocate_qubits_for_routine(process, lrcall.routine_name)
+        self.scheduler.qpudriver.allocate_qubits_for_routine(
+            process, lrcall.routine_name
+        )
         yield from self.qnos.processor.assign_local_routine(
             process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
         )
-        self.scheduler.free_qubits_after_routine(process, lrcall.routine_name)
+        self.scheduler.qpudriver.free_qubits_after_routine(process, lrcall.routine_name)
         self.host.processor.post_lr_call(process, host_instr, lrcall)
 
     def run_request(
