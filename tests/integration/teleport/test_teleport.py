@@ -18,7 +18,6 @@ from qoala.runtime.config import (
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.sim.build import build_network
-from qoala.util.logging import LogManager
 
 
 def create_network_info(names: List[str]) -> NetworkInfo:
