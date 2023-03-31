@@ -1,6 +1,8 @@
 # Qoala Simulator
-A simulator for application execution in a quantum network.
+A comprehensive and configurable software library for simulating quantum network applications and nodes. It allows users to mimic both the software and hardware of real quantum network nodes, execute quantum programs, and gather statistics. This flexibility enables users to test and optimize various hardware parameters, investigate their effects on application performance and overall network performance, and even prototype new quantum network node architectures.
 
+
+## Qoala
 Qoala is an execution environment specification which describes:
 - the compiled format of programs that run on processing nodes (or end nodes) in a quantum network
 - the software/hardware architecture of processing nodes and how they execute programs
@@ -63,8 +65,8 @@ For example, one may simply create a single processing node object and only run 
 Or, one might create multiple processing nodes and connect them in a certain way, and also provides many quantum network applications as input
 for these, in order to test different scheduling techniques.
 
-A typical usage of the Qoala Simulator is a Python script (or collection of Python scripts) that contain code for setting up a simulation and then running it.
-These scripts hence `import` from the `qoala` package the objects and functions that are required for whatever simulation is desired.
+A typical way this package is used is in the form of a Python script that contains code for setting up a simulation and then running it.
+Such a script hence `import`s from the `qoala` package the objects and functions that are required for whatever simulation is desired.
 
 See the `examples` directory for examples.
 
