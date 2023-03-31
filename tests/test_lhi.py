@@ -5,7 +5,6 @@ from netsquid.components.instructions import (
     INSTR_CXDIR,
     INSTR_CYDIR,
     INSTR_CZ,
-    INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,

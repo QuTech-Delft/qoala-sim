@@ -8,8 +8,6 @@ from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
 from netqasm.lang.parsing import parse_text_subroutine
 from netsquid.components.instructions import (
     INSTR_CNOT,
-    INSTR_CXDIR,
-    INSTR_CYDIR,
     INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
@@ -40,7 +38,7 @@ from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import AllocError, MemoryManager, NotAllocatedError
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import QDevice, UnsupportedQDeviceCommandError
+from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import (
     GenericProcessor,
     NVProcessor,

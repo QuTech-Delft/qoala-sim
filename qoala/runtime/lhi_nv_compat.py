@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-import itertools
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Dict, List
 
 from netsquid.components.instructions import (
-    INSTR_CNOT,
     INSTR_CXDIR,
     INSTR_CYDIR,
-    INSTR_CZ,
-    INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,
@@ -20,7 +14,9 @@ from netsquid.components.instructions import (
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import NVQDeviceConfig
+
+# Ignore type since whole 'config' module is ignored by mypy
+from qoala.runtime.config import NVQDeviceConfig  # type: ignore
 from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology
 
 

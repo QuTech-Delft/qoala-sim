@@ -14,7 +14,6 @@ from qoala.runtime.config import (
     NVQDeviceConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
-    TopologyConfig,
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput

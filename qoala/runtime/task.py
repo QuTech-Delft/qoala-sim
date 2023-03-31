@@ -134,7 +134,7 @@ class TaskCreator:
             ):
                 duration += ehi.latencies.qnos_instr_time
             else:
-                max_duration = -1
+                max_duration = -1.0
                 # TODO: gate duration depends on which qubit!!
                 # currently we always take the worst case scenario but this is not ideal
                 for i in ehi.single_gate_infos.keys():

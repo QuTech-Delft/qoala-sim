@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple, Union
 
-from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
+from netqasm.lang.instr.flavour import Flavour, VanillaFlavour
 from netqasm.lang.operand import Template
 from netqasm.lang.parsing.text import parse_text_subroutine
 

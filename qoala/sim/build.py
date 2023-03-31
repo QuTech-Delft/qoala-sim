@@ -61,6 +61,7 @@ from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
+    NativeToFlavourInterface,
     NvToNvInterface,
 )
 from qoala.sim.entdist.entdist import EntDist
@@ -319,6 +320,7 @@ def build_procnode(
 ) -> ProcNode:
     # TODO: Refactor ad-hoc way of old NV config
     # TODO: Refactor how ntf interface is configured!
+    ntf_interface: NativeToFlavourInterface
     if cfg.topology is not None:
         topology = LhiTopologyBuilder.from_config(cfg.topology)
         ntf_interface = GenericToVanillaInterface()

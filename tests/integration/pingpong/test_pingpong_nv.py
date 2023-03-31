@@ -1,74 +1,74 @@
-from __future__ import annotations
+# from __future__ import annotations
 
-import os
-from dataclasses import dataclass
-from typing import Dict, List
+# import os
+# from dataclasses import dataclass
+# from typing import Dict, List
 
-import netsquid as ns
-from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
+# import netsquid as ns
+# from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
 
-from qoala.lang.ehi import UnitModule
-from qoala.lang.parse import IqoalaParser
-from qoala.lang.program import IqoalaProgram
-from qoala.runtime.config import (
-    LatenciesConfig,
-    NVQDeviceConfig,
-    ProcNodeConfig,
-    ProcNodeNetworkConfig,
-    TopologyConfig,
-)
-from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import TaskSchedule, TaskScheduleEntry
-from qoala.sim.build import build_network
-
-
-def create_network_info(names: List[str]) -> NetworkInfo:
-    env = NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-    env.set_global_schedule([0, 1, 2])
-    env.set_timeslot_len(1e6)
-    return env
+# from qoala.lang.ehi import UnitModule
+# from qoala.lang.parse import IqoalaParser
+# from qoala.lang.program import IqoalaProgram
+# from qoala.runtime.config import (
+#     LatenciesConfig,
+#     NVQDeviceConfig,
+#     ProcNodeConfig,
+#     ProcNodeNetworkConfig,
+#     TopologyConfig,
+# )
+# from qoala.runtime.environment import NetworkInfo
+# from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
+# from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
+# from qoala.runtime.schedule import TaskSchedule, TaskScheduleEntry
+# from qoala.sim.build import build_network
 
 
-def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
-    return ProcNodeConfig(
-        node_name=name,
-        node_id=id,
-        # topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        latencies=LatenciesConfig(
-            host_instr_time=500, host_peer_latency=100_000, qnos_instr_time=1000
-        ),
-        nv_config=NVQDeviceConfig.perfect_config(num_qubits),
-    )
+# def create_network_info(names: List[str]) -> NetworkInfo:
+#     env = NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
+#     env.set_global_schedule([0, 1, 2])
+#     env.set_timeslot_len(1e6)
+#     return env
 
 
-def load_program(path: str) -> IqoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), path)
-    with open(path) as file:
-        text = file.read()
-    return IqoalaParser(text, flavour=NVFlavour()).parse()
+# def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
+#     return ProcNodeConfig(
+#         node_name=name,
+#         node_id=id,
+#         # topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
+#         latencies=LatenciesConfig(
+#             host_instr_time=500, host_peer_latency=100_000, qnos_instr_time=1000
+#         ),
+#         nv_config=NVQDeviceConfig.perfect_config(num_qubits),
+#     )
 
 
-def create_batch(
-    program: IqoalaProgram,
-    unit_module: UnitModule,
-    inputs: List[ProgramInput],
-    num_iterations: int,
-) -> BatchInfo:
-    return BatchInfo(
-        program=program,
-        unit_module=unit_module,
-        inputs=inputs,
-        num_iterations=num_iterations,
-        deadline=0,
-    )
+# def load_program(path: str) -> IqoalaProgram:
+#     path = os.path.join(os.path.dirname(__file__), path)
+#     with open(path) as file:
+#         text = file.read()
+#     return IqoalaParser(text, flavour=NVFlavour()).parse()
 
 
-@dataclass
-class PingPongResult:
-    alice_results: Dict[int, BatchResult]
-    bob_results: Dict[int, BatchResult]
+# def create_batch(
+#     program: IqoalaProgram,
+#     unit_module: UnitModule,
+#     inputs: List[ProgramInput],
+#     num_iterations: int,
+# ) -> BatchInfo:
+#     return BatchInfo(
+#         program=program,
+#         unit_module=unit_module,
+#         inputs=inputs,
+#         num_iterations=num_iterations,
+#         deadline=0,
+#     )
+
+
+# @dataclass
+# class PingPongResult:
+#     alice_results: Dict[int, BatchResult]
+#     bob_results: Dict[int, BatchResult]
 
 
 # def run_pingpong(num_iterations: int) -> PingPongResult:
