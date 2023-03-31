@@ -11,9 +11,14 @@ from netsquid.components.instructions import (
 )
 
 from qoala.lang.common import MultiQubit
-from qoala.lang.ehi import ExposedGateInfo, ExposedQubitInfo
+from qoala.lang.ehi import EhiGateInfo, EhiQubitInfo
 from qoala.runtime.config import DepolariseSamplerConfig, LinkConfig
-from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopologyBuilder, NetworkLhi
+from qoala.runtime.lhi import (
+    LhiLatencies,
+    LhiLinkInfo,
+    LhiNetworkInfo,
+    LhiTopologyBuilder,
+)
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 from qoala.util.constants import prob_max_mixed_to_fidelity
 
@@ -43,14 +48,14 @@ def test_topology_to_ehi():
     ehi = LhiConverter.to_ehi(topology, interface, latencies)
 
     assert ehi.qubit_infos == {
-        0: ExposedQubitInfo(is_communication=True, decoherence_rate=0),
-        1: ExposedQubitInfo(is_communication=True, decoherence_rate=0),
+        0: EhiQubitInfo(is_communication=True, decoherence_rate=0),
+        1: EhiQubitInfo(is_communication=True, decoherence_rate=0),
     }
 
     assert ehi.flavour == NVFlavour
 
     single_gates = [
-        ExposedGateInfo(instr, 5e3, 0)
+        EhiGateInfo(instr, 5e3, 0)
         for instr in [
             core.InitInstruction,
             nv.RotXInstruction,
@@ -61,7 +66,7 @@ def test_topology_to_ehi():
     ]
     assert ehi.single_gate_infos == {0: single_gates, 1: single_gates}
 
-    multi_gates = [ExposedGateInfo(nv.ControlledRotXInstruction, 100e3, 0)]
+    multi_gates = [EhiGateInfo(nv.ControlledRotXInstruction, 100e3, 0)]
 
     assert ehi.multi_gate_infos == {
         MultiQubit([0, 1]): multi_gates,
@@ -112,7 +117,7 @@ def test_network_to_ehi():
         cycle_time=10, prob_max_mixed=0.2, prob_success=0.5, state_delay=2000
     )
     perfect_link = LhiLinkInfo.perfect(1000)
-    lhi_network = NetworkLhi(links={(0, 1): depolar_link, (1, 3): perfect_link})
+    lhi_network = LhiNetworkInfo(links={(0, 1): depolar_link, (1, 3): perfect_link})
 
     ehi_network = LhiConverter.network_to_ehi(lhi_network)
     expected_duration_0_1 = (10 / 0.5) + 2000

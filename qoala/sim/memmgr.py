@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
+from qoala.lang.ehi import EhiNodeInfo, UnitModule
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.util.logging import LogManager
@@ -40,7 +40,7 @@ class MemoryManager:
         self,
         node_name: str,
         qdevice: QDevice,
-        ehi: Optional[ExposedHardwareInfo] = None,  # TODO refactor?
+        ehi: Optional[EhiNodeInfo] = None,  # TODO refactor?
     ) -> None:
         self._node_name = node_name
         self._processes: Dict[int, QoalaProcess] = {}
@@ -67,7 +67,7 @@ class MemoryManager:
                 return phys_id  # type: ignore
         raise AllocError
 
-    def get_ehi(self) -> ExposedHardwareInfo:
+    def get_ehi(self) -> EhiNodeInfo:
         assert self._ehi is not None  # TODO: already enforce this in constructor?
         return self._ehi
 

@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from netqasm.lang.instr import core
 
-from qoala.lang.ehi import ExposedHardwareInfo, NetworkEhi
+from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.lang.hostlang import (
     BasicBlockType,
     ReceiveCMsgOp,
@@ -43,8 +43,8 @@ class TaskCreator:
         self,
         program: QoalaProgram,
         pid: int,
-        ehi: Optional[ExposedHardwareInfo] = None,
-        network_ehi: Optional[NetworkEhi] = None,
+        ehi: Optional[EhiNodeInfo] = None,
+        network_ehi: Optional[EhiNetworkInfo] = None,
         remote_id: Optional[int] = None,
     ) -> List[BlockTask]:
         if self._mode == TaskExecutionMode.ROUTINE_ATOMIC:
@@ -58,8 +58,8 @@ class TaskCreator:
         self,
         program: QoalaProgram,
         pid: int,
-        ehi: Optional[ExposedHardwareInfo] = None,
-        network_ehi: Optional[NetworkEhi] = None,
+        ehi: Optional[EhiNodeInfo] = None,
+        network_ehi: Optional[EhiNetworkInfo] = None,
         remote_id: Optional[int] = None,
     ) -> List[BlockTask]:
         tasks: List[BlockTask] = []
@@ -112,9 +112,7 @@ class TaskCreator:
 
         return tasks
 
-    def _compute_lr_duration(
-        self, ehi: ExposedHardwareInfo, routine: LocalRoutine
-    ) -> float:
+    def _compute_lr_duration(self, ehi: EhiNodeInfo, routine: LocalRoutine) -> float:
         duration = 0.0
         # TODO: refactor this
         for instr in routine.subroutine.instructions:

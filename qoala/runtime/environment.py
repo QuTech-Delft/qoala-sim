@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
-from qoala.lang.ehi import ExposedLinkInfo
+from qoala.lang.ehi import EhiLinkInfo
 from qoala.runtime.program import ProgramInstance
 
 
 class NetworkInfo:
-    """Static network info: node IDs. EPR links are managed by NetworkEhi."""
+    """Static network info: node IDs. EPR links are managed by EhiNetworkInfo."""
 
     def __init__(self, nodes: Dict[int, str]) -> None:
         # node ID -> node name
@@ -38,13 +38,13 @@ class NetworkInfo:
     def add_node(self, id: int, name: str) -> None:
         self._nodes[id] = name
 
-    def get_links(self) -> Dict[Tuple[int, int], ExposedLinkInfo]:
+    def get_links(self) -> Dict[Tuple[int, int], EhiLinkInfo]:
         return self._links
 
-    def set_links(self, links: Dict[Tuple[int, int], ExposedLinkInfo]) -> None:
+    def set_links(self, links: Dict[Tuple[int, int], EhiLinkInfo]) -> None:
         self._links = links
 
-    def add_link(self, id1: int, id2: int, link: ExposedLinkInfo) -> None:
+    def add_link(self, id1: int, id2: int, link: EhiLinkInfo) -> None:
         self._links[(id1, id2)] = link
 
     def set_global_schedule(self, schedule: List[int]) -> None:
@@ -98,9 +98,3 @@ class LocalEnvironment:
             for id, name in self.get_network_info().get_nodes().items()
             if id != self._node_id
         ]
-
-
-class ProgramEnvironment:
-    """Environment interface given to a program"""
-
-    pass

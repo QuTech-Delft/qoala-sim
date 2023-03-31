@@ -6,23 +6,23 @@ from netqasm.lang.instr.flavour import NVFlavour
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import (
     EhiBuilder,
+    EhiGateInfo,
     EhiLatencies,
-    ExposedGateInfo,
-    ExposedHardwareInfo,
-    ExposedLinkInfo,
-    ExposedQubitInfo,
-    NetworkEhi,
+    EhiLinkInfo,
+    EhiNetworkInfo,
+    EhiNodeInfo,
+    EhiQubitInfo,
     UnitModule,
 )
 
 
-def qubit_info() -> ExposedQubitInfo:
-    return ExposedQubitInfo(is_communication=True, decoherence_rate=0)
+def qubit_info() -> EhiQubitInfo:
+    return EhiQubitInfo(is_communication=True, decoherence_rate=0)
 
 
-def single_gates() -> List[ExposedGateInfo]:
+def single_gates() -> List[EhiGateInfo]:
     return [
-        ExposedGateInfo(instr, 5e3, 0)
+        EhiGateInfo(instr, 5e3, 0)
         for instr in [
             core.InitInstruction,
             nv.RotXInstruction,
@@ -33,11 +33,11 @@ def single_gates() -> List[ExposedGateInfo]:
     ]
 
 
-def multi_gates() -> List[ExposedGateInfo]:
-    return [ExposedGateInfo(nv.ControlledRotXInstruction, 100e3, 0)]
+def multi_gates() -> List[EhiGateInfo]:
+    return [EhiGateInfo(nv.ControlledRotXInstruction, 100e3, 0)]
 
 
-def create_ehi() -> ExposedHardwareInfo:
+def create_ehi() -> EhiNodeInfo:
     num_qubits = 3
 
     qubit_infos = {i: qubit_info() for i in range(num_qubits)}
@@ -51,7 +51,7 @@ def create_ehi() -> ExposedHardwareInfo:
         MultiQubit([1, 0]): multi_gates(),
     }
 
-    return ExposedHardwareInfo(
+    return EhiNodeInfo(
         qubit_infos,
         flavour,
         single_gate_infos,
@@ -128,7 +128,7 @@ def test_perfect_gates():
     gate_infos = EhiBuilder.perfect_gates(duration, instructions)
 
     assert gate_infos == [
-        ExposedGateInfo(instruction=instr, duration=duration, decoherence=0)
+        EhiGateInfo(instruction=instr, duration=duration, decoherence=0)
         for instr in instructions
     ]
 
@@ -139,7 +139,7 @@ def test_decoherence_gates():
     gate_infos = EhiBuilder.decoherence_gates(duration, instructions, decoherence=0.2)
 
     assert gate_infos == [
-        ExposedGateInfo(instruction=instr, duration=duration, decoherence=0.2)
+        EhiGateInfo(instruction=instr, duration=duration, decoherence=0.2)
         for instr in instructions
     ]
 
@@ -160,15 +160,13 @@ def test_perfect_uniform():
     )
 
     assert ehi.qubit_infos == {
-        i: ExposedQubitInfo(is_communication=True, decoherence_rate=0)
+        i: EhiQubitInfo(is_communication=True, decoherence_rate=0)
         for i in range(num_qubits)
     }
 
     assert ehi.single_gate_infos == {
         i: [
-            ExposedGateInfo(
-                instruction=instr, duration=single_gate_duration, decoherence=0
-            )
+            EhiGateInfo(instruction=instr, duration=single_gate_duration, decoherence=0)
             for instr in single_qubit_instructions
         ]
         for i in range(num_qubits)
@@ -176,9 +174,7 @@ def test_perfect_uniform():
 
     assert ehi.multi_gate_infos == {
         MultiQubit([i, j]): [
-            ExposedGateInfo(
-                instruction=instr, duration=two_gate_duration, decoherence=0
-            )
+            EhiGateInfo(instruction=instr, duration=two_gate_duration, decoherence=0)
             for instr in two_qubit_instructions
         ]
         for i in range(num_qubits)
@@ -188,13 +184,13 @@ def test_perfect_uniform():
 
 
 def test_build_fully_uniform():
-    qubit_info = ExposedQubitInfo(is_communication=True, decoherence_rate=0.01)
+    qubit_info = EhiQubitInfo(is_communication=True, decoherence_rate=0.01)
     single_gate_infos = [
-        ExposedGateInfo(instruction=instr, duration=5e3, decoherence=0.02)
+        EhiGateInfo(instruction=instr, duration=5e3, decoherence=0.02)
         for instr in [nv.RotXInstruction, nv.RotYInstruction]
     ]
     two_gate_infos = [
-        ExposedGateInfo(
+        EhiGateInfo(
             instruction=nv.ControlledRotXInstruction, duration=2e4, decoherence=0.05
         )
     ]
@@ -362,11 +358,13 @@ def test_find_gates():
 
 
 def test_network_ehi():
-    network_ehi = NetworkEhi.perfect_fully_connected(node_ids=[0, 1, 2], duration=1000)
+    network_ehi = EhiNetworkInfo.perfect_fully_connected(
+        node_ids=[0, 1, 2], duration=1000
+    )
 
-    assert network_ehi.get_link(0, 1) == ExposedLinkInfo(duration=1000, fidelity=1.0)
-    assert network_ehi.get_link(0, 2) == ExposedLinkInfo(duration=1000, fidelity=1.0)
-    assert network_ehi.get_link(1, 2) == ExposedLinkInfo(duration=1000, fidelity=1.0)
+    assert network_ehi.get_link(0, 1) == EhiLinkInfo(duration=1000, fidelity=1.0)
+    assert network_ehi.get_link(0, 2) == EhiLinkInfo(duration=1000, fidelity=1.0)
+    assert network_ehi.get_link(1, 2) == EhiLinkInfo(duration=1000, fidelity=1.0)
 
 
 if __name__ == "__main__":

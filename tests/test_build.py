@@ -12,7 +12,7 @@ from netsquid.components.instructions import (
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 from netsquid.components.qprocessor import MissingInstructionError, QuantumProcessor
 
-from qoala.lang.ehi import ExposedLinkInfo, NetworkEhi
+from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
 from qoala.runtime.config import (
     GenericQDeviceConfig,
     LatenciesConfig,
@@ -27,11 +27,11 @@ from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
+    LhiNetworkInfo,
     LhiProcNodeInfo,
     LhiQubitInfo,
     LhiTopology,
     LhiTopologyBuilder,
-    NetworkLhi,
 )
 from qoala.sim.build import (
     build_generic_qprocessor,
@@ -183,7 +183,7 @@ def test_build_procnode():
         node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
     )
     network_info = NetworkInfo.with_nodes({42: "the_node", 43: "other_node"})
-    network_ehi = NetworkEhi.perfect_fully_connected([42, 43], duration=1000)
+    network_ehi = EhiNetworkInfo.perfect_fully_connected([42, 43], duration=1000)
 
     procnode = build_procnode(cfg, network_info, network_ehi)
 
@@ -207,7 +207,7 @@ def test_build_procnode():
 
     assert expected_topology == procnode.qdevice.topology
 
-    assert procnode.network_ehi.get_link(42, 43) == ExposedLinkInfo(1000, 1.0)
+    assert procnode.network_ehi.get_link(42, 43) == EhiLinkInfo(1000, 1.0)
 
 
 def test_build_network():
@@ -291,7 +291,7 @@ def test_build_network_from_lhi():
     bob_lhi = LhiProcNodeInfo(name="bob", id=43, topology=topology, latencies=latencies)
     network_info = NetworkInfo.with_nodes({42: "alice", 43: "bob"})
 
-    network_lhi = NetworkLhi.perfect_fully_connected([42, 43], 100_000)
+    network_lhi = LhiNetworkInfo.perfect_fully_connected([42, 43], 100_000)
     network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
 
     assert len(network.nodes) == 2

@@ -6,7 +6,7 @@ from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
 from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
-from qoala.lang.ehi import ExposedHardwareInfo, NetworkEhi
+from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
@@ -36,7 +36,7 @@ class ProcNode(Protocol):
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
-        network_ehi: NetworkEhi,
+        network_ehi: EhiNetworkInfo,
         node: Optional[ProcNodeComponent] = None,
         node_id: Optional[int] = None,
         scheduler: Optional[Scheduler] = None,
@@ -71,7 +71,7 @@ class ProcNode(Protocol):
 
         # Create internal components.
         self._qdevice: QDevice = QDevice(self._node, qdevice_topology)
-        self._local_ehi: ExposedHardwareInfo = LhiConverter.to_ehi(
+        self._local_ehi: EhiNodeInfo = LhiConverter.to_ehi(
             qdevice_topology, ntf_interface, latencies
         )
 
@@ -198,19 +198,19 @@ class ProcNode(Protocol):
         self._scheduler = scheduler
 
     @property
-    def local_ehi(self) -> ExposedHardwareInfo:
+    def local_ehi(self) -> EhiNodeInfo:
         return self._local_ehi
 
     @local_ehi.setter
-    def local_ehi(self, local_ehi: ExposedHardwareInfo) -> None:
+    def local_ehi(self, local_ehi: EhiNodeInfo) -> None:
         self._local_ehi = local_ehi
 
     @property
-    def network_ehi(self) -> NetworkEhi:
+    def network_ehi(self) -> EhiNetworkInfo:
         return self._network_ehi
 
     @network_ehi.setter
-    def network_ehi(self, network_ehi: NetworkEhi) -> None:
+    def network_ehi(self, network_ehi: EhiNetworkInfo) -> None:
         self._network_ehi = network_ehi
 
     def connect_to(self, other: ProcNode) -> None:

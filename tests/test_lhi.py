@@ -31,10 +31,10 @@ from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
     LhiLinkInfo,
+    LhiNetworkInfo,
     LhiQubitInfo,
     LhiTopology,
     LhiTopologyBuilder,
-    NetworkLhi,
 )
 from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 
@@ -484,7 +484,9 @@ def test_link_from_config_2():
 
 
 def test_network_lhi():
-    network_lhi = NetworkLhi.perfect_fully_connected(node_ids=[0, 1, 2], duration=1000)
+    network_lhi = LhiNetworkInfo.perfect_fully_connected(
+        node_ids=[0, 1, 2], duration=1000
+    )
 
     assert network_lhi.get_link(0, 1) == LhiLinkInfo.perfect(duration=1000)
     assert network_lhi.get_link(0, 2) == LhiLinkInfo.perfect(duration=1000)

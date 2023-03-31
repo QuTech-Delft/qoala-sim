@@ -35,7 +35,7 @@ from netsquid_magic.magic_distributor import (
 )
 from netsquid_physlayer.heralded_connection import MiddleHeraldedConnection
 
-from qoala.lang.ehi import ExposedLinkInfo, NetworkEhi
+from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
 
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import (  # type: ignore
@@ -52,10 +52,10 @@ from qoala.runtime.lhi import (
     INSTR_MEASURE_INSTANT,
     LhiLatencies,
     LhiLinkInfo,
+    LhiNetworkInfo,
     LhiProcNodeInfo,
     LhiTopology,
     LhiTopologyBuilder,
-    NetworkLhi,
 )
 from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import (
@@ -316,7 +316,7 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 
 
 def build_procnode(
-    cfg: ProcNodeConfig, network_info: NetworkInfo, network_ehi: NetworkEhi
+    cfg: ProcNodeConfig, network_info: NetworkInfo, network_ehi: EhiNetworkInfo
 ) -> ProcNode:
     # TODO: Refactor ad-hoc way of old NV config
     # TODO: Refactor how ntf interface is configured!
@@ -405,13 +405,13 @@ def build_network(
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
-    ehi_links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+    ehi_links: Dict[Tuple[int, int], EhiLinkInfo] = {}
     for link_between_nodes in config.links:
         lhi_link = LhiLinkInfo.from_config(link_between_nodes.link_config)
         ehi_link = LhiConverter.link_info_to_ehi(lhi_link)
         ids = (link_between_nodes.node_id1, link_between_nodes.node_id2)
         ehi_links[ids] = ehi_link
-    network_ehi = NetworkEhi(ehi_links)
+    network_ehi = EhiNetworkInfo(ehi_links)
 
     for cfg in config.nodes:
         procnodes[cfg.node_name] = build_procnode(cfg, network_info, network_ehi)
@@ -442,7 +442,7 @@ def build_procnode_from_lhi(
     topology: LhiTopology,
     latencies: LhiLatencies,
     network_info: NetworkInfo,
-    network_lhi: NetworkLhi,
+    network_lhi: LhiNetworkInfo,
 ) -> ProcNode:
     qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
     network_ehi = LhiConverter.network_to_ehi(network_lhi)
@@ -461,7 +461,7 @@ def build_procnode_from_lhi(
 def build_network_from_lhi(
     procnode_infos: List[LhiProcNodeInfo],
     network_info: NetworkInfo,
-    network_lhi: NetworkLhi,
+    network_lhi: LhiNetworkInfo,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 

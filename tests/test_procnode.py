@@ -19,7 +19,7 @@ from qlink_interface import ReqCreateBase, ResCreateAndKeep
 from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import NetworkEhi, UnitModule
+from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlock,
@@ -359,7 +359,7 @@ def create_procnode(
         qdevice_topology=topology,
         latencies=latencies,
         ntf_interface=ntf_interface,
-        network_ehi=NetworkEhi({}),
+        network_ehi=EhiNetworkInfo({}),
         node_id=node_id,
         asynchronous=asynchronous,
     )

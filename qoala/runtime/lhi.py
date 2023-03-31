@@ -444,22 +444,22 @@ class LhiLinkInfo:
 
 
 @dataclass
-class NetworkLhi:
+class LhiNetworkInfo:
     # (node A ID, node B ID) -> link info
     # for a pair (a, b) there exists no separate (b, a) info (it is the same)
     links: Dict[Tuple[int, int], LhiLinkInfo]
 
     @classmethod
-    def fully_connected(cls, node_ids: List[int], info: LhiLinkInfo) -> NetworkLhi:
+    def fully_connected(cls, node_ids: List[int], info: LhiLinkInfo) -> LhiNetworkInfo:
         links: Dict[Tuple[int, int], LhiLinkInfo] = {}
         for n1, n2 in itertools.combinations(node_ids, 2):
             links[(n1, n2)] = info
-        return NetworkLhi(links)
+        return LhiNetworkInfo(links)
 
     @classmethod
     def perfect_fully_connected(
         cls, node_ids: List[int], duration: float
-    ) -> NetworkLhi:
+    ) -> LhiNetworkInfo:
         link = LhiLinkInfo.perfect(duration)
         return cls.fully_connected(node_ids, link)
 

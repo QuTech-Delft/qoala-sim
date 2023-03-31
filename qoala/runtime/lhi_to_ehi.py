@@ -31,21 +31,21 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from qoala.lang.ehi import (
+    EhiGateInfo,
     EhiLatencies,
-    ExposedGateInfo,
-    ExposedHardwareInfo,
-    ExposedLinkInfo,
-    ExposedQubitInfo,
-    NetworkEhi,
+    EhiLinkInfo,
+    EhiNetworkInfo,
+    EhiNodeInfo,
+    EhiQubitInfo,
 )
 from qoala.runtime.lhi import (
     INSTR_MEASURE_INSTANT,
     LhiGateInfo,
     LhiLatencies,
     LhiLinkInfo,
+    LhiNetworkInfo,
     LhiQubitInfo,
     LhiTopology,
-    NetworkLhi,
 )
 from qoala.util.constants import prob_max_mixed_to_fidelity
 
@@ -121,8 +121,8 @@ class LhiConverter:
             raise RuntimeError("Unsupported LHI Error model")
 
     @classmethod
-    def qubit_info_to_ehi(cls, info: LhiQubitInfo) -> ExposedQubitInfo:
-        return ExposedQubitInfo(
+    def qubit_info_to_ehi(cls, info: LhiQubitInfo) -> EhiQubitInfo:
+        return EhiQubitInfo(
             is_communication=info.is_communication,
             decoherence_rate=cls.error_model_to_rate(
                 info.error_model, info.error_model_kwargs
@@ -132,11 +132,11 @@ class LhiConverter:
     @classmethod
     def gate_info_to_ehi(
         cls, info: LhiGateInfo, ntf: NativeToFlavourInterface
-    ) -> ExposedGateInfo:
+    ) -> EhiGateInfo:
         instr = ntf.map(info.instruction)
         duration = info.duration
         decoherence = cls.error_model_to_rate(info.error_model, info.error_model_kwargs)
-        return ExposedGateInfo(
+        return EhiGateInfo(
             instruction=instr, duration=duration, decoherence=decoherence
         )
 
@@ -146,7 +146,7 @@ class LhiConverter:
         topology: LhiTopology,
         ntf: NativeToFlavourInterface,
         latencies: Optional[LhiLatencies] = None,
-    ) -> ExposedHardwareInfo:
+    ) -> EhiNodeInfo:
         if latencies is None:
             latencies = LhiLatencies.all_zero()
 
@@ -169,7 +169,7 @@ class LhiConverter:
             latencies.host_peer_latency,
         )
 
-        return ExposedHardwareInfo(
+        return EhiNodeInfo(
             qubit_infos=qubit_infos,
             flavour=flavour,
             single_gate_infos=single_gate_infos,
@@ -178,23 +178,23 @@ class LhiConverter:
         )
 
     @classmethod
-    def link_info_to_ehi(cls, info: LhiLinkInfo) -> ExposedLinkInfo:
+    def link_info_to_ehi(cls, info: LhiLinkInfo) -> EhiLinkInfo:
         if info.sampler_factory == PerfectStateSamplerFactory:
-            return ExposedLinkInfo(duration=info.state_delay, fidelity=1.0)
+            return EhiLinkInfo(duration=info.state_delay, fidelity=1.0)
         elif info.sampler_factory == DepolariseWithFailureStateSamplerFactory:
             expected_gen_duration = (
                 info.sampler_kwargs["cycle_time"] / info.sampler_kwargs["prob_success"]
             )
             duration = expected_gen_duration + info.state_delay
             fidelity = prob_max_mixed_to_fidelity(info.sampler_kwargs["prob_max_mixed"])
-            return ExposedLinkInfo(duration=duration, fidelity=fidelity)
+            return EhiLinkInfo(duration=duration, fidelity=fidelity)
         else:
             raise NotImplementedError
 
     @classmethod
-    def network_to_ehi(cls, info: NetworkLhi) -> NetworkEhi:
-        links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+    def network_to_ehi(cls, info: LhiNetworkInfo) -> EhiNetworkInfo:
+        links: Dict[Tuple[int, int], EhiLinkInfo] = {}
         for ([n1, n2], link_info) in info.links.items():
             ehi_link = cls.link_info_to_ehi(link_info)
             links[(n1, n2)] = ehi_link
-        return NetworkEhi(links)
+        return EhiNetworkInfo(links)

@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 
 import netsquid as ns
 
-from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
+from qoala.lang.ehi import EhiNodeInfo, UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
@@ -56,7 +56,7 @@ class SimpleBqcResult:
 
 def instantiate(
     program: QoalaProgram,
-    ehi: ExposedHardwareInfo,
+    ehi: EhiNodeInfo,
     pid: int = 0,
     inputs: Optional[ProgramInput] = None,
 ) -> ProgramInstance:

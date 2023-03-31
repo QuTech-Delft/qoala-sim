@@ -6,7 +6,7 @@ from typing import Dict, Generator, List, Optional
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import ExposedHardwareInfo, NetworkEhi
+from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
@@ -39,8 +39,8 @@ class Scheduler(Protocol):
         netstack: Netstack,
         memmgr: MemoryManager,
         local_env: LocalEnvironment,
-        local_ehi: ExposedHardwareInfo,
-        network_ehi: NetworkEhi,
+        local_ehi: EhiNodeInfo,
+        network_ehi: EhiNetworkInfo,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 

@@ -16,7 +16,7 @@ from netsquid_magic.link_layer import (
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import NetworkEhi, UnitModule
+from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
@@ -81,7 +81,7 @@ def create_procnode(
     name: str,
     env: NetworkInfo,
     num_qubits: int,
-    network_ehi: NetworkEhi,
+    network_ehi: EhiNetworkInfo,
     procnode_cls: Type[ProcNode] = ProcNode,
     asynchronous: bool = False,
     pid: int = 0,
@@ -126,7 +126,7 @@ class BqcProcNode(ProcNode):
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
-        network_ehi: NetworkEhi,
+        network_ehi: EhiNetworkInfo,
         node_id: Optional[int] = None,
         asynchronous: bool = False,
         pid: int = 0,
@@ -299,7 +299,7 @@ def run_bqc(
 
     link_info = LhiLinkInfo.perfect(1000)
     ehi_link = LhiConverter.link_info_to_ehi(link_info)
-    network_ehi = NetworkEhi.fully_connected([server_id, client_id], ehi_link)
+    network_ehi = EhiNetworkInfo.fully_connected([server_id, client_id], ehi_link)
 
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:

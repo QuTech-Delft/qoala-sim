@@ -8,9 +8,9 @@ from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
     LhiLatencies,
     LhiLinkInfo,
+    LhiNetworkInfo,
     LhiProcNodeInfo,
     LhiTopologyBuilder,
-    NetworkLhi,
 )
 from qoala.runtime.task import BlockTask, TaskCreator, TaskExecutionMode
 from qoala.sim.build import build_network_from_lhi
@@ -37,7 +37,7 @@ def setup_network() -> ProcNodeNetwork:
     alice_lhi = LhiProcNodeInfo(
         name="alice", id=0, topology=topology, latencies=latencies
     )
-    network_lhi = NetworkLhi.fully_connected([0, 1], link_info)
+    network_lhi = LhiNetworkInfo.fully_connected([0, 1], link_info)
     network_info = NetworkInfo.with_nodes({0: "alice", 1: "bob"})
     bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
     return build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)

@@ -4,7 +4,7 @@ from typing import Optional
 import netsquid as ns
 from netqasm.lang.instr.flavour import core
 
-from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
+from qoala.lang.ehi import EhiNodeInfo, UnitModule
 from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
@@ -12,9 +12,9 @@ from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
     LhiLatencies,
     LhiLinkInfo,
+    LhiNetworkInfo,
     LhiProcNodeInfo,
     LhiTopologyBuilder,
-    NetworkLhi,
 )
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.schedule import (
@@ -45,7 +45,7 @@ def setup_network() -> ProcNodeNetwork:
     alice_lhi = LhiProcNodeInfo(
         name="alice", id=0, topology=topology, latencies=latencies
     )
-    network_lhi = NetworkLhi.fully_connected([0, 1], link_info)
+    network_lhi = LhiNetworkInfo.fully_connected([0, 1], link_info)
     network_info = NetworkInfo.with_nodes({0: "alice", 1: "bob"})
     bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
     return build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
@@ -53,7 +53,7 @@ def setup_network() -> ProcNodeNetwork:
 
 def instantiate(
     program: QoalaProgram,
-    ehi: ExposedHardwareInfo,
+    ehi: EhiNodeInfo,
     pid: int = 0,
     inputs: Optional[ProgramInput] = None,
 ) -> ProgramInstance:

@@ -11,20 +11,20 @@ from qoala.lang.common import MultiQubit
 
 
 @dataclass(eq=True, frozen=True)
-class ExposedQubitInfo:
+class EhiQubitInfo:
     is_communication: bool
     decoherence_rate: float  # rate per second
 
 
 @dataclass(eq=True, frozen=True)
-class ExposedGateInfo:
+class EhiGateInfo:
     instruction: Type[NetQASMInstruction]
     duration: float  # ns
     decoherence: float  # rate per second, for all qubits
 
 
 @dataclass(eq=True, frozen=True)
-class ExposedLinkInfo:
+class EhiLinkInfo:
     duration: float  # ns
     fidelity: float
 
@@ -41,24 +41,24 @@ class EhiLatencies:
 
 
 @dataclass(eq=True, frozen=True)
-class ExposedHardwareInfo:
+class EhiNodeInfo:
     """Hardware made available to offline compiler."""
 
-    qubit_infos: Dict[int, ExposedQubitInfo]  # qubit ID -> info
+    qubit_infos: Dict[int, EhiQubitInfo]  # qubit ID -> info
 
     flavour: Type[
         Flavour
     ]  # set of NetQASM instrs, no info about which qubits can do what instr
-    single_gate_infos: Dict[int, List[ExposedGateInfo]]  # qubit ID -> gates
+    single_gate_infos: Dict[int, List[EhiGateInfo]]  # qubit ID -> gates
     multi_gate_infos: Dict[
-        MultiQubit, List[ExposedGateInfo]
+        MultiQubit, List[EhiGateInfo]
     ]  # ordered qubit ID list -> gates
 
     latencies: EhiLatencies
 
     def find_single_gate(
         self, qubit_id: int, instr: Type[NetQASMInstruction]
-    ) -> Optional[ExposedGateInfo]:
+    ) -> Optional[EhiGateInfo]:
         if qubit_id not in self.single_gate_infos:
             return None
         for info in self.single_gate_infos[qubit_id]:
@@ -68,7 +68,7 @@ class ExposedHardwareInfo:
 
     def find_multi_gate(
         self, qubit_ids: List[int], instr: Type[NetQASMInstruction]
-    ) -> Optional[ExposedGateInfo]:
+    ) -> Optional[EhiGateInfo]:
         multi = MultiQubit(qubit_ids)
         if multi not in self.multi_gate_infos:
             return None
@@ -82,13 +82,13 @@ class EhiBuilder:
     @classmethod
     def decoherence_qubit(
         cls, is_communication: bool, decoherence_rate: float
-    ) -> ExposedQubitInfo:
-        return ExposedQubitInfo(
+    ) -> EhiQubitInfo:
+        return EhiQubitInfo(
             is_communication=is_communication, decoherence_rate=decoherence_rate
         )
 
     @classmethod
-    def perfect_qubit(cls, is_communication: bool) -> ExposedQubitInfo:
+    def perfect_qubit(cls, is_communication: bool) -> EhiQubitInfo:
         return cls.decoherence_qubit(
             is_communication=is_communication, decoherence_rate=0
         )
@@ -99,18 +99,16 @@ class EhiBuilder:
         duration: float,
         instructions: List[Type[NetQASMInstruction]],
         decoherence: float,
-    ) -> List[ExposedGateInfo]:
+    ) -> List[EhiGateInfo]:
         return [
-            ExposedGateInfo(
-                instruction=instr, duration=duration, decoherence=decoherence
-            )
+            EhiGateInfo(instruction=instr, duration=duration, decoherence=decoherence)
             for instr in instructions
         ]
 
     @classmethod
     def perfect_gates(
         cls, duration: float, instructions: List[Type[NetQASMInstruction]]
-    ) -> List[ExposedGateInfo]:
+    ) -> List[EhiGateInfo]:
         return cls.decoherence_gates(
             duration=duration, instructions=instructions, decoherence=0
         )
@@ -125,7 +123,7 @@ class EhiBuilder:
         two_instructions: List[Type[NetQASMInstruction]],
         two_duration: float,
         latencies: Optional[EhiLatencies] = None,
-    ) -> ExposedHardwareInfo:
+    ) -> EhiNodeInfo:
         return cls.fully_uniform(
             num_qubits=num_qubits,
             flavour=flavour,
@@ -139,12 +137,12 @@ class EhiBuilder:
     def fully_uniform(
         cls,
         num_qubits,
-        qubit_info: ExposedQubitInfo,
+        qubit_info: EhiQubitInfo,
         flavour: Type[Flavour],
-        single_gate_infos: List[ExposedGateInfo],
-        two_gate_infos: List[ExposedGateInfo],
+        single_gate_infos: List[EhiGateInfo],
+        two_gate_infos: List[EhiGateInfo],
         latencies: Optional[EhiLatencies] = None,
-    ) -> ExposedHardwareInfo:
+    ) -> EhiNodeInfo:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}
         mg_infos = {}
@@ -156,7 +154,7 @@ class EhiBuilder:
 
         if latencies is None:
             latencies = EhiLatencies.all_zero()
-        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
+        return EhiNodeInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
 
     @classmethod
     def perfect_star(
@@ -170,7 +168,7 @@ class EhiBuilder:
         two_instructions: List[Type[NetQASMInstruction]],
         two_duration: float,
         latencies: Optional[EhiLatencies] = None,
-    ) -> ExposedHardwareInfo:
+    ) -> EhiNodeInfo:
         comm_qubit_info = cls.perfect_qubit(is_communication=True)
         mem_qubit_info = cls.perfect_qubit(is_communication=False)
         comm_gate_infos = cls.perfect_gates(comm_duration, comm_instructions)
@@ -191,7 +189,7 @@ class EhiBuilder:
 
         if latencies is None:
             latencies = EhiLatencies.all_zero()
-        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
+        return EhiNodeInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
 
     @classmethod
     def generic_t1t2_star(
@@ -210,7 +208,7 @@ class EhiBuilder:
         two_duration: float,
         two_instr_decoherence: float,
         latencies: Optional[EhiLatencies] = None,
-    ) -> ExposedHardwareInfo:
+    ) -> EhiNodeInfo:
         comm_qubit_info = cls.decoherence_qubit(
             is_communication=True, decoherence_rate=comm_decoherence
         )
@@ -241,29 +239,29 @@ class EhiBuilder:
 
         if latencies is None:
             latencies = EhiLatencies.all_zero()
-        return ExposedHardwareInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
+        return EhiNodeInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
 
 
 @dataclass(eq=True, frozen=True)
 class UnitModule:
     """Description of virtual memory space for programs. Target for a compiler.
 
-    Simply wraps around a ExposedHardwareInfo object and provides convenience methods.
+    Simply wraps around a EhiNodeInfo object and provides convenience methods.
 
     Unit Modules should be used as the interface for compilers and schedulers,
     as well as the program itself. This object does not contain information about
     runtime values (i.e. qubit mappings); this is managed by the Memory Manager.
-    Only the Memory Manager should use an ExposedHardwareInfo object itself,
+    Only the Memory Manager should use an EhiNodeInfo object itself,
     namely the object that represents the full quantum memory space of the node."""
 
-    info: ExposedHardwareInfo
+    info: EhiNodeInfo
 
     def is_communication(self, qubit_id: int) -> bool:
         return self.info.qubit_infos[qubit_id].is_communication
 
     @classmethod
-    def from_ehi(cls, ehi: ExposedHardwareInfo, qubit_ids: List[int]) -> UnitModule:
-        """Get a subset of an ExposedHardwareInfo"""
+    def from_ehi(cls, ehi: EhiNodeInfo, qubit_ids: List[int]) -> UnitModule:
+        """Get a subset of an EhiNodeInfo"""
         qubit_infos = {i: ehi.qubit_infos[i] for i in qubit_ids}
         single_gate_infos = {i: ehi.single_gate_infos[i] for i in qubit_ids}
         multi_gate_infos = {
@@ -273,7 +271,7 @@ class UnitModule:
         }
 
         return UnitModule(
-            info=ExposedHardwareInfo(
+            info=EhiNodeInfo(
                 qubit_infos,
                 ehi.flavour,
                 single_gate_infos,
@@ -283,8 +281,8 @@ class UnitModule:
         )
 
     @classmethod
-    def from_full_ehi(cls, ehi: ExposedHardwareInfo) -> UnitModule:
-        """Use the full ExposedHardwareInfo"""
+    def from_full_ehi(cls, ehi: EhiNodeInfo) -> UnitModule:
+        """Use the full EhiNodeInfo"""
         qubit_ids = [i for i in ehi.qubit_infos.keys()]
         return cls.from_ehi(ehi, qubit_ids)
 
@@ -293,26 +291,26 @@ class UnitModule:
 
 
 @dataclass
-class NetworkEhi:
+class EhiNetworkInfo:
     # (node A ID, node B ID) -> link info
     # for a pair (a, b) there exists no separate (b, a) info (it is the same)
-    links: Dict[Tuple[int, int], ExposedLinkInfo]
+    links: Dict[Tuple[int, int], EhiLinkInfo]
 
     @classmethod
-    def fully_connected(cls, node_ids: List[int], info: ExposedLinkInfo) -> NetworkEhi:
-        links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+    def fully_connected(cls, node_ids: List[int], info: EhiLinkInfo) -> EhiNetworkInfo:
+        links: Dict[Tuple[int, int], EhiLinkInfo] = {}
         for n1, n2 in itertools.combinations(node_ids, 2):
             links[(n1, n2)] = info
-        return NetworkEhi(links)
+        return EhiNetworkInfo(links)
 
     @classmethod
     def perfect_fully_connected(
         cls, node_ids: List[int], duration: float
-    ) -> NetworkEhi:
-        link = ExposedLinkInfo(duration=duration, fidelity=1.0)
+    ) -> EhiNetworkInfo:
+        link = EhiLinkInfo(duration=duration, fidelity=1.0)
         return cls.fully_connected(node_ids, link)
 
-    def get_link(self, node_id1: int, node_id2: int) -> ExposedLinkInfo:
+    def get_link(self, node_id1: int, node_id2: int) -> EhiLinkInfo:
         try:
             return self.links[(node_id1, node_id2)]
         except KeyError:
