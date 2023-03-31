@@ -16,12 +16,6 @@ class IqoalaInstructionType(Enum):
     QL = auto()
 
 
-@dataclass
-class IqoalaInstructionSignature:
-    typ: IqoalaInstructionType
-    duration: int = 0
-
-
 class IqoalaAttribute:
     def __init__(self, value: IqoalaValue) -> None:
         self._value = value

@@ -3,7 +3,7 @@ import os
 from netqasm.lang.instr import core
 
 from qoala.lang.hostlang import BasicBlockType
-from qoala.lang.parse import IqoalaParser
+from qoala.lang.parse import QoalaParser
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
     LhiLatencies,
@@ -47,7 +47,7 @@ def test_from_program_1():
     path = relative_path("integration/bqc/vbqc_client.iqoala")
     with open(path) as file:
         text = file.read()
-    program = IqoalaParser(text).parse()
+    program = QoalaParser(text).parse()
 
     creator = TaskCreator(TaskExecutionMode.ROUTINE_ATOMIC)
     pid = 3
@@ -74,7 +74,7 @@ def test_from_program_2():
     path = relative_path("test_scheduling_alice.iqoala")
     with open(path) as file:
         text = file.read()
-    program = IqoalaParser(text).parse()
+    program = QoalaParser(text).parse()
 
     creator = TaskCreator(TaskExecutionMode.ROUTINE_ATOMIC)
     pid = 3

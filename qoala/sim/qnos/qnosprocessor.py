@@ -32,7 +32,7 @@ from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.globals import GlobalSimData
 from qoala.sim.memmgr import NotAllocatedError
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos.qnosinterface import QnosInterface, QnosLatencies
 from qoala.sim.requests import (
@@ -92,7 +92,7 @@ class QnosProcessor:
 
     def instantiate_routine(
         self,
-        process: IqoalaProcess,
+        process: QoalaProcess,
         routine: LocalRoutine,
         args: Dict[str, Any],
         input_addr: MemAddr,
@@ -106,7 +106,7 @@ class QnosProcessor:
         process.qnos_mem.add_running_local_routine(running_routine)
 
     def await_local_routine_call(
-        self, process: IqoalaProcess
+        self, process: QoalaProcess
     ) -> Generator[EventExpression, None, None]:
         msg = yield from self._interface.receive_host_msg()
         payload: LrCallTuple = msg.content
@@ -118,7 +118,7 @@ class QnosProcessor:
 
     def assign_local_routine(
         self,
-        process: IqoalaProcess,
+        process: QoalaProcess,
         routine_name: str,
         input_addr: MemAddr,
         result_addr: MemAddr,
@@ -143,7 +143,7 @@ class QnosProcessor:
             )
 
     def assign_routine_instr(
-        self, process: IqoalaProcess, subrt_name: str, instr_idx: int
+        self, process: QoalaProcess, subrt_name: str, instr_idx: int
     ) -> Generator[EventExpression, None, int]:
         """Assign the processor to one specific instruction in a local routine."""
         running_routine = process.qnos_mem.get_running_local_routine(subrt_name)

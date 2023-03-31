@@ -5,12 +5,12 @@ from netsquid.nodes import Node
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiBuilder, UnitModule
-from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
     EprRole,
     EprType,
-    IqoalaRequest,
+    QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
 )
@@ -29,7 +29,7 @@ from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies
 from qoala.sim.netstack.netstack import Netstack
 from qoala.sim.netstack.netstackcomp import NetstackComponent
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.util.tests import B00_DENS, has_multi_state
 
@@ -329,8 +329,8 @@ def create_simple_request(
     virt_ids: RequestVirtIdMapping,
     typ: EprType,
     role: EprRole,
-) -> IqoalaRequest:
-    return IqoalaRequest(
+) -> QoalaRequest:
+    return QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -350,7 +350,7 @@ def simple_req_routine(
     virt_ids: RequestVirtIdMapping,
     typ: EprType,
     role: EprRole,
-) -> IqoalaRequest:
+) -> QoalaRequest:
     return RequestRoutine(
         name="req1",
         request=create_simple_request(remote_id, num_pairs, virt_ids, typ, role),
@@ -364,12 +364,12 @@ def create_process(
     num_qubits: int,
     routines: Optional[Dict[str, LocalRoutine]] = None,
     req_routines: Optional[Dict[str, RequestRoutine]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     if routines is None:
         routines = {}
     if req_routines is None:
         req_routines = {}
-    program = IqoalaProgram(
+    program = QoalaProgram(
         blocks=[],
         local_routines=routines,
         meta=ProgramMeta.empty(""),
@@ -387,7 +387,7 @@ def create_process(
     )
     mem = ProgramMemory(pid=0)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},

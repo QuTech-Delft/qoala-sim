@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.program import QoalaProgram
 from qoala.runtime.schedule import BlockTask
 
 
@@ -31,7 +31,7 @@ class ProgramResult:
 class BatchInfo:
     """Description of a batch of program instances that should be executed."""
 
-    program: IqoalaProgram
+    program: QoalaProgram
     unit_module: UnitModule
     inputs: List[ProgramInput]  # dict of inputs for each iteration
     num_iterations: int
@@ -43,7 +43,7 @@ class ProgramInstance:
     """A program instantiated with Program Inputs and a Unit Module"""
 
     pid: int
-    program: IqoalaProgram
+    program: QoalaProgram
     inputs: ProgramInput
     unit_module: UnitModule
     block_tasks: List[BlockTask]

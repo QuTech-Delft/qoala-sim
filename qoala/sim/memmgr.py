@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.util.logging import LogManager
 
@@ -43,7 +43,7 @@ class MemoryManager:
         ehi: Optional[ExposedHardwareInfo] = None,  # TODO refactor?
     ) -> None:
         self._node_name = node_name
-        self._processes: Dict[int, IqoalaProcess] = {}
+        self._processes: Dict[int, QoalaProcess] = {}
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}({self._node_name})"
         )
@@ -71,14 +71,14 @@ class MemoryManager:
         assert self._ehi is not None  # TODO: already enforce this in constructor?
         return self._ehi
 
-    def add_process(self, process: IqoalaProcess) -> None:
+    def add_process(self, process: QoalaProcess) -> None:
         self._processes[process.pid] = process
         unit_module = process.prog_instance.unit_module
         self._process_mappings[process.pid] = VirtualMapping(
             unit_module, {x: None for x in unit_module.get_all_qubit_ids()}
         )
 
-    def get_process(self, pid: int) -> IqoalaProcess:
+    def get_process(self, pid: int) -> QoalaProcess:
         return self._processes[pid]
 
     def allocate(self, pid: int, virt_id: int) -> int:

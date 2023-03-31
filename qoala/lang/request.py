@@ -99,7 +99,7 @@ class RequestVirtIdMapping:
 
 
 @dataclass(eq=True)
-class IqoalaRequest:
+class QoalaRequest:
     name: str  # TODO: remove?
     remote_id: Union[int, Template]
     epr_socket_id: Union[int, Template]
@@ -147,7 +147,7 @@ class IqoalaRequest:
 @dataclass
 class RequestRoutine:
     name: str
-    request: IqoalaRequest
+    request: QoalaRequest
 
     # host var names
     # TODO: move this to Host side (RR does not need to know this!)

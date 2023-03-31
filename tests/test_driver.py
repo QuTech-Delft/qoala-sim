@@ -2,14 +2,14 @@ import netsquid as ns
 import pytest
 
 from qoala.lang.hostlang import BasicBlockType
-from qoala.lang.parse import IqoalaParser
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.parse import QoalaParser
+from qoala.lang.program import QoalaProgram
 from qoala.runtime.schedule import BlockTask, TaskSchedule, TaskScheduleEntry
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.util.builder import ObjectBuilder
 
 
-def get_pure_host_program() -> IqoalaProgram:
+def get_pure_host_program() -> QoalaProgram:
     program_text = """
 META_START
     name: alice
@@ -25,10 +25,10 @@ META_END
     var_z = assign_cval() : 9
     """
 
-    return IqoalaParser(program_text).parse()
+    return QoalaParser(program_text).parse()
 
 
-def get_lr_program() -> IqoalaProgram:
+def get_lr_program() -> QoalaProgram:
     program_text = """
 META_START
     name: alice
@@ -56,7 +56,7 @@ SUBROUTINE add_one
   NETQASM_END
     """
 
-    return IqoalaParser(program_text).parse()
+    return QoalaParser(program_text).parse()
 
 
 CL = BasicBlockType.CL

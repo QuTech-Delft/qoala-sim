@@ -7,8 +7,8 @@ from typing import Dict, List
 import netsquid as ns
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.parse import IqoalaParser
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.parse import QoalaParser
+from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     ProcNodeConfig,
@@ -100,11 +100,11 @@ class BqcResult:
     client_results: List[Dict[int, BatchResult]]
 
 
-def load_server_program(remote_name: str) -> IqoalaProgram:
+def load_server_program(remote_name: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), "vbqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
-    program = IqoalaParser(server_text).parse()
+    program = QoalaParser(server_text).parse()
 
     # Replace "client" by e.g. "client_1"
     program.meta.csockets[0] = remote_name
@@ -113,11 +113,11 @@ def load_server_program(remote_name: str) -> IqoalaProgram:
     return program
 
 
-def load_client_program() -> IqoalaProgram:
+def load_client_program() -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), "vbqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
-    return IqoalaParser(client_text).parse()
+    return QoalaParser(client_text).parse()
 
 
 def create_server_batch(

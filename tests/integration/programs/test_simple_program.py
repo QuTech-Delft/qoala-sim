@@ -6,8 +6,8 @@ from typing import List
 import netsquid as ns
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.parse import IqoalaParser
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.parse import QoalaParser
+from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     ProcNodeConfig,
@@ -49,11 +49,11 @@ def create_network(
     return build_network(network_cfg, network_info)
 
 
-def load_program() -> IqoalaProgram:
+def load_program() -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), "simple_program.iqoala")
     with open(path) as file:
         text = file.read()
-    program = IqoalaParser(text).parse()
+    program = QoalaParser(text).parse()
 
     return program
 

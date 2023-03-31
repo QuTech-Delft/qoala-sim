@@ -18,8 +18,8 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 from pydynaa import EventExpression
 from qoala.lang.ehi import NetworkEhi, UnitModule
 from qoala.lang.hostlang import RunSubroutineOp
-from qoala.lang.parse import IqoalaParser
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.parse import QoalaParser
+from qoala.lang.program import QoalaProgram
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
@@ -35,18 +35,18 @@ from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.util.tests import has_state
 
 
 def create_process(
     pid: int,
-    program: IqoalaProgram,
+    program: QoalaProgram,
     unit_module: UnitModule,
     host_interface: HostInterface,
     inputs: Optional[Dict[str, Any]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     if inputs is None:
         inputs = {}
     prog_input = ProgramInput(values=inputs)
@@ -59,7 +59,7 @@ def create_process(
     )
     mem = ProgramMemory(pid=0)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={
@@ -145,7 +145,7 @@ class BqcProcNode(ProcNode):
         self.pid = pid
 
     def run_subroutine(
-        self, process: IqoalaProcess, host_instr_index: int, subrt_name: str
+        self, process: QoalaProcess, host_instr_index: int, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
         host_instr = process.program.instructions[host_instr_index]
         assert isinstance(host_instr, RunSubroutineOp)
@@ -160,7 +160,7 @@ class BqcProcNode(ProcNode):
         self.host.processor.post_lr_call(process, host_instr, lrcall)
 
     def run_request(
-        self, process: IqoalaProcess, host_instr_index: int, req_name: str
+        self, process: QoalaProcess, host_instr_index: int, req_name: str
     ) -> Generator[EventExpression, None, None]:
         host_instr = process.program.instructions[host_instr_index]
         rrcall = self.host.processor.prepare_rr_call(process, host_instr)
@@ -275,8 +275,8 @@ class ClientProcNode(BqcProcNode):
 
 @dataclass
 class BqcResult:
-    client_process: IqoalaProcess
-    server_process: IqoalaProcess
+    client_process: QoalaProcess
+    server_process: QoalaProcess
     client_procnode: BqcProcNode
     server_procnode: BqcProcNode
 
@@ -304,7 +304,7 @@ def run_bqc(
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:
         server_text = file.read()
-    server_program = IqoalaParser(server_text).parse()
+    server_program = QoalaParser(server_text).parse()
 
     server_procnode = create_procnode(
         part,
@@ -328,7 +328,7 @@ def run_bqc(
     path = os.path.join(os.path.dirname(__file__), "bqc_client.iqoala")
     with open(path) as file:
         client_text = file.read()
-    client_program = IqoalaParser(client_text).parse()
+    client_program = QoalaParser(client_text).parse()
 
     client_procnode = create_procnode(
         part,

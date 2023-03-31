@@ -25,7 +25,7 @@ from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import Netstack
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qnos import Qnos
 from qoala.util.logging import LogManager
 
@@ -141,7 +141,7 @@ class Scheduler(Protocol):
     def get_batches(self) -> Dict[int, ProgramBatch]:
         return self._batches
 
-    def create_process(self, prog_instance: ProgramInstance) -> IqoalaProcess:
+    def create_process(self, prog_instance: ProgramInstance) -> QoalaProcess:
         prog_memory = ProgramMemory(prog_instance.pid)
         meta = prog_instance.program.meta
 
@@ -160,7 +160,7 @@ class Scheduler(Protocol):
 
         result = ProgramResult(values={})
 
-        return IqoalaProcess(
+        return QoalaProcess(
             prog_instance=prog_instance,
             prog_memory=prog_memory,
             csockets=csockets,
@@ -188,7 +188,7 @@ class Scheduler(Protocol):
         self.collect_batch_results()
         return self._batch_results
 
-    def initialize_process(self, process: IqoalaProcess) -> None:
+    def initialize_process(self, process: QoalaProcess) -> None:
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
 

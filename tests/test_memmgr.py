@@ -5,11 +5,11 @@ from typing import List, Set, Tuple
 import pytest
 
 from qoala.lang.ehi import EhiBuilder, UnitModule
-from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.sim.memmgr import AllocError, MemoryManager
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 
 
@@ -38,8 +38,8 @@ class MockQDevice(QDevice):
         pass
 
 
-def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
-    program = IqoalaProgram(
+def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
+    program = QoalaProgram(
         blocks=[],
         local_routines={},
         meta=ProgramMeta.empty("prog"),
@@ -53,7 +53,7 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     )
     mem = ProgramMemory(pid=pid)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},

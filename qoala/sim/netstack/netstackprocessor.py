@@ -20,14 +20,14 @@ from qlink_interface import (
 )
 
 from pydynaa import EventExpression
-from qoala.lang.request import CallbackType, EprRole, EprType, IqoalaRequest
+from qoala.lang.request import CallbackType, EprRole, EprType, QoalaRequest
 from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos.qnosprocessor import QnosProcessor
 from qoala.sim.requests import (
@@ -76,9 +76,7 @@ class NetstackProcessor:
         prog_mem = self._interface.memmgr.get_process(pid).prog_memory
         return prog_mem.shared_mem
 
-    def _create_link_layer_create_request(
-        self, request: IqoalaRequest
-    ) -> ReqCreateBase:
+    def _create_link_layer_create_request(self, request: QoalaRequest) -> ReqCreateBase:
         """Construct a link layer request from application request info.
 
         :param remote_id: ID of remote node
@@ -110,9 +108,9 @@ class NetstackProcessor:
         return ll_request
 
     def assign(
-        self, process: IqoalaProcess, request: Union[T_NetstackRequest, IqoalaRequest]
+        self, process: QoalaProcess, request: Union[T_NetstackRequest, QoalaRequest]
     ) -> Generator[EventExpression, None, None]:
-        if isinstance(request, IqoalaRequest):
+        if isinstance(request, QoalaRequest):
             if request.role == EprRole.CREATE:
                 yield from self.handle_create_request(process, request)
                 self._logger.debug("create request done")
@@ -131,7 +129,7 @@ class NetstackProcessor:
             raise RuntimeError
 
     def handle_create_request(
-        self, process: IqoalaProcess, req: IqoalaRequest
+        self, process: QoalaProcess, req: QoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Issue a request to create entanglement with a remote node.
 
@@ -158,7 +156,7 @@ class NetstackProcessor:
             raise RuntimeError
 
     def handle_create_ck_request(
-        self, process: IqoalaProcess, req: IqoalaRequest
+        self, process: QoalaProcess, req: QoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Handle a Create and Keep request as the initiator/creator, until all
         pairs have been created.
@@ -212,8 +210,8 @@ class NetstackProcessor:
 
     def create_single_pair(
         self,
-        process: IqoalaProcess,
-        request: IqoalaRequest,
+        process: QoalaProcess,
+        request: QoalaRequest,
         virt_id: int,
         wait_for_free: bool = False,
     ) -> Generator[EventExpression, None, ResCreateAndKeep]:
@@ -274,7 +272,7 @@ class NetstackProcessor:
 
     def write_pair_result(
         self,
-        process: IqoalaProcess,
+        process: QoalaProcess,
         ll_result: ResCreateAndKeep,
         pair_index: int,
         array_addr: int,
@@ -384,7 +382,7 @@ class NetstackProcessor:
     #     self._interface.send_qnos_msg(Message(content="wrote to array"))
 
     def handle_receive_ck_request(
-        self, process: IqoalaProcess, req: IqoalaRequest
+        self, process: QoalaProcess, req: QoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Handle a Create and Keep request as the receiver, until all pairs have
         been created.
@@ -433,8 +431,8 @@ class NetstackProcessor:
 
     def receive_single_pair(
         self,
-        process: IqoalaProcess,
-        request: IqoalaRequest,
+        process: QoalaProcess,
+        request: QoalaRequest,
         virt_id: int,
         wait_for_free: bool = False,
     ) -> Generator[EventExpression, None, ResCreateAndKeep]:
@@ -541,7 +539,7 @@ class NetstackProcessor:
     #         self._interface.send_qnos_msg(Message(content="wrote to array"))
 
     def handle_receive_request(
-        self, process: IqoalaProcess, req: IqoalaRequest
+        self, process: QoalaProcess, req: QoalaRequest
     ) -> Generator[EventExpression, None, None]:
         """Issue a request to receive entanglement from a remote node.
 
@@ -670,7 +668,7 @@ class NetstackProcessor:
             raise RuntimeError("Request was not served")
 
     def allocate_for_pair(
-        self, process: IqoalaProcess, request: IqoalaRequest, index: int
+        self, process: QoalaProcess, request: QoalaRequest, index: int
     ) -> int:
         memmgr = self._interface.memmgr
         pid = process.pid
@@ -681,7 +679,7 @@ class NetstackProcessor:
         return virt_id
 
     def create_entdist_request(
-        self, process: IqoalaProcess, request: IqoalaRequest, virt_id: int
+        self, process: QoalaProcess, request: QoalaRequest, virt_id: int
     ) -> EntDistRequest:
         memmgr = self._interface.memmgr
         pid = process.pid
@@ -694,7 +692,7 @@ class NetstackProcessor:
         )
 
     def measure_epr_qubit(
-        self, process: IqoalaProcess, virt_id: int
+        self, process: QoalaProcess, virt_id: int
     ) -> Generator[EventExpression, None, int]:
         phys_id = self._interface.memmgr.phys_id_for(process.pid, virt_id)
         # Should have been allocated by `handle_req_routine_md`
@@ -707,7 +705,7 @@ class NetstackProcessor:
         return m
 
     def handle_req_routine_md(
-        self, process: IqoalaProcess, routine_name: str
+        self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -737,7 +735,7 @@ class NetstackProcessor:
 
     def handle_req_routine_ck(
         self,
-        process: IqoalaProcess,
+        process: QoalaProcess,
         routine_name: str,
         qnosprocessor: Optional[QnosProcessor] = None,
     ) -> Generator[EventExpression, None, None]:
@@ -809,7 +807,7 @@ class NetstackProcessor:
 
     def instantiate_routine(
         self,
-        process: IqoalaProcess,
+        process: QoalaProcess,
         rrcall: RrCallTuple,
         args: Dict[str, Any],
     ) -> None:
@@ -829,7 +827,7 @@ class NetstackProcessor:
 
     def assign_request_routine(
         self,
-        process: IqoalaProcess,
+        process: QoalaProcess,
         rrcall: RrCallTuple,
         qnosprocessor: Optional[QnosProcessor] = None,
     ) -> Generator[EventExpression, None, None]:

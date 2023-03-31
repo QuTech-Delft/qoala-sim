@@ -7,8 +7,8 @@ from typing import Dict, List
 import netsquid as ns
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.parse import IqoalaParser
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.parse import QoalaParser
+from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     ProcNodeConfig,
@@ -39,15 +39,15 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     )
 
 
-def load_program(path: str) -> IqoalaProgram:
+def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return IqoalaParser(text).parse()
+    return QoalaParser(text).parse()
 
 
 def create_batch(
-    program: IqoalaProgram,
+    program: QoalaProgram,
     unit_module: UnitModule,
     inputs: List[ProgramInput],
     num_iterations: int,

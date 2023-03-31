@@ -14,7 +14,7 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
@@ -94,7 +94,7 @@ def test_serialize_host_code_1():
         ],
     )
 
-    program = IqoalaProgram(meta=ProgramMeta.empty("alice"), blocks=[b0, b1, b2])
+    program = QoalaProgram(meta=ProgramMeta.empty("alice"), blocks=[b0, b1, b2])
     assert text_equal(program.serialize_host_code(), expected)
 
 
@@ -129,7 +129,7 @@ SUBROUTINE subrt1
         return_vars=["m"],
         metadata=RoutineMetadata.free_all([0]),
     )
-    program = IqoalaProgram(
+    program = QoalaProgram(
         meta=ProgramMeta.empty("alice"),
         blocks=[],
         local_routines={"subrt1": subrt},
@@ -185,7 +185,7 @@ SUBROUTINE subrt2
         return_vars=[],
         metadata=RoutineMetadata.use_none(),
     )
-    program = IqoalaProgram(
+    program = QoalaProgram(
         meta=ProgramMeta.empty("alice"),
         blocks=[],
         local_routines={"subrt1": subrt1, "subrt2": subrt2},
@@ -260,7 +260,7 @@ SUBROUTINE subrt1
         metadata=RoutineMetadata.free_all([0]),
     )
 
-    program = IqoalaProgram(
+    program = QoalaProgram(
         meta=meta, blocks=[b0, b1, b2], local_routines={"subrt1": subrt}
     )
 

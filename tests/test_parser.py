@@ -15,9 +15,9 @@ from qoala.lang.parse import (
     HostCodeParser,
     IqoalaInstrParser,
     IqoalaMetaParser,
-    IqoalaParseError,
-    IqoalaParser,
     LocalRoutineParser,
+    QoalaParseError,
+    QoalaParser,
     RequestRoutineParser,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta
@@ -25,7 +25,7 @@ from qoala.lang.request import (
     CallbackType,
     EprRole,
     EprType,
-    IqoalaRequest,
+    QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
 )
@@ -42,7 +42,7 @@ csockets: 0 -> bob
 META_END
     """
 
-    with pytest.raises(IqoalaParseError):
+    with pytest.raises(QoalaParseError):
         IqoalaMetaParser(text).parse()
 
 
@@ -55,7 +55,7 @@ csockets: 0 -> bob
 epr_sockets: 
     """
 
-    with pytest.raises(IqoalaParseError):
+    with pytest.raises(QoalaParseError):
         IqoalaMetaParser(text).parse()
 
 
@@ -125,7 +125,7 @@ def test_parse_faulty_instr():
 x = assign_cval
     """
 
-    with pytest.raises(IqoalaParseError):
+    with pytest.raises(QoalaParseError):
         IqoalaInstrParser(text).parse()
 
 
@@ -375,7 +375,7 @@ SUBROUTINE my_subroutine
   NETQASM_END
     """
 
-    with pytest.raises(IqoalaParseError):
+    with pytest.raises(QoalaParseError):
         LocalRoutineParser(text).parse()
 
 
@@ -406,7 +406,7 @@ REQUEST req1
         return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req1",
             remote_id=1,
             epr_socket_id=0,
@@ -448,7 +448,7 @@ REQUEST req1
         return_vars=[],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req1",
             remote_id=1,
             epr_socket_id=0,
@@ -490,7 +490,7 @@ REQUEST req1
         return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req1",
             remote_id=Template("client_id"),
             epr_socket_id=0,
@@ -548,7 +548,7 @@ REQUEST req2
         return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req1",
             remote_id=1,
             epr_socket_id=0,
@@ -566,7 +566,7 @@ REQUEST req2
         return_vars=[],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req2",
             remote_id=1,
             epr_socket_id=0,
@@ -600,7 +600,7 @@ REQUEST req1
 
     # invalid 'typ' value
 
-    with pytest.raises(IqoalaParseError):
+    with pytest.raises(QoalaParseError):
         RequestRoutineParser(text).parse()
 
 
@@ -674,7 +674,7 @@ REQUEST req1
   result_array_addr: 0
     """
 
-    parsed_program = IqoalaParser(
+    parsed_program = QoalaParser(
         meta_text=meta_text,
         host_text=program_text,
         subrt_text=subrt_text,
@@ -731,7 +731,7 @@ SUBROUTINE subrt1
     req_text = """
     """
 
-    parsed_program = IqoalaParser(
+    parsed_program = QoalaParser(
         meta_text=meta_text,
         host_text=program_text,
         subrt_text=subrt_text,
@@ -770,7 +770,7 @@ META_END
     req_text = """
     """
 
-    parsed_program = IqoalaParser(
+    parsed_program = QoalaParser(
         meta_text=meta_text,
         host_text=program_text,
         subrt_text=subrt_text,
@@ -812,8 +812,8 @@ SUBROUTINE subrt1
   NETQASM_END
     """
 
-    with pytest.raises(IqoalaParseError):
-        IqoalaParser(
+    with pytest.raises(QoalaParseError):
+        QoalaParser(
             meta_text=meta_text,
             host_text=program_text,
             subrt_text=subrt_text,
@@ -852,8 +852,8 @@ SUBROUTINE subrt1
   NETQASM_END
     """
 
-    with pytest.raises(IqoalaParseError):
-        IqoalaParser(
+    with pytest.raises(QoalaParseError):
+        QoalaParser(
             meta_text=meta_text,
             host_text=program_text,
             subrt_text=subrt_text,
@@ -904,7 +904,7 @@ REQUEST req1
     """
 
     text = meta_text + host_text + subrt_text + req_text
-    parser = IqoalaParser(text)
+    parser = QoalaParser(text)
 
     assert text_equal(parser._meta_text, meta_text)
     assert text_equal(parser._host_text, host_text)
@@ -951,7 +951,7 @@ SUBROUTINE subrt2
     """
 
     text = meta_text + host_text + subrt_text
-    parser = IqoalaParser(text)
+    parser = QoalaParser(text)
 
     assert text_equal(parser._meta_text, meta_text)
     assert text_equal(parser._host_text, host_text)
@@ -992,7 +992,7 @@ REQUEST req1
         """
 
     text = meta_text + host_text + req_text
-    parser = IqoalaParser(text)
+    parser = QoalaParser(text)
 
     assert text_equal(parser._meta_text, meta_text)
     assert text_equal(parser._host_text, host_text)
@@ -1034,7 +1034,7 @@ SUBROUTINE subrt1
   NETQASM_END
     """
 
-    parsed_program = IqoalaParser(text).parse()
+    parsed_program = QoalaParser(text).parse()
     assert len(parsed_program.blocks) == 3
     assert len(parsed_program.instructions) == 8
     assert "subrt1" in parsed_program.local_routines
@@ -1044,7 +1044,7 @@ def test_parse_file():
     path = os.path.join(os.path.dirname(__file__), "test_parse_server.iqoala")
     with open(path) as file:
         text = file.read()
-    parsed_program = IqoalaParser(text).parse()
+    parsed_program = QoalaParser(text).parse()
     assert len(parsed_program.blocks) == 9
     assert len(parsed_program.instructions) == 11
     assert "create_epr_0" in parsed_program.local_routines
@@ -1062,7 +1062,7 @@ def test_parse_file_2():
     path = os.path.join(os.path.dirname(__file__), "test_parse_client.iqoala")
     with open(path) as file:
         text = file.read()
-    parsed_program = IqoalaParser(text).parse()
+    parsed_program = QoalaParser(text).parse()
     assert len(parsed_program.blocks) == 6
     assert len(parsed_program.instructions) == 19
     assert "create_epr_0" in parsed_program.local_routines

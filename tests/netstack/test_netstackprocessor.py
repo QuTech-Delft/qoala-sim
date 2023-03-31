@@ -20,8 +20,8 @@ from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
-from qoala.lang.program import IqoalaProgram, ProgramMeta
-from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
+from qoala.lang.program import ProgramMeta, QoalaProgram
+from qoala.lang.request import EprRole, EprType, QoalaRequest, RequestVirtIdMapping
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -34,7 +34,7 @@ from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.util.constants import PI
 from qoala.util.tests import netsquid_run
@@ -130,10 +130,8 @@ def star_topology(num_qubits: int) -> LhiTopology:
     )
 
 
-def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
-    program = IqoalaProgram(
-        blocks=[], local_routines={}, meta=ProgramMeta.empty("prog")
-    )
+def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
+    program = QoalaProgram(blocks=[], local_routines={}, meta=ProgramMeta.empty("prog"))
     instance = ProgramInstance(
         pid=pid,
         program=program,
@@ -143,7 +141,7 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     )
     mem = ProgramMemory(pid=pid)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},
@@ -166,7 +164,7 @@ def test_create_link_layer_create_request():
     fidelity = 0.75
     result_array = 5
 
-    request_ck = IqoalaRequest(
+    request_ck = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -185,7 +183,7 @@ def test_create_link_layer_create_request():
         remote_node_id=remote_id, minimum_fidelity=fidelity, number=num_pairs
     )
 
-    request_md = IqoalaRequest(
+    request_md = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -204,7 +202,7 @@ def test_create_link_layer_create_request():
         remote_node_id=remote_id, minimum_fidelity=fidelity, number=num_pairs
     )
 
-    request_rsp = IqoalaRequest(
+    request_rsp = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -240,7 +238,7 @@ def test_create_single_pair_1():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = IqoalaRequest(
+    request = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -330,7 +328,7 @@ def test_create_single_pair_2():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = IqoalaRequest(
+    request = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -461,7 +459,7 @@ def test_handle_create_ck_request():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = IqoalaRequest(
+    request = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -501,7 +499,7 @@ def test_handle_create_ck_request_invalid_virt_ids():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = IqoalaRequest(
+    request = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -541,7 +539,7 @@ def test_receive_single_pair_1():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = IqoalaRequest(
+    request = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -626,7 +624,7 @@ def test_receive_single_pair_2():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = IqoalaRequest(
+    request = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -706,7 +704,7 @@ def test_handle_receive_ck_request():
     fidelity = 0.75
     result_array_addr = 0
 
-    request = IqoalaRequest(
+    request = QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -732,8 +730,8 @@ def test_handle_receive_ck_request():
 
 def create_simple_request(
     remote_id: int, num_pairs: int, virt_ids: RequestVirtIdMapping
-) -> IqoalaRequest:
-    return IqoalaRequest(
+) -> QoalaRequest:
+    return QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,

@@ -18,7 +18,7 @@ from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.host.hostinterface import HostLatencies
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import Netstack, NetstackComponent, NetstackLatencies
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import Qnos, QnosComponent, QnosLatencies
@@ -253,7 +253,7 @@ class ProcNode(Protocol):
     def initialize_processes(self) -> None:
         self.scheduler.create_processes_for_batches()
 
-    def add_process(self, process: IqoalaProcess) -> None:
+    def add_process(self, process: QoalaProcess) -> None:
         self.memmgr.add_process(process)
 
     def get_batches(self) -> Dict[int, ProgramBatch]:

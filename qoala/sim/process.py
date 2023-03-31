@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict
 
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.program import QoalaProgram
 from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import HostMemory, ProgramMemory, QnosMemory, SharedMemory
@@ -22,7 +22,7 @@ class RoutineInstance:
 
 
 @dataclass
-class IqoalaProcess:
+class QoalaProcess:
     prog_instance: ProgramInstance
 
     # Mutable
@@ -50,7 +50,7 @@ class IqoalaProcess:
         return self.prog_instance.pid  # type: ignore
 
     @property
-    def program(self) -> IqoalaProgram:
+    def program(self) -> QoalaProgram:
         return self.prog_instance.program
 
     @property

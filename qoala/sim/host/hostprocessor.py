@@ -11,7 +11,7 @@ from qoala.lang.request import CallbackType
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.util.logging import LogManager
 
 
@@ -34,28 +34,28 @@ class HostProcessor:
             f"{self.__class__.__name__}({self._name})"
         )
 
-    def initialize(self, process: IqoalaProcess) -> None:
+    def initialize(self, process: QoalaProcess) -> None:
         host_mem = process.prog_memory.host_mem
         inputs = process.prog_instance.inputs
         for name, value in inputs.values.items():
             host_mem.write(name, value)
 
     def assign_instr_index(
-        self, process: IqoalaProcess, instr_idx: int
+        self, process: QoalaProcess, instr_idx: int
     ) -> Generator[EventExpression, None, None]:
         program = process.prog_instance.program
         instr = program.instructions[instr_idx]
         yield from self.assign_instr(process, instr)
 
     def assign_block(
-        self, process: IqoalaProcess, block_name: str
+        self, process: QoalaProcess, block_name: str
     ) -> Generator[EventExpression, None, None]:
         block = process.program.get_block(block_name)
         for instr in block.instructions:
             yield from self.assign_instr(process, instr)
 
     def assign_instr(
-        self, process: IqoalaProcess, instr: hostlang.ClassicalIqoalaOp
+        self, process: QoalaProcess, instr: hostlang.ClassicalIqoalaOp
     ) -> Generator[EventExpression, None, None]:
         csockets = process.csockets
         host_mem = process.prog_memory.host_mem
@@ -175,7 +175,7 @@ class HostProcessor:
             process.result.values[loc] = value
 
     def prepare_lr_call(
-        self, process: IqoalaProcess, instr: hostlang.RunSubroutineOp
+        self, process: QoalaProcess, instr: hostlang.RunSubroutineOp
     ) -> LrCallTuple:
         host_mem = process.prog_memory.host_mem
 
@@ -206,7 +206,7 @@ class HostProcessor:
 
     def post_lr_call(
         self,
-        process: IqoalaProcess,
+        process: QoalaProcess,
         instr: hostlang.RunSubroutineOp,
         lrcall: LrCallTuple,
     ) -> None:
@@ -231,7 +231,7 @@ class HostProcessor:
             process.host_mem.write(var, value)
 
     def prepare_rr_call(
-        self, process: IqoalaProcess, instr: hostlang.RunRequestOp
+        self, process: QoalaProcess, instr: hostlang.RunRequestOp
     ) -> RrCallTuple:
         host_mem = process.prog_memory.host_mem
 
@@ -301,7 +301,7 @@ class HostProcessor:
         )
 
     def post_rr_call(
-        self, process: IqoalaProcess, instr: hostlang.RunRequestOp, rrcall: RrCallTuple
+        self, process: QoalaProcess, instr: hostlang.RunRequestOp, rrcall: RrCallTuple
     ) -> None:
         shared_mem = process.prog_memory.shared_memmgr
         routine = process.get_request_routine(rrcall.routine_name)

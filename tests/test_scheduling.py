@@ -6,8 +6,8 @@ from netqasm.lang.instr.flavour import core
 
 from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
 from qoala.lang.hostlang import BasicBlockType
-from qoala.lang.parse import IqoalaParser
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.parse import QoalaParser
+from qoala.lang.program import QoalaProgram
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
     LhiLatencies,
@@ -28,11 +28,11 @@ from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
 
 
-def load_program(path: str) -> IqoalaProgram:
+def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return IqoalaParser(text).parse()
+    return QoalaParser(text).parse()
 
 
 def setup_network() -> ProcNodeNetwork:
@@ -52,7 +52,7 @@ def setup_network() -> ProcNodeNetwork:
 
 
 def instantiate(
-    program: IqoalaProgram,
+    program: QoalaProgram,
     ehi: ExposedHardwareInfo,
     pid: int = 0,
     inputs: Optional[ProgramInput] = None,

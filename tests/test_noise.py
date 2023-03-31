@@ -24,7 +24,7 @@ from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
@@ -33,7 +33,7 @@ from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import (
     GenericProcessor,
@@ -93,17 +93,17 @@ def setup_noisy_components(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
 def create_program(
     subroutines: Optional[Dict[str, LocalRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
-) -> IqoalaProgram:
+) -> QoalaProgram:
     if subroutines is None:
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(blocks=[], local_routines=subroutines, meta=meta)
+    return QoalaProgram(blocks=[], local_routines=subroutines, meta=meta)
 
 
 def create_process(
-    pid: int, program: IqoalaProgram, unit_module: UnitModule
-) -> IqoalaProcess:
+    pid: int, program: QoalaProgram, unit_module: UnitModule
+) -> QoalaProcess:
     instance = ProgramInstance(
         pid=pid,
         program=program,
@@ -113,7 +113,7 @@ def create_process(
     )
     mem = ProgramMemory(pid=pid)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},
@@ -129,7 +129,7 @@ def create_process_with_subrt(
     unit_module: UnitModule,
     uses: Optional[List[int]] = None,
     keeps: Optional[List[int]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     if uses is None:
         uses = []
     if keeps is None:
@@ -143,7 +143,7 @@ def create_process_with_subrt(
     return create_process(pid, program, unit_module)
 
 
-def set_new_subroutine(process: IqoalaProcess, subrt_text: str) -> None:
+def set_new_subroutine(process: QoalaProcess, subrt_text: str) -> None:
     subrt = parse_text_subroutine(subrt_text)
     metadata = RoutineMetadata.use_none()
     iqoala_subrt = LocalRoutine("subrt", subrt, return_vars=[], metadata=metadata)

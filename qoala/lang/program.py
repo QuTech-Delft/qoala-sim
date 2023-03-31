@@ -29,7 +29,7 @@ class ProgramMeta:
         return s
 
 
-class IqoalaProgram:
+class QoalaProgram:
     def __init__(
         self,
         meta: ProgramMeta,

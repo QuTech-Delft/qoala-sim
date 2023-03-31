@@ -8,8 +8,8 @@
 # from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
 
 # from qoala.lang.ehi import UnitModule
-# from qoala.lang.parse import IqoalaParser
-# from qoala.lang.program import IqoalaProgram
+# from qoala.lang.parse import QoalaParser
+# from qoala.lang.program import QoalaProgram
 # from qoala.runtime.config import (
 #     LatenciesConfig,
 #     NVQDeviceConfig,
@@ -43,15 +43,15 @@
 #     )
 
 
-# def load_program(path: str) -> IqoalaProgram:
+# def load_program(path: str) -> QoalaProgram:
 #     path = os.path.join(os.path.dirname(__file__), path)
 #     with open(path) as file:
 #         text = file.read()
-#     return IqoalaParser(text, flavour=NVFlavour()).parse()
+#     return QoalaParser(text, flavour=NVFlavour()).parse()
 
 
 # def create_batch(
-#     program: IqoalaProgram,
+#     program: QoalaProgram,
 #     unit_module: UnitModule,
 #     inputs: List[ProgramInput],
 #     num_iterations: int,

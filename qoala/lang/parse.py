@@ -7,12 +7,12 @@ from netqasm.lang.operand import Template
 from netqasm.lang.parsing.text import parse_text_subroutine
 
 from qoala.lang import hostlang as hl
-from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
     EprRole,
     EprType,
-    IqoalaRequest,
+    QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
 )
@@ -38,7 +38,7 @@ class EndOfTextException(Exception):
     pass
 
 
-class IqoalaParseError(Exception):
+class QoalaParseError(Exception):
     pass
 
 
@@ -100,11 +100,11 @@ class IqoalaMetaParser:
 
             end_line = self._read_line()
             if end_line != "META_END":
-                raise IqoalaParseError("Could not parse meta.")
+                raise QoalaParseError("Could not parse meta.")
         except AssertionError:
-            raise IqoalaParseError
+            raise QoalaParseError
         except EndOfTextException:
-            raise IqoalaParseError
+            raise QoalaParseError
 
         return ProgramMeta(name, parameters, csockets, epr_sockets)
 
@@ -190,7 +190,7 @@ class IqoalaInstrParser:
                 instr = self._parse_lhr()
                 instructions.append(instr)
         except AssertionError:
-            raise IqoalaParseError
+            raise QoalaParseError
         except EndOfTextException:
             pass
 
@@ -323,7 +323,7 @@ class LocalRoutineParser:
 
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
-            raise IqoalaParseError
+            raise QoalaParseError
         return LocalRoutine(name, subrt, return_vars, metadata, request_name)
 
     def parse(self) -> Dict[str, LocalRoutine]:
@@ -334,7 +334,7 @@ class LocalRoutineParser:
                     subrt = self._parse_subroutine()
                     subroutines[subrt.name] = subrt
                 except AssertionError:
-                    raise IqoalaParseError
+                    raise QoalaParseError
         except EndOfTextException:
             return subroutines
 
@@ -376,7 +376,7 @@ class RequestRoutineParser:
     ) -> Union[int, Template]:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
-            raise IqoalaParseError
+            raise QoalaParseError
         value = strings[0]
         if allow_template:
             if value.startswith("{") and value.endswith("}"):
@@ -400,7 +400,7 @@ class RequestRoutineParser:
     ) -> Union[float, Template]:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
-            raise IqoalaParseError
+            raise QoalaParseError
         value = strings[0]
         if allow_template:
             if value.startswith("{") and value.endswith("}"):
@@ -411,20 +411,20 @@ class RequestRoutineParser:
     def _parse_epr_create_role_value(self, key: str, line: str) -> EprRole:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
-            raise IqoalaParseError
+            raise QoalaParseError
         try:
             return EprRole[strings[0].upper()]
         except KeyError:
-            raise IqoalaParseError
+            raise QoalaParseError
 
     def _parse_epr_create_type_value(self, key: str, line: str) -> EprType:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
-            raise IqoalaParseError
+            raise QoalaParseError
         try:
             return EprType[strings[0].upper()]
         except KeyError:
-            raise IqoalaParseError
+            raise QoalaParseError
 
     def _parse_virt_ids(self, key: str, line: str) -> RequestVirtIdMapping:
         split = line.split(":")
@@ -436,7 +436,7 @@ class RequestRoutineParser:
     def _parse_request(self) -> RequestRoutine:
         name_line = self._read_line()
         if not name_line.startswith("REQUEST "):
-            raise IqoalaParseError
+            raise QoalaParseError
         name = name_line[len("REQUEST") + 1 :]
 
         raw_callback_type = self._parse_request_line("callback_type", self._read_line())
@@ -470,7 +470,7 @@ class RequestRoutineParser:
             "result_array_addr", self._read_line()
         )
 
-        request = IqoalaRequest(
+        request = QoalaRequest(
             name=name,
             remote_id=remote_id,
             epr_socket_id=epr_socket_id,
@@ -494,7 +494,7 @@ class RequestRoutineParser:
             return requests
 
 
-class IqoalaParser:
+class QoalaParser:
     def __init__(
         self,
         text: Optional[str] = None,
@@ -566,7 +566,7 @@ class IqoalaParser:
 
         return meta_text, host_text, subrt_text, req_text
 
-    def parse(self) -> IqoalaProgram:
+    def parse(self) -> QoalaProgram:
         blocks = self._host_parser.parse()
         subroutines = self._subrt_parser.parse()
         requests = self._req_parser.parse()
@@ -579,10 +579,10 @@ class IqoalaParser:
                 if isinstance(instr, hl.RunSubroutineOp):
                     subrt_name = instr.subroutine
                     if subrt_name not in subroutines:
-                        raise IqoalaParseError
+                        raise QoalaParseError
                 elif isinstance(instr, hl.RunRequestOp):
                     req_name = instr.req_routine
                     if req_name not in requests:
-                        raise IqoalaParseError
+                        raise QoalaParseError
 
-        return IqoalaProgram(meta, blocks, subroutines, requests)
+        return QoalaProgram(meta, blocks, subroutines, requests)

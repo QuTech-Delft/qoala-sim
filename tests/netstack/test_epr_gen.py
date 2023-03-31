@@ -29,8 +29,8 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
-from qoala.lang.program import IqoalaProgram, ProgramMeta
-from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
+from qoala.lang.program import ProgramMeta, QoalaProgram
+from qoala.lang.request import EprRole, EprType, QoalaRequest, RequestVirtIdMapping
 from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
@@ -51,7 +51,7 @@ from qoala.sim.netstack import (
     NetstackLatencies,
     NetstackProcessor,
 )
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.util.tests import has_multi_state
 
@@ -104,10 +104,8 @@ def perfect_nv_star_qdevice(node_name: str, num_qubits: int) -> QDevice:
     return QDevice(node=node, topology=topology)
 
 
-def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
-    program = IqoalaProgram(
-        blocks=[], local_routines={}, meta=ProgramMeta.empty("prog")
-    )
+def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
+    program = QoalaProgram(blocks=[], local_routines={}, meta=ProgramMeta.empty("prog"))
     instance = ProgramInstance(
         pid=pid,
         program=program,
@@ -117,7 +115,7 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
     )
     mem = ProgramMemory(pid=pid)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},
@@ -202,8 +200,8 @@ def create_egp_protocols(
     return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
 
 
-def make_create_request(remote_id: int) -> IqoalaRequest:
-    return IqoalaRequest(
+def make_create_request(remote_id: int) -> QoalaRequest:
+    return QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -217,8 +215,8 @@ def make_create_request(remote_id: int) -> IqoalaRequest:
     )
 
 
-def make_receive_request(remote_id: int) -> IqoalaRequest:
-    return IqoalaRequest(
+def make_receive_request(remote_id: int) -> QoalaRequest:
+    return QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,
@@ -250,7 +248,7 @@ def test_single_pair():
     fidelity = 0.75
     result_array_addr = 0
 
-    alice_request = IqoalaRequest(
+    alice_request = QoalaRequest(
         name="req",
         remote_id=bob_node.ID,
         epr_socket_id=0,
@@ -262,7 +260,7 @@ def test_single_pair():
         role=EprRole.CREATE,
         result_array_addr=result_array_addr,
     )
-    bob_request = IqoalaRequest(
+    bob_request = QoalaRequest(
         name="req",
         remote_id=alice_node.ID,
         epr_socket_id=0,
@@ -350,7 +348,7 @@ def test_handle_ck_request():
     fidelity = 0.75
     result_array_addr = 0
 
-    alice_request = IqoalaRequest(
+    alice_request = QoalaRequest(
         name="req",
         remote_id=bob_node.ID,
         epr_socket_id=0,
@@ -363,7 +361,7 @@ def test_handle_ck_request():
         result_array_addr=result_array_addr,
     )
 
-    bob_request = IqoalaRequest(
+    bob_request = QoalaRequest(
         name="req",
         remote_id=alice_node.ID,
         epr_socket_id=0,
@@ -398,7 +396,7 @@ def test_handle_ck_request():
             return self._pid
 
         @property
-        def process(self) -> IqoalaProcess:
+        def process(self) -> QoalaProcess:
             return self._process
 
         @property
@@ -502,7 +500,7 @@ def test_two_requests():
             self,
             name: str,
             processor: NetstackProcessor,
-            processes: Dict[int, IqoalaProcess],
+            processes: Dict[int, QoalaProcess],
         ) -> None:
             super().__init__(name)
             self._processor = processor
@@ -510,7 +508,7 @@ def test_two_requests():
             self._processes = processes
 
         @property
-        def processes(self) -> Dict[int, IqoalaProcess]:
+        def processes(self) -> Dict[int, QoalaProcess]:
             return self._processes
 
         @property
@@ -637,7 +635,7 @@ def test_handle_request():
             self,
             name: str,
             processor: NetstackProcessor,
-            processes: Dict[int, IqoalaProcess],
+            processes: Dict[int, QoalaProcess],
         ) -> None:
             super().__init__(name)
             self._processor = processor
@@ -645,7 +643,7 @@ def test_handle_request():
             self._processes = processes
 
         @property
-        def processes(self) -> Dict[int, IqoalaProcess]:
+        def processes(self) -> Dict[int, QoalaProcess]:
             return self._processes
 
         @property
@@ -776,7 +774,7 @@ def test_4_with_latencies():
             self,
             name: str,
             processor: NetstackProcessor,
-            processes: Dict[int, IqoalaProcess],
+            processes: Dict[int, QoalaProcess],
         ) -> None:
             super().__init__(name)
             self._processor = processor
@@ -784,7 +782,7 @@ def test_4_with_latencies():
             self._processes = processes
 
         @property
-        def processes(self) -> Dict[int, IqoalaProcess]:
+        def processes(self) -> Dict[int, QoalaProcess]:
             return self._processes
 
         @property

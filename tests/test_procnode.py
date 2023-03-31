@@ -30,13 +30,13 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.parse import IqoalaParser, LocalRoutineParser
-from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.parse import LocalRoutineParser, QoalaParser
+from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
     EprRole,
     EprType,
-    IqoalaRequest,
+    QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
 )
@@ -60,7 +60,7 @@ from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos import QnosInterface
@@ -275,7 +275,7 @@ def create_program(
     subroutines: Optional[Dict[str, LocalRoutine]] = None,
     req_routines: Optional[Dict[str, RequestRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
-) -> IqoalaProgram:
+) -> QoalaProgram:
     if instrs is None:
         instrs = []
     if subroutines is None:
@@ -287,7 +287,7 @@ def create_program(
         meta = ProgramMeta.empty("prog")
     # TODO: split into proper blocks
     block = BasicBlock("b0", BasicBlockType.CL, instrs)
-    return IqoalaProgram(
+    return QoalaProgram(
         blocks=[block],
         local_routines=subroutines,
         meta=meta,
@@ -297,11 +297,11 @@ def create_program(
 
 def create_process(
     pid: int,
-    program: IqoalaProgram,
+    program: QoalaProgram,
     unit_module: UnitModule,
     host_interface: HostInterface,
     inputs: Optional[Dict[str, Any]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     if inputs is None:
         inputs = {}
     prog_input = ProgramInput(values=inputs)
@@ -314,7 +314,7 @@ def create_process(
     )
     mem = ProgramMemory(pid=0)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={
@@ -452,7 +452,7 @@ def test_initialize():
         return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req1",
             remote_id=1,
             epr_socket_id=0,
@@ -825,7 +825,7 @@ def test_epr():
         return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req1",
             remote_id=bob_id,
             epr_socket_id=0,
@@ -844,7 +844,7 @@ def test_epr():
         return_vars=[],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
-        request=IqoalaRequest(
+        request=QoalaRequest(
             name="req1",
             remote_id=alice_id,
             epr_socket_id=0,
@@ -962,7 +962,7 @@ REQUEST req1
   role: receive
   result_array_addr: 0
     """
-    server_program = IqoalaParser(server_text).parse()
+    server_program = QoalaParser(server_text).parse()
 
     num_qubits = 3
     topology = generic_topology(num_qubits)
@@ -1026,7 +1026,7 @@ REQUEST req1
   role: create
   result_array_addr: 0
     """
-    client_program = IqoalaParser(client_text).parse()
+    client_program = QoalaParser(client_text).parse()
     client_procnode = create_procnode(
         "client",
         network_info,

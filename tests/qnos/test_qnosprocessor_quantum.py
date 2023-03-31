@@ -22,7 +22,7 @@ from netsquid.nodes import Node
 from netsquid.qubits import ketstates
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.config import NVQDeviceConfig
 from qoala.runtime.lhi import LhiTopologyBuilder
@@ -37,7 +37,7 @@ from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import AllocError, MemoryManager, NotAllocatedError
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import (
     GenericProcessor,
@@ -104,17 +104,17 @@ def perfect_nv_star_qdevice(num_qubits: int) -> QDevice:
 def create_program(
     subroutines: Optional[Dict[str, LocalRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
-) -> IqoalaProgram:
+) -> QoalaProgram:
     if subroutines is None:
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(blocks=[], local_routines=subroutines, meta=meta)
+    return QoalaProgram(blocks=[], local_routines=subroutines, meta=meta)
 
 
 def create_process(
-    pid: int, program: IqoalaProgram, unit_module: UnitModule
-) -> IqoalaProcess:
+    pid: int, program: QoalaProgram, unit_module: UnitModule
+) -> QoalaProcess:
     instance = ProgramInstance(
         pid=pid,
         program=program,
@@ -124,7 +124,7 @@ def create_process(
     )
     mem = ProgramMemory(pid=pid)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},
@@ -141,7 +141,7 @@ def create_process_with_subrt(
     flavour: Flavour,
     uses: Optional[List[int]] = None,
     keeps: Optional[List[int]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     if uses is None:
         uses = []
     if keeps is None:
@@ -161,7 +161,7 @@ def create_process_with_vanilla_subrt(
     unit_module: UnitModule,
     uses: Optional[List[int]] = None,
     keeps: Optional[List[int]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     return create_process_with_subrt(
         pid, subrt_text, unit_module, VanillaFlavour(), uses, keeps
     )
@@ -173,14 +173,14 @@ def create_process_with_nv_subrt(
     unit_module: UnitModule,
     uses: Optional[List[int]] = None,
     keeps: Optional[List[int]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     return create_process_with_subrt(
         pid, subrt_text, unit_module, NVFlavour(), uses, keeps
     )
 
 
 def set_new_subroutine(
-    process: IqoalaProcess,
+    process: QoalaProcess,
     subrt_text: str,
     flavour: Flavour,
     uses: Optional[List[int]] = None,
@@ -198,7 +198,7 @@ def set_new_subroutine(
 
 
 def set_new_vanilla_subroutine(
-    process: IqoalaProcess,
+    process: QoalaProcess,
     subrt_text: str,
     uses: Optional[List[int]] = None,
     keeps: Optional[List[int]] = None,
@@ -207,7 +207,7 @@ def set_new_vanilla_subroutine(
 
 
 def set_new_nv_subroutine(
-    process: IqoalaProcess,
+    process: QoalaProcess,
     subrt_text: str,
     uses: Optional[List[int]] = None,
     keeps: Optional[List[int]] = None,
@@ -215,7 +215,7 @@ def set_new_nv_subroutine(
     set_new_subroutine(process, subrt_text, NVFlavour(), uses, keeps)
 
 
-def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
+def execute_process(processor: GenericProcessor, process: QoalaProcess) -> int:
     all_routines = process.program.local_routines
     routine = all_routines["subrt"]
     for virt_id in routine.metadata.qubit_use:
@@ -241,7 +241,7 @@ def execute_process(processor: GenericProcessor, process: IqoalaProcess) -> int:
 
 
 def execute_multiple_processes(
-    processor: GenericProcessor, processes: List[IqoalaProcess]
+    processor: GenericProcessor, processes: List[QoalaProcess]
 ) -> None:
     for proc in processes:
         all_routines = proc.program.local_routines

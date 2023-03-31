@@ -24,12 +24,12 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.program import IqoalaProgram, ProgramMeta
+from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
     EprRole,
     EprType,
-    IqoalaRequest,
+    QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
 )
@@ -41,7 +41,7 @@ from qoala.runtime.sharedmem import SharedMemoryManager
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.host.hostprocessor import HostProcessor
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.util.tests import netsquid_run, yield_from
 
 MOCK_MESSAGE = Message(content=42)
@@ -101,7 +101,7 @@ def create_program(
     subroutines: Optional[Dict[str, LocalRoutine]] = None,
     requests: Optional[Dict[str, RequestRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
-) -> IqoalaProgram:
+) -> QoalaProgram:
     if instrs is None:
         instrs = []
     if subroutines is None:
@@ -112,16 +112,16 @@ def create_program(
         meta = ProgramMeta.empty("prog")
     # TODO: split into proper blocks
     block = BasicBlock("b0", BasicBlockType.CL, instrs)
-    return IqoalaProgram(
+    return QoalaProgram(
         blocks=[block], local_routines=subroutines, request_routines=requests, meta=meta
     )
 
 
 def create_process(
-    program: IqoalaProgram,
+    program: QoalaProgram,
     interface: HostInterface,
     inputs: Optional[Dict[str, Any]] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     if inputs is None:
         inputs = {}
     prog_input = ProgramInput(values=inputs)
@@ -144,7 +144,7 @@ def create_process(
     )
 
     mem = ProgramMemory(pid=0)
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={
@@ -408,8 +408,8 @@ def create_simple_request(
     virt_ids: RequestVirtIdMapping,
     typ: EprType,
     role: EprRole,
-) -> IqoalaRequest:
-    return IqoalaRequest(
+) -> QoalaRequest:
+    return QoalaRequest(
         name="req",
         remote_id=remote_id,
         epr_socket_id=0,

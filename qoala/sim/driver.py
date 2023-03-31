@@ -15,7 +15,7 @@ from qoala.sim.events import EVENT_WAIT
 from qoala.sim.host.hostprocessor import HostProcessor
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackprocessor import NetstackProcessor
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qnos.qnosprocessor import QnosProcessor
 from qoala.sim.signals import SIGNAL_TASK_COMPLETED
 from qoala.util.logging import LogManager
@@ -139,7 +139,7 @@ class QpuDriver(Driver):
             raise NotImplementedError
 
     def allocate_qubits_for_routine(
-        self, process: IqoalaProcess, routine_name: str
+        self, process: QoalaProcess, routine_name: str
     ) -> None:
         # TODO: merge with code in scheduler.py?
         routine = process.get_local_routine(routine_name)
@@ -148,7 +148,7 @@ class QpuDriver(Driver):
                 self._memmgr.allocate(process.pid, virt_id)
 
     def free_qubits_after_routine(
-        self, process: IqoalaProcess, routine_name: str
+        self, process: QoalaProcess, routine_name: str
     ) -> None:
         # TODO: merge with code in scheduler.py?
         routine = process.get_local_routine(routine_name)

@@ -13,7 +13,7 @@ from qoala.lang.hostlang import (
     RunRequestOp,
     RunSubroutineOp,
 )
-from qoala.lang.program import IqoalaProgram
+from qoala.lang.program import QoalaProgram
 from qoala.lang.routine import LocalRoutine
 
 
@@ -41,7 +41,7 @@ class TaskCreator:
 
     def from_program(
         self,
-        program: IqoalaProgram,
+        program: QoalaProgram,
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,
@@ -56,7 +56,7 @@ class TaskCreator:
 
     def _from_program_routine_atomic(
         self,
-        program: IqoalaProgram,
+        program: QoalaProgram,
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,

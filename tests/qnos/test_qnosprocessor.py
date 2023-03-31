@@ -9,7 +9,7 @@ from netqasm.lang.parsing import parse_text_subroutine
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import LocalRoutineParser
-from qoala.lang.program import IqoalaProgram, LocalRoutine, ProgramMeta
+from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
@@ -18,7 +18,7 @@ from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.memmgr import MemoryManager
-from qoala.sim.process import IqoalaProcess
+from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import GenericProcessor, QnosInterface, QnosLatencies, QnosProcessor
 from qoala.util.tests import netsquid_run, yield_from
@@ -125,20 +125,20 @@ class MockQnosInterface(QnosInterface):
 def create_program(
     subroutines: Optional[Dict[str, LocalRoutine]] = None,
     meta: Optional[ProgramMeta] = None,
-) -> IqoalaProgram:
+) -> QoalaProgram:
     if subroutines is None:
         subroutines = {}
     if meta is None:
         meta = ProgramMeta.empty("prog")
-    return IqoalaProgram(blocks=[], local_routines=subroutines, meta=meta)
+    return QoalaProgram(blocks=[], local_routines=subroutines, meta=meta)
 
 
 def create_process(
     pid: int,
-    program: IqoalaProgram,
+    program: QoalaProgram,
     unit_module: UnitModule,
     inputs: Optional[ProgramInput] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     if inputs is None:
         inputs = ProgramInput({})
 
@@ -151,7 +151,7 @@ def create_process(
     )
     mem = ProgramMemory(pid=pid)
 
-    process = IqoalaProcess(
+    process = QoalaProcess(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},
@@ -166,7 +166,7 @@ def create_process_with_subrt(
     subrt_text: str,
     unit_module: UnitModule,
     inputs: Optional[ProgramInput] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     subrt = parse_text_subroutine(subrt_text)
     metadata = RoutineMetadata.use_none()
     iqoala_subrt = LocalRoutine("subrt", subrt, return_vars=[], metadata=metadata)
@@ -181,7 +181,7 @@ def create_process_with_local_routine(
     routine_text: str,
     unit_module: UnitModule,
     inputs: Optional[ProgramInput] = None,
-) -> IqoalaProcess:
+) -> QoalaProcess:
     routines = LocalRoutineParser(routine_text).parse()
     meta = ProgramMeta.empty("alice")
     meta.epr_sockets = {0: "bob"}
@@ -191,7 +191,7 @@ def create_process_with_local_routine(
 
 def execute_process(
     processor: GenericProcessor,
-    process: IqoalaProcess,
+    process: QoalaProcess,
     input_addr: Optional[MemAddr] = None,
     result_addr: Optional[MemAddr] = None,
 ) -> int:
@@ -219,7 +219,7 @@ def execute_process(
 
 
 def execute_process_with_latencies(
-    processor: GenericProcessor, process: IqoalaProcess
+    processor: GenericProcessor, process: QoalaProcess
 ) -> int:
     all_routines = process.program.local_routines
     routine = all_routines["subrt"]
@@ -242,7 +242,7 @@ def execute_process_with_latencies(
 
 
 def execute_multiple_processes(
-    processor: GenericProcessor, processes: List[IqoalaProcess]
+    processor: GenericProcessor, processes: List[QoalaProcess]
 ) -> None:
     for proc in processes:
         all_routines = proc.program.local_routines
