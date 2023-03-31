@@ -5,7 +5,6 @@ from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
 from netsquid.protocols import Protocol
-from numpy import block
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import ExposedHardwareInfo, NetworkEhi
@@ -89,7 +88,7 @@ class Scheduler(Protocol):
         self._batch_results: Dict[int, BatchResult] = {}  # batch ID -> result
 
         self._schedule: Optional[Schedule] = None
-        self._block_schedule: Optional[Schedule] = None
+        self._block_schedule: Optional[TaskSchedule] = None
 
         self._cpudriver = CpuDriver(node_name, host.processor, memmgr)
         self._qpudriver = QpuDriver(
@@ -117,16 +116,26 @@ class Scheduler(Protocol):
 
     @property
     def block_schedule(self) -> TaskSchedule:
+        assert self._block_schedule is not None
         return self._block_schedule
 
     def submit_batch(self, batch_info: BatchInfo) -> None:
         prog_instances: List[ProgramInstance] = []
 
+        network_info = self._local_env.get_network_info()
+
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
             task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
+            # TODO: allow multiple remote nodes in single program??
+            remote_names = list(batch_info.program.meta.csockets.values())
+            if len(remote_names) > 0:
+                remote_name = list(batch_info.program.meta.csockets.values())[0]
+                remote_id = network_info.get_node_id(remote_name)
+            else:
+                remote_id = None
             block_tasks = task_creator.from_program(
-                batch_info.program, pid, self._local_ehi, self._network_ehi
+                batch_info.program, pid, self._local_ehi, self._network_ehi, remote_id
             )
 
             instance = ProgramInstance(
@@ -401,7 +410,7 @@ class Scheduler(Protocol):
         self.memmgr.add_process(process)
         self.initialize_process(process)
 
-    def initialize_block_schedule(self, qc_slot_info: QcSlotInfo) -> None:
+    def initialize_block_schedule(self, qc_slot_info: Optional[QcSlotInfo]) -> None:
         all_tasks: List[BlockTask] = []
 
         for batch in self._batches.values():

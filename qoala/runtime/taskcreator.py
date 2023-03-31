@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 from netqasm.lang.instr import core
 
@@ -36,6 +36,7 @@ class BlockTask:
     typ: BasicBlockType
     duration: Optional[float] = None
     max_time: Optional[float] = None
+    remote_id: Optional[int] = None
 
     def __str__(self) -> str:
         return f"{self.block_name} ({self.typ.name}), dur={self.duration}"
@@ -56,23 +57,19 @@ class ScheduleWriter:
         else:
             return f"{task.block_name} ({task.typ.name})"
 
-    def _add_cpu_entry(
-        self, cpu_time: Optional[float], cpu_task: BlockTask
-    ) -> Tuple[str, str]:
+    def _add_cpu_entry(self, cpu_time: Optional[float], cpu_task: BlockTask) -> None:
         width = max(len(cpu_task.block_name), len(str(cpu_time))) + self._entry_width
         if cpu_time is None:
-            cpu_time = "<none>"
+            cpu_time = "<none>"  # type: ignore
         self._timeline += f"{cpu_time:<{width}}"
         entry = self._entry_content(cpu_task)
         self._cpu_task_str += f"{entry:<{width}}"
         self._qpu_task_str += " " * width
 
-    def _add_qpu_entry(
-        self, qpu_time: Optional[float], qpu_task: BlockTask
-    ) -> Tuple[str, str]:
+    def _add_qpu_entry(self, qpu_time: Optional[float], qpu_task: BlockTask) -> None:
         width = max(len(qpu_task.block_name), len(str(qpu_time))) + self._entry_width
         if qpu_time is None:
-            qpu_time = "<none>"
+            qpu_time = "<none>"  # type: ignore
         self._timeline += f"{qpu_time:<{width}}"
         entry = self._entry_content(qpu_task)
         self._cpu_task_str += " " * width
@@ -80,7 +77,7 @@ class ScheduleWriter:
 
     def _add_double_entry(
         self, time: Optional[float], cpu_task: BlockTask, qpu_task: BlockTask
-    ) -> Tuple[str, str]:
+    ) -> None:
         width = (
             max(len(cpu_task.block_name), len(qpu_task.block_name), len(str(time)))
             + self._entry_width
@@ -151,9 +148,15 @@ class TaskScheduleEntry:
 
 
 @dataclass
+class LinkSlotInfo:
+    offset1: float  # time for first pair
+    offset2: float  # time for second pair
+    period: float  # time until next cycle (with again two pairs)
+
+
+@dataclass
 class QcSlotInfo:
-    offset: float
-    period: float
+    links: Dict[int, LinkSlotInfo]
 
 
 @dataclass
@@ -165,7 +168,7 @@ class TaskSchedule:
         cls, task_list: List[BlockTask], qc_slot_info: Optional[QcSlotInfo]
     ) -> List[float]:
         # Get QC task indices
-        qc_indices = []
+        qc_indices: List[int] = []
         for i, task in enumerate(task_list):
             if task.typ == BasicBlockType.QC:
                 qc_indices.append(i)
@@ -183,10 +186,25 @@ class TaskSchedule:
                 time += task.duration
 
         if qc_slot_info is not None:
-            curr_slot = qc_slot_info.offset
+            # remote ID -> (slot, offsetX)
+            curr_slots: Dict[int, Tuple[float, int]] = {
+                remote_id: (qc_slot_info.links[remote_id].offset1, 1)
+                for remote_id in qc_slot_info.links.keys()
+            }
+
             for index in qc_indices:
+                remote_id = task_list[index].remote_id
+                assert remote_id is not None
+                info = qc_slot_info.links[remote_id]
+                curr_slot, offset_index = curr_slots[remote_id]
                 while curr_slot <= timestamps[index]:
-                    curr_slot += qc_slot_info.period
+                    if offset_index == 1:
+                        offset_index = 2
+                        curr_slot += info.offset2 - info.offset1
+                    else:
+                        offset_index = 1
+                        curr_slot += info.period - (info.offset2 - info.offset1)
+                curr_slots[remote_id] = curr_slot, offset_index
 
                 delta = curr_slot - timestamps[index]
                 for i in range(index, len(timestamps)):
@@ -259,9 +277,12 @@ class TaskCreator:
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,
+        remote_id: Optional[int] = None,
     ) -> List[BlockTask]:
         if self._mode == TaskExecutionMode.ROUTINE_ATOMIC:
-            return self._from_program_routine_atomic(program, pid, ehi, network_ehi)
+            return self._from_program_routine_atomic(
+                program, pid, ehi, network_ehi, remote_id
+            )
         else:
             raise NotImplementedError
 
@@ -271,6 +292,7 @@ class TaskCreator:
         pid: int,
         ehi: Optional[ExposedHardwareInfo] = None,
         network_ehi: Optional[NetworkEhi] = None,
+        remote_id: Optional[int] = None,
     ) -> List[BlockTask]:
         tasks: List[BlockTask] = []
 
@@ -314,7 +336,10 @@ class TaskCreator:
                     duration = epr_time * req_routine.request.num_pairs
                 else:
                     duration = None
-                qputask = BlockTask(pid, block.name, block.typ, duration)
+
+                qputask = BlockTask(
+                    pid, block.name, block.typ, duration, remote_id=remote_id
+                )
                 tasks.append(qputask)
 
         return tasks

@@ -43,8 +43,11 @@ META_END
     delta1 = add_cval_c(delta1, delta1_correction)
 
     send_cmsg(csocket, delta1)
+
+^b6 {type = CC}:
     m1 = recv_cmsg(csocket)
 
+^b7 {type = CL}:
     y = mult_const(p2) : 16
     minus_theta2 = mult_const(theta2) : -1
     beta = bcond_mult_const(beta, m1) : -1
@@ -58,8 +61,11 @@ META_END
     delta2 = add_cval_c(delta2, delta2_correction)
 
     send_cmsg(csocket, delta2)
+
+^b8 {type = CC}:
     m2 = recv_cmsg(csocket)
 
+^b9 {type = CL}:
     return_result(p1)
     return_result(p2)
     return_result(m1)

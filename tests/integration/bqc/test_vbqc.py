@@ -10,7 +10,6 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
-    GenericQDeviceConfig,
     LatenciesConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -18,12 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.schedule import (
-    NaiveSolver,
-    NoTimeSolver,
-    ProgramTaskList,
-    TaskBuilder,
-)
+from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
@@ -66,7 +60,9 @@ def get_client_config(id: int) -> ProcNodeConfig:
         node_name=f"client_{id}",
         node_id=id,
         topology=topology_config(1),
-        latencies=LatenciesConfig(qnos_instr_time=1000),
+        latencies=LatenciesConfig(
+            host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
+        ),
     )
 
 
@@ -75,7 +71,9 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
         node_name="server",
         node_id=id,
         topology=topology_config(num_qubits),
-        latencies=LatenciesConfig(qnos_instr_time=1000),
+        latencies=LatenciesConfig(
+            host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
+        ),
     )
 
 
@@ -99,180 +97,9 @@ def create_network(
 
 
 @dataclass
-class TaskDurations:
-    instr_latency: int
-    rot_dur: int
-    h_dur: int
-    meas_dur: int
-    free_dur: int
-    cphase_dur: int
-
-
-def create_server_tasks(
-    server_program: IqoalaProgram, task_durations: TaskDurations
-) -> ProgramTaskList:
-    tasks = []
-
-    cl_dur = 1e3
-    cc_dur = 10e6
-    # ql_dur = 1e4
-    qc_dur = 1e6
-
-    set_dur = task_durations.instr_latency
-    rot_dur = task_durations.rot_dur
-    h_dur = task_durations.h_dur
-    meas_dur = task_durations.meas_dur
-    free_dur = task_durations.free_dur
-    cphase_dur = task_durations.cphase_dur
-
-    # csocket = assign_cval() : 0
-    tasks.append(TaskBuilder.CL(cl_dur, 0))
-
-    # run_request(vec<>) : req0
-    tasks.append(TaskBuilder.QC(qc_dur, 1, "req0"))
-
-    # run_request(vec<>) : req1
-    tasks.append(TaskBuilder.QC(qc_dur, 2, "req1"))
-
-    # run_subroutine(vec<client_id>) : local_cphase
-    dur = cl_dur + 2 * set_dur + cphase_dur
-    tasks.append(TaskBuilder.QL(dur, 3, "local_cphase"))
-
-    # delta1 = recv_cmsg(client_id)
-    tasks.append(TaskBuilder.CC(cc_dur, 4))
-
-    # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, 5, "meas_qubit_1"))
-
-    # send_cmsg(csocket, m1)
-    tasks.append(TaskBuilder.CC(cc_dur, 6))
-    # delta2 = recv_cmsg(csocket)
-    tasks.append(TaskBuilder.CC(cc_dur, 7))
-
-    # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, 8, "meas_qubit_0"))
-
-    # send_cmsg(csocket, m2)
-    tasks.append(TaskBuilder.CC(cc_dur, 9))
-
-    return ProgramTaskList(server_program, {i: task for i, task in enumerate(tasks)})
-
-
-def create_client_tasks(
-    client_program: IqoalaProgram, task_durations: TaskDurations
-) -> ProgramTaskList:
-    tasks = []
-
-    cl_dur = 1e3
-    cc_dur = 10e6
-    # ql_dur = 1e3
-    qc_dur = 1e6
-
-    set_dur = task_durations.instr_latency
-    rot_dur = task_durations.rot_dur
-    h_dur = task_durations.h_dur
-    meas_dur = task_durations.meas_dur
-    free_dur = task_durations.free_dur
-
-    class Counter:
-        def __init__(self):
-            self.index = 0
-
-        def next(self):
-            index = self.index
-            self.index += 1
-            return index
-
-    c = Counter()
-
-    # csocket = assign_cval() : 0
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-    # const_1 = assign_cval() : 1
-    tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-
-    # compute epr0_rot_y etc
-    for _ in range(10):
-        tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-
-    tasks.append(TaskBuilder.QC(qc_dur, c.next(), "req0"))
-
-    # vec<p2> = run_subroutine(vec<theta2>) : post_epr_0
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, c.next(), "post_epr_0"))
-
-    tasks.append(TaskBuilder.QC(qc_dur, c.next(), "req1"))
-
-    dur = cl_dur + set_dur + rot_dur + h_dur + meas_dur + free_dur
-    tasks.append(TaskBuilder.QL(dur, c.next(), "post_epr_1"))
-
-    # x = mult_const(p1) : 16
-    # minus_theta1 = mult_const(theta1) : -1
-    # delta1 = add_cval_c(minus_theta1, x)
-    # delta1 = add_cval_c(delta1, alpha)
-    for _ in range(4):
-        tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-
-    # minus_dummy0 = mult_const(dummy0) : -1
-    # should_correct_0 = add_cval_c(const_1, minus_dummy0)
-    # delta1_correction = bcond_mult_const(alpha, should_correct_0) : 0
-    # delta1_correction = mult_const(delta1_correction) : -1
-    # delta1 = add_cval_c(delta1, delta1_correction)
-    for _ in range(5):
-        tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-
-    # send_cmsg(csocket, delta1)
-    # m1 = recv_cmsg(csocket)
-    tasks.append(TaskBuilder.CC(cl_dur, c.next()))
-    tasks.append(TaskBuilder.CC(cc_dur, c.next()))
-
-    # y = mult_const(p2) : 16
-    # minus_theta2 = mult_const(theta2) : -1
-    # beta = bcond_mult_const(beta, m1) : -1
-    # delta2 = add_cval_c(beta, minus_theta2)
-    # delta2 = add_cval_c(delta2, y)
-    for _ in range(5):
-        tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-
-    # minus_dummy1 = mult_const(dummy1) : -1
-    # should_correct_1 = add_cval_c(const_1, minus_dummy1)
-    # delta2_correction = bcond_mult_const(beta, should_correct_1) : 0
-    # delta2_correction = mult_const(delta2_correction) : -1
-    # delta2 = add_cval_c(delta2, delta2_correction)
-    for _ in range(5):
-        tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-
-    # send_cmsg(csocket, delta2)
-    # m2 = recv_cmsg(csocket)
-    tasks.append(TaskBuilder.CC(cl_dur, c.next()))
-    tasks.append(TaskBuilder.CC(cl_dur, c.next()))
-
-    # return results
-    for _ in range(4):
-        tasks.append(TaskBuilder.CL(cl_dur, c.next()))
-
-    return ProgramTaskList(client_program, {i: task for i, task in enumerate(tasks)})
-
-
-@dataclass
 class BqcResult:
     client_batches: List[Dict[int, ProgramBatch]]
     client_results: List[Dict[int, BatchResult]]
-
-
-def create_durations() -> TaskDurations:
-    perfect_qdevice_cfg = GenericQDeviceConfig.perfect_config(1)
-    instr_latency = 1000
-
-    return TaskDurations(
-        instr_latency=instr_latency,
-        rot_dur=perfect_qdevice_cfg.single_qubit_gate_time,
-        h_dur=perfect_qdevice_cfg.single_qubit_gate_time,
-        meas_dur=perfect_qdevice_cfg.measure_time,
-        free_dur=instr_latency,
-        cphase_dur=perfect_qdevice_cfg.two_qubit_gate_time,
-    )
 
 
 def load_server_program(remote_name: str) -> IqoalaProgram:
@@ -302,16 +129,14 @@ def create_server_batch(
     num_iterations: int,
     deadline: int,
 ) -> BatchInfo:
-    durations = create_durations()
     server_program = load_server_program(remote_name=f"client_{client_id}")
-    server_tasks = create_server_tasks(server_program, durations)
     return BatchInfo(
         program=server_program,
         inputs=inputs,
         unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
-        tasks=server_tasks,
+        tasks=ProgramTaskList.empty(server_program),
     )
 
 
@@ -321,16 +146,14 @@ def create_client_batch(
     num_iterations: int,
     deadline: int,
 ) -> BatchInfo:
-    durations = create_durations()
     client_program = load_client_program()
-    client_tasks = create_client_tasks(client_program, durations)
     return BatchInfo(
         program=client_program,
         inputs=inputs,
         unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
-        tasks=client_tasks,
+        tasks=ProgramTaskList.empty(client_program),
     )
 
 
@@ -379,7 +202,7 @@ def run_bqc(
 
         server_procnode.submit_batch(server_batch_info)
     server_procnode.initialize_processes()
-    server_procnode.initialize_schedule(NaiveSolver)
+    server_procnode.initialize_block_schedule(None)
 
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
@@ -409,7 +232,7 @@ def run_bqc(
 
         client_procnode.submit_batch(client_batch_info)
         client_procnode.initialize_processes()
-        client_procnode.initialize_schedule(NoTimeSolver)
+        client_procnode.initialize_block_schedule(None)
 
     network.start()
     start_time = ns.sim_time()

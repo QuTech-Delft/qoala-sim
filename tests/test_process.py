@@ -35,6 +35,7 @@ def create_process(program: IqoalaProgram) -> IqoalaProcess:
         inputs=ProgramInput({}),
         tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
+        block_tasks=[],
     )
     mem = ProgramMemory(pid=0)
 

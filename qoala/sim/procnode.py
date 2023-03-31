@@ -261,7 +261,7 @@ class ProcNode(Protocol):
     def initialize_schedule(self, solver: Type[ScheduleSolver]) -> None:
         self.scheduler.solve_and_install_schedule(solver)
 
-    def initialize_block_schedule(self, qc_slot_info: QcSlotInfo) -> None:
+    def initialize_block_schedule(self, qc_slot_info: Optional[QcSlotInfo]) -> None:
         self.scheduler.initialize_block_schedule(qc_slot_info)
 
     def add_process(self, process: IqoalaProcess) -> None:

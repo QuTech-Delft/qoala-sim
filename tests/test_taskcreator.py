@@ -14,6 +14,7 @@ from qoala.runtime.lhi import (
 )
 from qoala.runtime.taskcreator import (
     BlockTask,
+    LinkSlotInfo,
     QcSlotInfo,
     TaskCreator,
     TaskExecutionMode,
@@ -67,6 +68,10 @@ def test_from_program_1():
         BlockTask(pid, "b3", QC),
         BlockTask(pid, "b4", QL),
         BlockTask(pid, "b5", CL),
+        BlockTask(pid, "b6", CC),
+        BlockTask(pid, "b7", CL),
+        BlockTask(pid, "b8", CC),
+        BlockTask(pid, "b9", CL),
     ]
 
 
@@ -131,13 +136,15 @@ def test_consecutive_qc_slots():
     pid = 0
     tasks = [
         BlockTask(pid, "blk_host0", CL, 1000),
-        BlockTask(pid, "blk_recv", CC, 1000),
+        BlockTask(pid, "blk_recv", CC, 10000),
         BlockTask(pid, "blk_add_one", QL, 1000),
-        BlockTask(pid, "blk_epr_md_1", QC, 1000),
+        BlockTask(pid, "blk_epr_md_1", QC, 1000, remote_id=0),
         BlockTask(pid, "blk_host1", CL, 1000),
     ]
 
-    schedule = TaskSchedule.consecutive(tasks, qc_slots=QcSlotInfo(0, 50_000))
+    schedule = TaskSchedule.consecutive(
+        tasks, qc_slot_info=QcSlotInfo({0: LinkSlotInfo(0, 100, 50_000)})
+    )
 
     assert schedule.entries == [
         TaskScheduleEntry(tasks[0], timestamp=None, prev=None),
@@ -155,7 +162,7 @@ def test_consecutive_timestamps():
         BlockTask(pid, "blk_host0", CL, 1000),
         BlockTask(pid, "blk_lr0", QL, 5000),
         BlockTask(pid, "blk_host1", CL, 200),
-        BlockTask(pid, "blk_rr0", QC, 30_000),
+        BlockTask(pid, "blk_rr0", QC, 30_000, remote_id=0),
         BlockTask(pid, "blk_host2", CL, 4000),
     ]
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Generator, List, Optional, Tuple
+from typing import Generator, List, Optional
 
 import netsquid as ns
 from netsquid.protocols import Protocol
@@ -57,7 +57,8 @@ class Driver(Protocol):
                     yield from self.wait(time - now)
                 if prev is not None:
                     # TODO: REWRITE USING LISTENERS AND WAKE UP SIGNALS
-                    while not prev in self._other_driver._finished_tasks:
+                    assert self._other_driver is not None
+                    while prev not in self._other_driver._finished_tasks:
                         yield from self.wait(1000)
 
                 self._logger.info(f"executing task {task}")

@@ -16,9 +16,10 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.program import BatchResult, ProgramInput, ProgramInstance
+from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import (
+    LinkSlotInfo,
     QcSlotInfo,
     TaskCreator,
     TaskExecutionMode,
@@ -122,21 +123,22 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
 
     task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
     tasks_server = task_creator.from_program(
-        server_program, 0, server_procnode.local_ehi, server_procnode.network_ehi
+        server_program,
+        0,
+        server_procnode.local_ehi,
+        server_procnode.network_ehi,
+        client_id,
     )
     tasks_client = task_creator.from_program(
-        client_program, 0, client_procnode.local_ehi, client_procnode.network_ehi
+        client_program,
+        0,
+        client_procnode.local_ehi,
+        client_procnode.network_ehi,
+        server_id,
     )
 
-    schedule_server = TaskSchedule.consecutive(
-        tasks_server, qc_slots=QcSlotInfo(350_000, 350_000)
-    )
-    schedule_client = TaskSchedule.consecutive(
-        tasks_client, qc_slots=QcSlotInfo(350_000, 350_000)
-    )
-    # print(schedule_server)
-    # print()
-    # print(schedule_client)
+    schedule_server = TaskSchedule.consecutive(tasks_server)
+    schedule_client = TaskSchedule.consecutive(tasks_client)
     server_procnode.scheduler.upload_schedule(schedule_server)
     client_procnode.scheduler.upload_schedule(schedule_client)
 
