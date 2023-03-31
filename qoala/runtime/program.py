@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.taskcreator import BlockTask
+from qoala.runtime.schedule import BlockTask
 
 
 class ProgramContext(abc.ABC):

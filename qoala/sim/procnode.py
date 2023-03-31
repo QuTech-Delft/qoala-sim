@@ -11,7 +11,7 @@ from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
-from qoala.runtime.taskcreator import QcSlotInfo
+from qoala.runtime.schedule import QcSlotInfo
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.host.host import Host

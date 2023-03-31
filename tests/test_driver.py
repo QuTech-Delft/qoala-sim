@@ -4,7 +4,7 @@ import pytest
 from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.taskcreator import BlockTask, TaskSchedule, TaskScheduleEntry
+from qoala.runtime.schedule import BlockTask, TaskSchedule, TaskScheduleEntry
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.util.builder import ObjectBuilder
 

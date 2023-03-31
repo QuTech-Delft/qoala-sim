@@ -12,15 +12,7 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
     NetworkLhi,
 )
-from qoala.runtime.taskcreator import (
-    BlockTask,
-    LinkSlotInfo,
-    QcSlotInfo,
-    TaskCreator,
-    TaskExecutionMode,
-    TaskSchedule,
-    TaskScheduleEntry,
-)
+from qoala.runtime.task import BlockTask, TaskCreator, TaskExecutionMode
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
 
@@ -111,85 +103,6 @@ def test_from_program_2():
     ]
 
 
-def test_consecutive():
-    pid = 0
-    tasks = [
-        BlockTask(pid, "blk_host0", CL, 1000),
-        BlockTask(pid, "blk_recv", CC, 1000),
-        BlockTask(pid, "blk_add_one", QL, 1000),
-        BlockTask(pid, "blk_epr_md_1", QC, 1000),
-        BlockTask(pid, "blk_host1", CL, 1000),
-    ]
-
-    schedule = TaskSchedule.consecutive(tasks)
-
-    assert schedule.entries == [
-        TaskScheduleEntry(tasks[0], None, prev=None),
-        TaskScheduleEntry(tasks[1], None, prev=None),
-        TaskScheduleEntry(tasks[2], None, prev=tasks[1]),  # CPU -> QPU
-        TaskScheduleEntry(tasks[3], None, prev=None),
-        TaskScheduleEntry(tasks[4], None, prev=tasks[3]),  # QPU -> CPU
-    ]
-
-
-def test_consecutive_qc_slots():
-    pid = 0
-    tasks = [
-        BlockTask(pid, "blk_host0", CL, 1000),
-        BlockTask(pid, "blk_recv", CC, 10000),
-        BlockTask(pid, "blk_add_one", QL, 1000),
-        BlockTask(pid, "blk_epr_md_1", QC, 1000, remote_id=0),
-        BlockTask(pid, "blk_host1", CL, 1000),
-    ]
-
-    schedule = TaskSchedule.consecutive(
-        tasks, qc_slot_info=QcSlotInfo({0: LinkSlotInfo(0, 100, 50_000)})
-    )
-
-    assert schedule.entries == [
-        TaskScheduleEntry(tasks[0], timestamp=None, prev=None),
-        TaskScheduleEntry(tasks[1], timestamp=None, prev=None),
-        TaskScheduleEntry(tasks[2], timestamp=None, prev=tasks[1]),  # CPU -> QPU
-        TaskScheduleEntry(tasks[3], timestamp=50_000, prev=None),  # QC task
-        TaskScheduleEntry(tasks[4], timestamp=None, prev=tasks[3]),  # QPU -> CPU
-    ]
-
-
-def test_consecutive_timestamps():
-    pid = 0
-
-    tasks = [
-        BlockTask(pid, "blk_host0", CL, 1000),
-        BlockTask(pid, "blk_lr0", QL, 5000),
-        BlockTask(pid, "blk_host1", CL, 200),
-        BlockTask(pid, "blk_rr0", QC, 30_000, remote_id=0),
-        BlockTask(pid, "blk_host2", CL, 4000),
-    ]
-
-    schedule = TaskSchedule.consecutive_timestamps(tasks)
-
-    assert schedule.entries == [
-        TaskScheduleEntry(tasks[0], 0),
-        TaskScheduleEntry(tasks[1], 1000),
-        TaskScheduleEntry(tasks[2], 1000 + 5000),
-        TaskScheduleEntry(tasks[3], 1000 + 5000 + 200),
-        TaskScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
-    ]
-
-    assert schedule.cpu_schedule.entries == [
-        TaskScheduleEntry(tasks[0], 0),
-        TaskScheduleEntry(tasks[2], 1000 + 5000),
-        TaskScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
-    ]
-    assert schedule.qpu_schedule.entries == [
-        TaskScheduleEntry(tasks[1], 1000),
-        TaskScheduleEntry(tasks[3], 1000 + 5000 + 200),
-    ]
-
-
 if __name__ == "__main__":
     test_from_program_1()
     test_from_program_2()
-    test_consecutive()
-    test_consecutive_qc_slots()
-    test_consecutive_timestamps()

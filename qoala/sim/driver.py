@@ -9,12 +9,8 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.hostlang import BasicBlockType, RunRequestOp, RunSubroutineOp
-from qoala.runtime.taskcreator import (
-    BlockTask,
-    TaskExecutionMode,
-    TaskSchedule,
-    TaskScheduleEntry,
-)
+from qoala.runtime.schedule import TaskSchedule, TaskScheduleEntry
+from qoala.runtime.task import BlockTask, TaskExecutionMode
 from qoala.sim.events import EVENT_WAIT
 from qoala.sim.host.hostprocessor import HostProcessor
 from qoala.sim.memmgr import MemoryManager
