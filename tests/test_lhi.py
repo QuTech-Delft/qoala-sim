@@ -37,7 +37,7 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
     NetworkLhi,
 )
-from qoala.runtime.nv_old import LhiTopologyBuilderForOldNV
+from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 
 
 def relative_path(path: str) -> str:

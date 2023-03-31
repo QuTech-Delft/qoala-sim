@@ -664,6 +664,10 @@ class NVQDeviceConfig(BaseModel):
         cfg.carbon_init_depolar_prob = 0
         cfg.carbon_z_rot_depolar_prob = 0
         cfg.ec_gate_depolar_prob = 0
+        cfg.electron_T1 = 0
+        cfg.electron_T2 = 0
+        cfg.carbon_T1 = 0
+        cfg.carbon_T2 = 0
         return cfg
 
 

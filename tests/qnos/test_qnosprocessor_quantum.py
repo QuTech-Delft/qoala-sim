@@ -28,13 +28,13 @@ from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.config import NVQDeviceConfig
 from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
     NvToNvInterface,
 )
 from qoala.runtime.memory import ProgramMemory
-from qoala.runtime.nv_old import LhiTopologyBuilderForOldNV
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
@@ -816,6 +816,7 @@ def test_single_gates_nv_mem():
 
 
 def test_two_qubit_gates_nv():
+    ns.sim_reset()
     num_qubits = 3
     processor, unit_module = setup_components_nv_star(num_qubits)
 

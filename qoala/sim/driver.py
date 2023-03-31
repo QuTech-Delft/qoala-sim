@@ -62,11 +62,11 @@ class Driver(Protocol):
                             signal_label=SIGNAL_TASK_COMPLETED,
                         )
 
-                self._logger.warning(f"executing task {task}")
+                self._logger.info(f"executing task {task}")
                 yield from self._handle_task(task)
                 self._finished_tasks.append(task)
                 self.send_signal(SIGNAL_TASK_COMPLETED)
-                self._logger.warning(f"finished task {task}")
+                self._logger.info(f"finished task {task}")
             except IndexError:
                 break
 

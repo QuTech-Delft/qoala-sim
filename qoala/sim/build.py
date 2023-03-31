@@ -57,12 +57,12 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
     NetworkLhi,
 )
+from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
     NvToNvInterface,
 )
-from qoala.runtime.nv_old import LhiTopologyBuilderForOldNV
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork

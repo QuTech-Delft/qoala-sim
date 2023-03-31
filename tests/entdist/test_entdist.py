@@ -206,6 +206,8 @@ def test_deliver_depolar():
     expected = 0.2 * TWO_MAX_MIXED + 0.8 * B00_DENS
     assert has_multi_state([alice_qubit, bob_qubit], expected)
 
+    ns.set_qstate_formalism(QFormalism.KET)
+
 
 def test_put_request():
     alice, bob = create_n_nodes(2)
