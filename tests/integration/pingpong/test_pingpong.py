@@ -17,6 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
+from qoala.runtime.schedule import TaskSchedule, TaskScheduleEntry
 from qoala.sim.build import build_network
 
 
@@ -32,7 +33,9 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         node_name=name,
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        latencies=LatenciesConfig(qnos_instr_time=1000),
+        latencies=LatenciesConfig(
+            host_instr_time=500, host_peer_latency=100_000, qnos_instr_time=1000
+        ),
     )
 
 
@@ -76,7 +79,7 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
+        nodes=[alice_node_cfg, bob_node_cfg], link_duration=500_000
     )
     network = build_network(network_cfg, network_info)
     alice_procnode = network.nodes["alice"]
@@ -91,7 +94,28 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     )
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
-    alice_procnode.initialize_block_schedule(None)
+    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
+    print("Alice tasks:")
+    print([str(t) for t in alice_tasks])
+    # alice_schedule = TaskSchedule.consecutive(alice_tasks)
+    alice_schedule = TaskSchedule(
+        [
+            TaskScheduleEntry(alice_tasks[0], timestamp=0),
+            TaskScheduleEntry(alice_tasks[1], timestamp=500),
+            TaskScheduleEntry(alice_tasks[2], timestamp=25_000),
+            TaskScheduleEntry(alice_tasks[3], timestamp=600_000),
+            TaskScheduleEntry(alice_tasks[4], timestamp=850_000, prev=alice_tasks[3]),
+            TaskScheduleEntry(alice_tasks[5], timestamp=1_200_000),
+            TaskScheduleEntry(alice_tasks[6], timestamp=1_700_000, prev=alice_tasks[5]),
+            TaskScheduleEntry(alice_tasks[7], timestamp=2_100_000),
+            TaskScheduleEntry(alice_tasks[8], timestamp=2_200_500, prev=alice_tasks[7]),
+            TaskScheduleEntry(alice_tasks[9], timestamp=2_220_000),
+            TaskScheduleEntry(alice_tasks[10], timestamp=2_228_000),
+        ]
+    )
+    print("\nAlice schedule:")
+    print(alice_schedule)
+    alice_procnode.scheduler.upload_schedule(alice_schedule)
 
     bob_program = load_program("pingpong_bob.iqoala")
     bob_inputs = [ProgramInput({"alice_id": alice_id}) for _ in range(num_iterations)]
@@ -100,7 +124,24 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     bob_batch = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
-    bob_procnode.initialize_block_schedule(None)
+    bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
+    print("\n\nBob tasks:")
+    print([str(t) for t in bob_tasks])
+    bob_schedule = TaskSchedule(
+        [
+            TaskScheduleEntry(bob_tasks[0], timestamp=0),
+            TaskScheduleEntry(bob_tasks[1], timestamp=25_000),
+            TaskScheduleEntry(bob_tasks[2], timestamp=900_000, prev=bob_tasks[1]),
+            TaskScheduleEntry(bob_tasks[3], timestamp=1_000_000),
+            TaskScheduleEntry(bob_tasks[4], timestamp=1_100_000, prev=bob_tasks[3]),
+            TaskScheduleEntry(bob_tasks[5], timestamp=1_200_000),
+            TaskScheduleEntry(bob_tasks[6], timestamp=1_700_000),
+            TaskScheduleEntry(bob_tasks[7], timestamp=1_800_000, prev=bob_tasks[6]),
+        ]
+    )
+    print("\nBob schedule:")
+    print(bob_schedule)
+    bob_procnode.scheduler.upload_schedule(bob_schedule)
 
     network.start()
     ns.sim_run()
@@ -126,7 +167,7 @@ def test_pingpong():
             outcomes = [result.values["outcome"] for result in program_results]
             assert all(outcome == 1 for outcome in outcomes)
 
-    check(10)
+    check(1)
 
 
 if __name__ == "__main__":

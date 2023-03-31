@@ -239,14 +239,11 @@ class Scheduler(Protocol):
         self.memmgr.add_process(process)
         self.initialize_process(process)
 
-    def initialize_block_schedule(
-        self, qc_slot_info: Optional[QcSlotInfo] = None
-    ) -> None:
+    def get_tasks_to_schedule(self) -> List[BlockTask]:
         all_tasks: List[BlockTask] = []
 
         for batch in self._batches.values():
             for inst in batch.instances:
                 all_tasks.extend(inst.block_tasks)
 
-        schedule = TaskSchedule.consecutive(all_tasks, qc_slot_info)
-        self.upload_schedule(schedule)
+        return all_tasks
