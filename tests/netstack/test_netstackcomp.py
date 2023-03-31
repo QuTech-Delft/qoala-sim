@@ -13,7 +13,7 @@ from qoala.sim.netstack import NetstackComponent, NetstackInterface
 
 class MockNetstackInterface(NetstackInterface):
     def __init__(self, comp: NetstackComponent, local_env: LocalEnvironment) -> None:
-        super().__init__(comp, local_env, None, None, None)
+        super().__init__(comp, local_env, None, None)
 
 
 def create_netstackcomp(num_other_nodes: int) -> NetstackComponent:

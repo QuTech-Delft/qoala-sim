@@ -102,7 +102,6 @@ REQUEST epr_md_1
   fidelity: 1.0
   typ: measure_directly
   role: receive
-  result_array_addr: 0
 
 REQUEST epr_md_2
   callback_type: wait_all
@@ -116,7 +115,6 @@ REQUEST epr_md_2
   fidelity: 1.0
   typ: measure_directly
   role: receive
-  result_array_addr: 0
 
 REQUEST epr_ck_1
   callback_type: wait_all
@@ -130,7 +128,6 @@ REQUEST epr_ck_1
   fidelity: 1.0
   typ: create_keep
   role: receive
-  result_array_addr: 0
 
 REQUEST epr_ck_2
   callback_type: wait_all
@@ -144,4 +141,3 @@ REQUEST epr_ck_2
   fidelity: 1.0
   typ: create_keep
   role: receive
-  result_array_addr: 0

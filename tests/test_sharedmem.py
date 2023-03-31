@@ -4,13 +4,13 @@ from qoala.runtime.sharedmem import (
     MemAddr,
     SharedMemIllegalRegionError,
     SharedMemNotAllocatedError,
-    SharedMemoryManager,
+    SharedMemory,
     SharedMemReadError,
 )
 
 
 def test1():
-    mgr = SharedMemoryManager()
+    mgr = SharedMemory()
 
     params = [0, 1]
 

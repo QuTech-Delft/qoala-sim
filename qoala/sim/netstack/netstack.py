@@ -6,7 +6,6 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.runtime.environment import LocalEnvironment
-from qoala.sim.egpmgr import EgpManager
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
@@ -22,7 +21,6 @@ class Netstack(Protocol):
         comp: NetstackComponent,
         local_env: LocalEnvironment,
         memmgr: MemoryManager,
-        egpmgr: EgpManager,
         qdevice: QDevice,
         latencies: NetstackLatencies,
     ) -> None:
@@ -39,7 +37,7 @@ class Netstack(Protocol):
         self._local_env = local_env
 
         # Owned objects.
-        self._interface = NetstackInterface(comp, local_env, qdevice, memmgr, egpmgr)
+        self._interface = NetstackInterface(comp, local_env, qdevice, memmgr)
         self._processor = NetstackProcessor(self._interface, latencies)
 
     def run(self) -> Generator[EventExpression, None, None]:
@@ -78,11 +76,7 @@ class Netstack(Protocol):
     def start(self) -> None:
         super().start()
         self._interface.start()
-        for egp in self._interface.egpmgr.egps.values():
-            egp.start()
 
     def stop(self) -> None:
-        for egp in self._interface.egpmgr.egps.values():
-            egp.stop()
         self._interface.stop()
         super().stop()

@@ -90,7 +90,6 @@ REQUEST req1
   fidelity: 0.65
   typ: measure_directly
   role: receive
-  result_array_addr: 0
     """
 
     request_routine = RequestRoutineParser(text).parse()["req1"]

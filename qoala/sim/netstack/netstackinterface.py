@@ -3,17 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Generator
 
-from qlink_interface.interface import (
-    ReqCreateBase,
-    ResCreateAndKeep,
-    ResMeasureDirectly,
-)
-
 from pydynaa import EventExpression
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
-from qoala.sim.egpmgr import EgpManager
 from qoala.sim.events import (
     EVENT_WAIT,
     SIGNAL_ENTD_NSTK_MSG,
@@ -47,7 +40,6 @@ class NetstackInterface(ComponentProtocol):
         local_env: LocalEnvironment,
         qdevice: QDevice,
         memmgr: MemoryManager,
-        egpmgr: EgpManager,
     ) -> None:
         """Network stack protocol constructor. Typically created indirectly through
         constructing a `Qnos` instance.
@@ -60,7 +52,6 @@ class NetstackInterface(ComponentProtocol):
         self._qdevice = qdevice
         self._local_env = local_env
         self._memmgr = memmgr
-        self._egpmgr = egpmgr
 
         self.add_listener(
             "host",
@@ -134,36 +125,6 @@ class NetstackInterface(ComponentProtocol):
             )
         )
 
-    def put_request(self, remote_id: int, request: ReqCreateBase) -> None:
-        egp = self._egpmgr.get_egp(remote_id)
-        egp.put(request)
-
-    def await_result_create_keep(
-        self, remote_id: int
-    ) -> Generator[EventExpression, None, ResCreateAndKeep]:
-        egp = self._egpmgr.get_egp(remote_id)
-        yield self.await_signal(
-            sender=egp,
-            signal_label=ResCreateAndKeep.__name__,
-        )
-        result: ResCreateAndKeep = egp.get_signal_result(
-            ResCreateAndKeep.__name__, receiver=self
-        )
-        return result
-
-    def await_result_measure_directly(
-        self, remote_id: int
-    ) -> Generator[EventExpression, None, ResMeasureDirectly]:
-        egp = self._egpmgr.get_egp(remote_id)
-        yield self.await_signal(
-            sender=egp,
-            signal_label=ResMeasureDirectly.__name__,
-        )
-        result: ResMeasureDirectly = egp.get_signal_result(
-            ResMeasureDirectly.__name__, receiver=self
-        )
-        return result
-
     def await_memory_freed_signal(
         self, pid: int, virt_id: int
     ) -> Generator[EventExpression, None, None]:
@@ -181,10 +142,6 @@ class NetstackInterface(ComponentProtocol):
     @property
     def memmgr(self) -> MemoryManager:
         return self._memmgr
-
-    @property
-    def egpmgr(self) -> EgpManager:
-        return self._egpmgr
 
     def remote_id_to_peer_name(self, remote_id: int) -> str:
         return self._local_env.get_network_info().get_nodes()[remote_id]

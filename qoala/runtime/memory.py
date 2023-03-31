@@ -5,11 +5,11 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from netqasm.lang import operand
 from netqasm.lang.encoding import RegisterName
-from netqasm.sdk.shared_memory import Arrays, RegisterGroup, setup_registers
+from netqasm.sdk.shared_memory import RegisterGroup, setup_registers
 
 from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
-from qoala.runtime.sharedmem import MemAddr, SharedMemoryManager
+from qoala.runtime.sharedmem import MemAddr, SharedMemory
 
 
 class RegisterMeta:
@@ -43,68 +43,6 @@ class HostMemory:
 
     def read(self, loc: str) -> int:
         return self._mem[loc]
-
-
-class SharedMemory:
-    """Classical program memory available to both Host and Qnos.
-    Implemented as NetQASM arrays."""
-
-    def __init__(self, pid: int) -> None:
-        self._pid = pid
-
-        self._arrays: Arrays = Arrays()
-
-    # for compatibility with netqasm Futures
-    def get_array_part(
-        self, address: int, index: int
-    ) -> Union[None, int, List[Optional[int]]]:
-        assert isinstance(index, int)
-        return self.get_array_value(address, index)
-
-    def init_new_array(self, address: int, length: int) -> None:
-        self._arrays.init_new_array(address, length)
-
-    def get_array(self, address: int) -> List[Optional[int]]:
-        return self._arrays._get_array(address)  # type: ignore
-
-    def get_array_value(self, addr: int, offset: int) -> Optional[int]:
-        address, index = self.expand_array_part(
-            array_part=operand.ArrayEntry(operand.Address(addr), offset)
-        )
-        result = self._arrays[address, index]
-        assert (result is None) or isinstance(result, int)
-        return result
-
-    def set_array_value(self, addr: int, offset: int, value: Optional[int]) -> None:
-        address, index = self.expand_array_part(
-            array_part=operand.ArrayEntry(operand.Address(addr), offset)
-        )
-        self._arrays[address, index] = value
-
-    def expand_array_part(
-        self, array_part: Union[operand.ArrayEntry, operand.ArraySlice]
-    ) -> Tuple[int, Union[int, slice]]:
-        address: int = array_part.address.address
-        index: Union[int, slice]
-        if isinstance(array_part, operand.ArrayEntry):
-            assert isinstance(array_part.index, int)
-            index = array_part.index
-        elif isinstance(array_part, operand.ArraySlice):
-            startstop: List[int] = []
-            for raw_s in [array_part.start, array_part.stop]:
-                if isinstance(raw_s, int):
-                    startstop.append(raw_s)
-                else:
-                    raise RuntimeError(
-                        f"Something went wrong: raw_s should be int "
-                        f"or Register but is {type(raw_s)}"
-                    )
-            index = slice(*startstop)
-        else:
-            raise RuntimeError(
-                f"Something went wrong: array_part is a {type(array_part)}"
-            )
-        return address, index
 
 
 @dataclass
@@ -184,17 +122,15 @@ class ProgramMemory:
     """Dynamic runtime memory, divided into
     - Host Memory: local to the Host
     - Qnos Memory: local to Qnos
-    - Shared Memory: shared between Host, Qnos and Netstack. Divided into Regions."""
+    - Shared Memory: shared between Host, Qnos and Netstack"""
 
     def __init__(self, pid: int) -> None:
         self._pid: int = pid
 
         # TODO: remove pids?
         self._host_memory = HostMemory(pid)
-        self._shared_memory = SharedMemory(pid)
         self._qnos_memory = QnosMemory(pid)
-
-        self._shared_memmgr: SharedMemoryManager = SharedMemoryManager()
+        self._shared_memory = SharedMemory()
 
     @property
     def host_mem(self) -> HostMemory:
@@ -203,10 +139,6 @@ class ProgramMemory:
     @property
     def shared_mem(self) -> SharedMemory:
         return self._shared_memory
-
-    @property
-    def shared_memmgr(self) -> SharedMemoryManager:
-        return self._shared_memmgr
 
     @property
     def qnos_mem(self) -> QnosMemory:

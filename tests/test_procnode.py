@@ -1,22 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional, Tuple, Type
+from typing import Any, Dict, Generator, List, Optional, Type
 
 import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
-from netqasm.sdk.build_epr import SER_RESPONSE_KEEP_LEN
 from netsquid.components import QuantumProcessor
-from netsquid.nodes import Node
 from netsquid.qubits import ketstates
-from netsquid.qubits.ketstates import BellIndex
-from netsquid_magic.link_layer import (
-    MagicLinkLayerProtocolWithSignaling,
-    SingleClickTranslationUnit,
-)
-from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
-from qlink_interface import ReqCreateBase, ResCreateAndKeep
-from qlink_interface.interface import ResCreate
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, UnitModule
@@ -49,22 +39,20 @@ from qoala.runtime.lhi_to_ehi import (
     LhiConverter,
     NativeToFlavourInterface,
 )
-from qoala.runtime.memory import ProgramMemory, SharedMemory
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.sim.build import build_generic_qprocessor
-from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.events import MSG_REQUEST_DELIVERED
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
-from qoala.sim.memmgr import AllocError, MemoryManager
+from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.qnos import QnosInterface
 from qoala.util.math import has_multi_state
 from qoala.util.tests import netsquid_run
 
@@ -95,34 +83,10 @@ class MockNetstackInterface(NetstackInterface):
         local_env: LocalEnvironment,
         qdevice: QDevice,
         memmgr: MemoryManager,
-        mock_result: ResCreate,
     ) -> None:
         self._qdevice = qdevice
         self._local_env = local_env
         self._memmgr = memmgr
-        self._mock_result = mock_result
-
-        self._requests_put: Dict[int, List[ReqCreateBase]] = {}
-        self._awaited_result_ck: List[int] = []  # list of remote ids
-        self._awaited_mem_free_sig_count: int = 0
-
-    def put_request(self, remote_id: int, request: ReqCreateBase) -> None:
-        if remote_id not in self._requests_put:
-            self._requests_put[remote_id] = []
-        self._requests_put[remote_id].append(request)
-
-    def await_result_create_keep(
-        self, remote_id: int
-    ) -> Generator[EventExpression, None, ResCreateAndKeep]:
-        self._awaited_result_ck.append(remote_id)
-        return self._mock_result
-        yield  # to make this behave as a generator
-
-    def await_memory_freed_signal(
-        self, pid: int, virt_id: int
-    ) -> Generator[EventExpression, None, None]:
-        raise AllocError
-        yield  # to make this behave as a generator
 
     def send_qnos_msg(self, msg: Message) -> None:
         return None
@@ -140,11 +104,6 @@ class MockNetstackInterface(NetstackInterface):
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
         return Message(MSG_REQUEST_DELIVERED)
         yield  # to make this behave as a generator
-
-    def reset(self) -> None:
-        self._requests_put = {}
-        self._awaited_result_ck = []
-        self._awaited_mem_free_sig_count = 0
 
     @property
     def node_id(self) -> int:
@@ -171,82 +130,10 @@ class MockQDevice(QDevice):
         self._executed_commands = []
 
 
-@dataclass
-class MockNetstackResultInfo:
-    pid: int
-    array_id: int
-    start_idx: int
-    end_idx: int
-
-
-class MockQnosInterface(QnosInterface):
-    def __init__(
-        self,
-        qdevice: QDevice,
-        netstack_result_info: Optional[MockNetstackResultInfo] = None,
-    ) -> None:
-        self.send_events: List[InterfaceEvent] = []
-        self.recv_events: List[InterfaceEvent] = []
-        self.flush_events: List[FlushEvent] = []
-        self.signal_events: List[SignalEvent] = []
-
-        self._qdevice = qdevice
-        self._memmgr = MemoryManager("alice", self._qdevice)
-
-        self.netstack_result_info: Optional[
-            MockNetstackResultInfo
-        ] = netstack_result_info
-
-    def send_peer_msg(self, peer: str, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent(peer, msg))
-
-    def receive_peer_msg(self, peer: str) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent(peer, MOCK_MESSAGE))
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def send_host_msg(self, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent("host", msg))
-
-    def receive_host_msg(self) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent("host", MOCK_MESSAGE))
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def send_netstack_msg(self, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent("netstack", msg))
-
-    def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent("netstack", MOCK_MESSAGE))
-        if self.netstack_result_info is not None:
-            mem = self.memmgr._processes[
-                self.netstack_result_info.pid
-            ].prog_memory.shared_mem
-            array_id = self.netstack_result_info.array_id
-            start_idx = self.netstack_result_info.start_idx
-            end_idx = self.netstack_result_info.end_idx
-            for i in range(start_idx, end_idx):
-                mem.set_array_value(array_id, i, 42)
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def flush_netstack_msgs(self) -> None:
-        self.flush_events.append(FlushEvent())
-
-    def signal_memory_freed(self) -> None:
-        self.signal_events.append(SignalEvent())
-
-    @property
-    def name(self) -> str:
-        return "mock"
-
-
 class MockHostInterface(HostInterface):
-    def __init__(self, shared_mem: Optional[SharedMemory] = None) -> None:
+    def __init__(self) -> None:
         self.send_events: List[InterfaceEvent] = []
         self.recv_events: List[InterfaceEvent] = []
-
-        self.shared_mem = shared_mem
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self.send_events.append(InterfaceEvent(peer, msg))
@@ -261,8 +148,6 @@ class MockHostInterface(HostInterface):
 
     def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
         self.recv_events.append(InterfaceEvent("qnos", MOCK_MESSAGE))
-        if self.shared_mem is not None:
-            self.shared_mem.set_reg_value(MOCK_QNOS_RET_REG, MOCK_QNOS_RET_VALUE)
         return MOCK_MESSAGE
         yield  # to make it behave as a generator
 
@@ -379,16 +264,6 @@ def parse_iqoala_subroutines(subrt_text: str) -> LocalRoutine:
     return LocalRoutineParser(subrt_text).parse()
 
 
-def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
-    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=1000.0)
-    link_prot = MagicLinkLayerProtocolWithSignaling(
-        nodes=[node1, node2],
-        magic_distributor=link_dist,
-        translation_unit=SingleClickTranslationUnit(),
-    )
-    return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
-
-
 def generic_topology(num_qubits: int) -> LhiTopology:
     # Instructions and durations are not needed for these tests.
     return LhiTopologyBuilder.perfect_uniform(
@@ -428,9 +303,8 @@ def test_initialize():
 
     procnode.host.interface = MockHostInterface()
 
-    mock_result = ResCreateAndKeep(bell_state=BellIndex.B01)
     procnode.netstack.interface = MockNetstackInterface(
-        local_env, procnode.qdevice, procnode.memmgr, mock_result
+        local_env, procnode.qdevice, procnode.memmgr
     )
 
     host_processor = procnode.host.processor
@@ -463,7 +337,6 @@ def test_initialize():
             fidelity=1.0,
             typ=EprType.CREATE_KEEP,
             role=EprRole.CREATE,
-            result_array_addr=0,
         ),
     )
 
@@ -492,7 +365,6 @@ def test_initialize():
     qnos_processor.instantiate_routine(process, routine, {}, 0, 0)
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
-    process.shared_mem.init_new_array(0, SER_RESPONSE_KEEP_LEN * 1)
     rrcall = RrCallTuple.no_alloc("req1")
     netsquid_run(netstack_processor.assign_request_routine(process, rrcall))
 
@@ -836,7 +708,6 @@ def test_epr():
             fidelity=1.0,
             typ=EprType.CREATE_KEEP,
             role=EprRole.CREATE,
-            result_array_addr=0,
         ),
     )
 
@@ -855,7 +726,6 @@ def test_epr():
             fidelity=1.0,
             typ=EprType.CREATE_KEEP,
             role=EprRole.RECEIVE,
-            result_array_addr=0,
         ),
     )
 
@@ -899,13 +769,6 @@ def test_epr():
     bob_host_processor.initialize(bob_process)
 
     alice_procnode.connect_to(bob_procnode)
-
-    alice_egp, bob_egp = create_egp_protocols(alice_procnode.node, bob_procnode.node)
-    alice_procnode.egpmgr.add_egp(bob_id, alice_egp)
-    bob_procnode.egpmgr.add_egp(alice_id, bob_egp)
-
-    alice_process.shared_mem.init_new_array(0, 10)
-    bob_process.shared_mem.init_new_array(0, 10)
 
     nodes = [alice_procnode.node, bob_procnode.node]
     entdistcomp = EntDistComponent(network_info)
@@ -961,7 +824,6 @@ REQUEST req1
   fidelity: 1.0
   typ: create_keep
   role: receive
-  result_array_addr: 0
     """
     server_program = QoalaParser(server_text).parse()
 
@@ -1025,7 +887,6 @@ REQUEST req1
   fidelity: 1.0
   typ: create_keep
   role: create
-  result_array_addr: 0
     """
     client_program = QoalaParser(client_text).parse()
     client_procnode = create_procnode(
@@ -1046,12 +907,6 @@ REQUEST req1
     )
     client_procnode.add_process(client_process)
 
-    client_egp, server_egp = create_egp_protocols(
-        client_procnode.node, server_procnode.node
-    )
-    client_procnode.egpmgr.add_egp(server_id, client_egp)
-    server_procnode.egpmgr.add_egp(client_id, server_egp)
-
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
@@ -1064,7 +919,6 @@ REQUEST req1
     link_info = LhiLinkInfo.perfect(1000)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 
-    # client_egp._ll_prot.start()
     server_procnode.start()
     client_procnode.start()
     entdist.start()

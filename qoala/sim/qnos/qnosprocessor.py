@@ -23,22 +23,16 @@ from netsquid.components.instructions import (
     INSTR_Z,
 )
 from netsquid.components.instructions import Instruction as NsInstr
-from netsquid.qubits import qubitapi
 
 from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
 from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.sharedmem import MemAddr
-from qoala.sim.globals import GlobalSimData
 from qoala.sim.memmgr import NotAllocatedError
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos.qnosinterface import QnosInterface, QnosLatencies
-from qoala.sim.requests import (
-    NetstackBreakpointCreateRequest,
-    NetstackBreakpointReceiveRequest,
-)
 from qoala.util.logging import LogManager
 from qoala.util.math import PI, PI_OVER_2
 
@@ -219,43 +213,48 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         if instr.action.value == 0:
             self._logger.info("BREAKPOINT: no action taken")
+            return None
         elif instr.action.value == 1:
-            self._logger.info("BREAKPOINT: dumping local state:")
-            for i in range(self.qdevice.qprocessor.num_positions):
-                if self.qdevice.qprocessor.mem_positions[i].in_use:
-                    q = self.qdevice.qprocessor.peek(i)
-                    qstate = qubitapi.reduced_dm(q)
-                    self._logger.info(f"physical qubit {i}:\n{qstate}")
+            # TODO: fix
+            raise NotImplementedError
+            # self._logger.info("BREAKPOINT: dumping local state:")
+            # for i in range(self.qdevice.qprocessor.num_positions):
+            #     if self.qdevice.qprocessor.mem_positions[i].in_use:
+            #         q = self.qdevice.qprocessor.peek(i)
+            #         qstate = qubitapi.reduced_dm(q)
+            #         self._logger.info(f"physical qubit {i}:\n{qstate}")
 
             # TODO: fix this; GlobalSimData is not static anymore!
-            state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
+            # state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
         elif instr.action.value == 2:
-            self._logger.info("BREAKPOINT: dumping global state:")
-            if instr.role.value == 0:
-                self._interface.send_netstack_msg(
-                    Message(content=NetstackBreakpointCreateRequest(pid))
-                )
-                ready = yield from self._interface.receive_netstack_msg()
-                assert ready.content == "breakpoint ready"
+            # TODO: fix
+            raise NotImplementedError
+            # self._logger.info("BREAKPOINT: dumping global state:")
+            # if instr.role.value == 0:
+            #     self._interface.send_netstack_msg(
+            #         Message(content=NetstackBreakpointCreateRequest(pid))
+            #     )
+            #     ready = yield from self._interface.receive_netstack_msg()
+            #     assert ready.content == "breakpoint ready"
 
-                # TODO: fix this; GlobalSimData is not static anymore!
-                state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
-                self._logger.info(state)
+            #     # TODO: fix this; GlobalSimData is not static anymore!
+            #     state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
+            #     self._logger.info(state)
 
-                self._interface.send_netstack_msg(Message(content="breakpoint end"))
-                finished = yield from self._interface.receive_netstack_msg()
-                assert finished.content == "breakpoint finished"
-            elif instr.role.value == 1:
-                self._interface.send_netstack_msg(
-                    Message(content=NetstackBreakpointReceiveRequest(pid))
-                )
-                ready = yield from self._interface.receive_netstack_msg()
-                assert ready.content == "breakpoint ready"
-                self._interface.send_netstack_msg(Message(content="breakpoint end"))
-                finished = yield from self._interface.receive_netstack_msg()
-                assert finished.content == "breakpoint finished"
-            else:
-                raise ValueError
+            #     self._interface.send_netstack_msg(Message(content="breakpoint end"))
+            #     finished = yield from self._interface.receive_netstack_msg()
+            #     assert finished.content == "breakpoint finished"
+            # elif instr.role.value == 1:
+            #     self._interface.send_netstack_msg(
+            #         Message(content=NetstackBreakpointReceiveRequest(pid))
+            #     )
+            #     ready = yield from self._interface.receive_netstack_msg()
+            #     assert ready.content == "breakpoint ready"
+            #     self._interface.send_netstack_msg(Message(content="breakpoint end"))
+            #     finished = yield from self._interface.receive_netstack_msg()
+            #     assert finished.content == "breakpoint finished"
+            # else:
+            #     raise ValueError
         else:
             raise ValueError
 
@@ -276,7 +275,7 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
 
-        new_shared_mem = self._prog_mem().shared_memmgr
+        shared_mem = self._prog_mem().shared_mem
         result_addr = self._routine().result_addr
 
         value = qnos_mem.get_reg_value(instr.reg)
@@ -297,7 +296,7 @@ class QnosProcessor:
         # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
 
-        new_shared_mem.write_lr_out(result_addr, [value], offset=index)
+        shared_mem.write_lr_out(result_addr, [value], offset=index)
 
         return None
 
@@ -306,7 +305,7 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
 
-        new_shared_mem = self._prog_mem().shared_memmgr
+        shared_mem = self._prog_mem().shared_mem
         input_addr = self._routine().params_addr
 
         addr = instr.entry.address.address
@@ -316,7 +315,7 @@ class QnosProcessor:
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
-        [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
+        [value] = shared_mem.read_lr_in(input_addr, 1, offset=index)
 
         if value is None:
             raise RuntimeError(f"array value at {instr.entry} is not defined")

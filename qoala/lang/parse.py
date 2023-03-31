@@ -466,9 +466,6 @@ class RequestRoutineParser:
         )
         typ = self._parse_epr_create_type_value("typ", self._read_line())
         role = self._parse_epr_create_role_value("role", self._read_line())
-        result_array_addr = self._parse_single_int_value(
-            "result_array_addr", self._read_line()
-        )
 
         request = QoalaRequest(
             name=name,
@@ -480,7 +477,6 @@ class RequestRoutineParser:
             fidelity=fidelity,
             typ=typ,
             role=role,
-            result_array_addr=result_array_addr,
         )
         return RequestRoutine(name, request, return_vars, callback_type, callback)
 

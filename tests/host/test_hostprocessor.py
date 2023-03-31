@@ -37,7 +37,7 @@ from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.sharedmem import SharedMemoryManager
+from qoala.runtime.sharedmem import SharedMemory
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.host.hostprocessor import HostProcessor
@@ -57,7 +57,7 @@ class InterfaceEvent:
 
 
 class MockHostInterface(HostInterface):
-    def __init__(self, shared_mem: Optional[SharedMemoryManager] = None) -> None:
+    def __init__(self, shared_mem: Optional[SharedMemory] = None) -> None:
         self.send_events: List[InterfaceEvent] = []
         self.recv_events: List[InterfaceEvent] = []
 
@@ -378,7 +378,7 @@ def test_run_subroutine_2():
     process = create_process(program, interface)
 
     # Make sure interface can mimick writing subroutine results to shared memory
-    interface.shared_mem = process.prog_memory.shared_memmgr
+    interface.shared_mem = process.prog_memory.shared_mem
 
     processor.initialize(process)
 
@@ -393,8 +393,8 @@ def test_run_subroutine_2():
     assert interface.recv_events[0] == InterfaceEvent("qnos", MOCK_MESSAGE)
 
     # Hack to find out which addr was allocated to write results to.
-    result_addr = process.prog_memory.shared_memmgr._lr_out_addrs[0]
-    assert process.prog_memory.shared_memmgr.read_lr_out(result_addr, 1) == [
+    result_addr = process.prog_memory.shared_mem._lr_out_addrs[0]
+    assert process.prog_memory.shared_mem.read_lr_out(result_addr, 1) == [
         MOCK_QNOS_RET_VALUE
     ]
 
@@ -419,7 +419,6 @@ def create_simple_request(
         fidelity=0.65,
         typ=typ,
         role=role,
-        result_array_addr=3,
     )
 
 
