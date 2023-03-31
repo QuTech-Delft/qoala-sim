@@ -518,7 +518,7 @@ def test_single_pair_qoala_md_request_different_virt_ids():
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            shared_mem = process_alice.prog_memory.shared_memmgr
+            shared_mem = process_alice.prog_memory.shared_mem
             result_addr = shared_mem.allocate_rr_out(2)
             rrcall = RrCallTuple(
                 "req1",
@@ -533,7 +533,7 @@ def test_single_pair_qoala_md_request_different_virt_ids():
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            shared_mem = process_bob.prog_memory.shared_memmgr
+            shared_mem = process_bob.prog_memory.shared_mem
             result_addr = shared_mem.allocate_rr_out(2)
             rrcall = RrCallTuple(
                 "req1",
@@ -591,7 +591,7 @@ def test_single_pair_qoala_md_request_same_virt_ids():
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            shared_mem = process_alice.prog_memory.shared_memmgr
+            shared_mem = process_alice.prog_memory.shared_mem
             self.result_addr = shared_mem.allocate_rr_out(2)
             rrcall = RrCallTuple(
                 "req1",
@@ -606,7 +606,7 @@ def test_single_pair_qoala_md_request_same_virt_ids():
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            shared_mem = process_bob.prog_memory.shared_memmgr
+            shared_mem = process_bob.prog_memory.shared_mem
             self.result_addr = shared_mem.allocate_rr_out(2)
             rrcall = RrCallTuple(
                 "req1",
@@ -636,10 +636,8 @@ def test_single_pair_qoala_md_request_same_virt_ids():
     assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 0) is None
     assert bob_netstack.interface.memmgr.phys_id_for(process_bob.pid, 1) is None
 
-    alice_result = process_alice.shared_memmgr.read_rr_out(
-        alice_netstack.result_addr, 2
-    )
-    bob_result = process_bob.shared_memmgr.read_rr_out(bob_netstack.result_addr, 2)
+    alice_result = process_alice.shared_mem.read_rr_out(alice_netstack.result_addr, 2)
+    bob_result = process_bob.shared_mem.read_rr_out(bob_netstack.result_addr, 2)
 
     assert alice_result == bob_result
 

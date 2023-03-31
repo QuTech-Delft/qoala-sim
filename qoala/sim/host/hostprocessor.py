@@ -193,7 +193,7 @@ class HostProcessor:
         # self._logger.info(f"instantiating subroutine with values {arg_values}")
         # process.instantiate_routine(subrt_name, arg_values)
 
-        shared_mem = process.prog_memory.shared_memmgr
+        shared_mem = process.prog_memory.shared_mem
 
         # Allocate input memory and write args to it.
         input_addr = shared_mem.allocate_lr_in(len(arg_values))
@@ -210,7 +210,7 @@ class HostProcessor:
         instr: hostlang.RunSubroutineOp,
         lrcall: LrCallTuple,
     ) -> None:
-        shared_mem = process.prog_memory.shared_memmgr
+        shared_mem = process.prog_memory.shared_mem
 
         # Collect the host variables that should obtain the LR results.
         result_vars: List[str]
@@ -246,7 +246,7 @@ class HostProcessor:
 
         arg_values = {arg: host_mem.read(arg) for arg in args}
 
-        shared_mem = process.prog_memory.shared_memmgr
+        shared_mem = process.prog_memory.shared_mem
 
         # Allocate input memory for RR itself and write args to it.
         input_addr = shared_mem.allocate_rr_in(len(arg_values))
@@ -303,7 +303,7 @@ class HostProcessor:
     def post_rr_call(
         self, process: QoalaProcess, instr: hostlang.RunRequestOp, rrcall: RrCallTuple
     ) -> None:
-        shared_mem = process.prog_memory.shared_memmgr
+        shared_mem = process.prog_memory.shared_mem
         routine = process.get_request_routine(rrcall.routine_name)
 
         # Read the RR results from shared memory.

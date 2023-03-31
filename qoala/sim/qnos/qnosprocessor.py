@@ -275,7 +275,7 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
 
-        new_shared_mem = self._prog_mem().shared_memmgr
+        shared_mem = self._prog_mem().shared_mem
         result_addr = self._routine().result_addr
 
         value = qnos_mem.get_reg_value(instr.reg)
@@ -296,7 +296,7 @@ class QnosProcessor:
         # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
 
-        new_shared_mem.write_lr_out(result_addr, [value], offset=index)
+        shared_mem.write_lr_out(result_addr, [value], offset=index)
 
         return None
 
@@ -305,7 +305,7 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
 
-        new_shared_mem = self._prog_mem().shared_memmgr
+        shared_mem = self._prog_mem().shared_mem
         input_addr = self._routine().params_addr
 
         addr = instr.entry.address.address
@@ -315,7 +315,7 @@ class QnosProcessor:
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
-        [value] = new_shared_mem.read_lr_in(input_addr, 1, offset=index)
+        [value] = shared_mem.read_lr_in(input_addr, 1, offset=index)
 
         if value is None:
             raise RuntimeError(f"array value at {instr.entry} is not defined")

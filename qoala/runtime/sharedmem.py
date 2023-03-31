@@ -50,7 +50,7 @@ class NetQASMArrays:
         return array  # type: ignore
 
 
-class SharedMemoryManager:
+class SharedMemory:
     def __init__(self) -> None:
         self._arrays = NetQASMArrays()
 

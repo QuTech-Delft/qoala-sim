@@ -5,7 +5,7 @@ from typing import Any, Dict, Generator, List, Optional
 from pydynaa import EventExpression
 from qoala.lang.request import CallbackType, EprType, QoalaRequest
 from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
-from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
+from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.events import MSG_REQUEST_DELIVERED
@@ -47,10 +47,6 @@ class NetstackProcessor:
     @property
     def qdevice(self) -> QDevice:
         return self._interface.qdevice
-
-    def get_shared_mem(self, pid: int) -> SharedMemory:
-        prog_mem = self._interface.memmgr.get_process(pid).prog_memory
-        return prog_mem.shared_mem
 
     def execute_entdist_request(
         self, request: EntDistRequest
@@ -122,7 +118,7 @@ class NetstackProcessor:
                 self._interface.memmgr.free(process.pid, virt_id)
                 outcomes.append(m)
 
-        shared_mem = process.prog_memory.shared_memmgr
+        shared_mem = process.prog_memory.shared_mem
         results_addr = running_routine.result_addr
         shared_mem.write_rr_out(results_addr, outcomes)
 

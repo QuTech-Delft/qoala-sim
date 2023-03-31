@@ -64,7 +64,6 @@ class MockQnosInterface(QnosInterface):
     def __init__(
         self,
         qdevice: QDevice,
-        netstack_result_info: Optional[MockNetstackResultInfo] = None,
     ) -> None:
         self.send_events: List[InterfaceEvent] = []
         self.recv_events: List[InterfaceEvent] = []
@@ -73,10 +72,6 @@ class MockQnosInterface(QnosInterface):
 
         self._qdevice = qdevice
         self._memmgr = MemoryManager("alice", self._qdevice)
-
-        self.netstack_result_info: Optional[
-            MockNetstackResultInfo
-        ] = netstack_result_info
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self.send_events.append(InterfaceEvent(peer, msg))
@@ -99,15 +94,6 @@ class MockQnosInterface(QnosInterface):
 
     def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
         self.recv_events.append(InterfaceEvent("netstack", MOCK_MESSAGE))
-        if self.netstack_result_info is not None:
-            mem = self.memmgr._processes[
-                self.netstack_result_info.pid
-            ].prog_memory.shared_mem
-            array_id = self.netstack_result_info.array_id
-            start_idx = self.netstack_result_info.start_idx
-            end_idx = self.netstack_result_info.end_idx
-            for i in range(start_idx, end_idx):
-                mem.set_array_value(array_id, i, 42)
         return MOCK_MESSAGE
         yield  # to make it behave as a generator
 
@@ -257,16 +243,13 @@ def execute_multiple_processes(
 
 
 def setup_components(
-    topology: LhiTopology,
-    latencies: QnosLatencies = QnosLatencies.all_zero(),
-    netstack_result: Optional[MockNetstackResultInfo] = None,
-    asynchronous: bool = False,
+    topology: LhiTopology, latencies: QnosLatencies = QnosLatencies.all_zero()
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = MockQDevice(topology)
     ehi = LhiConverter.to_ehi(topology, ntf=NvToNvInterface())
     unit_module = UnitModule.from_full_ehi(ehi)
-    interface = MockQnosInterface(qdevice, netstack_result)
-    processor = QnosProcessor(interface, latencies, asynchronous)
+    interface = MockQnosInterface(qdevice)
+    processor = QnosProcessor(interface, latencies)
     return (processor, unit_module)
 
 
@@ -499,7 +482,7 @@ SUBROUTINE subrt
     process = create_process_with_local_routine(0, routine, unit_module)
     processor._interface.memmgr.add_process(process)
 
-    shared_mem = process.prog_memory.shared_memmgr
+    shared_mem = process.prog_memory.shared_mem
     input_addr = shared_mem.allocate_lr_in(1)
     shared_mem.write_lr_in(input_addr, [3])
 
@@ -532,7 +515,7 @@ SUBROUTINE subrt
     process = create_process_with_local_routine(0, routine, unit_module)
     processor._interface.memmgr.add_process(process)
 
-    shared_mem = process.prog_memory.shared_memmgr
+    shared_mem = process.prog_memory.shared_mem
 
     input_addr = shared_mem.allocate_lr_in(2)
     shared_mem.write_lr_in(input_addr, [3, 7])

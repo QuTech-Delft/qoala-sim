@@ -39,7 +39,7 @@ from qoala.runtime.lhi_to_ehi import (
     LhiConverter,
     NativeToFlavourInterface,
 )
-from qoala.runtime.memory import ProgramMemory, SharedMemory
+from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.sim.build import build_generic_qprocessor
@@ -53,7 +53,6 @@ from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.qnos import QnosInterface
 from qoala.util.math import has_multi_state
 from qoala.util.tests import netsquid_run
 
@@ -131,82 +130,10 @@ class MockQDevice(QDevice):
         self._executed_commands = []
 
 
-@dataclass
-class MockNetstackResultInfo:
-    pid: int
-    array_id: int
-    start_idx: int
-    end_idx: int
-
-
-class MockQnosInterface(QnosInterface):
-    def __init__(
-        self,
-        qdevice: QDevice,
-        netstack_result_info: Optional[MockNetstackResultInfo] = None,
-    ) -> None:
-        self.send_events: List[InterfaceEvent] = []
-        self.recv_events: List[InterfaceEvent] = []
-        self.flush_events: List[FlushEvent] = []
-        self.signal_events: List[SignalEvent] = []
-
-        self._qdevice = qdevice
-        self._memmgr = MemoryManager("alice", self._qdevice)
-
-        self.netstack_result_info: Optional[
-            MockNetstackResultInfo
-        ] = netstack_result_info
-
-    def send_peer_msg(self, peer: str, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent(peer, msg))
-
-    def receive_peer_msg(self, peer: str) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent(peer, MOCK_MESSAGE))
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def send_host_msg(self, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent("host", msg))
-
-    def receive_host_msg(self) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent("host", MOCK_MESSAGE))
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def send_netstack_msg(self, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent("netstack", msg))
-
-    def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent("netstack", MOCK_MESSAGE))
-        if self.netstack_result_info is not None:
-            mem = self.memmgr._processes[
-                self.netstack_result_info.pid
-            ].prog_memory.shared_mem
-            array_id = self.netstack_result_info.array_id
-            start_idx = self.netstack_result_info.start_idx
-            end_idx = self.netstack_result_info.end_idx
-            for i in range(start_idx, end_idx):
-                mem.set_array_value(array_id, i, 42)
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def flush_netstack_msgs(self) -> None:
-        self.flush_events.append(FlushEvent())
-
-    def signal_memory_freed(self) -> None:
-        self.signal_events.append(SignalEvent())
-
-    @property
-    def name(self) -> str:
-        return "mock"
-
-
 class MockHostInterface(HostInterface):
-    def __init__(self, shared_mem: Optional[SharedMemory] = None) -> None:
+    def __init__(self) -> None:
         self.send_events: List[InterfaceEvent] = []
         self.recv_events: List[InterfaceEvent] = []
-
-        self.shared_mem = shared_mem
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self.send_events.append(InterfaceEvent(peer, msg))
@@ -221,8 +148,6 @@ class MockHostInterface(HostInterface):
 
     def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
         self.recv_events.append(InterfaceEvent("qnos", MOCK_MESSAGE))
-        if self.shared_mem is not None:
-            self.shared_mem.set_reg_value(MOCK_QNOS_RET_REG, MOCK_QNOS_RET_VALUE)
         return MOCK_MESSAGE
         yield  # to make it behave as a generator
 
