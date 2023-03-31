@@ -151,12 +151,18 @@ class TaskScheduleEntry:
 
 
 @dataclass
+class QcSlotInfo:
+    offset: float
+    period: float
+
+
+@dataclass
 class TaskSchedule:
     entries: List[TaskScheduleEntry]
 
     @classmethod
     def _compute_timestamps(
-        cls, task_list: List[BlockTask], qc_slots: List[float]
+        cls, task_list: List[BlockTask], qc_slot_info: Optional[QcSlotInfo]
     ) -> List[float]:
         # Get QC task indices
         qc_indices = []
@@ -176,29 +182,29 @@ class TaskSchedule:
             if task.duration:
                 time += task.duration
 
-        for index in qc_indices:
-            for qc_slot in qc_slots:
-                if qc_slot >= timestamps[index]:
-                    delta = qc_slot - timestamps[index]
-                    for i in range(index, len(timestamps)):
-                        if timestamps[i] is not None:
-                            timestamps[i] += delta
-                    break
+        if qc_slot_info is not None:
+            curr_slot = qc_slot_info.offset
+            for index in qc_indices:
+                while curr_slot <= timestamps[index]:
+                    curr_slot += qc_slot_info.period
+
+                delta = curr_slot - timestamps[index]
+                for i in range(index, len(timestamps)):
+                    if timestamps[i] is not None:
+                        timestamps[i] += delta
         return timestamps
 
     @classmethod
     def consecutive(
-        cls,
-        task_list: List[BlockTask],
-        qc_slots: Optional[List[float]] = None,
+        cls, task_list: List[BlockTask], qc_slot_info: Optional[QcSlotInfo] = None
     ) -> TaskSchedule:
         entries: List[TaskScheduleEntry] = []
 
-        if qc_slots is not None:
-            timestamps = cls._compute_timestamps(task_list, qc_slots)
+        if qc_slot_info is not None:
+            timestamps = cls._compute_timestamps(task_list, qc_slot_info)
 
         for i, task in enumerate(task_list):
-            if qc_slots is not None and task.typ == BasicBlockType.QC:
+            if qc_slot_info is not None and task.typ == BasicBlockType.QC:
                 time = timestamps[i]
             else:
                 time = None
@@ -217,14 +223,11 @@ class TaskSchedule:
     def consecutive_timestamps(
         cls,
         task_list: List[BlockTask],
-        qc_slots: Optional[List[float]] = None,
+        qc_slot_info: Optional[QcSlotInfo] = None,
     ) -> TaskSchedule:
         entries: List[TaskScheduleEntry] = []
 
-        if qc_slots is None:
-            qc_slots = []
-
-        timestamps = cls._compute_timestamps(task_list, qc_slots)
+        timestamps = cls._compute_timestamps(task_list, qc_slot_info)
 
         for i, task in enumerate(task_list):
             time = timestamps[i]

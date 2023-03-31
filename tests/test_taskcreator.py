@@ -14,6 +14,7 @@ from qoala.runtime.lhi import (
 )
 from qoala.runtime.taskcreator import (
     BlockTask,
+    QcSlotInfo,
     TaskCreator,
     TaskExecutionMode,
     TaskSchedule,
@@ -136,7 +137,7 @@ def test_consecutive_qc_slots():
         BlockTask(pid, "blk_host1", CL, 1000),
     ]
 
-    schedule = TaskSchedule.consecutive(tasks, qc_slots=[50_000, 60_000])
+    schedule = TaskSchedule.consecutive(tasks, qc_slots=QcSlotInfo(0, 50_000))
 
     assert schedule.entries == [
         TaskScheduleEntry(tasks[0], timestamp=None, prev=None),

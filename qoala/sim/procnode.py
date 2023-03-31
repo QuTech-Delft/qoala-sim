@@ -12,6 +12,7 @@ from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.schedule import Schedule, ScheduleSolver
+from qoala.runtime.taskcreator import QcSlotInfo
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.host.host import Host
@@ -117,6 +118,8 @@ class ProcNode(Protocol):
                 self._netstack,
                 self._memmgr,
                 self._local_env,
+                self._local_ehi,
+                self._network_ehi,
             )
         else:
             self._scheduler = scheduler
@@ -257,6 +260,9 @@ class ProcNode(Protocol):
 
     def initialize_schedule(self, solver: Type[ScheduleSolver]) -> None:
         self.scheduler.solve_and_install_schedule(solver)
+
+    def initialize_block_schedule(self, qc_slot_info: QcSlotInfo) -> None:
+        self.scheduler.initialize_block_schedule(qc_slot_info)
 
     def add_process(self, process: IqoalaProcess) -> None:
         self.memmgr.add_process(process)

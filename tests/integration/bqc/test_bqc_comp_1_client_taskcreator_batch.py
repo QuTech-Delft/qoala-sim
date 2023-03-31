@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import netsquid as ns
 
-from qoala.lang.ehi import ExposedHardwareInfo, UnitModule
+from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
@@ -16,15 +16,9 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.program import BatchResult, ProgramInput, ProgramInstance
-from qoala.runtime.schedule import ProgramTaskList
-from qoala.runtime.taskcreator import (
-    CpuQpuSchedule,
-    CpuSchedule,
-    QpuSchedule,
-    TaskCreator,
-    TaskExecutionMode,
-)
+from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
+from qoala.runtime.schedule import NoTimeSolver, ProgramTaskList, TaskBuilder
+from qoala.runtime.taskcreator import QcSlotInfo, TaskCreator, TaskExecutionMode
 from qoala.sim.build import build_network
 
 
@@ -40,9 +34,7 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         node_name=name,
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        latencies=LatenciesConfig(
-            host_instr_time=500, host_peer_latency=1_000_000, qnos_instr_time=1000
-        ),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
     )
 
 
@@ -53,33 +45,29 @@ def load_program(path: str) -> IqoalaProgram:
     return IqoalaParser(text).parse()
 
 
-@dataclass
-class SimpleBqcResult:
-    client_result: Dict[str, int]
-    server_result: Dict[str, int]
-
-
-def instantiate(
+def create_batch(
     program: IqoalaProgram,
-    ehi: ExposedHardwareInfo,
-    pid: int = 0,
-    inputs: Optional[ProgramInput] = None,
-) -> ProgramInstance:
-    unit_module = UnitModule.from_full_ehi(ehi)
-
-    if inputs is None:
-        inputs = ProgramInput.empty()
-
-    return ProgramInstance(
-        pid,
-        program,
-        inputs,
-        tasks=ProgramTaskList.empty(program),
+    unit_module: UnitModule,
+    inputs: List[ProgramInput],
+    num_iterations: int,
+) -> BatchInfo:
+    return BatchInfo(
+        program=program,
         unit_module=unit_module,
+        inputs=inputs,
+        num_iterations=num_iterations,
+        deadline=0,
+        tasks=ProgramTaskList.empty(program),
     )
 
 
-def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
+@dataclass
+class BqcResult:
+    client_results: Dict[int, BatchResult]
+    server_results: Dict[int, BatchResult]
+
+
+def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     ns.sim_reset()
 
     num_qubits = 3
@@ -98,54 +86,47 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     client_procnode = network.nodes["client"]
 
     server_program = load_program("bqc_server.iqoala")
-    server_input = ProgramInput({"client_id": client_id})
-    server_instance = instantiate(
-        server_program, server_procnode.local_ehi, 0, server_input
+    server_inputs = [
+        ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
+    ]
+
+    server_unit_module = UnitModule.from_full_ehi(server_procnode.memmgr.get_ehi())
+    server_batch = create_batch(
+        server_program, server_unit_module, server_inputs, num_iterations
     )
-    server_procnode.scheduler.submit_program_instance(server_instance)
+    server_procnode.submit_batch(server_batch)
+    server_procnode.initialize_processes()
+    server_procnode.initialize_block_schedule(QcSlotInfo(350_000, 350_000))
 
     client_program = load_program("bqc_client.iqoala")
-    client_input = ProgramInput(
-        {
-            "server_id": server_id,
-            "alpha": alpha,
-            "beta": beta,
-            "theta1": theta1,
-            "theta2": theta2,
-        }
-    )
-    client_instance = instantiate(
-        client_program, client_procnode.local_ehi, 0, client_input
-    )
-    client_procnode.scheduler.submit_program_instance(client_instance)
+    client_inputs = [
+        ProgramInput(
+            {
+                "server_id": server_id,
+                "alpha": alpha,
+                "beta": beta,
+                "theta1": theta1,
+                "theta2": theta2,
+            }
+        )
+        for _ in range(num_iterations)
+    ]
 
-    task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
-    tasks_server = task_creator.from_program(
-        server_program, 0, server_procnode.local_ehi, server_procnode.network_ehi
+    client_unit_module = UnitModule.from_full_ehi(client_procnode.memmgr.get_ehi())
+    client_batch = create_batch(
+        client_program, client_unit_module, client_inputs, num_iterations
     )
-    tasks_client = task_creator.from_program(
-        client_program, 0, client_procnode.local_ehi, client_procnode.network_ehi
-    )
-
-    schedule_server = CpuQpuSchedule.consecutive_with_QC_constraint(
-        tasks_server, qc_slots=[350_000, 700_000], cc_buffer=1_000_000
-    )
-    schedule_client = CpuQpuSchedule.consecutive_with_QC_constraint(
-        tasks_client,
-        qc_slots=[350_000, 700_000],
-        cc_buffer=1000_000,
-        free_after_index=6,
-    )
-    server_procnode.scheduler.upload_schedule(schedule_server)
-    client_procnode.scheduler.upload_schedule(schedule_client)
+    client_procnode.submit_batch(client_batch)
+    client_procnode.initialize_processes()
+    client_procnode.initialize_block_schedule(QcSlotInfo(350_000, 350_000))
 
     network.start()
     ns.sim_run()
 
-    client_result = client_procnode.memmgr.get_process(0).result.values
-    server_result = server_procnode.memmgr.get_process(0).result.values
+    client_results = client_procnode.scheduler.get_batch_results()
+    server_results = server_procnode.scheduler.get_batch_results()
 
-    return SimpleBqcResult(client_result, server_result)
+    return BqcResult(client_results, server_results)
 
 
 def test_bqc():
@@ -155,12 +136,26 @@ def test_bqc():
 
     # angles are in multiples of pi/16
 
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("test_run.log")
+
     def check(alpha, beta, theta1, theta2, expected, num_iterations):
         ns.sim_reset()
+        bqc_result = run_bqc(
+            alpha=alpha,
+            beta=beta,
+            theta1=theta1,
+            theta2=theta2,
+            num_iterations=num_iterations,
+        )
+        assert len(bqc_result.client_results) > 0
+        assert len(bqc_result.server_results) > 0
 
-        for _ in range(num_iterations):
-            bqc_result = run_bqc(alpha=alpha, beta=beta, theta1=theta1, theta2=theta2)
-            assert bqc_result.server_result["m2"] == expected
+        server_batch_results = bqc_result.server_results
+        for _, batch_results in server_batch_results.items():
+            program_results = batch_results.results
+            m2s = [result.values["m2"] for result in program_results]
+            assert all(m2 == expected for m2 in m2s)
 
     check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
     check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)

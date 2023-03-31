@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.schedule import ProgramTaskList
+from qoala.runtime.taskcreator import BlockTask
 
 
 class ProgramContext(abc.ABC):
@@ -48,6 +49,7 @@ class ProgramInstance:
     inputs: ProgramInput
     tasks: ProgramTaskList
     unit_module: UnitModule
+    block_tasks: List[BlockTask]
 
 
 @dataclass

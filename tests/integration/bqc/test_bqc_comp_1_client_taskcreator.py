@@ -18,7 +18,12 @@ from qoala.runtime.config import (
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchResult, ProgramInput, ProgramInstance
 from qoala.runtime.schedule import ProgramTaskList
-from qoala.runtime.taskcreator import TaskCreator, TaskExecutionMode, TaskSchedule
+from qoala.runtime.taskcreator import (
+    QcSlotInfo,
+    TaskCreator,
+    TaskExecutionMode,
+    TaskSchedule,
+)
 from qoala.sim.build import build_network
 from qoala.util.logging import LogManager
 
@@ -71,6 +76,7 @@ def instantiate(
         inputs,
         tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
+        block_tasks=[],
     )
 
 
@@ -123,12 +129,10 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     )
 
     schedule_server = TaskSchedule.consecutive(
-        tasks_server,
-        qc_slots=[350_000, 700_000],
+        tasks_server, qc_slots=QcSlotInfo(350_000, 350_000)
     )
     schedule_client = TaskSchedule.consecutive(
-        tasks_client,
-        qc_slots=[350_000, 700_000],
+        tasks_client, qc_slots=QcSlotInfo(350_000, 350_000)
     )
     # print(schedule_server)
     # print()

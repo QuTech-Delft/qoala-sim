@@ -5,8 +5,10 @@ from typing import Dict, Generator, List, Optional, Tuple, Type
 
 import netsquid as ns
 from netsquid.protocols import Protocol
+from numpy import block
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import ExposedHardwareInfo, NetworkEhi
 from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.memory import ProgramMemory
@@ -33,7 +35,13 @@ from qoala.runtime.schedule import (
     ScheduleTime,
     SingleProgramTask,
 )
-from qoala.runtime.taskcreator import TaskSchedule
+from qoala.runtime.taskcreator import (
+    BlockTask,
+    QcSlotInfo,
+    TaskCreator,
+    TaskExecutionMode,
+    TaskSchedule,
+)
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
@@ -55,6 +63,8 @@ class Scheduler(Protocol):
         netstack: Netstack,
         memmgr: MemoryManager,
         local_env: LocalEnvironment,
+        local_ehi: ExposedHardwareInfo,
+        network_ehi: NetworkEhi,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
@@ -69,6 +79,8 @@ class Scheduler(Protocol):
         self._netstack = netstack
         self._memmgr = memmgr
         self._local_env = local_env
+        self._local_ehi = local_ehi
+        self._network_ehi = network_ehi
 
         self._prog_instance_counter: int = 0
         self._batch_counter: int = 0
@@ -77,6 +89,7 @@ class Scheduler(Protocol):
         self._batch_results: Dict[int, BatchResult] = {}  # batch ID -> result
 
         self._schedule: Optional[Schedule] = None
+        self._block_schedule: Optional[Schedule] = None
 
         self._cpudriver = CpuDriver(node_name, host.processor, memmgr)
         self._qpudriver = QpuDriver(
@@ -102,16 +115,27 @@ class Scheduler(Protocol):
     def memmgr(self) -> MemoryManager:
         return self._memmgr
 
+    @property
+    def block_schedule(self) -> TaskSchedule:
+        return self._block_schedule
+
     def submit_batch(self, batch_info: BatchInfo) -> None:
         prog_instances: List[ProgramInstance] = []
 
         for i in range(batch_info.num_iterations):
+            pid = self._prog_instance_counter
+            task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
+            block_tasks = task_creator.from_program(
+                batch_info.program, pid, self._local_ehi, self._network_ehi
+            )
+
             instance = ProgramInstance(
-                pid=self._prog_instance_counter,
+                pid=pid,
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 tasks=batch_info.tasks,
                 unit_module=batch_info.unit_module,
+                block_tasks=block_tasks,
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -218,6 +242,7 @@ class Scheduler(Protocol):
             self._batch_results[batch_id] = BatchResult(batch_id, results)
 
     def get_batch_results(self) -> Dict[int, BatchResult]:
+        self.collect_batch_results()
         return self._batch_results
 
     def execute_host_task(
@@ -325,6 +350,7 @@ class Scheduler(Protocol):
         self._qpudriver.upload_schedule(schedule)
 
     def upload_schedule(self, schedule: TaskSchedule) -> None:
+        self._block_schedule = schedule
         self._cpudriver.upload_schedule(schedule.cpu_schedule)
         self._qpudriver.upload_schedule(schedule.qpu_schedule)
 
@@ -374,3 +400,13 @@ class Scheduler(Protocol):
         process = self.create_process(prog_instance)
         self.memmgr.add_process(process)
         self.initialize_process(process)
+
+    def initialize_block_schedule(self, qc_slot_info: QcSlotInfo) -> None:
+        all_tasks: List[BlockTask] = []
+
+        for batch in self._batches.values():
+            for inst in batch.instances:
+                all_tasks.extend(inst.block_tasks)
+
+        schedule = TaskSchedule.consecutive(all_tasks, qc_slot_info)
+        self.upload_schedule(schedule)

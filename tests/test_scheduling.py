@@ -69,6 +69,7 @@ def instantiate(
         inputs,
         tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
+        block_tasks=[],
     )
 
 
