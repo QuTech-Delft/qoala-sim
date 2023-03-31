@@ -393,7 +393,6 @@ REQUEST req1
   fidelity: 0.65
   typ: create_keep
   role: create
-  result_array_addr: 3
     """
 
     parsed = RequestRoutineParser(text).parse()
@@ -416,7 +415,6 @@ REQUEST req1
             fidelity=0.65,
             typ=EprType.CREATE_KEEP,
             role=EprRole.CREATE,
-            result_array_addr=3,
         ),
     )
 
@@ -435,7 +433,6 @@ REQUEST req1
   fidelity: 0.65
   typ: measure_directly
   role: receive
-  result_array_addr: 0
     """
 
     parsed = RequestRoutineParser(text).parse()
@@ -458,7 +455,6 @@ REQUEST req1
             fidelity=0.65,
             typ=EprType.MEASURE_DIRECTLY,
             role=EprRole.RECEIVE,
-            result_array_addr=0,
         ),
     )
 
@@ -477,7 +473,6 @@ REQUEST req1
   fidelity: 0.65
   typ: measure_directly
   role: receive
-  result_array_addr: 0
     """
 
     parsed = RequestRoutineParser(text).parse()
@@ -500,7 +495,6 @@ REQUEST req1
             fidelity=0.65,
             typ=EprType.MEASURE_DIRECTLY,
             role=EprRole.RECEIVE,
-            result_array_addr=0,
         ),
     )
 
@@ -519,7 +513,6 @@ REQUEST req1
   fidelity: 0.65
   typ: create_keep
   role: create
-  result_array_addr: 3
 
 REQUEST req2
   callback_type: sequential
@@ -533,7 +526,6 @@ REQUEST req2
   fidelity: 0.65
   typ: measure_directly
   role: receive
-  result_array_addr: 0
     """
 
     parsed = RequestRoutineParser(text).parse()
@@ -558,7 +550,6 @@ REQUEST req2
             fidelity=0.65,
             typ=EprType.CREATE_KEEP,
             role=EprRole.CREATE,
-            result_array_addr=3,
         ),
     )
     assert routine2 == RequestRoutine(
@@ -576,7 +567,6 @@ REQUEST req2
             fidelity=0.65,
             typ=EprType.MEASURE_DIRECTLY,
             role=EprRole.RECEIVE,
-            result_array_addr=0,
         ),
     )
 
@@ -595,7 +585,6 @@ REQUEST req1
   fidelity: 0.65
   typ: invalid
   role: receive
-  result_array_addr: 0
     """
 
     # invalid 'typ' value
@@ -671,7 +660,6 @@ REQUEST req1
   fidelity: 0.65
   typ: measure_directly
   role: receive
-  result_array_addr: 0
     """
 
     parsed_program = QoalaParser(
@@ -900,7 +888,6 @@ REQUEST req1
   fidelity: 1.0
   typ: create_keep
   role: receive
-  result_array_addr: 0
     """
 
     text = meta_text + host_text + subrt_text + req_text
@@ -988,7 +975,6 @@ REQUEST req1
     fidelity: 1.0
     typ: create_keep
     role: receive
-    result_array_addr: 0
         """
 
     text = meta_text + host_text + req_text

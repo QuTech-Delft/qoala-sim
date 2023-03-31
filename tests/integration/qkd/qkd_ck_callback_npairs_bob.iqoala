@@ -36,4 +36,3 @@ REQUEST req
   fidelity: 1.0
   typ: create_keep
   role: receive
-  result_array_addr: 0

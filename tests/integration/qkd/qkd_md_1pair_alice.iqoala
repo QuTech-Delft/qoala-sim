@@ -24,4 +24,3 @@ REQUEST req
   fidelity: 1.0
   typ: measure_directly
   role: create
-  result_array_addr: 0

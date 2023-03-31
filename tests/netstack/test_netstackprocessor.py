@@ -110,7 +110,6 @@ def create_simple_request(
         fidelity=0.65,
         typ=EprType.CREATE_KEEP,
         role=EprRole.CREATE,
-        result_array_addr=3,
     )
 
 

@@ -337,7 +337,6 @@ def test_initialize():
             fidelity=1.0,
             typ=EprType.CREATE_KEEP,
             role=EprRole.CREATE,
-            result_array_addr=0,
         ),
     )
 
@@ -709,7 +708,6 @@ def test_epr():
             fidelity=1.0,
             typ=EprType.CREATE_KEEP,
             role=EprRole.CREATE,
-            result_array_addr=0,
         ),
     )
 
@@ -728,7 +726,6 @@ def test_epr():
             fidelity=1.0,
             typ=EprType.CREATE_KEEP,
             role=EprRole.RECEIVE,
-            result_array_addr=0,
         ),
     )
 
@@ -827,7 +824,6 @@ REQUEST req1
   fidelity: 1.0
   typ: create_keep
   role: receive
-  result_array_addr: 0
     """
     server_program = QoalaParser(server_text).parse()
 
@@ -891,7 +887,6 @@ REQUEST req1
   fidelity: 1.0
   typ: create_keep
   role: create
-  result_array_addr: 0
     """
     client_program = QoalaParser(client_text).parse()
     client_procnode = create_procnode(

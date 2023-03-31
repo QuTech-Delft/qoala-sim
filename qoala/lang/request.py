@@ -109,7 +109,6 @@ class QoalaRequest:
     fidelity: float
     typ: EprType
     role: EprRole
-    result_array_addr: int  # TODO remove when implementing proper shared memory
 
     def instantiate(self, values: Dict[str, Any]) -> None:
         if isinstance(self.remote_id, Template):
@@ -137,7 +136,6 @@ class QoalaRequest:
         s += f"fidelity: {self.fidelity}"
         s += f"typ: {self.typ.name}"
         s += f"role: {self.role}"
-        s += f"result_array_addr: {self.result_array_addr}"
         return s
 
     def __str__(self) -> str:

@@ -419,7 +419,6 @@ def create_simple_request(
         fidelity=0.65,
         typ=typ,
         role=role,
-        result_array_addr=3,
     )
 
 
