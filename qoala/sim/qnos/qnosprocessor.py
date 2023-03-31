@@ -23,22 +23,16 @@ from netsquid.components.instructions import (
     INSTR_Z,
 )
 from netsquid.components.instructions import Instruction as NsInstr
-from netsquid.qubits import qubitapi
 
 from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
 from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.sharedmem import MemAddr
-from qoala.sim.globals import GlobalSimData
 from qoala.sim.memmgr import NotAllocatedError
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos.qnosinterface import QnosInterface, QnosLatencies
-from qoala.sim.requests import (
-    NetstackBreakpointCreateRequest,
-    NetstackBreakpointReceiveRequest,
-)
 from qoala.util.logging import LogManager
 from qoala.util.math import PI, PI_OVER_2
 
@@ -219,43 +213,48 @@ class QnosProcessor:
     ) -> Optional[Generator[EventExpression, None, None]]:
         if instr.action.value == 0:
             self._logger.info("BREAKPOINT: no action taken")
+            return None
         elif instr.action.value == 1:
-            self._logger.info("BREAKPOINT: dumping local state:")
-            for i in range(self.qdevice.qprocessor.num_positions):
-                if self.qdevice.qprocessor.mem_positions[i].in_use:
-                    q = self.qdevice.qprocessor.peek(i)
-                    qstate = qubitapi.reduced_dm(q)
-                    self._logger.info(f"physical qubit {i}:\n{qstate}")
+            # TODO: fix
+            raise NotImplementedError
+            # self._logger.info("BREAKPOINT: dumping local state:")
+            # for i in range(self.qdevice.qprocessor.num_positions):
+            #     if self.qdevice.qprocessor.mem_positions[i].in_use:
+            #         q = self.qdevice.qprocessor.peek(i)
+            #         qstate = qubitapi.reduced_dm(q)
+            #         self._logger.info(f"physical qubit {i}:\n{qstate}")
 
             # TODO: fix this; GlobalSimData is not static anymore!
-            state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
+            # state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
         elif instr.action.value == 2:
-            self._logger.info("BREAKPOINT: dumping global state:")
-            if instr.role.value == 0:
-                self._interface.send_netstack_msg(
-                    Message(content=NetstackBreakpointCreateRequest(pid))
-                )
-                ready = yield from self._interface.receive_netstack_msg()
-                assert ready.content == "breakpoint ready"
+            # TODO: fix
+            raise NotImplementedError
+            # self._logger.info("BREAKPOINT: dumping global state:")
+            # if instr.role.value == 0:
+            #     self._interface.send_netstack_msg(
+            #         Message(content=NetstackBreakpointCreateRequest(pid))
+            #     )
+            #     ready = yield from self._interface.receive_netstack_msg()
+            #     assert ready.content == "breakpoint ready"
 
-                # TODO: fix this; GlobalSimData is not static anymore!
-                state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
-                self._logger.info(state)
+            #     # TODO: fix this; GlobalSimData is not static anymore!
+            #     state = GlobalSimData.get_quantum_state(save=True)  # type: ignore
+            #     self._logger.info(state)
 
-                self._interface.send_netstack_msg(Message(content="breakpoint end"))
-                finished = yield from self._interface.receive_netstack_msg()
-                assert finished.content == "breakpoint finished"
-            elif instr.role.value == 1:
-                self._interface.send_netstack_msg(
-                    Message(content=NetstackBreakpointReceiveRequest(pid))
-                )
-                ready = yield from self._interface.receive_netstack_msg()
-                assert ready.content == "breakpoint ready"
-                self._interface.send_netstack_msg(Message(content="breakpoint end"))
-                finished = yield from self._interface.receive_netstack_msg()
-                assert finished.content == "breakpoint finished"
-            else:
-                raise ValueError
+            #     self._interface.send_netstack_msg(Message(content="breakpoint end"))
+            #     finished = yield from self._interface.receive_netstack_msg()
+            #     assert finished.content == "breakpoint finished"
+            # elif instr.role.value == 1:
+            #     self._interface.send_netstack_msg(
+            #         Message(content=NetstackBreakpointReceiveRequest(pid))
+            #     )
+            #     ready = yield from self._interface.receive_netstack_msg()
+            #     assert ready.content == "breakpoint ready"
+            #     self._interface.send_netstack_msg(Message(content="breakpoint end"))
+            #     finished = yield from self._interface.receive_netstack_msg()
+            #     assert finished.content == "breakpoint finished"
+            # else:
+            #     raise ValueError
         else:
             raise ValueError
 

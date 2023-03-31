@@ -4,15 +4,12 @@ from typing import Dict, Optional
 
 from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
-from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
-from qoala.sim.egp import EgpProtocol
-from qoala.sim.egpmgr import EgpManager
 from qoala.sim.host.host import Host
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.host.hostinterface import HostLatencies
@@ -89,7 +86,6 @@ class ProcNode(Protocol):
             self.host_comp, self._local_env, host_latencies, self._asynchronous
         )
         self._memmgr = MemoryManager(self.node.name, self._qdevice, self._local_ehi)
-        self._egpmgr = EgpManager()
         self._qnos = Qnos(
             self.qnos_comp,
             self._local_env,
@@ -103,7 +99,6 @@ class ProcNode(Protocol):
             self.netstack_comp,
             self._local_env,
             self._memmgr,
-            self._egpmgr,
             self._qdevice,
             netstack_latencies,
         )
@@ -121,15 +116,6 @@ class ProcNode(Protocol):
             )
         else:
             self._scheduler = scheduler
-
-    def assign_ll_protocol(
-        self, remote_id: int, prot: MagicLinkLayerProtocolWithSignaling
-    ) -> None:
-        """Set the link layer protocol to use for entanglement generation.
-
-        The same link layer protocol object is used by both nodes sharing a link in
-        the network."""
-        self.egpmgr.add_egp(remote_id, EgpProtocol(self.node, prot))
 
     @property
     def node(self) -> ProcNodeComponent:
@@ -184,10 +170,6 @@ class ProcNode(Protocol):
     @property
     def memmgr(self) -> MemoryManager:
         return self._memmgr
-
-    @property
-    def egpmgr(self) -> EgpManager:
-        return self._egpmgr
 
     @property
     def scheduler(self) -> Scheduler:

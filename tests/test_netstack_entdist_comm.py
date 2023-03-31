@@ -15,7 +15,7 @@ from qoala.sim.netstack.netstackinterface import NetstackInterface
 
 class MockNetstackInterface(NetstackInterface):
     def __init__(self, comp: NetstackComponent, local_env: LocalEnvironment) -> None:
-        super().__init__(comp, local_env, None, None, None)
+        super().__init__(comp, local_env, None, None)
 
 
 def test_connection():

@@ -3,17 +3,11 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional, Tuple, Type
+from typing import Any, Dict, Generator, List, Optional, Type
 
 import netsquid as ns
 from netsquid.components import QuantumProcessor
-from netsquid.nodes import Node
 from netsquid.qubits import ketstates, qubitapi
-from netsquid_magic.link_layer import (
-    MagicLinkLayerProtocolWithSignaling,
-    SingleClickTranslationUnit,
-)
-from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, UnitModule
@@ -30,7 +24,6 @@ from qoala.runtime.lhi_to_ehi import (
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.sim.build import build_qprocessor_from_topology
-from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.host.csocket import ClassicalSocket
@@ -105,16 +98,6 @@ def create_procnode(
     )
 
     return procnode
-
-
-def create_egp_protocols(node1: Node, node2: Node) -> Tuple[EgpProtocol, EgpProtocol]:
-    link_dist = PerfectStateMagicDistributor(nodes=[node1, node2], state_delay=1000.0)
-    link_prot = MagicLinkLayerProtocolWithSignaling(
-        nodes=[node1, node2],
-        magic_distributor=link_dist,
-        translation_unit=SingleClickTranslationUnit(),
-    )
-    return EgpProtocol(node1, link_prot), EgpProtocol(node2, link_prot)
 
 
 class BqcProcNode(ProcNode):

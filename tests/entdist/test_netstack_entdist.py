@@ -22,7 +22,6 @@ from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
-from qoala.sim.egpmgr import EgpManager
 from qoala.sim.entdist.entdist import EntDist, EntDistRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.memmgr import MemoryManager
@@ -42,7 +41,7 @@ class MockNetstackInterface(NetstackInterface):
         qdevice: QDevice,
         requests: List[EntDistRequest],
     ) -> None:
-        super().__init__(comp, local_env, qdevice, None, None)
+        super().__init__(comp, local_env, qdevice, None)
         self._requests = requests
 
 
@@ -236,7 +235,6 @@ def setup_components_full_netstack(
         comp=alice_comp,
         local_env=LocalEnvironment(env, alice_qdevice.node.ID),
         memmgr=MemoryManager("alice", alice_qdevice),
-        egpmgr=EgpManager(),
         qdevice=alice_qdevice,
         latencies=NetstackLatencies.all_zero(),
     )
@@ -244,7 +242,6 @@ def setup_components_full_netstack(
         comp=bob_comp,
         local_env=LocalEnvironment(env, bob_qdevice.node.ID),
         memmgr=MemoryManager("bob", bob_qdevice),
-        egpmgr=EgpManager(),
         qdevice=bob_qdevice,
         latencies=NetstackLatencies.all_zero(),
     )
