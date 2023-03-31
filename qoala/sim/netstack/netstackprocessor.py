@@ -25,6 +25,7 @@ from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.sim.entdist.entdist import EntDistRequest
+from qoala.sim.events import MSG_REQUEST_DELIVERED
 from qoala.sim.memmgr import AllocError
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import QoalaProcess
@@ -35,9 +36,8 @@ from qoala.sim.requests import (
     NetstackBreakpointReceiveRequest,
     T_NetstackRequest,
 )
-from qoala.sim.signals import MSG_REQUEST_DELIVERED
-from qoala.util.constants import PI
 from qoala.util.logging import LogManager
+from qoala.util.math import PI
 
 
 class NetstackProcessor:

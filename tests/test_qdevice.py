@@ -27,8 +27,8 @@ from qoala.sim.qdevice import (
     QDeviceCommand,
     UnsupportedQDeviceCommandError,
 )
-from qoala.util.constants import PI, PI_OVER_2
-from qoala.util.tests import has_state, netsquid_run
+from qoala.util.math import PI, PI_OVER_2, has_state
+from qoala.util.tests import netsquid_run
 
 
 def perfect_uniform_qdevice(num_qubits: int) -> QDevice:

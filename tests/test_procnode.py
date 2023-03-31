@@ -56,6 +56,7 @@ from qoala.sim.build import build_generic_qprocessor
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.sim.events import MSG_REQUEST_DELIVERED
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import AllocError, MemoryManager
@@ -64,8 +65,8 @@ from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.sim.qnos import QnosInterface
-from qoala.sim.signals import MSG_REQUEST_DELIVERED
-from qoala.util.tests import has_multi_state, netsquid_run
+from qoala.util.math import has_multi_state
+from qoala.util.tests import netsquid_run
 
 MOCK_MESSAGE = Message(content=42)
 MOCK_QNOS_RET_REG = "R0"

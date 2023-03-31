@@ -24,14 +24,14 @@ from qoala.sim.entdist.entdist import (
     JointRequest,
 )
 from qoala.sim.entdist.entdistcomp import EntDistComponent
-from qoala.util.tests import (
+from qoala.util.math import (
     B00_DENS,
     S10_DENS,
     TWO_MAX_MIXED,
     density_matrices_equal,
     has_multi_state,
-    netsquid_run,
 )
+from qoala.util.tests import netsquid_run
 
 
 def create_n_nodes(n: int, num_qubits: int = 1) -> List[Node]:

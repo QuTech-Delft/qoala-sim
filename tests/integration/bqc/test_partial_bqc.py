@@ -37,7 +37,7 @@ from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
-from qoala.util.tests import has_state
+from qoala.util.math import has_state
 
 
 def create_process(

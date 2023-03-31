@@ -21,8 +21,7 @@ from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
-from qoala.sim.events import EPR_DELIVERY
-from qoala.sim.signals import MSG_REQUEST_DELIVERED
+from qoala.sim.events import EPR_DELIVERY, MSG_REQUEST_DELIVERED
 from qoala.util.logging import LogManager
 
 

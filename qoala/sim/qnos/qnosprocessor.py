@@ -39,8 +39,8 @@ from qoala.sim.requests import (
     NetstackBreakpointCreateRequest,
     NetstackBreakpointReceiveRequest,
 )
-from qoala.util.constants import PI, PI_OVER_2
 from qoala.util.logging import LogManager
+from qoala.util.math import PI, PI_OVER_2
 
 
 class UnsupportedNetqasmInstructionError(Exception):

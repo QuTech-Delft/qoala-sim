@@ -6,14 +6,14 @@ from typing import Generator
 from pydynaa import EventExpression
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.message import Message
-from qoala.sim.common import ComponentProtocol, PortListener
-from qoala.sim.events import EVENT_WAIT
-from qoala.sim.host.hostcomp import HostComponent
-from qoala.sim.signals import (
+from qoala.sim.componentprot import ComponentProtocol, PortListener
+from qoala.sim.events import (
+    EVENT_WAIT,
     SIGNAL_HOST_HOST_MSG,
     SIGNAL_NSTK_HOST_MSG,
     SIGNAL_QNOS_HOST_MSG,
 )
+from qoala.sim.host.hostcomp import HostComponent
 
 
 @dataclass

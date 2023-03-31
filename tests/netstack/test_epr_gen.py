@@ -53,7 +53,7 @@ from qoala.sim.netstack import (
 )
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.util.tests import has_multi_state
+from qoala.util.math import has_multi_state
 
 
 def perfect_uniform_qdevice(node_name: str, num_qubits: int) -> QDevice:

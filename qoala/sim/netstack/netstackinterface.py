@@ -12,19 +12,19 @@ from qlink_interface.interface import (
 from pydynaa import EventExpression
 from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.message import Message
-from qoala.sim.common import ComponentProtocol, PortListener
+from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.egpmgr import EgpManager
-from qoala.sim.events import EVENT_WAIT
-from qoala.sim.memmgr import MemoryManager
-from qoala.sim.netstack.netstackcomp import NetstackComponent
-from qoala.sim.qdevice import QDevice
-from qoala.sim.signals import (
+from qoala.sim.events import (
+    EVENT_WAIT,
     SIGNAL_ENTD_NSTK_MSG,
     SIGNAL_HOST_NSTK_MSG,
     SIGNAL_MEMORY_FREED,
     SIGNAL_NSTK_NSTK_MSG,
     SIGNAL_QNOS_NSTK_MSG,
 )
+from qoala.sim.memmgr import MemoryManager
+from qoala.sim.netstack.netstackcomp import NetstackComponent
+from qoala.sim.qdevice import QDevice
 
 
 @dataclass

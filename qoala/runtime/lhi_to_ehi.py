@@ -47,7 +47,7 @@ from qoala.runtime.lhi import (
     LhiQubitInfo,
     LhiTopology,
 )
-from qoala.util.constants import prob_max_mixed_to_fidelity
+from qoala.util.math import prob_max_mixed_to_fidelity
 
 
 class NativeToFlavourInterface(abc.ABC):

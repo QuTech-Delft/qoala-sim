@@ -1,6 +1,6 @@
 import numpy as np
 
-from qoala.util.tests import density_matrices_equal
+from qoala.util.math import density_matrices_equal
 
 
 def test_1():

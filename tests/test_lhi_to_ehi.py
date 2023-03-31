@@ -20,7 +20,7 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
 )
 from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
-from qoala.util.constants import prob_max_mixed_to_fidelity
+from qoala.util.math import prob_max_mixed_to_fidelity
 
 
 def test_topology_to_ehi():

@@ -36,7 +36,7 @@ from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.util.constants import PI
+from qoala.util.math import PI
 from qoala.util.tests import netsquid_run
 
 

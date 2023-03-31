@@ -48,7 +48,8 @@ from qoala.sim.qnos import (
     QnosProcessor,
 )
 from qoala.sim.qnos.qnosprocessor import UnsupportedNetqasmInstructionError
-from qoala.util.tests import has_multi_state, has_state, netsquid_run
+from qoala.util.math import has_multi_state, has_state
+from qoala.util.tests import netsquid_run
 
 
 def perfect_uniform_qdevice(num_qubits: int) -> QDevice:

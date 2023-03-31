@@ -12,16 +12,6 @@ from qoala.sim.host.csocket import ClassicalSocket
 
 
 @dataclass
-class RoutineInstance:
-    routine: LocalRoutine
-
-    # TODO: currently not used, since the HostProcessor creates a deepcopy
-    # Refactor such that copies are not needed and instead these arguments here
-    # are used.
-    arguments: Dict[str, int]
-
-
-@dataclass
 class QoalaProcess:
     prog_instance: ProgramInstance
 

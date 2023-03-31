@@ -42,7 +42,8 @@ from qoala.sim.qnos import (
     QnosLatencies,
     QnosProcessor,
 )
-from qoala.util.tests import has_max_mixed_state, has_state, netsquid_run, netsquid_wait
+from qoala.util.math import has_max_mixed_state, has_state
+from qoala.util.tests import netsquid_run, netsquid_wait
 
 
 def uniform_qdevice_noisy_qubits(num_qubits: int) -> QDevice:

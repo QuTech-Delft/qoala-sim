@@ -31,7 +31,7 @@ from qoala.sim.netstack.netstack import Netstack
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.util.tests import B00_DENS, has_multi_state
+from qoala.util.math import B00_DENS, has_multi_state
 
 
 class MockNetstackInterface(NetstackInterface):

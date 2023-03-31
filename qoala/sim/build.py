@@ -68,7 +68,7 @@ from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
-from qoala.util.constants import fidelity_to_prob_max_mixed
+from qoala.util.math import fidelity_to_prob_max_mixed
 
 
 def build_qprocessor_from_topology(

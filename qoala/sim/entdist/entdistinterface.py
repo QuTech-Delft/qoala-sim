@@ -5,9 +5,9 @@ from typing import Generator, List
 from pydynaa import EventExpression
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.message import Message
-from qoala.sim.common import ComponentProtocol, PortListener
+from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.entdist.entdistcomp import EntDistComponent
-from qoala.sim.signals import SIGNAL_NSTK_ENTD_MSG
+from qoala.sim.events import SIGNAL_NSTK_ENTD_MSG
 
 
 class EntDistInterface(ComponentProtocol):

@@ -5,16 +5,16 @@ from typing import Generator
 
 from pydynaa import EventExpression
 from qoala.runtime.message import Message
-from qoala.sim.common import ComponentProtocol, PortListener
-from qoala.sim.events import EVENT_WAIT
-from qoala.sim.memmgr import MemoryManager
-from qoala.sim.qdevice import QDevice
-from qoala.sim.qnos.qnoscomp import QnosComponent
-from qoala.sim.signals import (
+from qoala.sim.componentprot import ComponentProtocol, PortListener
+from qoala.sim.events import (
+    EVENT_WAIT,
     SIGNAL_HOST_QNOS_MSG,
     SIGNAL_MEMORY_FREED,
     SIGNAL_NSTK_QNOS_MSG,
 )
+from qoala.sim.memmgr import MemoryManager
+from qoala.sim.qdevice import QDevice
+from qoala.sim.qnos.qnoscomp import QnosComponent
 
 
 @dataclass

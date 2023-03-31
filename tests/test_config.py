@@ -44,7 +44,7 @@ from qoala.runtime.config import (
     SingleGateConfig,
     TopologyConfig,
 )
-from qoala.util.constants import fidelity_to_prob_max_mixed
+from qoala.util.math import fidelity_to_prob_max_mixed
 
 
 def relative_path(path: str) -> str:
