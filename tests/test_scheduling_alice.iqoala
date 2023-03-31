@@ -1,0 +1,148 @@
+META_START
+    name: alice
+    parameters:
+    csockets: 0 -> bob
+    epr_sockets:
+META_END
+
+^blk_host0 {type = CL}:
+    var_x = assign_cval() : 3
+    var_y = assign_cval() : 5
+
+^blk_host1 {type = CL}:
+    var_z = assign_cval() : 9
+
+^blk_host2 {type = CL}:
+    x = assign_cval() : 3
+
+^blk_prep_cc {type = CL}:
+    csocket = assign_cval() : 0
+    to_send = assign_cval() : 25
+
+^blk_send {type = CL}:
+    send_cmsg(csocket, to_send)
+
+^blk_recv {type = CC}:
+    msg = recv_cmsg(csocket)
+
+^blk_add_one {type = QL}:
+    vec<y> = run_subroutine(vec<x>) : add_one
+
+^blk_epr_md_1 {type = QC}:
+    vec<m> = run_request(vec<>) : epr_md_1
+
+^blk_epr_md_2 {type = QC}:
+    vec<m0; m1> = run_request(vec<>) : epr_md_2
+
+^blk_epr_ck_1 {type = QC}:
+    run_request(vec<>) : epr_ck_1
+
+^blk_meas_q0 {type = QL}:
+    vec<p> = run_subroutine(vec<>) : meas_q0
+
+^blk_epr_ck_2 {type = QC}:
+    run_request(vec<>) : epr_ck_2
+
+^blk_meas_q0_q1 {type = QL}:
+    vec<p0; p1> = run_subroutine(vec<>) : meas_q0_q1
+
+
+SUBROUTINE add_one
+    params: x
+    returns: y
+    uses: 
+    keeps:
+    request:
+  NETQASM_START
+    set C15 0
+    load C0 @input[C15]
+    set C1 1
+    add R0 C0 C1
+    store R0 @output[C15]
+  NETQASM_END
+
+SUBROUTINE meas_q0
+    params:
+    returns: p0
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    set C15 0
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[C15]
+  NETQASM_END
+
+SUBROUTINE meas_q0_q1
+    params:
+    returns: p0, p1
+    uses: 0, 1
+    keeps:
+    request:
+  NETQASM_START
+    set C15 0
+    set C14 1
+    set Q0 0
+    set Q1 1
+    meas Q0 M0
+    meas Q1 M1
+    store M0 @output[C15]
+    store M1 @output[C14]
+  NETQASM_END
+
+REQUEST epr_md_1
+  callback_type: wait_all
+  callback: 
+  return_vars: m
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: measure_directly
+  role: create
+  result_array_addr: 0
+
+REQUEST epr_md_2
+  callback_type: wait_all
+  callback: 
+  return_vars: m0, m1
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 2
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: measure_directly
+  role: create
+  result_array_addr: 0
+
+REQUEST epr_ck_1
+  callback_type: wait_all
+  callback: 
+  return_vars: 
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+  result_array_addr: 0
+
+REQUEST epr_ck_2
+  callback_type: wait_all
+  callback: 
+  return_vars:
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 2
+  virt_ids: increment 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+  result_array_addr: 0

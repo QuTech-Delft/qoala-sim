@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Type
+from typing import Dict, Optional
 
 from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
 from netsquid_magic.link_layer import MagicLinkLayerProtocolWithSignaling
 
-from qoala.lang.ehi import ExposedHardwareInfo
-from qoala.runtime.environment import GlobalEnvironment, LocalEnvironment
+from qoala.lang.ehi import ExposedHardwareInfo, NetworkEhi
+from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
-from qoala.runtime.schedule import Schedule, ScheduleSolver
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.host.host import Host
@@ -32,11 +31,12 @@ class ProcNode(Protocol):
     def __init__(
         self,
         name: str,
-        global_env: GlobalEnvironment,
+        network_info: NetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
+        network_ehi: NetworkEhi,
         node: Optional[ProcNodeComponent] = None,
         node_id: Optional[int] = None,
         scheduler: Optional[Scheduler] = None,
@@ -61,17 +61,18 @@ class ProcNode(Protocol):
         if node:
             self._node = node
         else:
-            self._node = ProcNodeComponent(name, qprocessor, global_env, node_id)
+            self._node = ProcNodeComponent(name, qprocessor, network_info, node_id)
 
-        self._global_env = global_env
-        self._local_env = LocalEnvironment(global_env, global_env.get_node_id(name))
+        self._network_info = network_info
+        self._network_ehi = network_ehi
+        self._local_env = LocalEnvironment(network_info, network_info.get_node_id(name))
         self._ntf_interface = ntf_interface
         self._asynchronous = asynchronous
 
         # Create internal components.
         self._qdevice: QDevice = QDevice(self._node, qdevice_topology)
-        self._ehi: ExposedHardwareInfo = LhiConverter.to_ehi(
-            qdevice_topology, ntf_interface
+        self._local_ehi: ExposedHardwareInfo = LhiConverter.to_ehi(
+            qdevice_topology, ntf_interface, latencies
         )
 
         host_latencies = HostLatencies(
@@ -81,14 +82,13 @@ class ProcNode(Protocol):
         qnos_latencies = QnosLatencies(
             latencies.qnos_instr_time,
         )
-        netstack_latencies = NetstackLatencies(
-            latencies.netstack_peer_latency,
-        )
+        # TODO: decide if still needed
+        netstack_latencies = NetstackLatencies(0)
 
         self._host = Host(
             self.host_comp, self._local_env, host_latencies, self._asynchronous
         )
-        self._memmgr = MemoryManager(self.node.name, self._qdevice, self._ehi)
+        self._memmgr = MemoryManager(self.node.name, self._qdevice, self._local_ehi)
         self._egpmgr = EgpManager()
         self._qnos = Qnos(
             self.qnos_comp,
@@ -116,12 +116,11 @@ class ProcNode(Protocol):
                 self._netstack,
                 self._memmgr,
                 self._local_env,
+                self._local_ehi,
+                self._network_ehi,
             )
         else:
             self._scheduler = scheduler
-
-    def install_schedule(self, schedule: Schedule) -> None:
-        self.scheduler.install_schedule(schedule)
 
     def assign_ll_protocol(
         self, remote_id: int, prot: MagicLinkLayerProtocolWithSignaling
@@ -198,6 +197,22 @@ class ProcNode(Protocol):
     def scheduler(self, scheduler: Scheduler) -> None:
         self._scheduler = scheduler
 
+    @property
+    def local_ehi(self) -> ExposedHardwareInfo:
+        return self._local_ehi
+
+    @local_ehi.setter
+    def local_ehi(self, local_ehi: ExposedHardwareInfo) -> None:
+        self._local_ehi = local_ehi
+
+    @property
+    def network_ehi(self) -> NetworkEhi:
+        return self._network_ehi
+
+    @network_ehi.setter
+    def network_ehi(self, network_ehi: NetworkEhi) -> None:
+        self._network_ehi = network_ehi
+
     def connect_to(self, other: ProcNode) -> None:
         """Create connections between ports of this ProcNode and those of
         another ProcNode."""
@@ -237,9 +252,6 @@ class ProcNode(Protocol):
 
     def initialize_processes(self) -> None:
         self.scheduler.create_processes_for_batches()
-
-    def initialize_schedule(self, solver: Type[ScheduleSolver]) -> None:
-        self.scheduler.solve_and_install_schedule(solver)
 
     def add_process(self, process: IqoalaProcess) -> None:
         self.memmgr.add_process(process)

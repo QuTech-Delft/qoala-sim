@@ -8,7 +8,7 @@ from netqasm.sdk.build_epr import (
     SER_RESPONSE_KEEP_IDX_GOODNESS,
     SER_RESPONSE_KEEP_LEN,
 )
-from netsquid.components.instructions import INSTR_MEASURE, INSTR_ROT_X, INSTR_ROT_Z
+from netsquid.components.instructions import INSTR_ROT_X, INSTR_ROT_Z
 from netsquid.qubits.ketstates import BellIndex
 from qlink_interface import (
     ReqCreateAndKeep,
@@ -21,6 +21,7 @@ from qlink_interface import (
 
 from pydynaa import EventExpression
 from qoala.lang.request import CallbackType, EprRole, EprType, IqoalaRequest
+from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine, SharedMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.sim.entdist.entdist import EntDistRequest
@@ -698,7 +699,9 @@ class NetstackProcessor:
         phys_id = self._interface.memmgr.phys_id_for(process.pid, virt_id)
         # Should have been allocated by `handle_req_routine_md`
         assert phys_id is not None
-        commands = [QDeviceCommand(INSTR_MEASURE, [phys_id])]
+        # Use the special INSTR_MEASURE_INSTANT instruction so that measuring
+        # doesn't take time.
+        commands = [QDeviceCommand(INSTR_MEASURE_INSTANT, [phys_id])]
         m = yield from self.qdevice.execute_commands(commands=commands)
         assert m is not None
         return m

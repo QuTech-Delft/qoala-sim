@@ -14,16 +14,15 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
+from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, ProgramInput
-from qoala.runtime.schedule import NaiveSolver, ProgramTaskList, TaskBuilder
+from qoala.runtime.schedule import TaskSchedule
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
 
-def create_global_env() -> GlobalEnvironment:
-    env = GlobalEnvironment()
-    env.add_node(0, GlobalNodeInfo("alice", 0))
+def create_network_info() -> NetworkInfo:
+    env = NetworkInfo.with_nodes({0: "alice"})
 
     env.set_global_schedule([0])
     env.set_timeslot_len(1e6)
@@ -44,10 +43,10 @@ def get_config() -> ProcNodeConfig:
 def create_network(
     node_cfg: ProcNodeConfig,
 ) -> ProcNodeNetwork:
-    global_env = create_global_env()
+    network_info = create_network_info()
 
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
-    return build_network(network_cfg, global_env)
+    return build_network(network_cfg, network_info)
 
 
 def load_program() -> IqoalaProgram:
@@ -59,29 +58,6 @@ def load_program() -> IqoalaProgram:
     return program
 
 
-def create_tasks(program: IqoalaProgram) -> ProgramTaskList:
-    tasks = []
-
-    cl_dur = 1000
-    ql_dur = 1e6
-
-    # vec<m> = run_subroutine(vec<>) : subrt0
-    dur = cl_dur + 4 * ql_dur
-    tasks.append(TaskBuilder.QL(dur, 0, "subrt0"))
-
-    # x = assign_cval() : 0
-    tasks.append(TaskBuilder.CL(1e4, 1))
-
-    # vec<m> = run_subroutine(vec<>) : subrt1
-    dur = cl_dur + 2 * ql_dur
-    tasks.append(TaskBuilder.QL(dur, 2, "subrt1"))
-
-    # return_result(x)
-    tasks.append(TaskBuilder.CL(cl_dur, 3))
-
-    return ProgramTaskList(program, {i: task for i, task in enumerate(tasks)})
-
-
 def create_batch(
     inputs: List[ProgramInput],
     unit_module: UnitModule,
@@ -89,7 +65,6 @@ def create_batch(
     deadline: int,
 ) -> BatchInfo:
     program = load_program()
-    tasks = create_tasks(program)
 
     return BatchInfo(
         program=program,
@@ -97,7 +72,6 @@ def create_batch(
         unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
-        tasks=tasks,
     )
 
 
@@ -122,7 +96,9 @@ def run_program():
 
     procnode.submit_batch(batch_info)
     procnode.initialize_processes()
-    procnode.initialize_schedule(NaiveSolver)
+    tasks = procnode.scheduler.get_tasks_to_schedule()
+    schedule = TaskSchedule.consecutive(tasks)
+    procnode.scheduler.upload_schedule(schedule)
 
     network.start_all_nodes()
     ns.sim_run()

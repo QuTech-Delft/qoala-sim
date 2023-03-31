@@ -2,7 +2,14 @@ import os
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
     INSTR_CZ,
+    INSTR_INIT,
+    INSTR_MEASURE,
+    INSTR_ROT_X,
+    INSTR_ROT_Y,
+    INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -14,7 +21,12 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import LatenciesConfig, LinkConfig, TopologyConfig
+from qoala.runtime.config import (
+    LatenciesConfig,
+    LinkConfig,
+    NVQDeviceConfig,
+    TopologyConfig,
+)
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
@@ -22,7 +34,9 @@ from qoala.runtime.lhi import (
     LhiQubitInfo,
     LhiTopology,
     LhiTopologyBuilder,
+    NetworkLhi,
 )
+from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 
 
 def relative_path(path: str) -> str:
@@ -131,6 +145,36 @@ def test_topology_from_config_2():
             info.instruction for info in topology.multi_gate_infos[MultiQubit([0, i])]
         ]
         assert q0i_gates == [INSTR_CNOT]
+
+
+def test_topology_from_nv_config():
+    cfg = NVQDeviceConfig.perfect_config(num_qubits=2)
+    topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg)
+
+    assert topology.qubit_infos[0].is_communication
+    assert not topology.qubit_infos[1].is_communication
+
+    q0_gates = [info.instruction for info in topology.single_gate_infos[0]]
+    assert all(
+        instr in q0_gates
+        for instr in [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z, INSTR_INIT, INSTR_MEASURE]
+    )
+
+    q1_gates = [info.instruction for info in topology.single_gate_infos[1]]
+    assert all(
+        instr in q1_gates
+        for instr in [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z, INSTR_INIT]
+    )
+
+    q01_gates = [
+        info.instruction for info in topology.multi_gate_infos[MultiQubit([0, 1])]
+    ]
+    assert all(instr in q01_gates for instr in [INSTR_CXDIR, INSTR_CYDIR])
+
+    assert topology.find_single_gate(0, INSTR_ROT_X).duration == cfg.electron_rot_x
+    assert topology.find_single_gate(0, INSTR_ROT_X).error_model_kwargs == {
+        "depolar_rate": 0
+    }
 
 
 def test_find_gates():
@@ -406,19 +450,15 @@ def test_generic_t1t2_star():
 
 def test_latencies_from_config():
     cfg = LatenciesConfig(
-        host_qnos_latency=1,
         host_instr_time=2,
         qnos_instr_time=3,
         host_peer_latency=4,
-        netstack_peer_latency=5,
     )
     latencies = LhiLatencies.from_config(cfg)
 
-    assert latencies.host_qnos_latency == 1
     assert latencies.host_instr_time == 2
     assert latencies.qnos_instr_time == 3
     assert latencies.host_peer_latency == 4
-    assert latencies.netstack_peer_latency == 5
 
 
 def test_link_from_config():
@@ -443,10 +483,19 @@ def test_link_from_config_2():
     }
 
 
+def test_network_lhi():
+    network_lhi = NetworkLhi.perfect_fully_connected(node_ids=[0, 1, 2], duration=1000)
+
+    assert network_lhi.get_link(0, 1) == LhiLinkInfo.perfect(duration=1000)
+    assert network_lhi.get_link(0, 2) == LhiLinkInfo.perfect(duration=1000)
+    assert network_lhi.get_link(1, 2) == LhiLinkInfo.perfect(duration=1000)
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
     test_topology_from_config_2()
+    test_topology_from_nv_config()
     test_find_gates()
     test_perfect_qubit()
     test_t1t2_qubit()
@@ -459,3 +508,4 @@ if __name__ == "__main__":
     test_latencies_from_config()
     test_link_from_config()
     test_link_from_config_2()
+    test_network_lhi()

@@ -14,18 +14,21 @@ from netsquid_magic.link_layer import (
     SingleClickTranslationUnit,
 )
 from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
-from netsquid_magic.state_delivery_sampler import PerfectStateSamplerFactory
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import UnitModule
+from qoala.lang.ehi import NetworkEhi, UnitModule
+from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, NativeToFlavourInterface
+from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
+from qoala.runtime.lhi_to_ehi import (
+    GenericToVanillaInterface,
+    LhiConverter,
+    NativeToFlavourInterface,
+)
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList, QnosTask
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
@@ -51,8 +54,8 @@ def create_process(
         pid=pid,
         program=program,
         inputs=prog_input,
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
+        block_tasks=[],
     )
     mem = ProgramMemory(pid=0)
 
@@ -69,18 +72,16 @@ def create_process(
     return process
 
 
-def create_global_env(names: List[str]) -> GlobalEnvironment:
-    env = GlobalEnvironment()
-    for i, name in enumerate(names):
-        env.add_node(i, GlobalNodeInfo(name, i))
-    return env
+def create_network_info(names: List[str]) -> NetworkInfo:
+    return NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
 
 
 def create_procnode(
     part: str,
     name: str,
-    env: GlobalEnvironment,
+    env: NetworkInfo,
     num_qubits: int,
+    network_ehi: NetworkEhi,
     procnode_cls: Type[ProcNode] = ProcNode,
     asynchronous: bool = False,
     pid: int = 0,
@@ -92,11 +93,12 @@ def create_procnode(
     procnode = procnode_cls(
         part=part,
         name=name,
-        global_env=env,
+        network_info=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=LhiLatencies(qnos_instr_time=1000),
         ntf_interface=GenericToVanillaInterface(),
+        network_ehi=network_ehi,
         node_id=node_id,
         asynchronous=asynchronous,
         pid=pid,
@@ -119,22 +121,24 @@ class BqcProcNode(ProcNode):
     def __init__(
         self,
         name: str,
-        global_env: GlobalEnvironment,
+        network_info: NetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
         ntf_interface: NativeToFlavourInterface,
+        network_ehi: NetworkEhi,
         node_id: Optional[int] = None,
         asynchronous: bool = False,
         pid: int = 0,
     ) -> None:
         super().__init__(
             name=name,
-            global_env=global_env,
+            network_info=network_info,
             qprocessor=qprocessor,
             qdevice_topology=qdevice_topology,
             latencies=latencies,
             ntf_interface=ntf_interface,
+            network_ehi=network_ehi,
             node_id=node_id,
             asynchronous=asynchronous,
         )
@@ -143,9 +147,17 @@ class BqcProcNode(ProcNode):
     def run_subroutine(
         self, process: IqoalaProcess, host_instr_index: int, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        yield from self.scheduler.execute_qnos_task(
-            process, QnosTask(host_instr_index, subrt_name)
+        host_instr = process.program.instructions[host_instr_index]
+        assert isinstance(host_instr, RunSubroutineOp)
+        lrcall = self.host.processor.prepare_lr_call(process, host_instr)
+        self.scheduler.qpudriver.allocate_qubits_for_routine(
+            process, lrcall.routine_name
         )
+        yield from self.qnos.processor.assign_local_routine(
+            process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
+        )
+        self.scheduler.qpudriver.free_qubits_after_routine(process, lrcall.routine_name)
+        self.host.processor.post_lr_call(process, host_instr, lrcall)
 
     def run_request(
         self, process: IqoalaProcess, host_instr_index: int, req_name: str
@@ -168,7 +180,7 @@ class ServerProcNode(BqcProcNode):
         self.scheduler.initialize_process(process)
 
         # csocket = assign_cval() : 0
-        yield from self.host.processor.assign(process, 0)
+        yield from self.host.processor.assign_instr_index(process, 0)
         # run_request() : req0
         yield from self.run_request(process, 1, "req0")
         # run_request() : req1
@@ -181,13 +193,13 @@ class ServerProcNode(BqcProcNode):
         # run_subroutine(vec<client_id>) : local_cphase
         yield from self.run_subroutine(process, 3, "local_cphase")
         # delta1 = recv_cmsg(client_id)
-        yield from self.host.processor.assign(process, 4)
+        yield from self.host.processor.assign_instr_index(process, 4)
         # vec<m1> = run_subroutine(vec<delta1>) : meas_qubit_1
         yield from self.run_subroutine(process, 5, "meas_qubit_1")
         # send_cmsg(csocket, m1)
-        yield from self.host.processor.assign(process, 6)
+        yield from self.host.processor.assign_instr_index(process, 6)
         # delta2 = recv_cmsg(csocket)
-        yield from self.host.processor.assign(process, 7)
+        yield from self.host.processor.assign_instr_index(process, 7)
 
         if self._part == "meas_first_epr":
             self.finished = True
@@ -196,9 +208,9 @@ class ServerProcNode(BqcProcNode):
         # vec<m2> = run_subroutine(vec<delta2>) : meas_qubit_0
         yield from self.run_subroutine(process, 8, "meas_qubit_0")
         # return_result(m1)
-        yield from self.host.processor.assign(process, 9)
+        yield from self.host.processor.assign_instr_index(process, 9)
         # return_result(m2)
-        yield from self.host.processor.assign(process, 10)
+        yield from self.host.processor.assign_instr_index(process, 10)
 
         assert self._part == "full"
         self.finished = True
@@ -216,7 +228,7 @@ class ClientProcNode(BqcProcNode):
         self.scheduler.initialize_process(process)
 
         # csocket = assign_cval() : 0
-        yield from self.host.processor.assign(process, 0)
+        yield from self.host.processor.assign_instr_index(process, 0)
         # run_request() : req0
         yield from self.run_request(process, 1, "req0")
         # run_subroutine(vec<theta2>) : post_epr_0
@@ -231,14 +243,14 @@ class ClientProcNode(BqcProcNode):
         # delta1 = add_cval_c(delta1, alpha)
         # send_cmsg(server_id, delta1)
         for i in range(5, 10):
-            yield from self.host.processor.assign(process, i)
+            yield from self.host.processor.assign_instr_index(process, i)
 
         if self._part == "only_rsp":
             self.finished = True
             return
 
         # m1 = recv_cmsg(csocket)
-        yield from self.host.processor.assign(process, 10)
+        yield from self.host.processor.assign_instr_index(process, 10)
         # y = mult_const(p2) : 16
         # minus_theta2 = mult_const(theta2) : -1
         # beta = bcond_mult_const(beta, m1) : -1
@@ -246,16 +258,16 @@ class ClientProcNode(BqcProcNode):
         # delta2 = add_cval_c(delta2, y)
         # send_cmsg(csocket, delta2)
         for i in range(11, 17):
-            yield from self.host.processor.assign(process, i)
+            yield from self.host.processor.assign_instr_index(process, i)
 
         if self._part == "meas_first_epr":
             self.finished = True
             return
 
         # return_result(p1)
-        yield from self.host.processor.assign(process, 17)
+        yield from self.host.processor.assign_instr_index(process, 17)
         # return_result(p2)
-        yield from self.host.processor.assign(process, 18)
+        yield from self.host.processor.assign_instr_index(process, 18)
 
         assert self._part == "full"
         self.finished = True
@@ -281,9 +293,13 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    global_env = create_global_env(names=["client", "server"])
-    server_id = global_env.get_node_id("server")
-    client_id = global_env.get_node_id("client")
+    network_info = create_network_info(names=["client", "server"])
+    server_id = network_info.get_node_id("server")
+    client_id = network_info.get_node_id("client")
+
+    link_info = LhiLinkInfo.perfect(1000)
+    ehi_link = LhiConverter.link_info_to_ehi(link_info)
+    network_ehi = NetworkEhi.fully_connected([server_id, client_id], ehi_link)
 
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:
@@ -291,7 +307,13 @@ def run_bqc(
     server_program = IqoalaParser(server_text).parse()
 
     server_procnode = create_procnode(
-        part, "server", global_env, num_qubits, ServerProcNode, pid=server_pid
+        part,
+        "server",
+        network_info,
+        num_qubits,
+        network_ehi,
+        ServerProcNode,
+        pid=server_pid,
     )
     server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
@@ -309,7 +331,13 @@ def run_bqc(
     client_program = IqoalaParser(client_text).parse()
 
     client_procnode = create_procnode(
-        part, "client", global_env, num_qubits, ClientProcNode, pid=client_pid
+        part,
+        "client",
+        network_info,
+        num_qubits,
+        network_ehi,
+        ClientProcNode,
+        pid=client_pid,
     )
     client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
@@ -330,21 +358,13 @@ def run_bqc(
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(global_env)
+    entdistcomp = EntDistComponent(network_info)
     client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, global_env=global_env, comp=entdistcomp)
-    factory = PerfectStateSamplerFactory()
-    kwargs = {"cycle_time": 1000}
-    entdist.add_sampler(
-        client_procnode.node.ID,
-        server_procnode.node.ID,
-        factory,
-        kwargs=kwargs,
-        delay=1000,
-    )
+    entdist = EntDist(nodes=nodes, network_info=network_info, comp=entdistcomp)
+    entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 
     server_procnode.start()
     client_procnode.start()

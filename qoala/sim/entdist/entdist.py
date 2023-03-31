@@ -16,7 +16,8 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import GlobalEnvironment
+from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
@@ -61,16 +62,16 @@ class DelayedSampler:
 
 class EntDist(Protocol):
     def __init__(
-        self, nodes: List[Node], global_env: GlobalEnvironment, comp: EntDistComponent
+        self, nodes: List[Node], network_info: NetworkInfo, comp: EntDistComponent
     ) -> None:
         super().__init__(name=f"{comp.name}_protocol")
 
         # References to objects.
-        self._global_env = global_env
+        self._network_info = network_info
         self._comp = comp
 
         # Owned objects.
-        self._interface = EntDistInterface(comp, global_env)
+        self._interface = EntDistInterface(comp, network_info)
 
         # Node ID -> Node
         self._nodes: Dict[int, Node] = {node.ID: node for node in nodes}
@@ -91,7 +92,7 @@ class EntDist(Protocol):
     def comp(self) -> EntDistComponent:
         return self._comp
 
-    def add_sampler(
+    def _add_sampler(
         self,
         node1_id: int,
         node2_id: int,
@@ -108,6 +109,15 @@ class EntDist(Protocol):
             )
         sampler = factory.create_state_delivery_sampler(**kwargs)
         self._samplers[(node1_id, node2_id)] = DelayedSampler(sampler, delay)
+
+    def add_sampler(self, node1_id: int, node2_id: int, info: LhiLinkInfo) -> None:
+        self._add_sampler(
+            node1_id=node1_id,
+            node2_id=node2_id,
+            factory=info.sampler_factory(),
+            kwargs=info.sampler_kwargs,
+            delay=info.state_delay,
+        )
 
     def get_sampler(self, node1_id: int, node2_id: int) -> DelayedSampler:
         try:

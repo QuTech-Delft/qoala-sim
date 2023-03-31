@@ -8,8 +8,6 @@ from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
 from netqasm.lang.parsing import parse_text_subroutine
 from netsquid.components.instructions import (
     INSTR_CNOT,
-    INSTR_CXDIR,
-    INSTR_CYDIR,
     INSTR_H,
     INSTR_INIT,
     INSTR_MEASURE,
@@ -26,7 +24,9 @@ from netsquid.qubits import ketstates
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
+from qoala.runtime.config import NVQDeviceConfig
 from qoala.runtime.lhi import LhiTopologyBuilder
+from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
@@ -34,12 +34,11 @@ from qoala.runtime.lhi_to_ehi import (
 )
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import AllocError, MemoryManager, NotAllocatedError
 from qoala.sim.process import IqoalaProcess
-from qoala.sim.qdevice import QDevice, UnsupportedQDeviceCommandError
+from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import (
     GenericProcessor,
     NVProcessor,
@@ -48,6 +47,7 @@ from qoala.sim.qnos import (
     QnosLatencies,
     QnosProcessor,
 )
+from qoala.sim.qnos.qnosprocessor import UnsupportedNetqasmInstructionError
 from qoala.util.tests import has_multi_state, has_state, netsquid_run
 
 
@@ -75,25 +75,27 @@ def perfect_uniform_qdevice(num_qubits: int) -> QDevice:
 
 
 def perfect_nv_star_qdevice(num_qubits: int) -> QDevice:
-    topology = LhiTopologyBuilder.perfect_star(
-        num_qubits=num_qubits,
-        comm_instructions=[
-            INSTR_INIT,
-            INSTR_ROT_X,
-            INSTR_ROT_Y,
-            INSTR_MEASURE,
-        ],
-        comm_duration=5e3,
-        mem_instructions=[
-            INSTR_INIT,
-            INSTR_ROT_X,
-            INSTR_ROT_Y,
-            INSTR_ROT_Z,
-        ],
-        mem_duration=1e4,
-        two_instructions=[INSTR_CXDIR, INSTR_CYDIR],
-        two_duration=1e5,
-    )
+    # topology = LhiTopologyBuilder.perfect_star(
+    #     num_qubits=num_qubits,
+    #     comm_instructions=[
+    #         INSTR_INIT,
+    #         INSTR_ROT_X,
+    #         INSTR_ROT_Y,
+    #         INSTR_MEASURE,
+    #     ],
+    #     comm_duration=5e3,
+    #     mem_instructions=[
+    #         INSTR_INIT,
+    #         INSTR_ROT_X,
+    #         INSTR_ROT_Y,
+    #         INSTR_ROT_Z,
+    #     ],
+    #     mem_duration=1e4,
+    #     two_instructions=[INSTR_CXDIR, INSTR_CYDIR],
+    #     two_duration=1e5,
+    # )
+    cfg = NVQDeviceConfig.perfect_config(num_qubits)
+    topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg)
     processor = build_qprocessor_from_topology(name="processor", topology=topology)
     node = Node(name="alice", qmemory=processor)
     return QDevice(node=node, topology=topology)
@@ -117,8 +119,8 @@ def create_process(
         pid=pid,
         program=program,
         inputs=ProgramInput({}),
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
+        block_tasks=[],
     )
     mem = ProgramMemory(pid=pid)
 
@@ -418,6 +420,14 @@ def test_single_gates_generic():
     qubit = processor.qdevice.get_local_qubit(phys_id)
     assert has_state(qubit, ketstates.y1)
 
+    # New subroutine: apply S on qubit 0 (comm). Should not be allowed.
+    subrt = """
+    s Q0
+    """
+    set_new_vanilla_subroutine(process, subrt, [0], [0])
+    with pytest.raises(UnsupportedNetqasmInstructionError):
+        execute_process(processor, process)
+
 
 def test_single_gates_multiple_qubits_generic():
     num_qubits = 3
@@ -691,14 +701,6 @@ def test_single_gates_nv_comm():
     qubit = processor.qdevice.get_local_qubit(phys_id)
     assert has_state(qubit, ketstates.s0)
 
-    # New subroutine: apply rot_z on qubit 0 (comm). Should not be allowed.
-    subrt = """
-    rot_z Q0 16 4
-    """
-    set_new_nv_subroutine(process, subrt, [0], [0])
-    with pytest.raises(UnsupportedQDeviceCommandError):
-        execute_process(processor, process)
-
     # New subroutine: apply rot_z on qubit 0 (comm), decomposed as rot_x and rot_y.
     subrt = """
     rot_x Q0 24 4
@@ -812,6 +814,7 @@ def test_single_gates_nv_mem():
 
 
 def test_two_qubit_gates_nv():
+    ns.sim_reset()
     num_qubits = 3
     processor, unit_module = setup_components_nv_star(num_qubits)
 

@@ -1,83 +1,50 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-# Ignore type since whole 'config' module is ignored by mypy
-from qoala.runtime.config import LinkConfig  # type: ignore
+from qoala.lang.ehi import ExposedLinkInfo
 from qoala.runtime.program import ProgramInstance
 
 
-@dataclass
-class GlobalNodeInfo:
-    """Node information available at runtime."""
+class NetworkInfo:
+    """Static network info: node IDs. EPR links are managed by NetworkEhi."""
 
-    name: str
-    id: int
-
-
-@dataclass
-class GlobalLinkInfo:
-    node_name1: str
-    node_name2: str
-
-    fidelity: float
-
-    @classmethod
-    def from_config(
-        cls, node_name1: str, node_name2: str, config: LinkConfig
-    ) -> GlobalLinkInfo:
-        if config.typ == "perfect":
-            return GlobalLinkInfo(
-                node_name1=node_name1, node_name2=node_name2, fidelity=1.0
-            )
-        elif config.typ == "depolarise":
-            return GlobalLinkInfo(
-                node_name1=node_name1,
-                node_name2=node_name2,
-                fidelity=config.cfg.fidelity,  # type: ignore
-            )
-        else:
-            raise NotImplementedError
-
-
-class GlobalEnvironment:
-    def __init__(self) -> None:
-        # node ID -> node info
-        self._nodes: Dict[int, GlobalNodeInfo] = {}
-
-        # (node A ID, node B ID) -> link info
-        # for a pair (a, b) there exists no separate (b, a) info (it is the same)
-        self._links: Dict[Tuple[int, int], GlobalLinkInfo] = {}
+    def __init__(self, nodes: Dict[int, str]) -> None:
+        # node ID -> node name
+        self._nodes = nodes
 
         self._global_schedule: Optional[List[int]] = None
         self._timeslot_len: Optional[int] = None
 
-    def get_nodes(self) -> Dict[int, GlobalNodeInfo]:
+    @classmethod
+    def with_nodes(cls, nodes: Dict[int, str]) -> NetworkInfo:
+        return NetworkInfo(nodes)
+
+    def get_nodes(self) -> Dict[int, str]:
         return self._nodes
 
     def get_node_id(self, name: str) -> int:
-        for id, node in self._nodes.items():
-            if node.name == name:
+        for id, node_name in self._nodes.items():
+            if node_name == name:
                 return id
         raise ValueError
 
     def get_all_node_names(self) -> List[str]:
-        return [info.name for info in self.get_nodes().values()]
+        return list(self._nodes.values())
 
-    def set_nodes(self, nodes: Dict[int, GlobalNodeInfo]) -> None:
+    def set_nodes(self, nodes: Dict[int, str]) -> None:
         self._nodes = nodes
 
-    def add_node(self, id: int, node: GlobalNodeInfo) -> None:
-        self._nodes[id] = node
+    def add_node(self, id: int, name: str) -> None:
+        self._nodes[id] = name
 
-    def get_links(self) -> Dict[Tuple[int, int], GlobalLinkInfo]:
+    def get_links(self) -> Dict[Tuple[int, int], ExposedLinkInfo]:
         return self._links
 
-    def set_links(self, links: Dict[Tuple[int, int], GlobalLinkInfo]) -> None:
+    def set_links(self, links: Dict[Tuple[int, int], ExposedLinkInfo]) -> None:
         self._links = links
 
-    def add_link(self, id1: int, id2: int, link: GlobalLinkInfo) -> None:
+    def add_link(self, id1: int, id2: int, link: ExposedLinkInfo) -> None:
         self._links[(id1, id2)] = link
 
     def set_global_schedule(self, schedule: List[int]) -> None:
@@ -98,10 +65,10 @@ class GlobalEnvironment:
 class LocalEnvironment:
     def __init__(
         self,
-        global_env: GlobalEnvironment,
+        network_info: NetworkInfo,
         node_id: int,
     ) -> None:
-        self._global_env: GlobalEnvironment = global_env
+        self._network_info: NetworkInfo = network_info
 
         # node ID of self
         self._node_id: int = node_id
@@ -110,8 +77,8 @@ class LocalEnvironment:
         self._csockets: List[str] = []
         self._epr_sockets: List[str] = []
 
-    def get_global_env(self) -> GlobalEnvironment:
-        return self._global_env
+    def get_network_info(self) -> NetworkInfo:
+        return self._network_info
 
     def get_node_id(self) -> int:
         return self._node_id
@@ -123,13 +90,13 @@ class LocalEnvironment:
         pass
 
     def get_all_node_names(self) -> List[str]:
-        return [info.name for info in self.get_global_env().get_nodes().values()]
+        return self.get_network_info().get_all_node_names()
 
     def get_all_other_node_names(self) -> List[str]:
         return [
-            info.name
-            for info in self.get_global_env().get_nodes().values()
-            if info.id != self._node_id
+            name
+            for id, name in self.get_network_info().get_nodes().items()
+            if id != self._node_id
         ]
 
 

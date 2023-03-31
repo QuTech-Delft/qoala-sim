@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple, Union
 
-from netqasm.lang.instr.flavour import NVFlavour
+from netqasm.lang.instr.flavour import Flavour, VanillaFlavour
 from netqasm.lang.operand import Template
 from netqasm.lang.parsing.text import parse_text_subroutine
 
@@ -255,11 +255,14 @@ class HostCodeParser:
 
 
 class LocalRoutineParser:
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, flavour: Optional[Flavour] = None) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
         self._lines = [line for line in lines if len(line) > 0]
         self._lineno: int = 0
+        if flavour is None:
+            flavour = VanillaFlavour()
+        self._flavour = flavour
 
     def _next_line(self) -> None:
         self._lineno += 1
@@ -315,10 +318,8 @@ class LocalRoutineParser:
                 break
             subrt_lines.append(line)
         subrt_text = "\n".join(subrt_lines)
-        try:
-            subrt = parse_text_subroutine(subrt_text)
-        except KeyError:
-            subrt = parse_text_subroutine(subrt_text, flavour=NVFlavour())
+
+        subrt = parse_text_subroutine(subrt_text, flavour=self._flavour)
 
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
@@ -501,6 +502,7 @@ class IqoalaParser:
         host_text: Optional[str] = None,
         subrt_text: Optional[str] = None,
         req_text: Optional[str] = None,
+        flavour: Optional[Flavour] = None,
     ) -> None:
         if text is not None:
             meta_text, host_text, subrt_text, req_text = self._split_text(text)
@@ -515,7 +517,7 @@ class IqoalaParser:
         self._req_text = req_text
         self._meta_parser = IqoalaMetaParser(meta_text)
         self._host_parser = HostCodeParser(host_text)
-        self._subrt_parser = LocalRoutineParser(subrt_text)
+        self._subrt_parser = LocalRoutineParser(subrt_text, flavour)
         self._req_parser = RequestRoutineParser(req_text)
 
     def _split_text(self, text: str) -> Tuple[str, str, str, str]:

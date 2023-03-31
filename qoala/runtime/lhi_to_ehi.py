@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Type
+from typing import Any, Dict, Optional, Tuple, Type
 
 from netqasm.lang.instr import core, nv, vanilla
 from netqasm.lang.instr.base import NetQASMInstruction
@@ -25,14 +25,29 @@ from netsquid.components.models.qerrormodels import (
     QuantumErrorModel,
     T1T2NoiseModel,
 )
+from netsquid_magic.state_delivery_sampler import (
+    DepolariseWithFailureStateSamplerFactory,
+    PerfectStateSamplerFactory,
+)
 
 from qoala.lang.ehi import (
+    EhiLatencies,
     ExposedGateInfo,
     ExposedHardwareInfo,
-    ExposedLatencyInfo,
+    ExposedLinkInfo,
     ExposedQubitInfo,
+    NetworkEhi,
 )
-from qoala.runtime.lhi import LhiGateInfo, LhiLatencies, LhiQubitInfo, LhiTopology
+from qoala.runtime.lhi import (
+    INSTR_MEASURE_INSTANT,
+    LhiGateInfo,
+    LhiLatencies,
+    LhiLinkInfo,
+    LhiQubitInfo,
+    LhiTopology,
+    NetworkLhi,
+)
+from qoala.util.constants import prob_max_mixed_to_fidelity
 
 
 class NativeToFlavourInterface(abc.ABC):
@@ -60,6 +75,7 @@ class GenericToVanillaInterface(NativeToFlavourInterface):
         INSTR_CNOT: vanilla.CnotInstruction,
         INSTR_CZ: vanilla.CphaseInstruction,
         INSTR_MEASURE: core.MeasInstruction,
+        INSTR_MEASURE_INSTANT: core.MeasInstruction,
     }
 
     def flavour(self) -> Type[Flavour]:
@@ -126,8 +142,14 @@ class LhiConverter:
 
     @classmethod
     def to_ehi(
-        cls, topology: LhiTopology, ntf: NativeToFlavourInterface
+        cls,
+        topology: LhiTopology,
+        ntf: NativeToFlavourInterface,
+        latencies: Optional[LhiLatencies] = None,
     ) -> ExposedHardwareInfo:
+        if latencies is None:
+            latencies = LhiLatencies.all_zero()
+
         qubit_infos = {
             id: cls.qubit_info_to_ehi(qi) for (id, qi) in topology.qubit_infos.items()
         }
@@ -139,19 +161,40 @@ class LhiConverter:
             ids: [cls.gate_info_to_ehi(gi, ntf) for gi in gis]
             for (ids, gis) in topology.multi_gate_infos.items()
         }
+        flavour = ntf.flavour()
+
+        ehi_latencies = EhiLatencies(
+            latencies.host_instr_time,
+            latencies.qnos_instr_time,
+            latencies.host_peer_latency,
+        )
+
         return ExposedHardwareInfo(
             qubit_infos=qubit_infos,
-            flavour=ntf.flavour(),
+            flavour=flavour,
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
+            latencies=ehi_latencies,
         )
 
     @classmethod
-    def lhi_latencies_to_ehi(cls, latencies: LhiLatencies) -> ExposedLatencyInfo:
-        return ExposedLatencyInfo(
-            host_qnos_latency=latencies.host_qnos_latency,
-            host_instr_time=latencies.host_instr_time,
-            qnos_instr_time=latencies.qnos_instr_time,
-            host_peer_latency=latencies.host_peer_latency,
-            netstack_peer_latency=latencies.netstack_peer_latency,
-        )
+    def link_info_to_ehi(cls, info: LhiLinkInfo) -> ExposedLinkInfo:
+        if info.sampler_factory == PerfectStateSamplerFactory:
+            return ExposedLinkInfo(duration=info.state_delay, fidelity=1.0)
+        elif info.sampler_factory == DepolariseWithFailureStateSamplerFactory:
+            expected_gen_duration = (
+                info.sampler_kwargs["cycle_time"] / info.sampler_kwargs["prob_success"]
+            )
+            duration = expected_gen_duration + info.state_delay
+            fidelity = prob_max_mixed_to_fidelity(info.sampler_kwargs["prob_max_mixed"])
+            return ExposedLinkInfo(duration=duration, fidelity=fidelity)
+        else:
+            raise NotImplementedError
+
+    @classmethod
+    def network_to_ehi(cls, info: NetworkLhi) -> NetworkEhi:
+        links: Dict[Tuple[int, int], ExposedLinkInfo] = {}
+        for ([n1, n2], link_info) in info.links.items():
+            ehi_link = cls.link_info_to_ehi(link_info)
+            links[(n1, n2)] = ehi_link
+        return NetworkEhi(links)

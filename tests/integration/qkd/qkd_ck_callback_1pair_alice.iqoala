@@ -5,10 +5,10 @@ META_START
     epr_sockets: 0 -> bob
 META_END
 
-^b1 {type = RR}:
+^b1 {type = QC}:
     vec<m0> = run_request(vec<>) : req
 
-^b3 {type = host}:
+^b2 {type = CL}:
     return_result(m0)
 
 SUBROUTINE post_epr

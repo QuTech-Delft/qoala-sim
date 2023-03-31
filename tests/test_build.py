@@ -12,6 +12,7 @@ from netsquid.components.instructions import (
 from netsquid.components.models.qerrormodels import DepolarNoiseModel, T1T2NoiseModel
 from netsquid.components.qprocessor import MissingInstructionError, QuantumProcessor
 
+from qoala.lang.ehi import ExposedLinkInfo, NetworkEhi
 from qoala.runtime.config import (
     GenericQDeviceConfig,
     LatenciesConfig,
@@ -22,11 +23,20 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import GlobalEnvironment, GlobalNodeInfo
-from qoala.runtime.lhi import LhiGateInfo, LhiQubitInfo, LhiTopology, LhiTopologyBuilder
+from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.lhi import (
+    LhiGateInfo,
+    LhiLatencies,
+    LhiProcNodeInfo,
+    LhiQubitInfo,
+    LhiTopology,
+    LhiTopologyBuilder,
+    NetworkLhi,
+)
 from qoala.sim.build import (
     build_generic_qprocessor,
     build_network,
+    build_network_from_lhi,
     build_nv_qprocessor,
     build_procnode,
     build_qprocessor_from_topology,
@@ -165,27 +175,24 @@ def test_build_nv_perfect():
 def test_build_procnode():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     latencies = LatenciesConfig(
-        host_qnos_latency=3,
         host_instr_time=17,
         qnos_instr_time=20,
         host_peer_latency=5,
-        netstack_peer_latency=9,
     )
     cfg = ProcNodeConfig(
         node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
     )
-    global_env = GlobalEnvironment()
-    global_env.add_node(42, GlobalNodeInfo("the_node", 42))
-    global_env.add_node(43, GlobalNodeInfo("other_node", 43))
+    network_info = NetworkInfo.with_nodes({42: "the_node", 43: "other_node"})
+    network_ehi = NetworkEhi.perfect_fully_connected([42, 43], duration=1000)
 
-    procnode = build_procnode(cfg, global_env)
+    procnode = build_procnode(cfg, network_info, network_ehi)
 
     assert procnode.node.name == "the_node"
     procnode.host_comp.peer_in_port("other_node")  # should not raise error
     procnode.netstack_comp.peer_in_port("other_node")  # should not raise error
-    procnode.qnos.processor._latencies.qnos_instr_time == 3
-    procnode.host.processor._latencies.host_instr_time == 17
-    procnode.host.processor._latencies.host_peer_latency == 5
+    assert procnode.qnos.processor._latencies.qnos_instr_time == 20
+    assert procnode.host.processor._latencies.host_instr_time == 17
+    assert procnode.host.processor._latencies.host_peer_latency == 5
 
     expected_topology = LhiTopologyBuilder.from_config(top_cfg)
     expected_qprocessor = build_qprocessor_from_topology("the_node", expected_topology)
@@ -200,6 +207,8 @@ def test_build_procnode():
 
     assert expected_topology == procnode.qdevice.topology
 
+    assert procnode.network_ehi.get_link(42, 43) == ExposedLinkInfo(1000, 1.0)
+
 
 def test_build_network():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
@@ -209,14 +218,12 @@ def test_build_network():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    global_env = GlobalEnvironment()
-    global_env.add_node(42, GlobalNodeInfo("alice", 42))
-    global_env.add_node(43, GlobalNodeInfo("bob", 43))
+    network_info = NetworkInfo.with_nodes({42: "alice", 43: "bob"})
 
     link_cfg = LinkConfig.perfect_config(state_delay=1000)
     link_ab = LinkBetweenNodesConfig(node_id1=42, node_id2=43, link_config=link_cfg)
     cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[link_ab])
-    network = build_network(cfg, global_env)
+    network = build_network(cfg, network_info)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -257,14 +264,12 @@ def test_build_network_perfect_links():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    global_env = GlobalEnvironment()
-    global_env.add_node(42, GlobalNodeInfo("alice", 42))
-    global_env.add_node(43, GlobalNodeInfo("bob", 43))
+    network_info = NetworkInfo.with_nodes({42: "alice", 43: "bob"})
 
     cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[cfg_alice, cfg_bob], link_duration=500
     )
-    network = build_network(cfg, global_env)
+    network = build_network(cfg, network_info)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -275,6 +280,35 @@ def test_build_network_perfect_links():
     assert entdist.get_sampler(42, 43).delay == 500
 
 
+def test_build_network_from_lhi():
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
+    latencies = LhiLatencies(
+        host_instr_time=500, qnos_instr_time=1000, host_peer_latency=20_000
+    )
+    alice_lhi = LhiProcNodeInfo(
+        name="alice", id=42, topology=topology, latencies=latencies
+    )
+    bob_lhi = LhiProcNodeInfo(name="bob", id=43, topology=topology, latencies=latencies)
+    network_info = NetworkInfo.with_nodes({42: "alice", 43: "bob"})
+
+    network_lhi = NetworkLhi.perfect_fully_connected([42, 43], 100_000)
+    network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
+
+    assert len(network.nodes) == 2
+    assert "alice" in network.nodes
+    assert "bob" in network.nodes
+    assert network.entdist is not None
+
+    alice = network.nodes["alice"]
+    entdist = network.entdist
+
+    assert entdist.get_sampler(42, 43).delay == 100_000
+
+    assert alice.local_ehi.latencies.host_instr_time == 500
+    assert alice.local_ehi.latencies.qnos_instr_time == 1000
+    assert alice.local_ehi.latencies.host_peer_latency == 20_000
+
+
 if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
@@ -283,3 +317,4 @@ if __name__ == "__main__":
     test_build_procnode()
     test_build_network()
     test_build_network_perfect_links()
+    test_build_network_from_lhi()

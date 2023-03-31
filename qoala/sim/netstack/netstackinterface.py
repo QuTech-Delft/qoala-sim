@@ -187,9 +187,7 @@ class NetstackInterface(ComponentProtocol):
         return self._egpmgr
 
     def remote_id_to_peer_name(self, remote_id: int) -> str:
-        node_info = self._local_env.get_global_env().get_nodes()[remote_id]
-        # TODO figure out why mypy does not like this
-        return node_info.name  # type: ignore
+        return self._local_env.get_network_info().get_nodes()[remote_id]
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)

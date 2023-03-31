@@ -32,4 +32,3 @@ topology:
   <<: *topology
 latencies:
   host_peer_latency: 2_000_000
-  netstack_peer_latency: 1_000_000

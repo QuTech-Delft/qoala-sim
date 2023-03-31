@@ -31,11 +31,7 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.request import EprRole, EprType, IqoalaRequest, RequestVirtIdMapping
-from qoala.runtime.environment import (
-    GlobalEnvironment,
-    GlobalNodeInfo,
-    LocalEnvironment,
-)
+from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -45,7 +41,6 @@ from qoala.runtime.lhi_to_ehi import (
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
@@ -117,8 +112,8 @@ def create_process(pid: int, unit_module: UnitModule) -> IqoalaProcess:
         pid=pid,
         program=program,
         inputs=ProgramInput({}),
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
+        block_tasks=[],
     )
     mem = ProgramMemory(pid=pid)
 
@@ -140,12 +135,12 @@ def setup_components(
     alice_node = alice_qdevice._node
     bob_node = bob_qdevice._node
 
-    env = GlobalEnvironment()
-    env.add_node(alice_node.ID, GlobalNodeInfo(alice_node.name, alice_node.ID))
-    env.add_node(bob_node.ID, GlobalNodeInfo(bob_node.name, bob_node.ID))
+    env = NetworkInfo.with_nodes(
+        {alice_node.ID: alice_node.name, bob_node.ID: bob_node.name}
+    )
 
-    alice_comp = NetstackComponent(node=alice_node, global_env=env)
-    bob_comp = NetstackComponent(node=bob_node, global_env=env)
+    alice_comp = NetstackComponent(node=alice_node, network_info=env)
+    bob_comp = NetstackComponent(node=bob_node, network_info=env)
 
     alice_comp.peer_out_port("bob").connect(bob_comp.peer_in_port("alice"))
     alice_comp.peer_in_port("bob").connect(bob_comp.peer_out_port("alice"))
@@ -742,9 +737,10 @@ def test_4_with_latencies():
     netstack_peer_latency = 200e3
     epr_creation_duration = 100e3
 
+    latencies = NetstackLatencies(netstack_peer_latency=netstack_peer_latency)
+
     alice_processor, bob_processor = setup_components_generic(
-        num_qubits=3,
-        latencies=NetstackLatencies(netstack_peer_latency=netstack_peer_latency),
+        num_qubits=3, latencies=latencies
     )
 
     alice_topology = alice_processor.qdevice.topology

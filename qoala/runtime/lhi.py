@@ -1,9 +1,10 @@
 # Low-level Hardware Info. Expressed using NetSquid concepts and objects.
 from __future__ import annotations
 
+import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -17,6 +18,7 @@ from netsquid.components.instructions import (
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
+    IMeasure,
 )
 from netsquid.components.instructions import Instruction as NetSquidInstruction
 from netsquid.components.models.qerrormodels import (
@@ -25,11 +27,16 @@ from netsquid.components.models.qerrormodels import (
     T1T2NoiseModel,
 )
 from netsquid_magic.state_delivery_sampler import (
+    DepolariseWithFailureStateSamplerFactory,
     IStateDeliverySamplerFactory,
     PerfectStateSamplerFactory,
 )
 
 from qoala.lang.common import MultiQubit
+
+# A measurement that is meant to take 0 time.
+# Used in e.g. Measure Directly EPR generation.
+INSTR_MEASURE_INSTANT = IMeasure("measurement_instant_op")
 
 # Config Interface
 
@@ -228,6 +235,7 @@ class LhiTopologyBuilder:
                 INSTR_ROT_Y,
                 INSTR_ROT_Z,
                 INSTR_MEASURE,
+                INSTR_MEASURE_INSTANT,
             ],
             single_duration=5e3,
             two_instructions=[INSTR_CNOT, INSTR_CZ],
@@ -347,10 +355,6 @@ class LhiTopologyBuilder:
 
 class LhiLatenciesConfigInterface(ABC):
     @abstractmethod
-    def get_host_qnos_latency(self) -> float:
-        raise NotImplementedError
-
-    @abstractmethod
     def get_host_instr_time(self) -> float:
         raise NotImplementedError
 
@@ -362,36 +366,26 @@ class LhiLatenciesConfigInterface(ABC):
     def get_host_peer_latency(self) -> float:
         raise NotImplementedError
 
-    @abstractmethod
-    def get_netstack_peer_latency(self) -> float:
-        raise NotImplementedError
-
 
 @dataclass
 class LhiLatencies:
-    host_qnos_latency: float = 0  # delay for Host <-> Qnos communication
     host_instr_time: float = 0  # duration of classical Host instr execution
     qnos_instr_time: float = 0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0  # processing time for Host messages from remote node
-    netstack_peer_latency: float = (
-        0  # processing time for Netstack messages from remote node
-    )
 
     @classmethod
     def from_config(cls, cfg: LhiLatenciesConfigInterface) -> LhiLatencies:
         return LhiLatencies(
-            host_qnos_latency=cfg.get_host_qnos_latency(),
             host_instr_time=cfg.get_host_instr_time(),
             qnos_instr_time=cfg.get_qnos_instr_time(),
             host_peer_latency=cfg.get_host_peer_latency(),
-            netstack_peer_latency=cfg.get_netstack_peer_latency(),
         )
 
     @classmethod
     def all_zero(cls) -> LhiLatencies:
         # NOTE: can also just use LhiLatencies() which will default all values to 0
         # However, using this classmethod makes this behavior more explicit and clear.
-        return LhiLatencies(0, 0, 0, 0, 0)
+        return LhiLatencies(0, 0, 0)
 
 
 class LhiLinkConfigInterface(ABC):
@@ -426,6 +420,59 @@ class LhiLinkInfo:
     def perfect(cls, duration: float) -> LhiLinkInfo:
         return LhiLinkInfo(
             sampler_factory=PerfectStateSamplerFactory,
-            sampler_kwargs={},
+            sampler_kwargs={"cycle_time": 0},
             state_delay=duration,
         )
+
+    @classmethod
+    def depolarise(
+        cls,
+        cycle_time: float,
+        prob_max_mixed: float,
+        prob_success: float,
+        state_delay: float,
+    ) -> LhiLinkInfo:
+        return LhiLinkInfo(
+            sampler_factory=DepolariseWithFailureStateSamplerFactory,
+            sampler_kwargs={
+                "cycle_time": cycle_time,
+                "prob_max_mixed": prob_max_mixed,
+                "prob_success": prob_success,
+            },
+            state_delay=state_delay,
+        )
+
+
+@dataclass
+class NetworkLhi:
+    # (node A ID, node B ID) -> link info
+    # for a pair (a, b) there exists no separate (b, a) info (it is the same)
+    links: Dict[Tuple[int, int], LhiLinkInfo]
+
+    @classmethod
+    def fully_connected(cls, node_ids: List[int], info: LhiLinkInfo) -> NetworkLhi:
+        links: Dict[Tuple[int, int], LhiLinkInfo] = {}
+        for n1, n2 in itertools.combinations(node_ids, 2):
+            links[(n1, n2)] = info
+        return NetworkLhi(links)
+
+    @classmethod
+    def perfect_fully_connected(
+        cls, node_ids: List[int], duration: float
+    ) -> NetworkLhi:
+        link = LhiLinkInfo.perfect(duration)
+        return cls.fully_connected(node_ids, link)
+
+    def get_link(self, node_id1: int, node_id2: int) -> LhiLinkInfo:
+        try:
+            return self.links[(node_id1, node_id2)]
+        except KeyError:
+            return self.links[(node_id2, node_id1)]
+
+
+@dataclass
+class LhiProcNodeInfo:
+    id: int
+    name: str
+    topology: LhiTopology
+    latencies: LhiLatencies

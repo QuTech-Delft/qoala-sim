@@ -5,7 +5,7 @@ from typing import Dict
 from netsquid.components.component import Component, Port
 from netsquid.nodes import Node
 
-from qoala.runtime.environment import GlobalEnvironment
+from qoala.runtime.environment import NetworkInfo
 
 
 class NetstackComponent(Component):
@@ -23,20 +23,20 @@ class NetstackComponent(Component):
     which is a subclass of `Protocol`.
     """
 
-    def __init__(self, node: Node, global_env: GlobalEnvironment) -> None:
+    def __init__(self, node: Node, network_info: NetworkInfo) -> None:
         super().__init__(f"{node.name}_netstack")
         self._node = node
 
         self._peer_in_ports: Dict[str, str] = {}  # peer name -> port name
         self._peer_out_ports: Dict[str, str] = {}  # peer name -> port name
 
-        for other_node in global_env.get_nodes().values():
-            if other_node.name == node.name:
+        for other_node in network_info.get_nodes().values():
+            if other_node == node.name:
                 continue
-            port_in_name = f"peer_{other_node.name}_in"
-            port_out_name = f"peer_{other_node.name}_out"
-            self._peer_in_ports[other_node.name] = port_in_name
-            self._peer_out_ports[other_node.name] = port_out_name
+            port_in_name = f"peer_{other_node}_in"
+            port_out_name = f"peer_{other_node}_out"
+            self._peer_in_ports[other_node] = port_in_name
+            self._peer_out_ports[other_node] = port_out_name
 
         self.add_ports(self._peer_in_ports.values())
         self.add_ports(self._peer_out_ports.values())

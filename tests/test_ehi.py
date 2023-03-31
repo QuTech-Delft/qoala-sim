@@ -6,9 +6,12 @@ from netqasm.lang.instr.flavour import NVFlavour
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import (
     EhiBuilder,
+    EhiLatencies,
     ExposedGateInfo,
     ExposedHardwareInfo,
+    ExposedLinkInfo,
     ExposedQubitInfo,
+    NetworkEhi,
     UnitModule,
 )
 
@@ -49,7 +52,11 @@ def create_ehi() -> ExposedHardwareInfo:
     }
 
     return ExposedHardwareInfo(
-        qubit_infos, flavour, single_gate_infos, multi_gate_infos
+        qubit_infos,
+        flavour,
+        single_gate_infos,
+        multi_gate_infos,
+        EhiLatencies.all_zero(),
     )
 
 
@@ -309,6 +316,59 @@ def test_generic_t1t2_star():
         )
 
 
+def test_find_gates():
+    num_qubits = 3
+    comm_decoherence = 0.05
+    mem_decoherence = 0.01
+    comm_instructions = [nv.RotXInstruction, nv.RotYInstruction, nv.RotZInstruction]
+    comm_duration = 5e3
+    comm_instr_decoherence = 0.3
+    mem_instructions = [nv.RotXInstruction, nv.RotYInstruction]
+    mem_duration = 1e4
+    mem_instr_decoherence = 0.4
+    two_instructions = [nv.ControlledRotXInstruction, nv.ControlledRotYInstruction]
+    two_duration = 2e5
+    two_instr_decoherence = 0.5
+    ehi = EhiBuilder.generic_t1t2_star(
+        num_qubits,
+        NVFlavour,
+        comm_decoherence,
+        mem_decoherence,
+        comm_instructions,
+        comm_duration,
+        comm_instr_decoherence,
+        mem_instructions,
+        mem_duration,
+        mem_instr_decoherence,
+        two_instructions,
+        two_duration,
+        two_instr_decoherence,
+    )
+    for i in range(3):
+        assert ehi.find_single_gate(i, nv.RotXInstruction) is not None
+        assert ehi.find_single_gate(i, nv.RotYInstruction) is not None
+        if i == 0:
+            assert ehi.find_single_gate(i, nv.RotZInstruction) is not None
+        else:
+            assert ehi.find_single_gate(i, nv.RotZInstruction) is None
+    assert ehi.find_single_gate(4, nv.GateHInstruction) is None
+
+    for i in range(1, 3):
+        assert ehi.find_multi_gate([0, i], nv.ControlledRotXInstruction) is not None
+        assert ehi.find_multi_gate([0, i], nv.ControlledRotYInstruction) is not None
+        assert ehi.find_multi_gate([i, 0], nv.ControlledRotYInstruction) is None
+
+    assert ehi.find_multi_gate([0, 0], nv.GateYInstruction) is None
+
+
+def test_network_ehi():
+    network_ehi = NetworkEhi.perfect_fully_connected(node_ids=[0, 1, 2], duration=1000)
+
+    assert network_ehi.get_link(0, 1) == ExposedLinkInfo(duration=1000, fidelity=1.0)
+    assert network_ehi.get_link(0, 2) == ExposedLinkInfo(duration=1000, fidelity=1.0)
+    assert network_ehi.get_link(1, 2) == ExposedLinkInfo(duration=1000, fidelity=1.0)
+
+
 if __name__ == "__main__":
     test_1_qubit()
     test_2_qubits()
@@ -321,3 +381,5 @@ if __name__ == "__main__":
     test_build_fully_uniform()
     test_perfect_star()
     test_generic_t1t2_star()
+    test_find_gates()
+    test_network_ehi()

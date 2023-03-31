@@ -5,19 +5,19 @@ META_START
     epr_sockets: 0 -> alice
 META_END
 
-^b1 {type = RR}:
+^b1 {type = QC}:
     run_request(vec<>) : req
   
-^b2 {type = LR}:
+^b2 {type = QL}:
     vec<m0> = run_subroutine(vec<>) : post_epr
 
-^b3 {type = RR}:
+^b3 {type = QC}:
     run_request(vec<>) : req
 
-^b4 {type = LR}:
+^b4 {type = QL}:
     vec<m1> = run_subroutine(vec<>) : post_epr
 
-^b3 {type = host}:
+^b5 {type = CL}:
     return_result(m0)
     return_result(m1)
 

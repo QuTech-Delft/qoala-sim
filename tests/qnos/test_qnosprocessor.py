@@ -16,7 +16,6 @@ from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import IqoalaProcess
@@ -147,8 +146,8 @@ def create_process(
         pid=pid,
         program=program,
         inputs=inputs,
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
+        block_tasks=[],
     )
     mem = ProgramMemory(pid=pid)
 

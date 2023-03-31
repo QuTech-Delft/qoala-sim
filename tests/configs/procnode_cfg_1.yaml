@@ -27,11 +27,9 @@ topology: &topology
   multi_gates: {}
 
 latencies: &latencies
-  host_qnos_latency: 10_000
   host_instr_time: 500
   qnos_instr_time: 2_000
   host_peer_latency: 2_000_000
-  netstack_peer_latency: 1_000_000
 
 node_name: "client_node"
 node_id: 2

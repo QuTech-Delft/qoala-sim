@@ -36,6 +36,7 @@ from pydantic import BaseModel as PydanticBaseModel
 
 from qoala.lang.common import MultiQubit
 from qoala.runtime.lhi import (
+    INSTR_MEASURE_INSTANT,
     LhiGateConfigInterface,
     LhiLatenciesConfigInterface,
     LhiLinkConfigInterface,
@@ -327,6 +328,7 @@ class DefaultInstrConfigRegistry(InstrConfigRegistry):
         "INSTR_CROT_X": INSTR_CROT_X,
         "INSTR_CROT_Y": INSTR_CROT_Y,
         "INSTR_MEASURE": INSTR_MEASURE,
+        "INSTR_MEASURE_INSTANT": INSTR_MEASURE_INSTANT,
     }
 
     @classmethod
@@ -465,6 +467,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
                 "INSTR_Z",
                 "INSTR_H",
                 "INSTR_MEASURE",
+                "INSTR_MEASURE_INSTANT",
             ],
             single_duration=5e3,
             two_instructions=["INSTR_CNOT", "INSTR_CZ"],
@@ -661,17 +664,17 @@ class NVQDeviceConfig(BaseModel):
         cfg.carbon_init_depolar_prob = 0
         cfg.carbon_z_rot_depolar_prob = 0
         cfg.ec_gate_depolar_prob = 0
+        cfg.electron_T1 = 0
+        cfg.electron_T2 = 0
+        cfg.carbon_T1 = 0
+        cfg.carbon_T2 = 0
         return cfg
 
 
 class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
-    host_qnos_latency: float = 0.0  # delay for Host <-> Qnos communication
     host_instr_time: float = 0.0  # duration of classical Host instr execution
     qnos_instr_time: float = 0.0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0.0  # processing time for Host messages from remote node
-    netstack_peer_latency: float = (
-        0.0  # processing time for Netstack messages from remote node
-    )
 
     @classmethod
     def from_file(cls, path: str) -> LatenciesConfig:
@@ -679,9 +682,6 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
 
     @classmethod
     def from_dict(cls, dict: Any) -> LatenciesConfig:
-        host_qnos_latency = 0.0
-        if "host_qnos_latency" in dict:
-            host_qnos_latency = dict["host_qnos_latency"]
         host_instr_time = 0.0
         if "host_instr_time" in dict:
             host_instr_time = dict["host_instr_time"]
@@ -691,19 +691,11 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
         host_peer_latency = 0.0
         if "host_peer_latency" in dict:
             host_peer_latency = dict["host_peer_latency"]
-        netstack_peer_latency = 0.0
-        if "netstack_peer_latency" in dict:
-            netstack_peer_latency = dict["netstack_peer_latency"]
         return LatenciesConfig(
-            host_qnos_latency=host_qnos_latency,
             host_instr_time=host_instr_time,
             qnos_instr_time=qnos_instr_time,
             host_peer_latency=host_peer_latency,
-            netstack_peer_latency=netstack_peer_latency,
         )
-
-    def get_host_qnos_latency(self) -> float:
-        return self.host_qnos_latency
 
     def get_host_instr_time(self) -> float:
         return self.host_instr_time
@@ -714,15 +706,14 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
     def get_host_peer_latency(self) -> float:
         return self.host_peer_latency
 
-    def get_netstack_peer_latency(self) -> float:
-        return self.netstack_peer_latency
-
 
 class ProcNodeConfig(BaseModel):
     node_name: str
     node_id: int
-    topology: TopologyConfig
+    # TODO: Refactor ad-hoc way of old NV config!
+    topology: Optional[TopologyConfig] = None
     latencies: LatenciesConfig
+    nv_config: Optional[NVQDeviceConfig] = None  # TODO: remove!
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:

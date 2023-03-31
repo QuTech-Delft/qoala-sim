@@ -38,7 +38,11 @@ class IqoalaProgram:
         request_routines: Optional[Dict[str, RequestRoutine]] = None,
     ) -> None:
         self._meta: ProgramMeta = meta
+
+        # List to keep order of blocks.
         self._blocks: List[BasicBlock] = blocks
+        # Dict to easily find blocks.
+        self._block_mapping: Dict[str, BasicBlock] = {blk.name: blk for blk in blocks}
         self._local_routines: Dict[str, LocalRoutine]
         self._request_routines: Dict[str, RequestRoutine]
 
@@ -63,6 +67,9 @@ class IqoalaProgram:
     @blocks.setter
     def blocks(self, new_blocks) -> None:
         self._blocks = new_blocks
+
+    def get_block(self, name: str) -> BasicBlock:
+        return self._block_mapping[name]
 
     @property
     def instructions(self) -> List[ClassicalIqoalaOp]:

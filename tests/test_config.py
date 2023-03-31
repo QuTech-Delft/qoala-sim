@@ -631,38 +631,30 @@ def test_custom_instruction():
 def test_latencies_config_file():
     cfg = LatenciesConfig.from_file(relative_path("configs/latencies_cfg_1.yaml"))
 
-    assert cfg.host_qnos_latency == 10e3
     assert cfg.host_instr_time == 500
     assert cfg.qnos_instr_time == 2000
     assert cfg.host_peer_latency == 2e6
-    assert cfg.netstack_peer_latency == 1e6
 
     # check interface
-    assert cfg.get_host_qnos_latency() == 10e3
     assert cfg.get_host_instr_time() == 500
     assert cfg.get_qnos_instr_time() == 2000
     assert cfg.get_host_peer_latency() == 2e6
-    assert cfg.get_netstack_peer_latency() == 1e6
 
 
 def test_latencies_config_file_default_values():
     cfg = LatenciesConfig.from_file(relative_path("configs/latencies_cfg_2.yaml"))
 
     # explicitly given by cfg file
-    assert cfg.host_qnos_latency == 10e3
+    assert cfg.host_instr_time == 200
 
     # not given in the cfg file, so they should default to 0
-    assert cfg.host_instr_time == 0
     assert cfg.qnos_instr_time == 0
     assert cfg.host_peer_latency == 0
-    assert cfg.netstack_peer_latency == 0
 
     # check interface
-    assert cfg.get_host_qnos_latency() == 10e3
-    assert cfg.get_host_instr_time() == 0
+    assert cfg.get_host_instr_time() == 200
     assert cfg.get_qnos_instr_time() == 0
     assert cfg.get_host_peer_latency() == 0
-    assert cfg.get_netstack_peer_latency() == 0
 
 
 def test_procnode_config_file():
@@ -676,24 +668,20 @@ def test_procnode_config_file():
     assert cfg.node_name == "client_node"
     assert cfg.node_id == 2
     assert cfg.topology == expected_topology
-    assert cfg.latencies.host_qnos_latency == 10e3
     assert cfg.latencies.host_instr_time == 500
     assert cfg.latencies.qnos_instr_time == 2000
     assert cfg.latencies.host_peer_latency == 2e6
-    assert cfg.latencies.netstack_peer_latency == 1e6
 
 
 def test_procnode_config_file_default_values():
     cfg = ProcNodeConfig.from_file(relative_path("configs/procnode_cfg_2.yaml"))
 
-    # following 3 items are not given in the cfg file, so they should default to 0
-    assert cfg.latencies.host_qnos_latency == 0
+    # following 2 items are not given in the cfg file, so they should default to 0
     assert cfg.latencies.host_instr_time == 0
     assert cfg.latencies.qnos_instr_time == 0
 
     # explicitly given by cfg file
     assert cfg.latencies.host_peer_latency == 2e6
-    assert cfg.latencies.netstack_peer_latency == 1e6
 
 
 def test_perfect_sampler_config():
