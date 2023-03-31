@@ -16,7 +16,7 @@ from qoala.runtime.program import (
     ProgramInstance,
     ProgramResult,
 )
-from qoala.runtime.schedule import QcSlotInfo, TaskSchedule
+from qoala.runtime.schedule import TaskSchedule
 from qoala.runtime.task import BlockTask, TaskCreator, TaskExecutionMode
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket

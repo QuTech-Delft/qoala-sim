@@ -17,6 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
+from qoala.runtime.schedule import TaskSchedule
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
@@ -197,7 +198,9 @@ def run_bqc(
 
         server_procnode.submit_batch(server_batch_info)
     server_procnode.initialize_processes()
-    server_procnode.initialize_block_schedule(None)
+    server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
+    server_schedule = TaskSchedule.consecutive(server_tasks)
+    server_procnode.scheduler.upload_schedule(server_schedule)
 
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
@@ -227,7 +230,9 @@ def run_bqc(
 
         client_procnode.submit_batch(client_batch_info)
         client_procnode.initialize_processes()
-        client_procnode.initialize_block_schedule(None)
+        client_tasks = client_procnode.scheduler.get_tasks_to_schedule()
+        client_schedule = TaskSchedule.consecutive(client_tasks)
+        client_procnode.scheduler.upload_schedule(client_schedule)
 
     network.start()
     start_time = ns.sim_time()

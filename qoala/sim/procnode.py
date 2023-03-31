@@ -11,7 +11,6 @@ from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
-from qoala.runtime.schedule import QcSlotInfo
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
 from qoala.sim.host.host import Host
@@ -253,11 +252,6 @@ class ProcNode(Protocol):
 
     def initialize_processes(self) -> None:
         self.scheduler.create_processes_for_batches()
-
-    def initialize_block_schedule(
-        self, qc_slot_info: Optional[QcSlotInfo] = None
-    ) -> None:
-        self.scheduler.initialize_block_schedule(qc_slot_info)
 
     def add_process(self, process: IqoalaProcess) -> None:
         self.memmgr.add_process(process)

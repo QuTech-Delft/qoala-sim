@@ -17,6 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
+from qoala.runtime.schedule import TaskSchedule
 from qoala.sim.build import build_network
 
 
@@ -99,7 +100,9 @@ def run_qkd(
     )
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
-    alice_procnode.initialize_block_schedule()
+    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
+    alice_schedule = TaskSchedule.consecutive(alice_tasks)
+    alice_procnode.scheduler.upload_schedule(alice_schedule)
 
     bob_program = load_program(bob_file)
     if num_pairs is not None:
@@ -116,7 +119,9 @@ def run_qkd(
     bob_batch = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
-    bob_procnode.initialize_block_schedule()
+    bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
+    bob_schedule = TaskSchedule.consecutive(bob_tasks)
+    bob_procnode.scheduler.upload_schedule(bob_schedule)
 
     network.start()
     ns.sim_run()
