@@ -52,7 +52,6 @@ from qoala.runtime.lhi_to_ehi import (
 from qoala.runtime.memory import ProgramMemory, SharedMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_generic_qprocessor
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
@@ -310,7 +309,6 @@ def create_process(
         pid=pid,
         program=program,
         inputs=prog_input,
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
         block_tasks=[],
     )

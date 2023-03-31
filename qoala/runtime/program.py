@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import IqoalaProgram
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import BlockTask
 
 
@@ -37,7 +36,6 @@ class BatchInfo:
     inputs: List[ProgramInput]  # dict of inputs for each iteration
     num_iterations: int
     deadline: float
-    tasks: ProgramTaskList
 
 
 @dataclass
@@ -47,7 +45,6 @@ class ProgramInstance:
     pid: int
     program: IqoalaProgram
     inputs: ProgramInput
-    tasks: ProgramTaskList
     unit_module: UnitModule
     block_tasks: List[BlockTask]
 

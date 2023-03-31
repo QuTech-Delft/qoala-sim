@@ -8,7 +8,7 @@ META_END
 ^b1 {type = QC}:
     vec<m0> = run_request(vec<>) : req
   
-^b3 {type = CL}:
+^b2 {type = CL}:
     return_result(m0)
 
 SUBROUTINE post_epr

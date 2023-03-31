@@ -17,7 +17,6 @@ from qoala.runtime.lhi import (
     NetworkLhi,
 )
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.taskcreator import (
     BlockTask,
     TaskCreator,
@@ -67,7 +66,6 @@ def instantiate(
         pid,
         program,
         inputs,
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
         block_tasks=[],
     )

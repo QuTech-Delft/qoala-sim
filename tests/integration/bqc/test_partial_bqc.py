@@ -17,6 +17,7 @@ from netsquid_magic.magic_distributor import PerfectStateMagicDistributor
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import NetworkEhi, UnitModule
+from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.environment import NetworkInfo
@@ -28,7 +29,6 @@ from qoala.runtime.lhi_to_ehi import (
 )
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList, QnosTask
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.entdist.entdist import EntDist
@@ -54,7 +54,6 @@ def create_process(
         pid=pid,
         program=program,
         inputs=prog_input,
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
         block_tasks=[],
     )
@@ -148,9 +147,15 @@ class BqcProcNode(ProcNode):
     def run_subroutine(
         self, process: IqoalaProcess, host_instr_index: int, subrt_name: str
     ) -> Generator[EventExpression, None, None]:
-        yield from self.scheduler.execute_qnos_task(
-            process, QnosTask(host_instr_index, subrt_name)
+        host_instr = process.program.instructions[host_instr_index]
+        assert isinstance(host_instr, RunSubroutineOp)
+        lrcall = self.host.processor.prepare_lr_call(process, host_instr)
+        self.scheduler.allocate_qubits_for_routine(process, lrcall.routine_name)
+        yield from self.qnos.processor.assign_local_routine(
+            process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
         )
+        self.scheduler.free_qubits_after_routine(process, lrcall.routine_name)
+        self.host.processor.post_lr_call(process, host_instr, lrcall)
 
     def run_request(
         self, process: IqoalaProcess, host_instr_index: int, req_name: str

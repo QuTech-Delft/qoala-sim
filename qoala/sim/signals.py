@@ -12,5 +12,7 @@ SIGNAL_ENTD_NSTK_MSG = "EvEntdNstkMsg"
 
 SIGNAL_MEMORY_FREED = "EvMemoryFreed"
 
+SIGNAL_TASK_COMPLETED = "TaskCompleted"
+
 
 MSG_REQUEST_DELIVERED = "RequestDelivered"

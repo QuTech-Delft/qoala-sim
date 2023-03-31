@@ -37,7 +37,6 @@ from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.sharedmem import SharedMemoryManager
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
@@ -140,7 +139,6 @@ def create_process(
         pid=0,
         program=program,
         inputs=prog_input,
-        tasks=ProgramTaskList.empty(program),
         unit_module=UnitModule.from_full_ehi(mock_ehi),
         block_tasks=[],
     )

@@ -20,7 +20,6 @@ from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.egpmgr import EgpManager
@@ -383,7 +382,6 @@ def create_process(
         pid=0,
         program=program,
         inputs=ProgramInput({}),
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
         block_tasks=[],
     )

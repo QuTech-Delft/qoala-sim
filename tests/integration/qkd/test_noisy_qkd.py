@@ -8,7 +8,6 @@ import netsquid as ns
 import pytest
 
 from qoala.lang.ehi import UnitModule
-from qoala.lang.hostlang import RunRequestOp, RunSubroutineOp
 from qoala.lang.parse import IqoalaParser
 from qoala.lang.program import IqoalaProgram
 from qoala.runtime.config import (
@@ -21,7 +20,6 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import NoTimeSolver, ProgramTaskList, TaskBuilder
 from qoala.sim.build import build_network
 from qoala.util.constants import fidelity_to_prob_max_mixed
 
@@ -54,7 +52,6 @@ def create_batch(
     unit_module: UnitModule,
     inputs: List[ProgramInput],
     num_iterations: int,
-    tasks: ProgramTaskList,
 ) -> BatchInfo:
     return BatchInfo(
         program=program,
@@ -62,48 +59,7 @@ def create_batch(
         inputs=inputs,
         num_iterations=num_iterations,
         deadline=0,
-        tasks=tasks,
     )
-
-
-def create_alice_tasks(alice_program: IqoalaProgram) -> ProgramTaskList:
-    tasks = []
-
-    cl_dur = 1e3
-    qc_dur = 1e6
-    ql_dur = 1e6
-
-    for i, instr in enumerate(alice_program.instructions):
-        if isinstance(instr, RunRequestOp):
-            req_name = instr.req_routine
-            tasks.append(TaskBuilder.QC(qc_dur, i, req_name))
-        elif isinstance(instr, RunSubroutineOp):
-            subrt_name = instr.subroutine
-            tasks.append(TaskBuilder.QL(ql_dur, i, subrt_name))
-        else:
-            tasks.append(TaskBuilder.CL(cl_dur, i))
-
-    return ProgramTaskList(alice_program, {i: task for i, task in enumerate(tasks)})
-
-
-def create_bob_tasks(bob_program: IqoalaProgram) -> ProgramTaskList:
-    tasks = []
-
-    cl_dur = 1e3
-    qc_dur = 1e6
-    ql_dur = 1e6
-
-    for i, instr in enumerate(bob_program.instructions):
-        if isinstance(instr, RunRequestOp):
-            req_name = instr.req_routine
-            tasks.append(TaskBuilder.QC(qc_dur, i, req_name))
-        elif isinstance(instr, RunSubroutineOp):
-            subrt_name = instr.subroutine
-            tasks.append(TaskBuilder.QL(ql_dur, i, subrt_name))
-        else:
-            tasks.append(TaskBuilder.CL(cl_dur, i))
-
-    return ProgramTaskList(bob_program, {i: task for i, task in enumerate(tasks)})
 
 
 @dataclass
@@ -141,7 +97,6 @@ def run_qkd(
     bob_procnode = network.nodes["bob"]
 
     alice_program = load_program(alice_file)
-    alice_tasks = create_alice_tasks(alice_program)
     if num_pairs is not None:
         alice_inputs = [
             ProgramInput({"bob_id": bob_id, "num_pairs": num_pairs})
@@ -152,14 +107,13 @@ def run_qkd(
 
     alice_unit_module = UnitModule.from_full_ehi(alice_procnode.memmgr.get_ehi())
     alice_batch = create_batch(
-        alice_program, alice_unit_module, alice_inputs, num_iterations, alice_tasks
+        alice_program, alice_unit_module, alice_inputs, num_iterations
     )
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
-    alice_procnode.initialize_schedule(NoTimeSolver)
+    alice_procnode.initialize_block_schedule()
 
     bob_program = load_program(bob_file)
-    bob_tasks = create_bob_tasks(bob_program)
     if num_pairs is not None:
         bob_inputs = [
             ProgramInput({"alice_id": alice_id, "num_pairs": num_pairs})
@@ -171,12 +125,10 @@ def run_qkd(
         ]
 
     bob_unit_module = UnitModule.from_full_ehi(bob_procnode.memmgr.get_ehi())
-    bob_batch = create_batch(
-        bob_program, bob_unit_module, bob_inputs, num_iterations, bob_tasks
-    )
+    bob_batch = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
-    bob_procnode.initialize_schedule(NoTimeSolver)
+    bob_procnode.initialize_block_schedule()
 
     network.start()
     ns.sim_run()

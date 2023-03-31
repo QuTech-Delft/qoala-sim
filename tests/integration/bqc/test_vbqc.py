@@ -17,7 +17,6 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
@@ -87,9 +86,7 @@ def create_network(
     assert len(client_configs) == num_clients
 
     network_info = create_network_info(num_clients, global_schedule, timeslot_len)
-
     node_cfgs = [server_cfg] + client_configs
-
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=node_cfgs, link_duration=1000
     )
@@ -136,7 +133,6 @@ def create_server_batch(
         unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
-        tasks=ProgramTaskList.empty(server_program),
     )
 
 
@@ -153,7 +149,6 @@ def create_client_batch(
         unit_module=unit_module,
         num_iterations=num_iterations,
         deadline=deadline,
-        tasks=ProgramTaskList.empty(client_program),
     )
 
 

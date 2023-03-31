@@ -8,7 +8,7 @@ META_END
 ^b1 {type = QC}:
     vec<m0; m1> = run_request(vec<>) : req
 
-^b1 {type = CL}:
+^b2 {type = CL}:
     return_result(m0)
     return_result(m1)
 

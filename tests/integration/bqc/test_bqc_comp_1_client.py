@@ -17,8 +17,6 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import ProgramTaskList
-from qoala.runtime.taskcreator import LinkSlotInfo, QcSlotInfo
 from qoala.sim.build import build_network
 
 
@@ -57,7 +55,6 @@ def create_batch(
         inputs=inputs,
         num_iterations=num_iterations,
         deadline=0,
-        tasks=ProgramTaskList.empty(program),
     )
 
 

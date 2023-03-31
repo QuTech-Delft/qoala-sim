@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Type
+from typing import Dict, Optional
 
 from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
@@ -11,7 +11,6 @@ from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
-from qoala.runtime.schedule import Schedule, ScheduleSolver
 from qoala.runtime.taskcreator import QcSlotInfo
 from qoala.sim.egp import EgpProtocol
 from qoala.sim.egpmgr import EgpManager
@@ -123,9 +122,6 @@ class ProcNode(Protocol):
             )
         else:
             self._scheduler = scheduler
-
-    def install_schedule(self, schedule: Schedule) -> None:
-        self.scheduler.install_schedule(schedule)
 
     def assign_ll_protocol(
         self, remote_id: int, prot: MagicLinkLayerProtocolWithSignaling
@@ -258,10 +254,9 @@ class ProcNode(Protocol):
     def initialize_processes(self) -> None:
         self.scheduler.create_processes_for_batches()
 
-    def initialize_schedule(self, solver: Type[ScheduleSolver]) -> None:
-        self.scheduler.solve_and_install_schedule(solver)
-
-    def initialize_block_schedule(self, qc_slot_info: Optional[QcSlotInfo]) -> None:
+    def initialize_block_schedule(
+        self, qc_slot_info: Optional[QcSlotInfo] = None
+    ) -> None:
         self.scheduler.initialize_block_schedule(qc_slot_info)
 
     def add_process(self, process: IqoalaProcess) -> None:

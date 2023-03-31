@@ -17,14 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import ProgramTaskList
-from qoala.runtime.taskcreator import (
-    LinkSlotInfo,
-    QcSlotInfo,
-    TaskCreator,
-    TaskExecutionMode,
-    TaskSchedule,
-)
+from qoala.runtime.taskcreator import TaskCreator, TaskExecutionMode, TaskSchedule
 from qoala.sim.build import build_network
 from qoala.util.logging import LogManager
 
@@ -75,7 +68,6 @@ def instantiate(
         pid,
         program,
         inputs,
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
         block_tasks=[],
     )

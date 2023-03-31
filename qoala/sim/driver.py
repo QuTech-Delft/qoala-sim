@@ -21,12 +21,14 @@ from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackprocessor import NetstackProcessor
 from qoala.sim.process import IqoalaProcess
 from qoala.sim.qnos.qnosprocessor import QnosProcessor
+from qoala.sim.signals import SIGNAL_TASK_COMPLETED
 from qoala.util.logging import LogManager
 
 
 class Driver(Protocol):
     def __init__(self, name: str) -> None:
         super().__init__(name=name)
+        self.add_signal(SIGNAL_TASK_COMPLETED)
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}({name})"
@@ -56,14 +58,18 @@ class Driver(Protocol):
                     self._logger.debug(f"waiting for {time - now}...")
                     yield from self.wait(time - now)
                 if prev is not None:
-                    # TODO: REWRITE USING LISTENERS AND WAKE UP SIGNALS
                     assert self._other_driver is not None
                     while prev not in self._other_driver._finished_tasks:
-                        yield from self.wait(1000)
+                        # Wait for a signal that the other driver completed a task.
+                        yield self.await_signal(
+                            sender=self._other_driver,
+                            signal_label=SIGNAL_TASK_COMPLETED,
+                        )
 
                 self._logger.info(f"executing task {task}")
                 yield from self._handle_task(task)
                 self._finished_tasks.append(task)
+                self.send_signal(SIGNAL_TASK_COMPLETED)
                 self._logger.info(f"finished task {task}")
             except IndexError:
                 break

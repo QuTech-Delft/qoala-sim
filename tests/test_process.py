@@ -4,7 +4,6 @@ from qoala.lang.program import IqoalaProgram, ProgramMeta
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.process import IqoalaProcess
 
 
@@ -33,7 +32,6 @@ def create_process(program: IqoalaProgram) -> IqoalaProcess:
         pid=0,
         program=program,
         inputs=ProgramInput({}),
-        tasks=ProgramTaskList.empty(program),
         unit_module=unit_module,
         block_tasks=[],
     )

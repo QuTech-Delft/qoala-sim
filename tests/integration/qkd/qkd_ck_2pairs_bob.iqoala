@@ -17,7 +17,7 @@ META_END
 ^b4 {type = QL}:
     vec<m1> = run_subroutine(vec<>) : post_epr
 
-^b3 {type = CL}:
+^b5 {type = CL}:
     return_result(m0)
     return_result(m1)
 

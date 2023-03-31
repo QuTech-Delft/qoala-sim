@@ -6,7 +6,6 @@ from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology, LhiTopologyBuilder, NetworkLhi
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import ProgramTaskList
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
@@ -90,7 +89,6 @@ class ObjectBuilder:
             pid,
             program,
             inputs,
-            tasks=ProgramTaskList.empty(program),
             unit_module=unit_module,
             block_tasks=[],
         )
