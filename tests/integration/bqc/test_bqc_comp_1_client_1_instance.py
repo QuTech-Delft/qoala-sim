@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from re import T
 from typing import Dict, List, Optional
 
 import netsquid as ns
@@ -17,8 +18,8 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import TaskSchedule
-from qoala.runtime.task import TaskCreator, TaskExecutionMode
+from qoala.runtime.schedule import StaticSchedule
+from qoala.runtime.task import TaskCreator, TaskExecutionMode, TaskGraph
 from qoala.sim.build import build_network
 from qoala.util.logging import LogManager
 
@@ -70,7 +71,7 @@ def instantiate(
         program,
         inputs,
         unit_module=unit_module,
-        block_tasks=[],
+        tasks=TaskGraph.empty(),
     )
 
 
@@ -114,15 +115,14 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     )
     client_procnode.scheduler.submit_program_instance(client_instance)
 
-    task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
-    tasks_server = task_creator.from_program(
+    tasks_server = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
         server_program,
         0,
         server_procnode.local_ehi,
         server_procnode.network_ehi,
         client_id,
     )
-    tasks_client = task_creator.from_program(
+    tasks_client = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
         client_program,
         0,
         client_procnode.local_ehi,
@@ -130,8 +130,12 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
         server_id,
     )
 
-    schedule_server = TaskSchedule.consecutive(tasks_server)
-    schedule_client = TaskSchedule.consecutive(tasks_client)
+    schedule_server = StaticSchedule.consecutive_block_tasks(
+        tasks_server.tasks.values()
+    )
+    schedule_client = StaticSchedule.consecutive_block_tasks(
+        tasks_client.tasks.values()
+    )
     server_procnode.scheduler.upload_schedule(schedule_server)
     client_procnode.scheduler.upload_schedule(schedule_client)
 

@@ -16,8 +16,8 @@ from qoala.runtime.program import (
     ProgramInstance,
     ProgramResult,
 )
-from qoala.runtime.schedule import TaskSchedule
-from qoala.runtime.task import BlockTask, TaskCreator, TaskExecutionMode
+from qoala.runtime.schedule import StaticSchedule
+from qoala.runtime.task import BlockTask, QoalaTask, TaskCreator, TaskExecutionMode
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
@@ -41,6 +41,7 @@ class Scheduler(Protocol):
         local_env: LocalEnvironment,
         local_ehi: EhiNodeInfo,
         network_ehi: EhiNetworkInfo,
+        tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
@@ -57,6 +58,7 @@ class Scheduler(Protocol):
         self._local_env = local_env
         self._local_ehi = local_ehi
         self._network_ehi = network_ehi
+        self._tem = tem
 
         self._prog_instance_counter: int = 0
         self._batch_counter: int = 0
@@ -64,11 +66,11 @@ class Scheduler(Protocol):
         self._prog_results: Dict[int, ProgramResult] = {}  # program ID -> result
         self._batch_results: Dict[int, BatchResult] = {}  # batch ID -> result
 
-        self._block_schedule: Optional[TaskSchedule] = None
+        self._block_schedule: Optional[StaticSchedule] = None
 
         self._cpudriver = CpuDriver(node_name, host.processor, memmgr)
         self._qpudriver = QpuDriver(
-            node_name, host.processor, qnos.processor, netstack.processor, memmgr
+            node_name, host.processor, qnos.processor, netstack.processor, memmgr, tem
         )
 
         self._cpudriver.set_other_driver(self._qpudriver)
@@ -99,7 +101,7 @@ class Scheduler(Protocol):
         return self._qpudriver
 
     @property
-    def block_schedule(self) -> TaskSchedule:
+    def block_schedule(self) -> StaticSchedule:
         assert self._block_schedule is not None
         return self._block_schedule
 
@@ -110,7 +112,6 @@ class Scheduler(Protocol):
 
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
-            task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
             # TODO: allow multiple remote nodes in single program??
             remote_names = list(batch_info.program.meta.csockets.values())
             if len(remote_names) > 0:
@@ -118,7 +119,7 @@ class Scheduler(Protocol):
                 remote_id = network_info.get_node_id(remote_name)
             else:
                 remote_id = None
-            block_tasks = task_creator.from_program(
+            tasks = TaskCreator(mode=self._tem).from_program(
                 batch_info.program, pid, self._local_ehi, self._network_ehi, remote_id
             )
 
@@ -127,7 +128,7 @@ class Scheduler(Protocol):
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 unit_module=batch_info.unit_module,
-                block_tasks=block_tasks,
+                tasks=tasks,
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -205,13 +206,13 @@ class Scheduler(Protocol):
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
 
-    def upload_cpu_schedule(self, schedule: TaskSchedule) -> None:
+    def upload_cpu_schedule(self, schedule: StaticSchedule) -> None:
         self._cpudriver.upload_schedule(schedule)
 
-    def upload_qpu_schedule(self, schedule: TaskSchedule) -> None:
+    def upload_qpu_schedule(self, schedule: StaticSchedule) -> None:
         self._qpudriver.upload_schedule(schedule)
 
-    def upload_schedule(self, schedule: TaskSchedule) -> None:
+    def upload_schedule(self, schedule: StaticSchedule) -> None:
         self._block_schedule = schedule
         self._cpudriver.upload_schedule(schedule.cpu_schedule)
         self._qpudriver.upload_schedule(schedule.qpu_schedule)
@@ -232,10 +233,12 @@ class Scheduler(Protocol):
         self.initialize_process(process)
 
     def get_tasks_to_schedule(self) -> List[BlockTask]:
-        all_tasks: List[BlockTask] = []
+        all_tasks: List[QoalaTask] = []
 
         for batch in self._batches.values():
             for inst in batch.instances:
-                all_tasks.extend(inst.block_tasks)
+                # TODO: only works for linear programs and static schedules!
+                task_list = list(inst.tasks.tasks.values())
+                all_tasks.extend(task_list)
 
         return all_tasks

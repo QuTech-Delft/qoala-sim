@@ -4,14 +4,14 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.hostlang import BasicBlockType
-from qoala.runtime.task import BlockTask
+from qoala.runtime.task import BlockTask, TaskGraph
 
 
 @dataclass
-class TaskScheduleEntry:
+class StaticScheduleEntry:
     task: BlockTask
     timestamp: Optional[float] = None
-    prev: Optional[BlockTask] = None
+    prev: Optional[List[BlockTask]] = None
 
     def is_cpu_task(self) -> bool:
         return self.task.typ == BasicBlockType.CL or self.task.typ == BasicBlockType.CC
@@ -33,8 +33,8 @@ class QcSlotInfo:
 
 
 @dataclass
-class TaskSchedule:
-    entries: List[TaskScheduleEntry]
+class StaticSchedule:
+    entries: List[StaticScheduleEntry]
 
     @classmethod
     def _compute_timestamps(
@@ -86,10 +86,10 @@ class TaskSchedule:
         return timestamps
 
     @classmethod
-    def consecutive(
+    def consecutive_block_tasks(
         cls, task_list: List[BlockTask], qc_slot_info: Optional[QcSlotInfo] = None
-    ) -> TaskSchedule:
-        entries: List[TaskScheduleEntry] = []
+    ) -> StaticSchedule:
+        entries: List[StaticScheduleEntry] = []
 
         if qc_slot_info is not None:
             timestamps = cls._compute_timestamps(task_list, qc_slot_info)
@@ -99,7 +99,23 @@ class TaskSchedule:
                 time = timestamps[i]
             else:
                 time = None
-            entry = TaskScheduleEntry(task=task, timestamp=time, prev=None)
+            entry = StaticScheduleEntry(task=task, timestamp=time, prev=None)
+            entries.append(entry)
+
+        for i in range(len(entries) - 1):
+            e1 = entries[i]
+            e2 = entries[i + 1]
+            if e1.is_cpu_task() != e2.is_cpu_task():
+                e2.prev = [e1.task]
+
+        return StaticSchedule(entries)
+
+    @classmethod
+    def linear_graph(cls, task_graph: TaskGraph) -> StaticSchedule:
+        entries: List[StaticScheduleEntry] = []
+
+        for i, task in task_graph.tasks:
+            entry = StaticScheduleEntry(task=task, timestamp=None, prev=None)
             entries.append(entry)
 
         for i in range(len(entries) - 1):
@@ -108,40 +124,40 @@ class TaskSchedule:
             if e1.is_cpu_task() != e2.is_cpu_task():
                 e2.prev = e1.task
 
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     @classmethod
     def consecutive_timestamps(
         cls,
         task_list: List[BlockTask],
         qc_slot_info: Optional[QcSlotInfo] = None,
-    ) -> TaskSchedule:
-        entries: List[TaskScheduleEntry] = []
+    ) -> StaticSchedule:
+        entries: List[StaticScheduleEntry] = []
 
         timestamps = cls._compute_timestamps(task_list, qc_slot_info)
 
         for i, task in enumerate(task_list):
             time = timestamps[i]
-            entries.append(TaskScheduleEntry(task, time, None))
+            entries.append(StaticScheduleEntry(task, time, None))
 
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     @property
-    def cpu_schedule(self) -> TaskSchedule:
+    def cpu_schedule(self) -> StaticSchedule:
         entries = [e for e in self.entries if e.is_cpu_task()]
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     @property
-    def qpu_schedule(self) -> TaskSchedule:
+    def qpu_schedule(self) -> StaticSchedule:
         entries = [e for e in self.entries if e.is_qpu_task()]
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     def __str__(self) -> str:
         return ScheduleWriter(self).write()
 
 
 class ScheduleWriter:
-    def __init__(self, schedule: TaskSchedule) -> None:
+    def __init__(self, schedule: StaticSchedule) -> None:
         self._timeline = "time "
         self._cpu_task_str = "CPU  "
         self._qpu_task_str = "QPU  "

@@ -4,7 +4,7 @@ import pytest
 from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.schedule import BlockTask, TaskSchedule, TaskScheduleEntry
+from qoala.runtime.schedule import BlockTask, StaticSchedule, StaticScheduleEntry
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.util.builder import ObjectBuilder
 
@@ -73,10 +73,10 @@ def test_cpu_driver():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = TaskSchedule(
+    cpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(0, "b0", CL), 0),
-            TaskScheduleEntry(BlockTask(0, "b1", CL), 1000),
+            StaticScheduleEntry(BlockTask(0, 0, "b0", CL), 0),
+            StaticScheduleEntry(BlockTask(1, 0, "b1", CL), 1000),
         ]
     )
 
@@ -103,8 +103,8 @@ def test_cpu_driver_no_time():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = TaskSchedule.consecutive(
-        [BlockTask(0, "b0", CL), BlockTask(0, "b1", CL)]
+    cpu_schedule = StaticSchedule.consecutive_block_tasks(
+        [BlockTask(0, 0, "b0", CL), BlockTask(1, 0, "b1", CL)]
     )
 
     driver = CpuDriver("alice", procnode.host.processor, procnode.memmgr)
@@ -133,12 +133,12 @@ def test_cpu_driver_2_processes():
     procnode.scheduler.submit_program_instance(instance0)
     procnode.scheduler.submit_program_instance(instance1)
 
-    cpu_schedule = TaskSchedule(
+    cpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(pid0, "b0", CL), 0),
-            TaskScheduleEntry(BlockTask(pid1, "b0", CL), 500),
-            TaskScheduleEntry(BlockTask(pid0, "b1", CL), 1000),
-            TaskScheduleEntry(BlockTask(pid1, "b1", CL), 1500),
+            StaticScheduleEntry(BlockTask(0, pid0, "b0", CL), 0),
+            StaticScheduleEntry(BlockTask(1, pid1, "b0", CL), 500),
+            StaticScheduleEntry(BlockTask(2, pid0, "b1", CL), 1000),
+            StaticScheduleEntry(BlockTask(3, pid1, "b1", CL), 1500),
         ]
     )
 
@@ -173,14 +173,14 @@ def test_qpu_driver():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = TaskSchedule(
+    cpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(0, "b0", CL), 0),
+            StaticScheduleEntry(BlockTask(0, 0, "b0", CL), 0),
         ]
     )
-    qpu_schedule = TaskSchedule(
+    qpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(0, "b1", QL), 1000),
+            StaticScheduleEntry(BlockTask(1, 0, "b1", QL), 1000),
         ]
     )
 
@@ -218,16 +218,16 @@ def test_qpu_driver_2_processes():
     procnode.scheduler.submit_program_instance(instance0)
     procnode.scheduler.submit_program_instance(instance1)
 
-    cpu_schedule = TaskSchedule(
+    cpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(pid0, "b0", CL), 0),
-            TaskScheduleEntry(BlockTask(pid1, "b0", CL), 500),
+            StaticScheduleEntry(BlockTask(0, pid0, "b0", CL), 0),
+            StaticScheduleEntry(BlockTask(1, pid1, "b0", CL), 500),
         ]
     )
-    qpu_schedule = TaskSchedule(
+    qpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(pid0, "b1", QL), 500),
-            TaskScheduleEntry(BlockTask(pid1, "b1", QL), 1000),
+            StaticScheduleEntry(BlockTask(0, pid0, "b1", QL), 500),
+            StaticScheduleEntry(BlockTask(1, pid1, "b1", QL), 1000),
         ]
     )
 

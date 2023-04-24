@@ -17,7 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import TaskSchedule, TaskScheduleEntry
+from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
 from qoala.sim.build import build_network
 
 
@@ -97,20 +97,26 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
     print("Alice tasks:")
     print([str(t) for t in alice_tasks])
-    # alice_schedule = TaskSchedule.consecutive(alice_tasks)
-    alice_schedule = TaskSchedule(
+    # alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
+    alice_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(alice_tasks[0], timestamp=0),
-            TaskScheduleEntry(alice_tasks[1], timestamp=500),
-            TaskScheduleEntry(alice_tasks[2], timestamp=25_000),
-            TaskScheduleEntry(alice_tasks[3], timestamp=600_000),
-            TaskScheduleEntry(alice_tasks[4], timestamp=850_000, prev=alice_tasks[3]),
-            TaskScheduleEntry(alice_tasks[5], timestamp=1_200_000),
-            TaskScheduleEntry(alice_tasks[6], timestamp=1_700_000, prev=alice_tasks[5]),
-            TaskScheduleEntry(alice_tasks[7], timestamp=2_100_000),
-            TaskScheduleEntry(alice_tasks[8], timestamp=2_200_500, prev=alice_tasks[7]),
-            TaskScheduleEntry(alice_tasks[9], timestamp=2_220_000),
-            TaskScheduleEntry(alice_tasks[10], timestamp=2_228_000),
+            StaticScheduleEntry(alice_tasks[0], timestamp=0),
+            StaticScheduleEntry(alice_tasks[1], timestamp=500),
+            StaticScheduleEntry(alice_tasks[2], timestamp=25_000),
+            StaticScheduleEntry(alice_tasks[3], timestamp=600_000),
+            StaticScheduleEntry(
+                alice_tasks[4], timestamp=850_000, prev=[alice_tasks[3]]
+            ),
+            StaticScheduleEntry(alice_tasks[5], timestamp=1_200_000),
+            StaticScheduleEntry(
+                alice_tasks[6], timestamp=1_700_000, prev=[alice_tasks[5]]
+            ),
+            StaticScheduleEntry(alice_tasks[7], timestamp=2_100_000),
+            StaticScheduleEntry(
+                alice_tasks[8], timestamp=2_200_500, prev=[alice_tasks[7]]
+            ),
+            StaticScheduleEntry(alice_tasks[9], timestamp=2_220_000),
+            StaticScheduleEntry(alice_tasks[10], timestamp=2_228_000),
         ]
     )
     print("\nAlice schedule:")
@@ -127,16 +133,16 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
     print("\n\nBob tasks:")
     print([str(t) for t in bob_tasks])
-    bob_schedule = TaskSchedule(
+    bob_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(bob_tasks[0], timestamp=0),
-            TaskScheduleEntry(bob_tasks[1], timestamp=25_000),
-            TaskScheduleEntry(bob_tasks[2], timestamp=900_000, prev=bob_tasks[1]),
-            TaskScheduleEntry(bob_tasks[3], timestamp=1_000_000),
-            TaskScheduleEntry(bob_tasks[4], timestamp=1_100_000, prev=bob_tasks[3]),
-            TaskScheduleEntry(bob_tasks[5], timestamp=1_200_000),
-            TaskScheduleEntry(bob_tasks[6], timestamp=1_700_000),
-            TaskScheduleEntry(bob_tasks[7], timestamp=1_800_000, prev=bob_tasks[6]),
+            StaticScheduleEntry(bob_tasks[0], timestamp=0),
+            StaticScheduleEntry(bob_tasks[1], timestamp=25_000),
+            StaticScheduleEntry(bob_tasks[2], timestamp=900_000, prev=[bob_tasks[1]]),
+            StaticScheduleEntry(bob_tasks[3], timestamp=1_000_000),
+            StaticScheduleEntry(bob_tasks[4], timestamp=1_100_000, prev=[bob_tasks[3]]),
+            StaticScheduleEntry(bob_tasks[5], timestamp=1_200_000),
+            StaticScheduleEntry(bob_tasks[6], timestamp=1_700_000),
+            StaticScheduleEntry(bob_tasks[7], timestamp=1_800_000, prev=[bob_tasks[6]]),
         ]
     )
     print("\nBob schedule:")

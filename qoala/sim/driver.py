@@ -9,7 +9,7 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.hostlang import BasicBlockType, RunRequestOp, RunSubroutineOp
-from qoala.runtime.schedule import TaskSchedule, TaskScheduleEntry
+from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
 from qoala.runtime.task import BlockTask, TaskExecutionMode
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.hostprocessor import HostProcessor
@@ -30,7 +30,7 @@ class Driver(Protocol):
         )
 
         self._other_driver: Optional[Driver] = None
-        self._task_list: List[TaskScheduleEntry] = []
+        self._task_list: List[StaticScheduleEntry] = []
 
         self._finished_tasks: List[BlockTask] = []
 
@@ -54,7 +54,9 @@ class Driver(Protocol):
                     yield from self.wait(time - now)
                 if prev is not None:
                     assert self._other_driver is not None
-                    while prev not in self._other_driver._finished_tasks:
+                    while not all(
+                        p in self._other_driver._finished_tasks for p in prev
+                    ):
                         # Wait for a signal that the other driver completed a task.
                         yield self.await_signal(
                             sender=self._other_driver,
@@ -86,7 +88,7 @@ class CpuDriver(Driver):
         self._hostprocessor = hostprocessor
         self._memmgr = memmgr
 
-    def upload_schedule(self, schedule: TaskSchedule) -> None:
+    def upload_schedule(self, schedule: StaticSchedule) -> None:
         self._task_list.extend(schedule.entries)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
@@ -117,7 +119,7 @@ class QpuDriver(Driver):
         self._memmgr = memmgr
         self._tem = tem
 
-    def upload_schedule(self, schedule: TaskSchedule) -> None:
+    def upload_schedule(self, schedule: StaticSchedule) -> None:
         self._task_list.extend(schedule.entries)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
@@ -140,7 +142,6 @@ class QpuDriver(Driver):
     def allocate_qubits_for_routine(
         self, process: QoalaProcess, routine_name: str
     ) -> None:
-        # TODO: merge with code in scheduler.py?
         routine = process.get_local_routine(routine_name)
         for virt_id in routine.metadata.qubit_use:
             if self._memmgr.phys_id_for(process.pid, virt_id) is None:
@@ -149,7 +150,6 @@ class QpuDriver(Driver):
     def free_qubits_after_routine(
         self, process: QoalaProcess, routine_name: str
     ) -> None:
-        # TODO: merge with code in scheduler.py?
         routine = process.get_local_routine(routine_name)
         for virt_id in routine.metadata.qubit_use:
             if virt_id not in routine.metadata.qubit_keep:

@@ -6,6 +6,7 @@ from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
 from qoala.runtime.program import ProgramInput, ProgramInstance
+from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.procnode import ProcNode
 
@@ -43,5 +44,5 @@ class ObjectBuilder:
             program,
             inputs,
             unit_module=unit_module,
-            block_tasks=[],
+            tasks=TaskGraph.empty(),
         )
