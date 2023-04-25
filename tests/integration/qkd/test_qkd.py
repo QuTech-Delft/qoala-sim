@@ -20,6 +20,7 @@ from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import StaticSchedule
 from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.build import build_network
+from qoala.util.logging import LogManager
 
 
 def create_network_info(names: List[str]) -> NetworkInfo:
@@ -107,9 +108,6 @@ def run_qkd(
     )
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
-    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
-    alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
-    alice_procnode.scheduler.upload_schedule(alice_schedule)
 
     bob_program = load_program(bob_file)
     if num_pairs is not None:
@@ -126,8 +124,16 @@ def run_qkd(
     bob_batch = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
+
+    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
     bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
-    bob_schedule = StaticSchedule.consecutive_block_tasks(bob_tasks)
+    if tem == TaskExecutionMode.ROUTINE_ATOMIC:
+        alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
+        bob_schedule = StaticSchedule.consecutive_block_tasks(bob_tasks)
+    else:
+        alice_schedule = StaticSchedule.linear_graph(alice_tasks)
+        bob_schedule = StaticSchedule.linear_graph(bob_tasks)
+    alice_procnode.scheduler.upload_schedule(alice_schedule)
     bob_procnode.scheduler.upload_schedule(bob_schedule)
 
     network.start()
@@ -251,6 +257,8 @@ def test_qkd_ck_callback_1pair():
 def test_qkd_ck_callback_1pair_task_split():
     ns.sim_reset()
 
+    LogManager.set_log_level("INFO")
+
     num_iterations = 10
     alice_file = "qkd_ck_callback_1pair_alice.iqoala"
     bob_file = "qkd_ck_callback_1pair_bob.iqoala"
@@ -317,12 +325,12 @@ def test_qkd_ck_callback_2pairs():
 
 
 if __name__ == "__main__":
-    test_qkd_md_1pair()
-    test_qkd_md_2pairs()
-    test_qkd_ck_1pair()
-    test_qkd_ck_2pairs()
-    test_qkd_ck_callback_1pair()
+    # test_qkd_md_1pair()
+    # test_qkd_md_2pairs()
+    # test_qkd_ck_1pair()
+    # test_qkd_ck_2pairs()
+    # test_qkd_ck_callback_1pair()
     test_qkd_ck_callback_1pair_task_split()
-    test_qkd_ck_callback_2pairs()
+    # test_qkd_ck_callback_2pairs()
     # TODO: implement #38 to make this work.
     # test_qkd_ck_callback_npairs()

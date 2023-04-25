@@ -17,7 +17,13 @@ from qoala.runtime.program import (
     ProgramResult,
 )
 from qoala.runtime.schedule import StaticSchedule
-from qoala.runtime.task import BlockTask, QoalaTask, TaskCreator, TaskExecutionMode
+from qoala.runtime.task import (
+    BlockTask,
+    QoalaTask,
+    TaskCreator,
+    TaskExecutionMode,
+    TaskGraph,
+)
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
@@ -128,7 +134,7 @@ class Scheduler(Protocol):
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 unit_module=batch_info.unit_module,
-                tasks=tasks,
+                task_graph=tasks,
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -232,13 +238,11 @@ class Scheduler(Protocol):
         self.memmgr.add_process(process)
         self.initialize_process(process)
 
-    def get_tasks_to_schedule(self) -> List[BlockTask]:
-        all_tasks: List[QoalaTask] = []
+    def get_tasks_to_schedule(self) -> List[TaskGraph]:
+        all_tasks: List[TaskGraph] = []
 
         for batch in self._batches.values():
             for inst in batch.instances:
-                # TODO: only works for linear programs and static schedules!
-                task_list = list(inst.tasks.tasks.values())
-                all_tasks.extend(task_list)
+                all_tasks.append(inst.task_graph)
 
         return all_tasks

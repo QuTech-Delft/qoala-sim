@@ -76,7 +76,7 @@ def test_from_program_1():
         9: BlockTask(9, pid, "b9", CL),
     }
 
-    assert task_graph.dependencies == [(i, i - 1) for i in range(1, 10)]
+    assert task_graph.precedences == [(i - 1, i) for i in range(1, 10)]
 
 
 def test_from_program_2():
@@ -114,7 +114,7 @@ def test_from_program_2():
         12: BlockTask(12, pid, "blk_meas_q0_q1", QL, 6 * qpu_time + 2 * meas_time),
     }
 
-    assert task_graph.dependencies == [(i, i - 1) for i in range(1, 13)]
+    assert task_graph.precedences == [(i - 1, i) for i in range(1, 13)]
 
 
 def test_routine_split_1_pair_callback():
@@ -143,14 +143,14 @@ def test_routine_split_1_pair_callback():
         7: SinglePairCallbackTask(7, pid, "meas_1_pair", 0, None),
     }
 
-    assert (2, 0) in task_graph.dependencies  # rr after precall
-    assert (3, 2) in task_graph.dependencies  # callback after rr
-    assert (1, 3) in task_graph.dependencies  # postcall after callback
+    assert (0, 2) in task_graph.precedences  # rr after precall
+    assert (2, 3) in task_graph.precedences  # callback after rr
+    assert (3, 1) in task_graph.precedences  # postcall after callback
 
-    assert (4, 1) in task_graph.dependencies  # second block after first block
-    assert (6, 4) in task_graph.dependencies  # rr after precall
-    assert (7, 6) in task_graph.dependencies  # callback after rr
-    assert (5, 7) in task_graph.dependencies  # postcall after callback
+    assert (1, 4) in task_graph.precedences  # second block after first block
+    assert (4, 6) in task_graph.precedences  # rr after precall
+    assert (6, 7) in task_graph.precedences  # callback after rr
+    assert (7, 5) in task_graph.precedences  # postcall after callback
 
 
 def test_routine_split_2_pairs_callback():
@@ -181,19 +181,19 @@ def test_routine_split_2_pairs_callback():
         9: SinglePairCallbackTask(9, pid, "meas_1_pair", 1, None),
     }
 
-    assert (2, 0) in task_graph.dependencies  # rr after precall
-    assert (3, 2) in task_graph.dependencies  # callback after rr
-    assert (1, 3) in task_graph.dependencies  # postcall after callback
+    assert (0, 2) in task_graph.precedences  # rr after precall
+    assert (2, 3) in task_graph.precedences  # callback after rr
+    assert (3, 1) in task_graph.precedences  # postcall after callback
 
-    assert (4, 1) in task_graph.dependencies  # second block after first block
-    assert (6, 4) in task_graph.dependencies  # 1st pair after precall
-    assert (7, 6) in task_graph.dependencies  # 1st pair callback after 1st pair rr
-    assert (8, 4) in task_graph.dependencies  # 2nd pair after precall
-    assert (9, 8) in task_graph.dependencies  # 2nd pair callback after 2nd pair rr
-    assert (5, 7) in task_graph.dependencies  # postcall after 1st pair callback
-    assert (5, 9) in task_graph.dependencies  # postcall after 2nd pair callback
+    assert (1, 4) in task_graph.precedences  # second block after first block
+    assert (4, 6) in task_graph.precedences  # 1st pair after precall
+    assert (6, 7) in task_graph.precedences  # 1st pair callback after 1st pair rr
+    assert (4, 8) in task_graph.precedences  # 2nd pair after precall
+    assert (8, 9) in task_graph.precedences  # 2nd pair callback after 2nd pair rr
+    assert (7, 5) in task_graph.precedences  # postcall after 1st pair callback
+    assert (9, 5) in task_graph.precedences  # postcall after 2nd pair callback
 
-    assert task_graph.leaves() == [0]
+    assert task_graph.roots() == [0]
 
 
 if __name__ == "__main__":

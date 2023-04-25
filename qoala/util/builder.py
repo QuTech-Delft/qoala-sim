@@ -44,5 +44,5 @@ class ObjectBuilder:
             program,
             inputs,
             unit_module=unit_module,
-            tasks=TaskGraph.empty(),
+            task_graph=TaskGraph.empty(),
         )

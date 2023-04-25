@@ -71,7 +71,7 @@ def instantiate(
         program,
         inputs,
         unit_module=unit_module,
-        tasks=TaskGraph.empty(),
+        task_graph=TaskGraph.empty(),
     )
 
 
@@ -130,12 +130,8 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
         server_id,
     )
 
-    schedule_server = StaticSchedule.consecutive_block_tasks(
-        tasks_server.tasks.values()
-    )
-    schedule_client = StaticSchedule.consecutive_block_tasks(
-        tasks_client.tasks.values()
-    )
+    schedule_server = StaticSchedule.consecutive_block_tasks([tasks_server])
+    schedule_client = StaticSchedule.consecutive_block_tasks([tasks_client])
     server_procnode.scheduler.upload_schedule(schedule_server)
     client_procnode.scheduler.upload_schedule(schedule_client)
 

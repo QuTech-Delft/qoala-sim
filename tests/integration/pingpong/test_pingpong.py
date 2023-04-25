@@ -18,6 +18,7 @@ from qoala.runtime.config import (
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
+from qoala.runtime.task import BlockTask
 from qoala.sim.build import build_network
 
 
@@ -94,7 +95,12 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     )
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
-    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
+    alice_task_graphs = alice_procnode.scheduler.get_tasks_to_schedule()
+    alice_tasks: List[BlockTask] = []
+    for graph in alice_task_graphs:
+        tasks = graph.tasks.values()
+        assert all(isinstance(task, BlockTask) for task in tasks)
+        alice_tasks.extend(tasks)
     print("Alice tasks:")
     print([str(t) for t in alice_tasks])
     # alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
@@ -130,7 +136,12 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     bob_batch = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
-    bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
+    bob_task_graphs = bob_procnode.scheduler.get_tasks_to_schedule()
+    bob_tasks: List[BlockTask] = []
+    for graph in bob_task_graphs:
+        tasks = graph.tasks.values()
+        assert all(isinstance(task, BlockTask) for task in tasks)
+        bob_tasks.extend(tasks)
     print("\n\nBob tasks:")
     print([str(t) for t in bob_tasks])
     bob_schedule = StaticSchedule(

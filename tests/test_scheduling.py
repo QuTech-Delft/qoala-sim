@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import List, Optional
 
 import netsquid as ns
 from netqasm.lang.instr.flavour import core
@@ -67,7 +67,7 @@ def instantiate(
         program,
         inputs,
         unit_module=unit_module,
-        tasks=TaskGraph.empty(),
+        task_graph=TaskGraph.empty(),
     )
 
 
@@ -75,6 +75,11 @@ CL = BasicBlockType.CL
 CC = BasicBlockType.CC
 QL = BasicBlockType.QL
 QC = BasicBlockType.QC
+
+
+def task_list_to_graph(task_list: List[BlockTask]) -> TaskGraph:
+    tasks = {t.task_id: t for t in task_list}
+    return TaskGraph(tasks, [], {})
 
 
 def test_consecutive():
@@ -86,8 +91,8 @@ def test_consecutive():
         BlockTask(3, pid, "blk_epr_md_1", QC, 1000),
         BlockTask(4, pid, "blk_host1", CL, 1000),
     ]
-
-    schedule = StaticSchedule.consecutive_block_tasks(tasks)
+    graph = task_list_to_graph(tasks)
+    schedule = StaticSchedule.consecutive_block_tasks([graph])
 
     assert schedule.entries == [
         StaticScheduleEntry(tasks[0], None, prev=None),
@@ -107,9 +112,9 @@ def test_consecutive_qc_slots():
         BlockTask(3, pid, "blk_epr_md_1", QC, 1000, remote_id=0),
         BlockTask(4, pid, "blk_host1", CL, 1000),
     ]
-
+    graph = task_list_to_graph(tasks)
     schedule = StaticSchedule.consecutive_block_tasks(
-        tasks, qc_slot_info=QcSlotInfo({0: LinkSlotInfo(0, 100, 50_000)})
+        [graph], qc_slot_info=QcSlotInfo({0: LinkSlotInfo(0, 100, 50_000)})
     )
 
     assert schedule.entries == [
@@ -121,7 +126,7 @@ def test_consecutive_qc_slots():
     ]
 
 
-def test_consecutive_timestamps():
+def test_consecutive_block_tasks_with_timestamps():
     pid = 0
 
     tasks = [
@@ -131,8 +136,8 @@ def test_consecutive_timestamps():
         BlockTask(3, pid, "blk_rr0", QC, 30_000, remote_id=0),
         BlockTask(4, pid, "blk_host2", CL, 4000),
     ]
-
-    schedule = StaticSchedule.consecutive_timestamps(tasks)
+    graph = task_list_to_graph(tasks)
+    schedule = StaticSchedule.consecutive_block_tasks_with_timestamps([graph])
 
     assert schedule.entries == [
         StaticScheduleEntry(tasks[0], 0),
@@ -165,12 +170,13 @@ def test_host_program():
     alice.scheduler.submit_program_instance(instance)
     bob.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = StaticSchedule.consecutive_block_tasks(
-        [
-            BlockTask(0, pid, "blk_host0", CL),
-            BlockTask(1, pid, "blk_host1", CL),
-        ]
-    )
+    tasks = [
+        BlockTask(0, pid, "blk_host0", CL),
+        BlockTask(1, pid, "blk_host1", CL),
+    ]
+    graph = task_list_to_graph(tasks)
+
+    cpu_schedule = StaticSchedule.consecutive_block_tasks([graph])
     alice.scheduler.upload_cpu_schedule(cpu_schedule)
     bob.scheduler.upload_cpu_schedule(cpu_schedule)
 
@@ -196,12 +202,14 @@ def test_lr_program():
     bob.scheduler.submit_program_instance(instance)
 
     host_instr_time = alice.local_ehi.latencies.host_instr_time
-    schedule = StaticSchedule.consecutive_block_tasks(
-        [
-            BlockTask(0, pid, "blk_host2", CL),
-            BlockTask(1, pid, "blk_add_one", QL),
-        ]
-    )
+
+    tasks = [
+        BlockTask(0, pid, "blk_host2", CL),
+        BlockTask(1, pid, "blk_add_one", QL),
+    ]
+    graph = task_list_to_graph(tasks)
+
+    schedule = StaticSchedule.consecutive_block_tasks([graph])
     alice.scheduler.upload_schedule(schedule)
     bob.scheduler.upload_schedule(schedule)
     print(schedule)
@@ -439,8 +447,8 @@ def test_full_program():
     tasks_bob = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
         program_bob, pid, bob.local_ehi, bob.network_ehi
     )
-    schedule_alice = StaticSchedule.consecutive_block_tasks(tasks_alice.tasks.values())
-    schedule_bob = StaticSchedule.consecutive_block_tasks(tasks_bob.tasks.values())
+    schedule_alice = StaticSchedule.consecutive_block_tasks([tasks_alice])
+    schedule_bob = StaticSchedule.consecutive_block_tasks([tasks_bob])
 
     alice.scheduler.upload_schedule(schedule_alice)
     bob.scheduler.upload_schedule(schedule_bob)
@@ -459,7 +467,7 @@ def test_full_program():
 if __name__ == "__main__":
     test_consecutive()
     test_consecutive_qc_slots()
-    test_consecutive_timestamps()
+    test_consecutive_block_tasks_with_timestamps()
     test_host_program()
     test_lr_program()
     test_epr_md_1()

@@ -5,6 +5,7 @@ from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.schedule import BlockTask, StaticSchedule, StaticScheduleEntry
+from qoala.runtime.task import TaskGraph
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.util.builder import ObjectBuilder
 
@@ -103,9 +104,12 @@ def test_cpu_driver_no_time():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = StaticSchedule.consecutive_block_tasks(
-        [BlockTask(0, 0, "b0", CL), BlockTask(1, 0, "b1", CL)]
+    task_graph = TaskGraph(
+        tasks={0: BlockTask(0, 0, "b0", CL), 1: BlockTask(1, 0, "b1", CL)},
+        precedences=[],
+        relative_deadlines={},
     )
+    cpu_schedule = StaticSchedule.consecutive_block_tasks([task_graph])
 
     driver = CpuDriver("alice", procnode.host.processor, procnode.memmgr)
     driver.upload_schedule(cpu_schedule)

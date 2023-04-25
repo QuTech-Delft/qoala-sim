@@ -42,7 +42,7 @@ class ProgramInstance:
     program: QoalaProgram
     inputs: ProgramInput
     unit_module: UnitModule
-    tasks: TaskGraph
+    task_graph: TaskGraph
 
 
 @dataclass

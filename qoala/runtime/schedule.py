@@ -1,23 +1,27 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from ctypes.wintypes import tagSIZE
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
+from numpy import isin
+
 from qoala.lang.hostlang import BasicBlockType
-from qoala.runtime.task import BlockTask, TaskGraph
+from qoala.runtime.task import BlockTask, ProcessorType, QoalaTask, TaskGraph
 
 
 @dataclass
 class StaticScheduleEntry:
-    task: BlockTask
+    task: QoalaTask
     timestamp: Optional[float] = None
-    prev: Optional[List[BlockTask]] = None
+    prev: Optional[List[QoalaTask]] = None
 
     def is_cpu_task(self) -> bool:
-        return self.task.typ == BasicBlockType.CL or self.task.typ == BasicBlockType.CC
+        return self.task.processor_type == ProcessorType.CPU
 
     def is_qpu_task(self) -> bool:
-        return self.task.typ == BasicBlockType.QL or self.task.typ == BasicBlockType.QC
+        return self.task.processor_type == ProcessorType.QPU
 
 
 @dataclass
@@ -87,9 +91,15 @@ class StaticSchedule:
 
     @classmethod
     def consecutive_block_tasks(
-        cls, task_list: List[BlockTask], qc_slot_info: Optional[QcSlotInfo] = None
+        cls, task_graphs: List[TaskGraph], qc_slot_info: Optional[QcSlotInfo] = None
     ) -> StaticSchedule:
         entries: List[StaticScheduleEntry] = []
+
+        task_list: List[BlockTask] = []
+        for graph in task_graphs:
+            tasks = graph.tasks.values()
+            assert all(isinstance(task, BlockTask) for task in tasks)
+            task_list.extend(tasks)
 
         if qc_slot_info is not None:
             timestamps = cls._compute_timestamps(task_list, qc_slot_info)
@@ -111,28 +121,41 @@ class StaticSchedule:
         return StaticSchedule(entries)
 
     @classmethod
-    def linear_graph(cls, task_graph: TaskGraph) -> StaticSchedule:
+    def linear_graph(cls, task_graphs: List[TaskGraph]) -> StaticSchedule:
         entries: List[StaticScheduleEntry] = []
 
-        for i, task in task_graph.tasks:
-            entry = StaticScheduleEntry(task=task, timestamp=None, prev=None)
-            entries.append(entry)
+        for task_graph in task_graphs:
+            # Make a copy so we can alter it without affecting the original graph.
+            graph = deepcopy(task_graph)  # TODO: refactor
 
-        for i in range(len(entries) - 1):
-            e1 = entries[i]
-            e2 = entries[i + 1]
-            if e1.is_cpu_task() != e2.is_cpu_task():
-                e2.prev = e1.task
+            while len(graph.tasks) > 0:
+                next_task_id = graph.roots()[0]
+                next_task = graph.tasks[next_task_id]
+                graph.remove_task(next_task_id)
+                entry = StaticScheduleEntry(task=next_task, timestamp=None, prev=None)
+                entries.append(entry)
+
+            for i in range(len(entries) - 1):
+                e1 = entries[i]
+                e2 = entries[i + 1]
+                if e1.is_cpu_task() != e2.is_cpu_task():
+                    e2.prev = [e1.task]
 
         return StaticSchedule(entries)
 
     @classmethod
-    def consecutive_timestamps(
+    def consecutive_block_tasks_with_timestamps(
         cls,
-        task_list: List[BlockTask],
+        task_graphs: List[TaskGraph],
         qc_slot_info: Optional[QcSlotInfo] = None,
     ) -> StaticSchedule:
         entries: List[StaticScheduleEntry] = []
+
+        task_list: List[BlockTask] = []
+        for graph in task_graphs:
+            tasks = graph.tasks.values()
+            assert all(isinstance(task, BlockTask) for task in tasks)
+            task_list.extend(tasks)
 
         timestamps = cls._compute_timestamps(task_list, qc_slot_info)
 
