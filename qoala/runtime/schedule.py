@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from ctypes.wintypes import tagSIZE
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
-
-from numpy import isin
 
 from qoala.lang.hostlang import BasicBlockType
 from qoala.runtime.task import BlockTask, ProcessorType, QoalaTask, TaskGraph
@@ -97,9 +94,9 @@ class StaticSchedule:
 
         task_list: List[BlockTask] = []
         for graph in task_graphs:
-            tasks = graph.tasks.values()
+            tasks = list(graph.tasks.values())
             assert all(isinstance(task, BlockTask) for task in tasks)
-            task_list.extend(tasks)
+            task_list.extend(tasks)  # type: ignore
 
         if qc_slot_info is not None:
             timestamps = cls._compute_timestamps(task_list, qc_slot_info)
@@ -153,9 +150,9 @@ class StaticSchedule:
 
         task_list: List[BlockTask] = []
         for graph in task_graphs:
-            tasks = graph.tasks.values()
+            tasks = list(graph.tasks.values())
             assert all(isinstance(task, BlockTask) for task in tasks)
-            task_list.extend(tasks)
+            task_list.extend(tasks)  # type: ignore
 
         timestamps = cls._compute_timestamps(task_list, qc_slot_info)
 
@@ -188,13 +185,19 @@ class ScheduleWriter:
         self._qpu_entries = schedule.qpu_schedule.entries
         self._entry_width = 12
 
-    def _entry_content(self, task: BlockTask) -> str:
+    def _entry_content(self, task: QoalaTask) -> str:
+        if not isinstance(task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return ""
         if task.duration:
             return f"{task.block_name} ({task.typ.name}, {int(task.duration)})"
         else:
             return f"{task.block_name} ({task.typ.name})"
 
-    def _add_cpu_entry(self, cpu_time: Optional[float], cpu_task: BlockTask) -> None:
+    def _add_cpu_entry(self, cpu_time: Optional[float], cpu_task: QoalaTask) -> None:
+        if not isinstance(cpu_task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return
         width = max(len(cpu_task.block_name), len(str(cpu_time))) + self._entry_width
         if cpu_time is None:
             cpu_time = "<none>"  # type: ignore
@@ -203,7 +206,10 @@ class ScheduleWriter:
         self._cpu_task_str += f"{entry:<{width}}"
         self._qpu_task_str += " " * width
 
-    def _add_qpu_entry(self, qpu_time: Optional[float], qpu_task: BlockTask) -> None:
+    def _add_qpu_entry(self, qpu_time: Optional[float], qpu_task: QoalaTask) -> None:
+        if not isinstance(qpu_task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return
         width = max(len(qpu_task.block_name), len(str(qpu_time))) + self._entry_width
         if qpu_time is None:
             qpu_time = "<none>"  # type: ignore
@@ -213,8 +219,11 @@ class ScheduleWriter:
         self._qpu_task_str += f"{entry:<{width}}"
 
     def _add_double_entry(
-        self, time: Optional[float], cpu_task: BlockTask, qpu_task: BlockTask
+        self, time: Optional[float], cpu_task: QoalaTask, qpu_task: QoalaTask
     ) -> None:
+        if not isinstance(cpu_task, BlockTask) or not isinstance(qpu_task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return
         width = (
             max(len(cpu_task.block_name), len(qpu_task.block_name), len(str(time)))
             + self._entry_width

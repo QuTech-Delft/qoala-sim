@@ -2,12 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from token import OP
-from typing import Any, Dict, List, Optional, Protocol, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from click import Option
 from netqasm.lang.instr import core
-from numpy import block
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.lang.hostlang import (
@@ -20,7 +17,6 @@ from qoala.lang.hostlang import (
 from qoala.lang.program import QoalaProgram
 from qoala.lang.request import CallbackType
 from qoala.lang.routine import LocalRoutine
-from qoala.runtime.message import RrCallTuple
 
 
 class TaskExecutionMode(Enum):
@@ -62,7 +58,9 @@ class QoalaTask:
     def duration(self) -> Optional[float]:
         return self._duration
 
-    def __eq__(self, other: QoalaTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, QoalaTask):
+            return NotImplemented
         return (
             self.task_id == other.task_id
             and self.processor_type == other.processor_type
@@ -87,7 +85,9 @@ class HostCodeTask(QoalaTask):
     def block_name(self) -> str:
         return self._block_name
 
-    def __eq__(self, other: HostCodeTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, HostCodeTask):
+            return NotImplemented
         return super().__eq__(other) and self.block_name == other.block_name
 
 
@@ -107,7 +107,9 @@ class HostEventTask(QoalaTask):
     def block_name(self) -> str:
         return self._block_name
 
-    def __eq__(self, other: HostEventTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, HostEventTask):
+            return NotImplemented
         return super().__eq__(other) and self.block_name == other.block_name
 
 
@@ -137,7 +139,9 @@ class LocalRoutineTask(QoalaTask):
     def shared_ptr(self) -> int:
         return self._shared_ptr
 
-    def __eq__(self, other: LocalRoutineTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, LocalRoutineTask):
+            return NotImplemented
         return (
             super().__eq__(other)
             and self.block_name == other.block_name
@@ -171,7 +175,9 @@ class PreCallTask(QoalaTask):
     def shared_ptr(self) -> int:
         return self._shared_ptr
 
-    def __eq__(self, other: PreCallTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PreCallTask):
+            return NotImplemented
         return (
             super().__eq__(other)
             and self.block_name == other.block_name
@@ -205,7 +211,9 @@ class PostCallTask(QoalaTask):
     def shared_ptr(self) -> int:
         return self._shared_ptr
 
-    def __eq__(self, other: PostCallTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PostCallTask):
+            return NotImplemented
         return (
             super().__eq__(other)
             and self.block_name == other.block_name
@@ -232,14 +240,16 @@ class SinglePairTask(QoalaTask):
         self._shared_ptr = shared_ptr
 
     @property
-    def pair_index(self) -> str:
+    def pair_index(self) -> int:
         return self._pair_index
 
     @property
     def shared_ptr(self) -> int:
         return self._shared_ptr
 
-    def __eq__(self, other: SinglePairTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SinglePairTask):
+            return NotImplemented
         return (
             super().__eq__(other)
             and self.pair_index == other.pair_index
@@ -267,7 +277,9 @@ class MultiPairTask(QoalaTask):
     def shared_ptr(self) -> int:
         return self._shared_ptr
 
-    def __eq__(self, other: MultiPairTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MultiPairTask):
+            return NotImplemented
         return super().__eq__(other) and self.shared_ptr == other.shared_ptr
 
 
@@ -296,14 +308,16 @@ class SinglePairCallbackTask(QoalaTask):
         return self._callback_name
 
     @property
-    def pair_index(self) -> str:
+    def pair_index(self) -> int:
         return self._pair_index
 
     @property
     def shared_ptr(self) -> int:
         return self._shared_ptr
 
-    def __eq__(self, other: SinglePairCallbackTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SinglePairCallbackTask):
+            return NotImplemented
         return (
             super().__eq__(other)
             and self.callback_name == other.callback_name
@@ -338,7 +352,9 @@ class MultiPairCallbackTask(QoalaTask):
     def shared_ptr(self) -> int:
         return self._shared_ptr
 
-    def __eq__(self, other: MultiPairCallbackTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MultiPairCallbackTask):
+            return NotImplemented
         return (
             super().__eq__(other)
             and self.callback_name == other.callback_name
@@ -391,7 +407,9 @@ class BlockTask(QoalaTask):
     def __str__(self) -> str:
         return f"{self.block_name} ({self.typ.name}), dur={self.duration}"
 
-    def __eq__(self, other: BlockTask) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, BlockTask):
+            return NotImplemented
         return (
             super().__eq__(other)
             and self.block_name == other.block_name
@@ -487,7 +505,7 @@ class TaskCreator:
         ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
         remote_id: Optional[int] = None,
-    ) -> TaskGraph:
+    ) -> None:
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
                 if ehi is not None:
@@ -562,8 +580,9 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                cputask = HostCodeTask(task_id, pid, block.name, duration)
-                self._graph.tasks[task_id] = cputask
+                self._graph.tasks[task_id] = HostCodeTask(
+                    task_id, pid, block.name, duration
+                )
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
@@ -578,8 +597,9 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                cputask = HostEventTask(task_id, pid, block.name, duration)
-                self._graph.tasks[task_id] = cputask
+                self._graph.tasks[task_id] = HostEventTask(
+                    task_id, pid, block.name, duration
+                )
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
@@ -673,8 +693,10 @@ class TaskCreator:
 
         if network_ehi is not None:
             pair_duration = list(network_ehi.links.values())[0].duration
+            multi_duration = pair_duration * req_routine.request.num_pairs
         else:
             pair_duration = None
+            multi_duration = None
 
         precall_id = self.unique_id()
         # Use a unique "pointer" or identifier which is used at runtime to point
@@ -695,9 +717,7 @@ class TaskCreator:
 
         if req_routine.callback_type == CallbackType.WAIT_ALL:
             rr_id = self.unique_id()
-            rr_task = MultiPairTask(
-                rr_id, pid, shared_ptr, pair_duration * req_routine.request.num_pairs
-            )
+            rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
             self._graph.tasks[rr_id] = rr_task
             # RR task should come after precall task
             self._graph.precedences.append((precall_id, rr_id))

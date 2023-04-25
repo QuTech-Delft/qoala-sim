@@ -46,7 +46,7 @@ class Driver(Protocol):
         self._other_driver: Optional[Driver] = None
         self._task_list: List[StaticScheduleEntry] = []
 
-        self._finished_tasks: List[BlockTask] = []
+        self._finished_tasks: List[QoalaTask] = []
 
     def set_other_driver(self, other: Driver) -> None:
         self._other_driver = other
@@ -86,7 +86,7 @@ class Driver(Protocol):
                 break
 
     @abstractmethod
-    def _handle_task(self, task: BlockTask) -> Generator[EventExpression, None, None]:
+    def _handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
 

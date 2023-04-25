@@ -17,13 +17,7 @@ from qoala.runtime.program import (
     ProgramResult,
 )
 from qoala.runtime.schedule import StaticSchedule
-from qoala.runtime.task import (
-    BlockTask,
-    QoalaTask,
-    TaskCreator,
-    TaskExecutionMode,
-    TaskGraph,
-)
+from qoala.runtime.task import TaskCreator, TaskExecutionMode, TaskGraph
 from qoala.sim.driver import CpuDriver, QpuDriver
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT

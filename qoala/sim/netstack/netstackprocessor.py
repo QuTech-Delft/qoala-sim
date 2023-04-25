@@ -257,6 +257,7 @@ class NetstackProcessor:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
 
+        assert routine.callback is not None
         cb_routine = process.get_local_routine(routine.callback)
         for virt_id in cb_routine.metadata.qubit_use:
             if self._interface.memmgr.phys_id_for(process.pid, virt_id) is None:
@@ -297,6 +298,7 @@ class NetstackProcessor:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
 
+        assert routine.callback is not None
         cb_routine = process.get_local_routine(routine.callback)
         for virt_id in cb_routine.metadata.qubit_use:
             if self._interface.memmgr.phys_id_for(process.pid, virt_id) is None:

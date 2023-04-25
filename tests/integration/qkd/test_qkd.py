@@ -20,7 +20,6 @@ from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.schedule import StaticSchedule
 from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.build import build_network
-from qoala.util.logging import LogManager
 
 
 def create_network_info(names: List[str]) -> NetworkInfo:
