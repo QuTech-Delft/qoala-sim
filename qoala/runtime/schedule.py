@@ -1,23 +1,24 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.hostlang import BasicBlockType
-from qoala.runtime.task import BlockTask
+from qoala.runtime.task import BlockTask, ProcessorType, QoalaTask, TaskGraph
 
 
 @dataclass
-class TaskScheduleEntry:
-    task: BlockTask
+class StaticScheduleEntry:
+    task: QoalaTask
     timestamp: Optional[float] = None
-    prev: Optional[BlockTask] = None
+    prev: Optional[List[QoalaTask]] = None
 
     def is_cpu_task(self) -> bool:
-        return self.task.typ == BasicBlockType.CL or self.task.typ == BasicBlockType.CC
+        return self.task.processor_type == ProcessorType.CPU
 
     def is_qpu_task(self) -> bool:
-        return self.task.typ == BasicBlockType.QL or self.task.typ == BasicBlockType.QC
+        return self.task.processor_type == ProcessorType.QPU
 
 
 @dataclass
@@ -33,8 +34,8 @@ class QcSlotInfo:
 
 
 @dataclass
-class TaskSchedule:
-    entries: List[TaskScheduleEntry]
+class StaticSchedule:
+    entries: List[StaticScheduleEntry]
 
     @classmethod
     def _compute_timestamps(
@@ -86,10 +87,16 @@ class TaskSchedule:
         return timestamps
 
     @classmethod
-    def consecutive(
-        cls, task_list: List[BlockTask], qc_slot_info: Optional[QcSlotInfo] = None
-    ) -> TaskSchedule:
-        entries: List[TaskScheduleEntry] = []
+    def consecutive_block_tasks(
+        cls, task_graphs: List[TaskGraph], qc_slot_info: Optional[QcSlotInfo] = None
+    ) -> StaticSchedule:
+        entries: List[StaticScheduleEntry] = []
+
+        task_list: List[BlockTask] = []
+        for graph in task_graphs:
+            tasks = list(graph.tasks.values())
+            assert all(isinstance(task, BlockTask) for task in tasks)
+            task_list.extend(tasks)  # type: ignore
 
         if qc_slot_info is not None:
             timestamps = cls._compute_timestamps(task_list, qc_slot_info)
@@ -99,49 +106,78 @@ class TaskSchedule:
                 time = timestamps[i]
             else:
                 time = None
-            entry = TaskScheduleEntry(task=task, timestamp=time, prev=None)
+            entry = StaticScheduleEntry(task=task, timestamp=time, prev=None)
             entries.append(entry)
 
         for i in range(len(entries) - 1):
             e1 = entries[i]
             e2 = entries[i + 1]
             if e1.is_cpu_task() != e2.is_cpu_task():
-                e2.prev = e1.task
+                e2.prev = [e1.task]
 
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     @classmethod
-    def consecutive_timestamps(
+    def linear_graph(cls, task_graphs: List[TaskGraph]) -> StaticSchedule:
+        entries: List[StaticScheduleEntry] = []
+
+        for task_graph in task_graphs:
+            # Make a copy so we can alter it without affecting the original graph.
+            graph = deepcopy(task_graph)  # TODO: refactor
+
+            while len(graph.tasks) > 0:
+                next_task_id = graph.roots()[0]
+                next_task = graph.tasks[next_task_id]
+                graph.remove_task(next_task_id)
+                entry = StaticScheduleEntry(task=next_task, timestamp=None, prev=None)
+                entries.append(entry)
+
+            for i in range(len(entries) - 1):
+                e1 = entries[i]
+                e2 = entries[i + 1]
+                if e1.is_cpu_task() != e2.is_cpu_task():
+                    e2.prev = [e1.task]
+
+        return StaticSchedule(entries)
+
+    @classmethod
+    def consecutive_block_tasks_with_timestamps(
         cls,
-        task_list: List[BlockTask],
+        task_graphs: List[TaskGraph],
         qc_slot_info: Optional[QcSlotInfo] = None,
-    ) -> TaskSchedule:
-        entries: List[TaskScheduleEntry] = []
+    ) -> StaticSchedule:
+        entries: List[StaticScheduleEntry] = []
+
+        task_list: List[BlockTask] = []
+        for graph in task_graphs:
+            tasks = list(graph.tasks.values())
+            assert all(isinstance(task, BlockTask) for task in tasks)
+            task_list.extend(tasks)  # type: ignore
 
         timestamps = cls._compute_timestamps(task_list, qc_slot_info)
 
         for i, task in enumerate(task_list):
             time = timestamps[i]
-            entries.append(TaskScheduleEntry(task, time, None))
+            entries.append(StaticScheduleEntry(task, time, None))
 
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     @property
-    def cpu_schedule(self) -> TaskSchedule:
+    def cpu_schedule(self) -> StaticSchedule:
         entries = [e for e in self.entries if e.is_cpu_task()]
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     @property
-    def qpu_schedule(self) -> TaskSchedule:
+    def qpu_schedule(self) -> StaticSchedule:
         entries = [e for e in self.entries if e.is_qpu_task()]
-        return TaskSchedule(entries)
+        return StaticSchedule(entries)
 
     def __str__(self) -> str:
         return ScheduleWriter(self).write()
 
 
 class ScheduleWriter:
-    def __init__(self, schedule: TaskSchedule) -> None:
+    def __init__(self, schedule: StaticSchedule) -> None:
         self._timeline = "time "
         self._cpu_task_str = "CPU  "
         self._qpu_task_str = "QPU  "
@@ -149,13 +185,19 @@ class ScheduleWriter:
         self._qpu_entries = schedule.qpu_schedule.entries
         self._entry_width = 12
 
-    def _entry_content(self, task: BlockTask) -> str:
+    def _entry_content(self, task: QoalaTask) -> str:
+        if not isinstance(task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return ""
         if task.duration:
             return f"{task.block_name} ({task.typ.name}, {int(task.duration)})"
         else:
             return f"{task.block_name} ({task.typ.name})"
 
-    def _add_cpu_entry(self, cpu_time: Optional[float], cpu_task: BlockTask) -> None:
+    def _add_cpu_entry(self, cpu_time: Optional[float], cpu_task: QoalaTask) -> None:
+        if not isinstance(cpu_task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return
         width = max(len(cpu_task.block_name), len(str(cpu_time))) + self._entry_width
         if cpu_time is None:
             cpu_time = "<none>"  # type: ignore
@@ -164,7 +206,10 @@ class ScheduleWriter:
         self._cpu_task_str += f"{entry:<{width}}"
         self._qpu_task_str += " " * width
 
-    def _add_qpu_entry(self, qpu_time: Optional[float], qpu_task: BlockTask) -> None:
+    def _add_qpu_entry(self, qpu_time: Optional[float], qpu_task: QoalaTask) -> None:
+        if not isinstance(qpu_task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return
         width = max(len(qpu_task.block_name), len(str(qpu_time))) + self._entry_width
         if qpu_time is None:
             qpu_time = "<none>"  # type: ignore
@@ -174,8 +219,11 @@ class ScheduleWriter:
         self._qpu_task_str += f"{entry:<{width}}"
 
     def _add_double_entry(
-        self, time: Optional[float], cpu_task: BlockTask, qpu_task: BlockTask
+        self, time: Optional[float], cpu_task: QoalaTask, qpu_task: QoalaTask
     ) -> None:
+        if not isinstance(cpu_task, BlockTask) or not isinstance(qpu_task, BlockTask):
+            # TODO implement writing non-BlockTasks
+            return
         width = (
             max(len(cpu_task.block_name), len(qpu_task.block_name), len(str(time)))
             + self._entry_width

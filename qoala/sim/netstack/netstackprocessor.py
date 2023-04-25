@@ -194,6 +194,129 @@ class NetstackProcessor:
                     if virt_id not in cb_routine.metadata.qubit_keep:
                         self._interface.memmgr.free(process.pid, virt_id)
 
+    def handle_multi_pair_ck(
+        self, process: QoalaProcess, routine_name: str
+    ) -> Generator[EventExpression, None, None]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
+        request = routine.request
+        assert request.typ == EprType.CREATE_KEEP
+        num_pairs = request.num_pairs
+
+        for i in range(num_pairs):
+            virt_id = self.allocate_for_pair(process, request, i)
+            entdist_req = self.create_entdist_request(process, request, virt_id)
+            yield from self.execute_entdist_request(entdist_req)
+
+    def handle_multi_pair_md(
+        self, process: QoalaProcess, routine_name: str
+    ) -> Generator[EventExpression, None, None]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
+        request = routine.request
+        assert request.typ == EprType.MEASURE_DIRECTLY
+        num_pairs = request.num_pairs
+
+        outcomes: List[int] = []
+
+        if routine.callback_type == CallbackType.SEQUENTIAL:
+            raise NotImplementedError
+        else:
+            for i in range(num_pairs):
+                virt_id = self.allocate_for_pair(process, request, i)
+                entdist_req = self.create_entdist_request(process, request, virt_id)
+                # Create EPR pair
+                yield from self.execute_entdist_request(entdist_req)
+                # Measure local qubit
+                m = yield from self.measure_epr_qubit(process, virt_id)
+                # Free virt qubit
+                self._interface.memmgr.free(process.pid, virt_id)
+                outcomes.append(m)
+
+        shared_mem = process.prog_memory.shared_mem
+        results_addr = running_routine.result_addr
+        shared_mem.write_rr_out(results_addr, outcomes)
+
+    def handle_multi_pair(
+        self, process: QoalaProcess, routine_name: str
+    ) -> Generator[EventExpression, None, None]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
+        request = routine.request
+
+        if request.typ == EprType.CREATE_KEEP:
+            yield from self.handle_multi_pair_ck(process, routine_name)
+        elif request.typ == EprType.MEASURE_DIRECTLY:
+            yield from self.handle_multi_pair_md(process, routine_name)
+        else:
+            raise NotImplementedError
+
+    def handle_multi_pair_callback(
+        self, process: QoalaProcess, routine_name: str, qnosprocessor: QnosProcessor
+    ) -> Generator[EventExpression, None, None]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
+
+        assert routine.callback is not None
+        cb_routine = process.get_local_routine(routine.callback)
+        for virt_id in cb_routine.metadata.qubit_use:
+            if self._interface.memmgr.phys_id_for(process.pid, virt_id) is None:
+                self._interface.memmgr.allocate(process.pid, virt_id)
+
+        # for WAIT_ALL, there should be at most 1 callback.
+        # So we can access index 0 of the cb input/output addresses.
+        yield from qnosprocessor.assign_local_routine(
+            process=process,
+            routine_name=routine.callback,
+            input_addr=running_routine.cb_input_addrs[0],
+            result_addr=running_routine.cb_output_addrs[0],
+        )
+
+        # Free CR qubits
+        for virt_id in cb_routine.metadata.qubit_use:
+            if virt_id not in cb_routine.metadata.qubit_keep:
+                self._interface.memmgr.free(process.pid, virt_id)
+
+    def handle_single_pair(
+        self, process: QoalaProcess, routine_name: str, index: int
+    ) -> Generator[EventExpression, None, None]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
+        request = routine.request
+
+        virt_id = self.allocate_for_pair(process, request, index)
+        entdist_req = self.create_entdist_request(process, request, virt_id)
+        yield from self.execute_entdist_request(entdist_req)
+
+    def handle_single_pair_callback(
+        self,
+        process: QoalaProcess,
+        routine_name: str,
+        qnosprocessor: QnosProcessor,
+        index: int,
+    ) -> Generator[EventExpression, None, None]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
+
+        assert routine.callback is not None
+        cb_routine = process.get_local_routine(routine.callback)
+        for virt_id in cb_routine.metadata.qubit_use:
+            if self._interface.memmgr.phys_id_for(process.pid, virt_id) is None:
+                self._interface.memmgr.allocate(process.pid, virt_id)
+
+        assert qnosprocessor is not None
+        yield from qnosprocessor.assign_local_routine(
+            process=process,
+            routine_name=routine.callback,
+            input_addr=running_routine.cb_input_addrs[index],
+            result_addr=running_routine.cb_output_addrs[index],
+        )
+
+        # Free CR qubits
+        for virt_id in cb_routine.metadata.qubit_use:
+            if virt_id not in cb_routine.metadata.qubit_keep:
+                self._interface.memmgr.free(process.pid, virt_id)
+
     def instantiate_routine(
         self,
         process: QoalaProcess,

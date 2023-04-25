@@ -20,7 +20,7 @@
 # from qoala.runtime.environment import NetworkInfo
 # from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 # from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-# from qoala.runtime.schedule import TaskSchedule, TaskScheduleEntry
+# from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
 # from qoala.sim.build import build_network
 
 
@@ -101,24 +101,24 @@
 #     alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
 #     print("Alice tasks:")
 #     print([str(t) for t in alice_tasks])
-#     # alice_schedule = TaskSchedule.consecutive(alice_tasks)
-#     alice_schedule = TaskSchedule(
+#     # alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
+#     alice_schedule = StaticSchedule(
 #         [
-#             TaskScheduleEntry(alice_tasks[0], timestamp=0),
-#             TaskScheduleEntry(alice_tasks[1], timestamp=500),
-#             TaskScheduleEntry(alice_tasks[2], timestamp=1_025_000),
-#             TaskScheduleEntry(alice_tasks[3], timestamp=1_600_000),
-#             TaskScheduleEntry(alice_tasks[4], timestamp=9_850_000, prev=alice_tasks[3]),
-#             TaskScheduleEntry(alice_tasks[5], timestamp=10_200_000),
-#             TaskScheduleEntry(
+#             StaticScheduleEntry(alice_tasks[0], timestamp=0),
+#             StaticScheduleEntry(alice_tasks[1], timestamp=500),
+#             StaticScheduleEntry(alice_tasks[2], timestamp=1_025_000),
+#             StaticScheduleEntry(alice_tasks[3], timestamp=1_600_000),
+#             StaticScheduleEntry(alice_tasks[4], timestamp=9_850_000, prev=alice_tasks[3]),
+#             StaticScheduleEntry(alice_tasks[5], timestamp=10_200_000),
+#             StaticScheduleEntry(
 #                 alice_tasks[6], timestamp=17_700_000, prev=alice_tasks[5]
 #             ),
-#             TaskScheduleEntry(alice_tasks[7], timestamp=29_100_000),
-#             TaskScheduleEntry(
+#             StaticScheduleEntry(alice_tasks[7], timestamp=29_100_000),
+#             StaticScheduleEntry(
 #                 alice_tasks[8], timestamp=29_200_500, prev=alice_tasks[7]
 #             ),
-#             TaskScheduleEntry(alice_tasks[9], timestamp=31_220_000),
-#             TaskScheduleEntry(
+#             StaticScheduleEntry(alice_tasks[9], timestamp=31_220_000),
+#             StaticScheduleEntry(
 #                 alice_tasks[10], timestamp=34_228_000, prev=alice_tasks[9]
 #             ),
 #         ]
@@ -137,17 +137,17 @@
 #     bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
 #     print("\n\nBob tasks:")
 #     print([str(t) for t in bob_tasks])
-#     bob_schedule = TaskSchedule(
+#     bob_schedule = StaticSchedule(
 #         [
-#             TaskScheduleEntry(bob_tasks[0], timestamp=0),
-#             TaskScheduleEntry(bob_tasks[1], timestamp=25_000),
-#             TaskScheduleEntry(bob_tasks[2], timestamp=1_900_000, prev=bob_tasks[1]),
-#             TaskScheduleEntry(bob_tasks[3], timestamp=12_000_000),
-#             TaskScheduleEntry(bob_tasks[4], timestamp=12_100_000, prev=bob_tasks[3]),
-#             TaskScheduleEntry(bob_tasks[5], timestamp=13_200_000),
-#             TaskScheduleEntry(bob_tasks[6], timestamp=15_700_000),
-#             TaskScheduleEntry(bob_tasks[7], timestamp=16_800_000),
-#             TaskScheduleEntry(bob_tasks[8], timestamp=27_900_000, prev=bob_tasks[7]),
+#             StaticScheduleEntry(bob_tasks[0], timestamp=0),
+#             StaticScheduleEntry(bob_tasks[1], timestamp=25_000),
+#             StaticScheduleEntry(bob_tasks[2], timestamp=1_900_000, prev=bob_tasks[1]),
+#             StaticScheduleEntry(bob_tasks[3], timestamp=12_000_000),
+#             StaticScheduleEntry(bob_tasks[4], timestamp=12_100_000, prev=bob_tasks[3]),
+#             StaticScheduleEntry(bob_tasks[5], timestamp=13_200_000),
+#             StaticScheduleEntry(bob_tasks[6], timestamp=15_700_000),
+#             StaticScheduleEntry(bob_tasks[7], timestamp=16_800_000),
+#             StaticScheduleEntry(bob_tasks[8], timestamp=27_900_000, prev=bob_tasks[7]),
 #         ]
 #     )
 #     print("\nBob schedule:")

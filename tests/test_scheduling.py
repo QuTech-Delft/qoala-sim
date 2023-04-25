@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import List, Optional
 
 import netsquid as ns
 from netqasm.lang.instr.flavour import core
@@ -20,10 +20,10 @@ from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.schedule import (
     LinkSlotInfo,
     QcSlotInfo,
-    TaskSchedule,
-    TaskScheduleEntry,
+    StaticSchedule,
+    StaticScheduleEntry,
 )
-from qoala.runtime.task import BlockTask, TaskCreator, TaskExecutionMode
+from qoala.runtime.task import BlockTask, TaskCreator, TaskExecutionMode, TaskGraph
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
 
@@ -67,7 +67,7 @@ def instantiate(
         program,
         inputs,
         unit_module=unit_module,
-        block_tasks=[],
+        task_graph=TaskGraph.empty(),
     )
 
 
@@ -77,79 +77,84 @@ QL = BasicBlockType.QL
 QC = BasicBlockType.QC
 
 
+def task_list_to_graph(task_list: List[BlockTask]) -> TaskGraph:
+    tasks = {t.task_id: t for t in task_list}
+    return TaskGraph(tasks, [], {})
+
+
 def test_consecutive():
     pid = 0
     tasks = [
-        BlockTask(pid, "blk_host0", CL, 1000),
-        BlockTask(pid, "blk_recv", CC, 1000),
-        BlockTask(pid, "blk_add_one", QL, 1000),
-        BlockTask(pid, "blk_epr_md_1", QC, 1000),
-        BlockTask(pid, "blk_host1", CL, 1000),
+        BlockTask(0, pid, "blk_host0", CL, 1000),
+        BlockTask(1, pid, "blk_recv", CC, 1000),
+        BlockTask(2, pid, "blk_add_one", QL, 1000),
+        BlockTask(3, pid, "blk_epr_md_1", QC, 1000),
+        BlockTask(4, pid, "blk_host1", CL, 1000),
     ]
-
-    schedule = TaskSchedule.consecutive(tasks)
+    graph = task_list_to_graph(tasks)
+    schedule = StaticSchedule.consecutive_block_tasks([graph])
 
     assert schedule.entries == [
-        TaskScheduleEntry(tasks[0], None, prev=None),
-        TaskScheduleEntry(tasks[1], None, prev=None),
-        TaskScheduleEntry(tasks[2], None, prev=tasks[1]),  # CPU -> QPU
-        TaskScheduleEntry(tasks[3], None, prev=None),
-        TaskScheduleEntry(tasks[4], None, prev=tasks[3]),  # QPU -> CPU
+        StaticScheduleEntry(tasks[0], None, prev=None),
+        StaticScheduleEntry(tasks[1], None, prev=None),
+        StaticScheduleEntry(tasks[2], None, prev=[tasks[1]]),  # CPU -> QPU
+        StaticScheduleEntry(tasks[3], None, prev=None),
+        StaticScheduleEntry(tasks[4], None, prev=[tasks[3]]),  # QPU -> CPU
     ]
 
 
 def test_consecutive_qc_slots():
     pid = 0
     tasks = [
-        BlockTask(pid, "blk_host0", CL, 1000),
-        BlockTask(pid, "blk_recv", CC, 10000),
-        BlockTask(pid, "blk_add_one", QL, 1000),
-        BlockTask(pid, "blk_epr_md_1", QC, 1000, remote_id=0),
-        BlockTask(pid, "blk_host1", CL, 1000),
+        BlockTask(0, pid, "blk_host0", CL, 1000),
+        BlockTask(1, pid, "blk_recv", CC, 10000),
+        BlockTask(2, pid, "blk_add_one", QL, 1000),
+        BlockTask(3, pid, "blk_epr_md_1", QC, 1000, remote_id=0),
+        BlockTask(4, pid, "blk_host1", CL, 1000),
     ]
-
-    schedule = TaskSchedule.consecutive(
-        tasks, qc_slot_info=QcSlotInfo({0: LinkSlotInfo(0, 100, 50_000)})
+    graph = task_list_to_graph(tasks)
+    schedule = StaticSchedule.consecutive_block_tasks(
+        [graph], qc_slot_info=QcSlotInfo({0: LinkSlotInfo(0, 100, 50_000)})
     )
 
     assert schedule.entries == [
-        TaskScheduleEntry(tasks[0], timestamp=None, prev=None),
-        TaskScheduleEntry(tasks[1], timestamp=None, prev=None),
-        TaskScheduleEntry(tasks[2], timestamp=None, prev=tasks[1]),  # CPU -> QPU
-        TaskScheduleEntry(tasks[3], timestamp=50_000, prev=None),  # QC task
-        TaskScheduleEntry(tasks[4], timestamp=None, prev=tasks[3]),  # QPU -> CPU
+        StaticScheduleEntry(tasks[0], timestamp=None, prev=None),
+        StaticScheduleEntry(tasks[1], timestamp=None, prev=None),
+        StaticScheduleEntry(tasks[2], timestamp=None, prev=[tasks[1]]),  # CPU -> QPU
+        StaticScheduleEntry(tasks[3], timestamp=50_000, prev=None),  # QC task
+        StaticScheduleEntry(tasks[4], timestamp=None, prev=[tasks[3]]),  # QPU -> CPU
     ]
 
 
-def test_consecutive_timestamps():
+def test_consecutive_block_tasks_with_timestamps():
     pid = 0
 
     tasks = [
-        BlockTask(pid, "blk_host0", CL, 1000),
-        BlockTask(pid, "blk_lr0", QL, 5000),
-        BlockTask(pid, "blk_host1", CL, 200),
-        BlockTask(pid, "blk_rr0", QC, 30_000, remote_id=0),
-        BlockTask(pid, "blk_host2", CL, 4000),
+        BlockTask(0, pid, "blk_host0", CL, 1000),
+        BlockTask(1, pid, "blk_lr0", QL, 5000),
+        BlockTask(2, pid, "blk_host1", CL, 200),
+        BlockTask(3, pid, "blk_rr0", QC, 30_000, remote_id=0),
+        BlockTask(4, pid, "blk_host2", CL, 4000),
     ]
-
-    schedule = TaskSchedule.consecutive_timestamps(tasks)
+    graph = task_list_to_graph(tasks)
+    schedule = StaticSchedule.consecutive_block_tasks_with_timestamps([graph])
 
     assert schedule.entries == [
-        TaskScheduleEntry(tasks[0], 0),
-        TaskScheduleEntry(tasks[1], 1000),
-        TaskScheduleEntry(tasks[2], 1000 + 5000),
-        TaskScheduleEntry(tasks[3], 1000 + 5000 + 200),
-        TaskScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
+        StaticScheduleEntry(tasks[0], 0),
+        StaticScheduleEntry(tasks[1], 1000),
+        StaticScheduleEntry(tasks[2], 1000 + 5000),
+        StaticScheduleEntry(tasks[3], 1000 + 5000 + 200),
+        StaticScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
     ]
 
     assert schedule.cpu_schedule.entries == [
-        TaskScheduleEntry(tasks[0], 0),
-        TaskScheduleEntry(tasks[2], 1000 + 5000),
-        TaskScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
+        StaticScheduleEntry(tasks[0], 0),
+        StaticScheduleEntry(tasks[2], 1000 + 5000),
+        StaticScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
     ]
     assert schedule.qpu_schedule.entries == [
-        TaskScheduleEntry(tasks[1], 1000),
-        TaskScheduleEntry(tasks[3], 1000 + 5000 + 200),
+        StaticScheduleEntry(tasks[1], 1000),
+        StaticScheduleEntry(tasks[3], 1000 + 5000 + 200),
     ]
 
 
@@ -165,12 +170,13 @@ def test_host_program():
     alice.scheduler.submit_program_instance(instance)
     bob.scheduler.submit_program_instance(instance)
 
-    cpu_schedule = TaskSchedule.consecutive(
-        [
-            BlockTask(pid, "blk_host0", CL),
-            BlockTask(pid, "blk_host1", CL),
-        ]
-    )
+    tasks = [
+        BlockTask(0, pid, "blk_host0", CL),
+        BlockTask(1, pid, "blk_host1", CL),
+    ]
+    graph = task_list_to_graph(tasks)
+
+    cpu_schedule = StaticSchedule.consecutive_block_tasks([graph])
     alice.scheduler.upload_cpu_schedule(cpu_schedule)
     bob.scheduler.upload_cpu_schedule(cpu_schedule)
 
@@ -196,12 +202,14 @@ def test_lr_program():
     bob.scheduler.submit_program_instance(instance)
 
     host_instr_time = alice.local_ehi.latencies.host_instr_time
-    schedule = TaskSchedule.consecutive(
-        [
-            BlockTask(pid, "blk_host2", CL),
-            BlockTask(pid, "blk_add_one", QL),
-        ]
-    )
+
+    tasks = [
+        BlockTask(0, pid, "blk_host2", CL),
+        BlockTask(1, pid, "blk_add_one", QL),
+    ]
+    graph = task_list_to_graph(tasks)
+
+    schedule = StaticSchedule.consecutive_block_tasks([graph])
     alice.scheduler.upload_schedule(schedule)
     bob.scheduler.upload_schedule(schedule)
     print(schedule)
@@ -234,7 +242,9 @@ def test_epr_md_1():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = TaskSchedule([TaskScheduleEntry(BlockTask(pid, "blk_epr_md_1", QC))])
+    qpu_schedule = StaticSchedule(
+        [StaticScheduleEntry(BlockTask(0, pid, "blk_epr_md_1", QC))]
+    )
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
     bob.scheduler.upload_qpu_schedule(qpu_schedule)
 
@@ -265,7 +275,9 @@ def test_epr_md_2():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = TaskSchedule([TaskScheduleEntry(BlockTask(pid, "blk_epr_md_2", QC))])
+    qpu_schedule = StaticSchedule(
+        [StaticScheduleEntry(BlockTask(0, pid, "blk_epr_md_2", QC))]
+    )
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
     bob.scheduler.upload_qpu_schedule(qpu_schedule)
 
@@ -298,10 +310,10 @@ def test_epr_ck_1():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = TaskSchedule(
+    qpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(pid, "blk_epr_ck_1", QC)),
-            TaskScheduleEntry(BlockTask(pid, "blk_meas_q0", QL)),
+            StaticScheduleEntry(BlockTask(0, pid, "blk_epr_ck_1", QC)),
+            StaticScheduleEntry(BlockTask(1, pid, "blk_meas_q0", QL)),
         ]
     )
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
@@ -338,10 +350,10 @@ def test_epr_ck_2():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    qpu_schedule = TaskSchedule(
+    qpu_schedule = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(pid, "blk_epr_ck_2", QC)),
-            TaskScheduleEntry(BlockTask(pid, "blk_meas_q0_q1", QL)),
+            StaticScheduleEntry(BlockTask(0, pid, "blk_epr_ck_2", QC)),
+            StaticScheduleEntry(BlockTask(1, pid, "blk_meas_q0_q1", QL)),
         ]
     )
     alice.scheduler.upload_qpu_schedule(qpu_schedule)
@@ -384,18 +396,18 @@ def test_cc():
     assert alice.local_ehi.latencies.host_peer_latency == 3000
     assert alice.local_ehi.latencies.host_instr_time == 1000
 
-    schedule_alice = TaskSchedule(
+    schedule_alice = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(pid, "blk_prep_cc", CL), 0),
-            TaskScheduleEntry(BlockTask(pid, "blk_send", CL), 2000),
-            TaskScheduleEntry(BlockTask(pid, "blk_host1", CL), 10000),
+            StaticScheduleEntry(BlockTask(0, pid, "blk_prep_cc", CL), 0),
+            StaticScheduleEntry(BlockTask(1, pid, "blk_send", CL), 2000),
+            StaticScheduleEntry(BlockTask(2, pid, "blk_host1", CL), 10000),
         ]
     )
-    schedule_bob = TaskSchedule(
+    schedule_bob = StaticSchedule(
         [
-            TaskScheduleEntry(BlockTask(pid, "blk_prep_cc", CL), 0),
-            TaskScheduleEntry(BlockTask(pid, "blk_recv", CC), 3000),
-            TaskScheduleEntry(BlockTask(pid, "blk_host1", CL), 10000),
+            StaticScheduleEntry(BlockTask(4, pid, "blk_prep_cc", CL), 0),
+            StaticScheduleEntry(BlockTask(5, pid, "blk_recv", CC), 3000),
+            StaticScheduleEntry(BlockTask(6, pid, "blk_host1", CL), 10000),
         ]
     )
     alice.scheduler.upload_cpu_schedule(schedule_alice)
@@ -429,15 +441,14 @@ def test_full_program():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    task_creator = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC)
-    tasks_alice = task_creator.from_program(
+    tasks_alice = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
         program_alice, pid, alice.local_ehi, alice.network_ehi
     )
-    tasks_bob = task_creator.from_program(
+    tasks_bob = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
         program_bob, pid, bob.local_ehi, bob.network_ehi
     )
-    schedule_alice = TaskSchedule.consecutive(tasks_alice)
-    schedule_bob = TaskSchedule.consecutive(tasks_bob)
+    schedule_alice = StaticSchedule.consecutive_block_tasks([tasks_alice])
+    schedule_bob = StaticSchedule.consecutive_block_tasks([tasks_bob])
 
     alice.scheduler.upload_schedule(schedule_alice)
     bob.scheduler.upload_schedule(schedule_bob)
@@ -456,7 +467,7 @@ def test_full_program():
 if __name__ == "__main__":
     test_consecutive()
     test_consecutive_qc_slots()
-    test_consecutive_timestamps()
+    test_consecutive_block_tasks_with_timestamps()
     test_host_program()
     test_lr_program()
     test_epr_md_1()

@@ -17,7 +17,8 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import TaskSchedule
+from qoala.runtime.schedule import StaticSchedule
+from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.build import build_network
 
 
@@ -66,7 +67,11 @@ class QkdResult:
 
 
 def run_qkd(
-    num_iterations: int, alice_file: str, bob_file: str, num_pairs: Optional[int] = None
+    num_iterations: int,
+    alice_file: str,
+    bob_file: str,
+    num_pairs: Optional[int] = None,
+    tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
 ):
     ns.sim_reset()
 
@@ -76,7 +81,9 @@ def run_qkd(
     bob_id = network_info.get_node_id("bob")
 
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    alice_node_cfg.tem = tem.name
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
+    bob_node_cfg.tem = tem.name
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
@@ -100,9 +107,6 @@ def run_qkd(
     )
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
-    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
-    alice_schedule = TaskSchedule.consecutive(alice_tasks)
-    alice_procnode.scheduler.upload_schedule(alice_schedule)
 
     bob_program = load_program(bob_file)
     if num_pairs is not None:
@@ -119,8 +123,16 @@ def run_qkd(
     bob_batch = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
+
+    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
     bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
-    bob_schedule = TaskSchedule.consecutive(bob_tasks)
+    if tem == TaskExecutionMode.ROUTINE_ATOMIC:
+        alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
+        bob_schedule = StaticSchedule.consecutive_block_tasks(bob_tasks)
+    else:
+        alice_schedule = StaticSchedule.linear_graph(alice_tasks)
+        bob_schedule = StaticSchedule.linear_graph(bob_tasks)
+    alice_procnode.scheduler.upload_schedule(alice_schedule)
     bob_procnode.scheduler.upload_schedule(bob_schedule)
 
     network.start()
@@ -141,6 +153,29 @@ def test_qkd_md_1pair():
     bob_file = "qkd_md_1pair_bob.iqoala"
 
     qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+
+
+def test_qkd_md_1pair_task_split():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_md_1pair_alice.iqoala"
+    bob_file = "qkd_md_1pair_bob.iqoala"
+
+    qkd_result = run_qkd(
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+    )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -177,6 +212,31 @@ def test_qkd_md_2pairs():
         assert alice["m1"] == bob["m1"]
 
 
+def test_qkd_md_2pairs_task_split():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_md_2pairs_alice.iqoala"
+    bob_file = "qkd_md_2pairs_bob.iqoala"
+
+    qkd_result = run_qkd(
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+    )
+
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+        assert alice["m1"] == bob["m1"]
+
+
 def test_qkd_ck_1pair():
     ns.sim_reset()
 
@@ -185,6 +245,29 @@ def test_qkd_ck_1pair():
     bob_file = "qkd_ck_1pair_bob.iqoala"
 
     qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+
+
+def test_qkd_ck_1pair_task_split():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_ck_1pair_alice.iqoala"
+    bob_file = "qkd_ck_1pair_bob.iqoala"
+
+    qkd_result = run_qkd(
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+    )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -220,6 +303,30 @@ def test_qkd_ck_2pairs():
         assert alice["m1"] == bob["m1"]
 
 
+def test_qkd_ck_2pairs_task_split():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_ck_2pairs_alice.iqoala"
+    bob_file = "qkd_ck_2pairs_bob.iqoala"
+
+    qkd_result = run_qkd(
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+    )
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+        assert alice["m1"] == bob["m1"]
+
+
 def test_qkd_ck_callback_1pair():
     ns.sim_reset()
 
@@ -241,6 +348,29 @@ def test_qkd_ck_callback_1pair():
         assert alice["m0"] == bob["m0"]
 
 
+def test_qkd_ck_callback_1pair_task_split():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_ck_callback_1pair_alice.iqoala"
+    bob_file = "qkd_ck_callback_1pair_bob.iqoala"
+
+    qkd_result = run_qkd(
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+    )
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+
+
 def test_qkd_ck_callback_2pairs():
     ns.sim_reset()
 
@@ -249,6 +379,30 @@ def test_qkd_ck_callback_2pairs():
     bob_file = "qkd_ck_callback_2pairs_bob.iqoala"
 
     qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        assert alice["m0"] == bob["m0"]
+        assert alice["m1"] == bob["m1"]
+
+
+def test_qkd_ck_callback_2pairs_task_split():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_ck_callback_2pairs_alice.iqoala"
+    bob_file = "qkd_ck_callback_2pairs_bob.iqoala"
+
+    qkd_result = run_qkd(
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+    )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -288,10 +442,16 @@ def test_qkd_ck_callback_2pairs():
 
 if __name__ == "__main__":
     test_qkd_md_1pair()
+    test_qkd_md_1pair_task_split()
     test_qkd_md_2pairs()
+    test_qkd_md_2pairs_task_split()
     test_qkd_ck_1pair()
+    test_qkd_ck_1pair_task_split()
     test_qkd_ck_2pairs()
+    test_qkd_ck_2pairs_task_split()
     test_qkd_ck_callback_1pair()
+    test_qkd_ck_callback_1pair_task_split()
     test_qkd_ck_callback_2pairs()
+    test_qkd_ck_callback_2pairs_task_split()
     # TODO: implement #38 to make this work.
     # test_qkd_ck_callback_npairs()

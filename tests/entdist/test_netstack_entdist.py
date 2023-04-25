@@ -21,6 +21,7 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
+from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist, EntDistRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -379,7 +380,7 @@ def create_process(
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        block_tasks=[],
+        task_graph=TaskGraph.empty(),
     )
     mem = ProgramMemory(pid=0)
 

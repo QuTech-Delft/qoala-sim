@@ -64,6 +64,7 @@ from qoala.runtime.lhi_to_ehi import (
     NativeToFlavourInterface,
     NvToNvInterface,
 )
+from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
@@ -330,6 +331,10 @@ def build_procnode(
 
     qprocessor = build_qprocessor_from_topology(name=cfg.node_name, topology=topology)
     latencies = LhiLatencies.from_config(cfg.latencies)
+    if cfg.tem is None:
+        tem = TaskExecutionMode.ROUTINE_ATOMIC
+    else:
+        tem = TaskExecutionMode[cfg.tem.upper()]
     procnode = ProcNode(
         cfg.node_name,
         network_info=network_info,
@@ -339,6 +344,7 @@ def build_procnode(
         ntf_interface=ntf_interface,
         node_id=cfg.node_id,
         network_ehi=network_ehi,
+        tem=tem,
     )
 
     # TODO: refactor this hack

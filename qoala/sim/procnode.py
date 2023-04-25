@@ -10,6 +10,7 @@ from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
+from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.host.host import Host
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.host.hostinterface import HostLatencies
@@ -38,6 +39,7 @@ class ProcNode(Protocol):
         node_id: Optional[int] = None,
         scheduler: Optional[Scheduler] = None,
         asynchronous: bool = False,
+        tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
     ) -> None:
         """ProcNode constructor.
 
@@ -65,6 +67,7 @@ class ProcNode(Protocol):
         self._local_env = LocalEnvironment(network_info, network_info.get_node_id(name))
         self._ntf_interface = ntf_interface
         self._asynchronous = asynchronous
+        self._tem = tem
 
         # Create internal components.
         self._qdevice: QDevice = QDevice(self._node, qdevice_topology)
@@ -113,6 +116,7 @@ class ProcNode(Protocol):
                 self._local_env,
                 self._local_ehi,
                 self._network_ehi,
+                self._tem,
             )
         else:
             self._scheduler = scheduler

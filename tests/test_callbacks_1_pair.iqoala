@@ -1,0 +1,69 @@
+META_START
+    name: alice
+    parameters:
+    csockets: 0 -> bob
+    epr_sockets:
+META_END
+
+^blk_1_pair_wait_all {type = QC}:
+    run_request(vec<>) : req_1_pair_wait_all
+
+^blk_1_pair_sequential {type = QC}:
+    run_request(vec<>) : req_1_pair_sequential
+
+
+SUBROUTINE meas_1_pair
+    params:
+    returns: m0
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    set C15 0
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[C15]
+  NETQASM_END
+
+SUBROUTINE meas_q0_q1
+    params:
+    returns: m0, m1
+    uses: 0, 1
+    keeps:
+    request:
+  NETQASM_START
+    set C15 0
+    set C14 1
+    set Q0 0
+    set Q1 1
+    meas Q0 M0
+    meas Q1 M1
+    store M0 @output[C15]
+    store M1 @output[C14]
+  NETQASM_END
+
+REQUEST req_1_pair_wait_all
+  callback_type: wait_all
+  callback: meas_1_pair
+  return_vars:
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: increment 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+
+REQUEST req_1_pair_sequential
+  callback_type: sequential
+  callback: meas_1_pair
+  return_vars:
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: increment 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create

@@ -714,6 +714,7 @@ class ProcNodeConfig(BaseModel):
     topology: Optional[TopologyConfig] = None
     latencies: LatenciesConfig
     nv_config: Optional[NVQDeviceConfig] = None  # TODO: remove!
+    tem: Optional[str] = None
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:
