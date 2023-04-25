@@ -126,21 +126,25 @@ def test_routine_split_1_pair_callback():
         text = file.read()
     program = QoalaParser(text).parse()
 
+    cpu_time = alice.local_ehi.latencies.host_instr_time
+    cb_time = alice.local_ehi.latencies.qnos_instr_time
+    pair_time = alice.network_ehi.get_link(0, 1).duration
+
     creator = TaskCreator(TaskExecutionMode.ROUTINE_SPLIT)
     pid = 3
     task_graph = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
 
     assert task_graph.tasks == {
         # blk_1_pair_wait_all
-        0: PreCallTask(0, pid, "blk_1_pair_wait_all"),
-        1: PostCallTask(1, pid, "blk_1_pair_wait_all", None),
-        2: MultiPairTask(2, pid, None),
-        3: MultiPairCallbackTask(3, pid, "meas_1_pair", None),
+        0: PreCallTask(0, pid, "blk_1_pair_wait_all", 0, cpu_time),
+        1: PostCallTask(1, pid, "blk_1_pair_wait_all", 0, cpu_time),
+        2: MultiPairTask(2, pid, 0, pair_time),
+        3: MultiPairCallbackTask(3, pid, "meas_1_pair", 0, cb_time),
         # blk_1_pair_sequential
-        4: PreCallTask(4, pid, "blk_1_pair_sequential"),
-        5: PostCallTask(5, pid, "blk_1_pair_sequential", None),
-        6: SinglePairTask(6, pid, 0, None),
-        7: SinglePairCallbackTask(7, pid, "meas_1_pair", 0, None),
+        4: PreCallTask(4, pid, "blk_1_pair_sequential", 4, cpu_time),
+        5: PostCallTask(5, pid, "blk_1_pair_sequential", 4, cpu_time),
+        6: SinglePairTask(6, pid, 0, 4, pair_time),
+        7: SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
     }
 
     assert (0, 2) in task_graph.precedences  # rr after precall
@@ -162,23 +166,27 @@ def test_routine_split_2_pairs_callback():
         text = file.read()
     program = QoalaParser(text).parse()
 
+    cpu_time = alice.local_ehi.latencies.host_instr_time
+    cb_time = alice.local_ehi.latencies.qnos_instr_time
+    pair_time = alice.network_ehi.get_link(0, 1).duration
+
     creator = TaskCreator(TaskExecutionMode.ROUTINE_SPLIT)
     pid = 3
     task_graph = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
 
     assert task_graph.tasks == {
         # blk_2_pairs_wait_all
-        0: PreCallTask(0, pid, "blk_2_pairs_wait_all"),
-        1: PostCallTask(1, pid, "blk_2_pairs_wait_all", None),
-        2: MultiPairTask(2, pid, None),
-        3: MultiPairCallbackTask(3, pid, "meas_2_pairs", None),
+        0: PreCallTask(0, pid, "blk_2_pairs_wait_all", 0, cpu_time),
+        1: PostCallTask(1, pid, "blk_2_pairs_wait_all", 0, cpu_time),
+        2: MultiPairTask(2, pid, 0, 2 * pair_time),
+        3: MultiPairCallbackTask(3, pid, "meas_2_pairs", 0, cb_time),
         # blk_2_pairs_sequential
-        4: PreCallTask(4, pid, "blk_2_pairs_sequential"),
-        5: PostCallTask(5, pid, "blk_2_pairs_sequential", None),
-        6: SinglePairTask(6, pid, 0, None),
-        7: SinglePairCallbackTask(7, pid, "meas_1_pair", 0, None),
-        8: SinglePairTask(8, pid, 1, None),
-        9: SinglePairCallbackTask(9, pid, "meas_1_pair", 1, None),
+        4: PreCallTask(4, pid, "blk_2_pairs_sequential", 4, cpu_time),
+        5: PostCallTask(5, pid, "blk_2_pairs_sequential", 4, cpu_time),
+        6: SinglePairTask(6, pid, 0, 4, pair_time),
+        7: SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
+        8: SinglePairTask(8, pid, 1, 4, pair_time),
+        9: SinglePairCallbackTask(9, pid, "meas_1_pair", 1, 4, cb_time),
     }
 
     assert (0, 2) in task_graph.precedences  # rr after precall

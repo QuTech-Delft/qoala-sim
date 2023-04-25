@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
+from token import OP
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 from click import Option
@@ -33,10 +34,17 @@ class ProcessorType(Enum):
 
 
 class QoalaTask:
-    def __init__(self, task_id: int, processor_type: ProcessorType, pid: int) -> None:
+    def __init__(
+        self,
+        task_id: int,
+        processor_type: ProcessorType,
+        pid: int,
+        duration: Optional[float] = None,
+    ) -> None:
         self._task_id = task_id
         self._processor_type = processor_type
         self._pid = pid
+        self._duration = duration
 
     @property
     def task_id(self) -> int:
@@ -50,25 +58,125 @@ class QoalaTask:
     def pid(self) -> int:
         return self._pid
 
+    @property
+    def duration(self) -> Optional[float]:
+        return self._duration
+
     def __eq__(self, other: QoalaTask) -> bool:
         return (
             self.task_id == other.task_id
             and self.processor_type == other.processor_type
             and self.pid == other.pid
+            and self.duration == other.duration
         )
 
 
-class PreCallTask(QoalaTask):
-    def __init__(self, task_id: int, pid: int, block_name: str) -> None:
-        super().__init__(task_id=task_id, processor_type=ProcessorType.CPU, pid=pid)
+class HostCodeTask(QoalaTask):
+    def __init__(
+        self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
+    ) -> None:
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.CPU,
+            pid=pid,
+            duration=duration,
+        )
         self._block_name = block_name
 
     @property
     def block_name(self) -> str:
         return self._block_name
 
-    def __eq__(self, other: PreCallTask) -> bool:
+    def __eq__(self, other: HostCodeTask) -> bool:
         return super().__eq__(other) and self.block_name == other.block_name
+
+
+class HostEventTask(QoalaTask):
+    def __init__(
+        self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
+    ) -> None:
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.CPU,
+            pid=pid,
+            duration=duration,
+        )
+        self._block_name = block_name
+
+    @property
+    def block_name(self) -> str:
+        return self._block_name
+
+    def __eq__(self, other: HostEventTask) -> bool:
+        return super().__eq__(other) and self.block_name == other.block_name
+
+
+class LocalRoutineTask(QoalaTask):
+    def __init__(
+        self,
+        task_id: int,
+        pid: int,
+        block_name: str,
+        shared_ptr: int,
+        duration: Optional[float] = None,
+    ) -> None:
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.QPU,
+            pid=pid,
+            duration=duration,
+        )
+        self._block_name = block_name
+        self._shared_ptr = shared_ptr
+
+    @property
+    def block_name(self) -> str:
+        return self._block_name
+
+    @property
+    def shared_ptr(self) -> int:
+        return self._shared_ptr
+
+    def __eq__(self, other: LocalRoutineTask) -> bool:
+        return (
+            super().__eq__(other)
+            and self.block_name == other.block_name
+            and self.shared_ptr == self.shared_ptr
+        )
+
+
+class PreCallTask(QoalaTask):
+    def __init__(
+        self,
+        task_id: int,
+        pid: int,
+        block_name: str,
+        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        duration: Optional[float] = None,
+    ) -> None:
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.CPU,
+            pid=pid,
+            duration=duration,
+        )
+        self._block_name = block_name
+        self._shared_ptr = shared_ptr
+
+    @property
+    def block_name(self) -> str:
+        return self._block_name
+
+    @property
+    def shared_ptr(self) -> int:
+        return self._shared_ptr
+
+    def __eq__(self, other: PreCallTask) -> bool:
+        return (
+            super().__eq__(other)
+            and self.block_name == other.block_name
+            and self.shared_ptr == self.shared_ptr
+        )
 
 
 class PostCallTask(QoalaTask):
@@ -77,29 +185,31 @@ class PostCallTask(QoalaTask):
         task_id: int,
         pid: int,
         block_name: str,
-        rrcall: Optional[RrCallTuple] = None,
+        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        duration: Optional[float] = None,
     ) -> None:
-        super().__init__(task_id=task_id, processor_type=ProcessorType.CPU, pid=pid)
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.CPU,
+            pid=pid,
+            duration=duration,
+        )
         self._block_name = block_name
-        self._rrcall = rrcall
+        self._shared_ptr = shared_ptr
 
     @property
     def block_name(self) -> str:
         return self._block_name
 
     @property
-    def rrcall(self) -> Optional[RrCallTuple]:
-        return self._rrcall
-
-    @rrcall.setter
-    def rrcall(self, new_rrcall: RrCallTuple) -> None:
-        self._rrcall = new_rrcall
+    def shared_ptr(self) -> int:
+        return self._shared_ptr
 
     def __eq__(self, other: PostCallTask) -> bool:
         return (
             super().__eq__(other)
             and self.block_name == other.block_name
-            and self.rrcall == other.rrcall
+            and self.shared_ptr == other.shared_ptr
         )
 
 
@@ -109,29 +219,31 @@ class SinglePairTask(QoalaTask):
         task_id: int,
         pid: int,
         pair_index: int,
-        rrcall: Optional[RrCallTuple] = None,
+        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        duration: Optional[float] = None,
     ) -> None:
-        super().__init__(task_id=task_id, processor_type=ProcessorType.QPU, pid=pid)
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.QPU,
+            pid=pid,
+            duration=duration,
+        )
         self._pair_index = pair_index
-        self._rrcall = rrcall
+        self._shared_ptr = shared_ptr
 
     @property
     def pair_index(self) -> str:
         return self._pair_index
 
     @property
-    def rrcall(self) -> Optional[RrCallTuple]:
-        return self._rrcall
-
-    @rrcall.setter
-    def rrcall(self, new_rrcall: RrCallTuple) -> None:
-        self._rrcall = new_rrcall
+    def shared_ptr(self) -> int:
+        return self._shared_ptr
 
     def __eq__(self, other: SinglePairTask) -> bool:
         return (
             super().__eq__(other)
             and self.pair_index == other.pair_index
-            and self.rrcall == other.rrcall
+            and self.shared_ptr == other.shared_ptr
         )
 
 
@@ -140,21 +252,23 @@ class MultiPairTask(QoalaTask):
         self,
         task_id: int,
         pid: int,
-        rrcall: Optional[RrCallTuple] = None,
+        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        duration: Optional[float] = None,
     ) -> None:
-        super().__init__(task_id=task_id, processor_type=ProcessorType.QPU, pid=pid)
-        self._rrcall = rrcall
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.QPU,
+            pid=pid,
+            duration=duration,
+        )
+        self._shared_ptr = shared_ptr
 
     @property
-    def rrcall(self) -> Optional[RrCallTuple]:
-        return self._rrcall
-
-    @rrcall.setter
-    def rrcall(self, new_rrcall: RrCallTuple) -> None:
-        self._rrcall = new_rrcall
+    def shared_ptr(self) -> int:
+        return self._shared_ptr
 
     def __eq__(self, other: MultiPairTask) -> bool:
-        return super().__eq__(other) and self.rrcall == other.rrcall
+        return super().__eq__(other) and self.shared_ptr == other.shared_ptr
 
 
 class SinglePairCallbackTask(QoalaTask):
@@ -164,12 +278,18 @@ class SinglePairCallbackTask(QoalaTask):
         pid: int,
         callback_name: str,
         pair_index: int,
-        rrcall: Optional[RrCallTuple] = None,
+        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        duration: Optional[float] = None,
     ) -> None:
-        super().__init__(task_id=task_id, processor_type=ProcessorType.QPU, pid=pid)
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.QPU,
+            pid=pid,
+            duration=duration,
+        )
         self._callback_name = callback_name
         self._pair_index = pair_index
-        self._rrcall = rrcall
+        self._shared_ptr = shared_ptr
 
     @property
     def callback_name(self) -> str:
@@ -180,19 +300,15 @@ class SinglePairCallbackTask(QoalaTask):
         return self._pair_index
 
     @property
-    def rrcall(self) -> Optional[RrCallTuple]:
-        return self._rrcall
-
-    @rrcall.setter
-    def rrcall(self, new_rrcall: RrCallTuple) -> None:
-        self._rrcall = new_rrcall
+    def shared_ptr(self) -> int:
+        return self._shared_ptr
 
     def __eq__(self, other: SinglePairCallbackTask) -> bool:
         return (
             super().__eq__(other)
             and self.callback_name == other.callback_name
             and self.pair_index == other.pair_index
-            and self.rrcall == other.rrcall
+            and self.shared_ptr == other.shared_ptr
         )
 
 
@@ -202,29 +318,31 @@ class MultiPairCallbackTask(QoalaTask):
         task_id: int,
         pid: int,
         callback_name: str,
-        rrcall: Optional[RrCallTuple] = None,
+        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        duration: Optional[float] = None,
     ) -> None:
-        super().__init__(task_id=task_id, processor_type=ProcessorType.QPU, pid=pid)
+        super().__init__(
+            task_id=task_id,
+            processor_type=ProcessorType.QPU,
+            pid=pid,
+            duration=duration,
+        )
         self._callback_name = callback_name
-        self._rrcall = rrcall
+        self._shared_ptr = shared_ptr
 
     @property
     def callback_name(self) -> str:
         return self._callback_name
 
     @property
-    def rrcall(self) -> Optional[RrCallTuple]:
-        return self._rrcall
-
-    @rrcall.setter
-    def rrcall(self, new_rrcall: RrCallTuple) -> None:
-        self._rrcall = new_rrcall
+    def shared_ptr(self) -> int:
+        return self._shared_ptr
 
     def __eq__(self, other: MultiPairCallbackTask) -> bool:
         return (
             super().__eq__(other)
             and self.callback_name == other.callback_name
-            and self.rrcall == other.rrcall
+            and self.shared_ptr == other.shared_ptr
         )
 
 
@@ -444,7 +562,7 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
+                cputask = HostCodeTask(task_id, pid, block.name, duration)
                 self._graph.tasks[task_id] = cputask
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
@@ -460,7 +578,7 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
+                cputask = HostEventTask(task_id, pid, block.name, duration)
                 self._graph.tasks[task_id] = cputask
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
@@ -473,22 +591,54 @@ class TaskCreator:
                 assert isinstance(instr, RunSubroutineOp)
                 if ehi is not None:
                     local_routine = program.local_routines[instr.subroutine]
-                    duration = self._compute_lr_duration(ehi, local_routine)
+                    lr_duration = self._compute_lr_duration(ehi, local_routine)
+                    pre_duration = ehi.latencies.host_instr_time
+                    post_duration = ehi.latencies.host_instr_time
                 else:
-                    duration = None
-                task_id = self.unique_id()
-                qputask = BlockTask(pid, block.name, block.typ, duration)
-                self._graph.tasks[task_id] = qputask
-                # Task for this block should come after task for previous block
+                    lr_duration = None
+                    pre_duration = None
+                    post_duration = None
+
+                precall_id = self.unique_id()
+                # Use a unique "pointer" or identifier which is used at runtime to point
+                # to shared data. The PreCallTask will store the lrcall object
+                # to this location, such that the LR- and postcall task can
+                # access this object using the shared pointer.
+                shared_ptr = precall_id  # just use this task id so we know it's unique
+                precall_task = PreCallTask(
+                    precall_id, pid, block.name, shared_ptr, pre_duration
+                )
+                self._graph.tasks[precall_id] = precall_task
+
+                lr_id = self.unique_id()
+                qputask = LocalRoutineTask(
+                    lr_id, pid, block.name, shared_ptr, lr_duration
+                )
+                self._graph.tasks[lr_id] = qputask
+
+                postcall_id = self.unique_id()
+                postcall_task = PostCallTask(
+                    postcall_id, pid, block.name, shared_ptr, post_duration
+                )
+                self._graph.tasks[postcall_id] = postcall_task
+
+                # LR task should come after precall task
+                self._graph.precedences.append((precall_id, lr_id))
+                # postcall task should come after LR task
+                self._graph.precedences.append((lr_id, postcall_id))
+
+                # Tasks for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
-                    self._graph.precedences.append((prev_block_task_id, task_id))
-                prev_block_task_id = task_id
+                    # First task for this block is precall task.
+                    self._graph.precedences.append((prev_block_task_id, precall_id))
+                # Last task for this block is postcall task.
+                prev_block_task_id = postcall_id
             elif block.typ == BasicBlockType.QC:
                 precall_id, postcall_id = self._build_from_qc_task_routine_split(
-                    program, block, pid, network_ehi
+                    program, block, pid, ehi, network_ehi
                 )
-                # Task for this block should come after task for previous block
+                # Tasks for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     # First task for QC block is precall task.
@@ -501,6 +651,7 @@ class TaskCreator:
         program: QoalaProgram,
         block: BasicBlock,
         pid: int,
+        ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
     ) -> Tuple[int, int]:
         """Returns (precall_id, post_call_id)"""
@@ -509,32 +660,53 @@ class TaskCreator:
         assert isinstance(instr, RunRequestOp)
         req_routine = program.request_routines[instr.req_routine]
         callback = req_routine.callback
-        if network_ehi is not None:
-            # TODO: refactor!!
-            epr_time = list(network_ehi.links.values())[0].duration
-            duration = epr_time * req_routine.request.num_pairs
+
+        if ehi is not None:
+            # TODO: make more accurate!
+            pre_duration = ehi.latencies.host_instr_time
+            post_duration = ehi.latencies.host_instr_time
+            cb_duration = ehi.latencies.qnos_instr_time
         else:
-            duration = None
+            pre_duration = None
+            post_duration = None
+            cb_duration = None
+
+        if network_ehi is not None:
+            pair_duration = list(network_ehi.links.values())[0].duration
+        else:
+            pair_duration = None
 
         precall_id = self.unique_id()
-        precall_task = PreCallTask(precall_id, pid, block.name)
+        # Use a unique "pointer" or identifier which is used at runtime to point
+        # to shared data. The PreCallTask will store the lrcall or rrcall object
+        # to this location, such that the pair- callback- and postcall tasks can
+        # access this object using the shared pointer.
+        shared_ptr = precall_id  # just use this task id so we know it's unique
+        precall_task = PreCallTask(
+            precall_id, pid, block.name, shared_ptr, pre_duration
+        )
         self._graph.tasks[precall_id] = precall_task
 
-        # rrcall will be known only at runtime, as a result of precall_task execution
         postcall_id = self.unique_id()
-        postcall_task = PostCallTask(postcall_id, pid, block.name, rrcall=None)
+        postcall_task = PostCallTask(
+            postcall_id, pid, block.name, shared_ptr, post_duration
+        )
         self._graph.tasks[postcall_id] = postcall_task
 
         if req_routine.callback_type == CallbackType.WAIT_ALL:
             rr_id = self.unique_id()
-            rr_task = MultiPairTask(rr_id, pid, rrcall=None)
+            rr_task = MultiPairTask(
+                rr_id, pid, shared_ptr, pair_duration * req_routine.request.num_pairs
+            )
             self._graph.tasks[rr_id] = rr_task
             # RR task should come after precall task
             self._graph.precedences.append((precall_id, rr_id))
 
             if callback is not None:
                 cb_id = self.unique_id()
-                cb_task = MultiPairCallbackTask(cb_id, pid, callback, None)
+                cb_task = MultiPairCallbackTask(
+                    cb_id, pid, callback, shared_ptr, cb_duration
+                )
                 self._graph.tasks[cb_id] = cb_task
                 # callback task should come after RR task
                 self._graph.precedences.append((rr_id, cb_id))
@@ -548,7 +720,9 @@ class TaskCreator:
             assert req_routine.callback_type == CallbackType.SEQUENTIAL
             for i in range(req_routine.request.num_pairs):
                 rr_pair_id = self.unique_id()
-                rr_pair_task = SinglePairTask(rr_pair_id, pid, i, None)
+                rr_pair_task = SinglePairTask(
+                    rr_pair_id, pid, i, shared_ptr, pair_duration
+                )
                 self._graph.tasks[rr_pair_id] = rr_pair_task
                 # RR pair task should come after precall task.
                 # Note: the RR pair tasks do not have precedence
@@ -557,7 +731,7 @@ class TaskCreator:
                 if callback is not None:
                     pair_cb_id = self.unique_id()
                     pair_cb_task = SinglePairCallbackTask(
-                        pair_cb_id, pid, callback, i, None
+                        pair_cb_id, pid, callback, i, shared_ptr, cb_duration
                     )
                     self._graph.tasks[pair_cb_id] = pair_cb_task
                     # Callback task for pair should come after corresponding
