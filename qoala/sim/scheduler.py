@@ -18,7 +18,7 @@ from qoala.runtime.program import (
 )
 from qoala.runtime.schedule import StaticSchedule
 from qoala.runtime.task import TaskCreator, TaskExecutionMode, TaskGraph
-from qoala.sim.driver import CpuDriver, QpuDriver
+from qoala.sim.driver import CpuDriver, QpuDriver, TimeTriggeredScheduler
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT
 from qoala.sim.host.csocket import ClassicalSocket
@@ -68,12 +68,15 @@ class Scheduler(Protocol):
 
         self._block_schedule: Optional[StaticSchedule] = None
 
-        self._cpudriver = CpuDriver(node_name, host.processor, memmgr)
-        self._qpudriver = QpuDriver(
+        cpudriver = CpuDriver(node_name, host.processor, memmgr)
+        self._cpu_scheduler = TimeTriggeredScheduler(node_name, cpudriver)
+
+        qpudriver = QpuDriver(
             node_name, host.processor, qnos.processor, netstack.processor, memmgr, tem
         )
+        self._qpu_scheduler = TimeTriggeredScheduler(node_name, qpudriver)
 
-        self._cpudriver.set_other_driver(self._qpudriver)
+        self._cpu_scheduler.set_other_driver(self._qpudriver)
         self._qpudriver.set_other_driver(self._cpudriver)
 
     @property
