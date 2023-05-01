@@ -79,7 +79,7 @@ QC = BasicBlockType.QC
 
 def task_list_to_graph(task_list: List[BlockTask]) -> TaskGraph:
     tasks = {t.task_id: t for t in task_list}
-    return TaskGraph(tasks, [], {})
+    return TaskGraph.only_tasks(tasks)
 
 
 def test_consecutive():

@@ -69,7 +69,7 @@ class QoalaTask:
         )
 
 
-class HostCodeTask(QoalaTask):
+class HostLocalTask(QoalaTask):
     def __init__(
         self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
     ) -> None:
@@ -86,7 +86,7 @@ class HostCodeTask(QoalaTask):
         return self._block_name
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, HostCodeTask):
+        if not isinstance(other, HostLocalTask):
             return NotImplemented
         return super().__eq__(other) and self.block_name == other.block_name
 
@@ -430,28 +430,67 @@ class TaskGraph:
     # also known as "precedence constraints"
     precedences: List[Tuple[int, int]]  # "edges"
 
+    # an entry (x, y) means that some external task (not in this graph) with ID x
+    # precedes task y (which is in this graph)
+    external_precedences: List[Tuple[int, int]]  # "sourceless edges"
+
     # task ID -> {other_task_id: deadline_relative_to_other_task}
-    # E.g. if relative_deadlines[3] == {2: 17, 6: 25}, then
+    # E.g. if deadlines[3] == {2: 17, 6: 25}, then
     # task 3 must start at most 17 time units after task 2 has finished, and
     # task 3 must start at most 25 time units after task 6 has finished, and
-    relative_deadlines: Dict[int, Dict[int, int]]
+    rel_deadlines: Dict[int, Dict[int, int]]
+
+    # deadlines relative to external tasks, i.e. tasks that are not in this graph
+    external_rel_deadlines: Dict[int, Dict[int, int]]
 
     @classmethod
     def empty(cls) -> TaskGraph:
-        return TaskGraph(tasks={}, precedences=[], relative_deadlines={})
+        return TaskGraph.only_tasks({})
+
+    @classmethod
+    def only_tasks(cls, tasks: Dict[int, QoalaTask]) -> TaskGraph:
+        return TaskGraph(
+            tasks=tasks,
+            precedences=[],
+            external_precedences=[],
+            rel_deadlines={},
+            external_rel_deadlines={},
+        )
 
     def predecessors(self, task_id: int) -> List[int]:
         # Return all (IDs of) tasks that are direct predecessors of the given task (ID)
         assert task_id in self.tasks
         return [x for (x, y) in self.precedences if y == task_id]
 
-    def roots(self) -> List[int]:
+    def external_predecessors(self, task_id: int) -> List[int]:
+        # Return all (IDs of) external tasks (not in this graph)
+        # that are direct predecessors of the given task (ID)
+        assert task_id in self.tasks
+        return [x for (x, y) in self.external_precedences if y == task_id]
+
+    def roots(self, ignore_external: bool = False) -> List[int]:
         # Return all (IDs of) tasks that have no predecessors
-        return [i for i in self.tasks.keys() if len(self.predecessors(i)) == 0]
+
+        if ignore_external:
+            return [i for i in self.tasks.keys() if len(self.predecessors(i)) == 0]
+        else:
+            return [
+                i
+                for i in self.tasks.keys()
+                if len(self.predecessors(i)) == 0
+                and len(self.external_predecessors(i)) == 0
+            ]
 
     def deadlines(self, id: int) -> Dict[int, int]:
-        if id in self.relative_deadlines:
-            return self.relative_deadlines[id]
+        if id in self.rel_deadlines:
+            return self.rel_deadlines[id]
+        else:
+            assert id in self.tasks
+            return {}
+
+    def external_deadlines(self, id: int) -> Dict[int, int]:
+        if id in self.external_rel_deadlines:
+            return self.external_rel_deadlines[id]
         else:
             assert id in self.tasks
             return {}
@@ -462,14 +501,53 @@ class TaskGraph:
         self.precedences = [
             (x, y) for (x, y) in self.precedences if x != id and y != id
         ]
-        if id in self.relative_deadlines:
-            self.relative_deadlines.pop(id)
-        for task_id in self.relative_deadlines.keys():
-            self.relative_deadlines[task_id] = {
+        if id in self.deadlines:
+            self.rel_deadlines.pop(id)
+        for task_id in self.rel_deadlines.keys():
+            self.rel_deadlines[task_id] = {
                 x: y
-                for x, y in self.relative_deadlines[task_id].items()
+                for x, y in self.rel_deadlines[task_id].items()
                 if x != id and y != id
             }
+
+    def get_cpu_graph(self) -> TaskGraph:
+        return self.partial_graph(ProcessorType.CPU)
+
+    def get_qpu_graph(self) -> TaskGraph:
+        return self.partial_graph(ProcessorType.QPU)
+
+    def partial_graph(self, proc_type: ProcessorType) -> TaskGraph:
+        tasks: Dict[int, QoalaTask] = {
+            i: task
+            for i, task in self.tasks.items()
+            if task.processor_type == proc_type
+        }
+        precedences: List[Tuple[int, int]] = []
+        external_precedences: List[Tuple[int, int]] = []
+        for (x, y) in self.precedences:
+            if x in tasks and y in tasks:
+                precedences.append((x, y))
+            elif x not in tasks and y in tasks:
+                external_precedences.append((x, y))
+        rel_deadlines: Dict[int, Dict[int, int]] = {}
+        external_rel_deadlines: Dict[int, Dict[int, int]] = {}
+        for x, deadlines in self.rel_deadlines.items():
+            for y, dl in deadlines.items():
+                if x in tasks and y in tasks:
+                    if x not in rel_deadlines:
+                        rel_deadlines[x] = {}
+                    rel_deadlines[x][y] = dl
+                elif x in tasks and y not in tasks:
+                    if x not in external_rel_deadlines:
+                        external_rel_deadlines[x] = {}
+                    external_rel_deadlines[x][y] = dl
+        return TaskGraph(
+            tasks=tasks,
+            precedences=precedences,
+            external_precedences=external_precedences,
+            rel_deadlines=rel_deadlines,
+            external_rel_deadlines=external_rel_deadlines,
+        )
 
 
 class TaskCreator:
@@ -580,7 +658,7 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                self._graph.tasks[task_id] = HostCodeTask(
+                self._graph.tasks[task_id] = HostLocalTask(
                     task_id, pid, block.name, duration
                 )
                 # Task for this block should come after task for previous block

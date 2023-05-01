@@ -13,8 +13,8 @@ from qoala.runtime.message import LrCallTuple, RrCallTuple
 from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
 from qoala.runtime.task import (
     BlockTask,
-    HostCodeTask,
     HostEventTask,
+    HostLocalTask,
     LocalRoutineTask,
     MultiPairCallbackTask,
     MultiPairTask,
@@ -177,7 +177,7 @@ class CpuDriver(Driver):
         if isinstance(task, BlockTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
-        elif isinstance(task, HostCodeTask):
+        elif isinstance(task, HostLocalTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
         elif isinstance(task, HostEventTask):

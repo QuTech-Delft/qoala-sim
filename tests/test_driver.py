@@ -104,10 +104,8 @@ def test_cpu_driver_no_time():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    task_graph = TaskGraph(
-        tasks={0: BlockTask(0, 0, "b0", CL), 1: BlockTask(1, 0, "b1", CL)},
-        precedences=[],
-        relative_deadlines={},
+    task_graph = TaskGraph.only_tasks(
+        {0: BlockTask(0, 0, "b0", CL), 1: BlockTask(1, 0, "b1", CL)}
     )
     cpu_schedule = StaticSchedule.consecutive_block_tasks([task_graph])
 
