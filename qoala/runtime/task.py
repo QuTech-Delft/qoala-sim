@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from netqasm.lang.instr import core
 
@@ -501,7 +501,7 @@ class TaskGraph:
         self.precedences = [
             (x, y) for (x, y) in self.precedences if x != id and y != id
         ]
-        if id in self.deadlines:
+        if id in self.rel_deadlines:
             self.rel_deadlines.pop(id)
         for task_id in self.rel_deadlines.keys():
             self.rel_deadlines[task_id] = {
@@ -516,6 +516,37 @@ class TaskGraph:
     def get_qpu_graph(self) -> TaskGraph:
         return self.partial_graph(ProcessorType.QPU)
 
+    def cross_predecessors(self, task_id: int, indirect: bool = False) -> Set[int]:
+        # Return all (IDs of) tasks that are predecessors that run on
+        # the other processor (CPU/QPU).
+        # If indirect = True, return all closest such predecessor, even if they are
+        # no immediate parents.
+        # If indirect = False, return only immediate parents with a different processor
+        # type.
+        # TODO: remove items from result set when they are ancestors of other items
+        # in the set (in which case they are redundant)
+        proc_type = self.tasks[task_id].processor_type
+        cross_preds = set()
+
+        for pred in self.predecessors(task_id):
+            if self.tasks[pred].processor_type != proc_type:
+                cross_preds.add(pred)
+            elif indirect:
+                cross_preds = cross_preds.union(self.cross_predecessors(pred, indirect))
+        return cross_preds
+
+    def double_cross_predecessors(self, task_id: int) -> Set[int]:
+        # Return all (IDs of) tasks that are the closest predecessors that run on
+        # the same processor (CPU/QPU) but where there are tasks of the other processor
+        # type inbetween (in the precedence chain).
+        cross_preds = self.cross_predecessors(task_id)
+        double_cross_preds = set()
+        for cp in cross_preds:
+            double_cross_preds = double_cross_preds.union(
+                self.cross_predecessors(cp, indirect=True)
+            )
+        return double_cross_preds
+
     def partial_graph(self, proc_type: ProcessorType) -> TaskGraph:
         tasks: Dict[int, QoalaTask] = {
             i: task
@@ -529,6 +560,14 @@ class TaskGraph:
                 precedences.append((x, y))
             elif x not in tasks and y in tasks:
                 external_precedences.append((x, y))
+
+        # Precedence constraints for same-processor tasks that used to have a
+        # precedence chain of other-processor tasks in between them.
+        for i in tasks.keys():
+            for pred in self.double_cross_predecessors(i):
+                if (pred, i) not in precedences:
+                    precedences.append((pred, i))
+
         rel_deadlines: Dict[int, Dict[int, int]] = {}
         external_rel_deadlines: Dict[int, Dict[int, int]] = {}
         for x, deadlines in self.rel_deadlines.items():

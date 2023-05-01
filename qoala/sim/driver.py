@@ -51,6 +51,9 @@ class Driver(Protocol):
     def set_other_driver(self, other: Driver) -> None:
         self._other_driver = other
 
+    def upload_schedule(self, schedule: StaticSchedule) -> None:
+        self._task_list.extend(schedule.entries)
+
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             try:
@@ -120,9 +123,6 @@ class CpuDriver(Driver):
 
     def read_shared_rrcall(self, ptr: int) -> RrCallTuple:
         return self._shared_rrcalls[ptr]
-
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._task_list.extend(schedule.entries)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
@@ -220,9 +220,6 @@ class QpuDriver(Driver):
         self._netstackprocessor = netstackprocessor
         self._memmgr = memmgr
         self._tem = tem
-
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._task_list.extend(schedule.entries)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
