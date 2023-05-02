@@ -37,15 +37,40 @@ from qoala.util.logging import LogManager
 class TimeTriggeredScheduler(Protocol):
     def __init__(self, name: str, driver: Driver) -> None:
         super().__init__(name=name)
-        self._driver = driver
+        self.add_signal(SIGNAL_TASK_COMPLETED)
 
-    def set_other_driver(self, other: TimeTriggeredScheduler) -> None:
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}({name})"
+        )
+
+        self._driver = driver
+        self._other_scheduler: Optional[TimeTriggeredScheduler] = None
+
+        self._task_list: List[StaticScheduleEntry] = []
+        self._finished_tasks: List[QoalaTask] = []
+
+    def set_other_scheduler(self, other: TimeTriggeredScheduler) -> None:
+        self._other_scheduler = other
         self._driver.set_other_driver(other._driver)
+
+    def next_entry(self) -> StaticScheduleEntry:
+        return self._task_list.pop(0)
+
+    def upload_schedule(self, schedule: StaticSchedule) -> None:
+        self._task_list.extend(schedule.entries)
+
+    def has_finished(self, task: QoalaTask) -> bool:
+        return task in self._finished_tasks
+
+    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
+        self._schedule_after(delta_time, EVENT_WAIT)
+        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
+        yield event_expr
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             try:
-                entry = self._driver.next_entry()
+                entry = self.next_entry()
                 time = entry.timestamp
                 task = entry.task
                 prev = entry.prev
@@ -58,18 +83,16 @@ class TimeTriggeredScheduler(Protocol):
                     self._logger.debug(f"waiting for {time - now}...")
                     yield from self.wait(time - now)
                 if prev is not None:
-                    assert self._other_driver is not None
-                    while not all(
-                        p in self._other_driver._finished_tasks for p in prev
-                    ):
-                        # Wait for a signal that the other driver completed a task.
+                    assert self._other_scheduler is not None
+                    while not all(self._other_scheduler.has_finished(p) for p in prev):
+                        # Wait for a signal that the other scheduler completed a task.
                         yield self.await_signal(
-                            sender=self._other_driver,
+                            sender=self._other_scheduler,
                             signal_label=SIGNAL_TASK_COMPLETED,
                         )
 
                 self._logger.info(f"executing task {task}")
-                yield from self._handle_task(task)
+                yield from self._driver.handle_task(task)
                 self._finished_tasks.append(task)
                 self.send_signal(SIGNAL_TASK_COMPLETED)
                 self._logger.info(f"finished task {task}")
@@ -80,26 +103,18 @@ class TimeTriggeredScheduler(Protocol):
 class Driver(Protocol):
     def __init__(self, name: str) -> None:
         super().__init__(name=name)
-        self.add_signal(SIGNAL_TASK_COMPLETED)
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}({name})"
         )
 
         self._other_driver: Optional[Driver] = None
-        self._task_list: List[StaticScheduleEntry] = []
-
-        self._finished_tasks: List[QoalaTask] = []
 
     def set_other_driver(self, other: Driver) -> None:
         self._other_driver = other
 
     @abstractmethod
-    def next_entry(self) -> StaticScheduleEntry:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
 
@@ -121,17 +136,6 @@ class CpuDriver(Driver):
         # Values are *only* written by PreCall tasks.
         self._shared_lrcalls: Dict[int, LrCallTuple] = {}
         self._shared_rrcalls: Dict[int, RrCallTuple] = {}
-
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._task_list.extend(schedule.entries)
-
-    def next_entry(self) -> StaticScheduleEntry:
-        return self._task_list.pop(0)
-
-    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
-        self._schedule_after(delta_time, EVENT_WAIT)
-        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
-        yield event_expr
 
     def write_shared_lrcall(self, ptr: int, lrcall: LrCallTuple) -> None:
         self._shared_lrcalls[ptr] = lrcall
@@ -189,7 +193,7 @@ class CpuDriver(Driver):
         rrcall = self.read_shared_rrcall(task.shared_ptr)
         self._hostprocessor.post_rr_call(process, instr, rrcall)
 
-    def _handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
         if isinstance(task, BlockTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
@@ -236,17 +240,6 @@ class QpuDriver(Driver):
         self._netstackprocessor = netstackprocessor
         self._memmgr = memmgr
         self._tem = tem
-
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._task_list.extend(schedule.entries)
-
-    def next_entry(self) -> StaticScheduleEntry:
-        return self._task_list.pop(0)
-
-    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
-        self._schedule_after(delta_time, EVENT_WAIT)
-        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
-        yield event_expr
 
     def _handle_lr(self, task: BlockTask) -> Generator[EventExpression, None, None]:
         if self._tem == TaskExecutionMode.ROUTINE_ATOMIC:
@@ -395,7 +388,7 @@ class QpuDriver(Driver):
             process, rrcall.routine_name, self._qnosprocessor, task.pair_index
         )
 
-    def _handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
         if isinstance(task, BlockTask):
             if task.typ == BasicBlockType.QL:
                 yield from self._handle_lr(task)

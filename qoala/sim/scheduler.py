@@ -76,8 +76,8 @@ class Scheduler(Protocol):
         )
         self._qpu_scheduler = TimeTriggeredScheduler(node_name, qpudriver)
 
-        self._cpu_scheduler.set_other_driver(self._qpudriver)
-        self._qpudriver.set_other_driver(self._cpudriver)
+        self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
+        self._qpu_scheduler.set_other_scheduler(self._cpu_scheduler)
 
     @property
     def host(self) -> Host:
@@ -210,24 +210,24 @@ class Scheduler(Protocol):
         yield event_expr
 
     def upload_cpu_schedule(self, schedule: StaticSchedule) -> None:
-        self._cpudriver.upload_schedule(schedule)
+        self._cpu_scheduler.upload_schedule(schedule)
 
     def upload_qpu_schedule(self, schedule: StaticSchedule) -> None:
-        self._qpudriver.upload_schedule(schedule)
+        self._qpu_scheduler.upload_schedule(schedule)
 
     def upload_schedule(self, schedule: StaticSchedule) -> None:
         self._block_schedule = schedule
-        self._cpudriver.upload_schedule(schedule.cpu_schedule)
-        self._qpudriver.upload_schedule(schedule.qpu_schedule)
+        self._cpu_scheduler.upload_schedule(schedule.cpu_schedule)
+        self._qpu_scheduler.upload_schedule(schedule.qpu_schedule)
 
     def start(self) -> None:
         super().start()
-        self._cpudriver.start()
-        self._qpudriver.start()
+        self._cpu_scheduler.start()
+        self._qpu_scheduler.start()
 
     def stop(self) -> None:
-        self._qpudriver.stop()
-        self._cpudriver.stop()
+        self._qpu_scheduler.stop()
+        self._cpu_scheduler.stop()
         super().stop()
 
     def submit_program_instance(self, prog_instance: ProgramInstance) -> None:
