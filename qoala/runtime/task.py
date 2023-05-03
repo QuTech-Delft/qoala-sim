@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from click import Option
 from netqasm.lang.instr import core
+from numpy import isin
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.lang.hostlang import (
@@ -430,6 +431,10 @@ class TaskInfo:
     rel_deadlines: Dict[int, int]
     ext_rel_deadlines: Dict[int, int]
 
+    @classmethod
+    def only_task(cls, task: QoalaTask) -> TaskInfo:
+        return TaskInfo(task, [], [], None, {}, {})
+
 
 @dataclass(eq=True)
 class TaskGraph:
@@ -440,6 +445,18 @@ class TaskGraph:
             self._tasks: Dict[int, TaskInfo] = {}
         else:
             self._tasks = tasks
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TaskGraph):
+            raise NotImplemented
+        return all(
+            tinfo1 == tinfo2
+            for tinfo1, tinfo2 in zip(self._tasks.values(), other._tasks.items())
+        )
+
+    def add_tasks(self, tasks: List[QoalaTask]) -> None:
+        for task in tasks:
+            self._tasks[task.task_id] = TaskInfo.only_task(task)
 
     def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x precedes y (y should execute after x)
@@ -475,7 +492,11 @@ class TaskGraph:
             assert x not in self._tasks and y in self._tasks  # x is external
             self._tasks[y].ext_rel_deadlines[x] = d
 
-    def roots(self, ignore_external: bool = False) -> List[int]:
+    def get_tinfo(self, id: int) -> TaskInfo:
+        assert id in self._tasks
+        return self._tasks[id]
+
+    def get_roots(self, ignore_external: bool = False) -> List[int]:
         # Return all (IDs of) tasks that have no predecessors
 
         if ignore_external:
@@ -490,7 +511,7 @@ class TaskGraph:
             ]
 
     def remove_task(self, id: int) -> None:
-        assert id in self.roots()
+        assert id in self.get_roots()
         self._tasks.pop(id)
 
         # Remove precedences of successor tasks
@@ -518,13 +539,14 @@ class TaskGraph:
         # type.
         # TODO: remove items from result set when they are ancestors of other items
         # in the set (in which case they are redundant)
-        proc_type = self.tasks[task_id].processor_type
+        proc_type = self.get_tinfo(task_id).task.processor_type
         cross_preds = set()
 
-        for pred in self.predecessors(task_id):
-            if self.tasks[pred].processor_type != proc_type:
-                cross_preds.add(pred)
-            elif immediate:
+        for pred in self.get_tinfo(task_id).predecessors:
+            pred_type = self.get_tinfo(pred).task.processor_type
+            if pred_type != proc_type:
+                cross_preds.add(pred)  # immediate parent of different type
+            elif not immediate:
                 cross_preds = cross_preds.union(
                     self.cross_predecessors(pred, immediate)
                 )
@@ -534,54 +556,63 @@ class TaskGraph:
         # Return all (IDs of) tasks that are the closest predecessors that run on
         # the same processor (CPU/QPU) but where there are tasks of the other processor
         # type inbetween (in the precedence chain).
-        cross_preds = self.cross_predecessors(task_id)
+
+        # For the first step: only check immediate parents that have different type.
+        # Parents with same type already induce a normal precedence constraint in the
+        # partial graph.
+        cross_preds = self.cross_predecessors(task_id, immediate=True)
         double_cross_preds = set()
         for cp in cross_preds:
+            # For each different-type parent, find the nearest ancestor of the original
+            # type.
             double_cross_preds = double_cross_preds.union(
                 self.cross_predecessors(cp, immediate=False)
             )
         return double_cross_preds
 
     def partial_graph(self, proc_type: ProcessorType) -> TaskGraph:
-        tasks: Dict[int, QoalaTask] = {
-            i: task
-            for i, task in self.tasks.items()
-            if task.processor_type == proc_type
+        # Filter tasks with the correct type.
+        partial_tasks: Dict[int, TaskInfo] = {
+            i: tinfo
+            for i, tinfo in self._tasks.items()
+            if tinfo.task.processor_type == proc_type
         }
-        precedences: List[Tuple[int, int]] = []
-        external_precedences: List[Tuple[int, int]] = []
-        for (x, y) in self.precedences:
-            if x in tasks and y in tasks:
-                precedences.append((x, y))
-            elif x not in tasks and y in tasks:
-                external_precedences.append((x, y))
+
+        # Precedence constraints.
+        # Move predecessor tasks that have been removed to ext_predecessors.
+        for tinfo in self._tasks.values():
+            # Keep predecessors if they are still in the graph.
+            tinfo.predecessors = [
+                pred for pred in tinfo.predecessors if pred in partial_tasks
+            ]
+            # Move others to ext_predecessors.
+            tinfo.ext_predecessors = [
+                pred for pred in tinfo.predecessors if pred not in partial_tasks
+            ]
 
         # Precedence constraints for same-processor tasks that used to have a
         # precedence chain of other-processor tasks in between them.
-        for i in tasks.keys():
-            for pred in self.double_cross_predecessors(i):
-                if (pred, i) not in precedences:
-                    precedences.append((pred, i))
+        for tid, tinfo in partial_tasks.items():
+            for pred in self.double_cross_predecessors(tid):
+                if pred not in tinfo.predecessors:
+                    tinfo.predecessors.append(pred)
 
-        rel_deadlines: Dict[int, Dict[int, int]] = {}
-        external_rel_deadlines: Dict[int, Dict[int, int]] = {}
-        for x, deadlines in self.rel_deadlines.items():
-            for y, dl in deadlines.items():
-                if x in tasks and y in tasks:
-                    if x not in rel_deadlines:
-                        rel_deadlines[x] = {}
-                    rel_deadlines[x][y] = dl
-                elif x in tasks and y not in tasks:
-                    if x not in external_rel_deadlines:
-                        external_rel_deadlines[x] = {}
-                    external_rel_deadlines[x][y] = dl
-        return TaskGraph(
-            tasks=tasks,
-            precedences=precedences,
-            external_precedences=external_precedences,
-            rel_deadlines=rel_deadlines,
-            external_rel_deadlines=external_rel_deadlines,
-        )
+        # Relative deadlines.
+        for tinfo in self._tasks.values():
+            # Keep rel_deadline to pred if pred is still in the graph.
+            tinfo.rel_deadlines = {
+                pred: dl
+                for pred, dl in tinfo.rel_deadlines.items()
+                if pred in partial_tasks
+            }
+            # Move others to ext_predecessors.
+            tinfo.ext_rel_deadlines = {
+                pred: dl
+                for pred, dl in tinfo.rel_deadlines.items()
+                if pred not in partial_tasks
+            }
+
+        return TaskGraph(partial_tasks)
 
 
 class TaskCreator:
