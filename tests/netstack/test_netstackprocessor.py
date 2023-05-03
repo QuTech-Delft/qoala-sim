@@ -84,7 +84,7 @@ def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph.empty(),
+        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 

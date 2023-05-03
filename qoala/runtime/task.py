@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional, Set, Tuple
 
+from click import Option
 from netqasm.lang.instr import core
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
@@ -420,95 +421,87 @@ class BlockTask(QoalaTask):
         )
 
 
+@dataclass
+class TaskInfo:
+    task: QoalaTask
+    predecessors: List[int]
+    ext_predecessors: List[int]
+    deadline: Optional[int]
+    rel_deadlines: Dict[int, int]
+    ext_rel_deadlines: Dict[int, int]
+
+
 @dataclass(eq=True)
 class TaskGraph:
     """DAG of Tasks."""
 
-    tasks: Dict[int, QoalaTask]  # "nodes"
+    def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None) -> None:
+        if tasks is None:
+            self._tasks: Dict[int, TaskInfo] = {}
+        else:
+            self._tasks = tasks
 
-    # an entry (x, y) means that x precedes y (y should execute after x)
-    # also known as "precedence constraints"
-    precedences: List[Tuple[int, int]]  # "edges"
+    def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
+        # an entry (x, y) means that x precedes y (y should execute after x)
+        for (x, y) in precedences:
+            assert x in self._tasks and y in self._tasks
+            self._tasks[y].predecessors.append(x)
 
-    # an entry (x, y) means that some external task (not in this graph) with ID x
-    # precedes task y (which is in this graph)
-    external_precedences: List[Tuple[int, int]]  # "sourceless edges"
+    def add_ext_precedences(self, precedences: List[Tuple[int, int]]) -> None:
+        # an entry (x, y) means that x (which is not in this graph) precedes y
+        # (which is in this graph)
+        for (x, y) in precedences:
+            assert x not in self._tasks and y in self._tasks
+            self._tasks[y].ext_predecessors.append(x)
 
-    # task ID -> {other_task_id: deadline_relative_to_other_task}
-    # E.g. if deadlines[3] == {2: 17, 6: 25}, then
-    # task 3 must start at most 17 time units after task 2 has finished, and
-    # task 3 must start at most 25 time units after task 6 has finished, and
-    rel_deadlines: Dict[int, Dict[int, int]]
+    def add_deadlines(self, deadlines: List[Tuple[int, int]]) -> None:
+        for (x, d) in deadlines:
+            assert x in self._tasks
+            self._tasks[x].deadline = d
 
-    # deadlines relative to external tasks, i.e. tasks that are not in this graph
-    external_rel_deadlines: Dict[int, Dict[int, int]]
+    def add_rel_deadlines(self, deadlines: List[Tuple[Tuple[int, int], int]]) -> None:
+        # entry ((x, y), d) means
+        # task y must start at most time d time units after task x has finished
+        for ((x, y), d) in deadlines:
+            assert x in self._tasks and y in self._tasks
+            self._tasks[y].rel_deadlines[x] = d
 
-    @classmethod
-    def empty(cls) -> TaskGraph:
-        return TaskGraph.only_tasks({})
-
-    @classmethod
-    def only_tasks(cls, tasks: Dict[int, QoalaTask]) -> TaskGraph:
-        return TaskGraph(
-            tasks=tasks,
-            precedences=[],
-            external_precedences=[],
-            rel_deadlines={},
-            external_rel_deadlines={},
-        )
-
-    def predecessors(self, task_id: int) -> List[int]:
-        # Return all (IDs of) tasks that are direct predecessors of the given task (ID)
-        assert task_id in self.tasks
-        return [x for (x, y) in self.precedences if y == task_id]
-
-    def external_predecessors(self, task_id: int) -> List[int]:
-        # Return all (IDs of) external tasks (not in this graph)
-        # that are direct predecessors of the given task (ID)
-        assert task_id in self.tasks
-        return [x for (x, y) in self.external_precedences if y == task_id]
+    def add_ext_rel_deadlines(
+        self, deadlines: List[Tuple[Tuple[int, int], int]]
+    ) -> None:
+        # entry ((x, y), d) means
+        # task y must start at most time d time units after task x has finished
+        for ((x, y), d) in deadlines:
+            assert x not in self._tasks and y in self._tasks  # x is external
+            self._tasks[y].ext_rel_deadlines[x] = d
 
     def roots(self, ignore_external: bool = False) -> List[int]:
         # Return all (IDs of) tasks that have no predecessors
 
         if ignore_external:
-            return [i for i in self.tasks.keys() if len(self.predecessors(i)) == 0]
+            return [
+                i for i, tinfo in self._tasks.items() if len(tinfo.predecessors) == 0
+            ]
         else:
             return [
                 i
-                for i in self.tasks.keys()
-                if len(self.predecessors(i)) == 0
-                and len(self.external_predecessors(i)) == 0
+                for i, tinfo in self._tasks.items()
+                if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) == 0
             ]
-
-    def deadlines(self, id: int) -> Dict[int, int]:
-        if id in self.rel_deadlines:
-            return self.rel_deadlines[id]
-        else:
-            assert id in self.tasks
-            return {}
-
-    def external_deadlines(self, id: int) -> Dict[int, int]:
-        if id in self.external_rel_deadlines:
-            return self.external_rel_deadlines[id]
-        else:
-            assert id in self.tasks
-            return {}
 
     def remove_task(self, id: int) -> None:
         assert id in self.roots()
-        self.tasks.pop(id)
-        self.precedences = [
-            (x, y) for (x, y) in self.precedences if x != id and y != id
-        ]
-        if id in self.rel_deadlines:
-            self.rel_deadlines.pop(id)
-        for task_id in self.rel_deadlines.keys():
-            self.rel_deadlines[task_id] = {
-                x: y
-                for x, y in self.rel_deadlines[task_id].items()
-                if x != id and y != id
-            }
+        self._tasks.pop(id)
+
+        # Remove precedences of successor tasks
+        for t in self._tasks.values():
+            if id in t.predecessors:
+                t.predecessors.pop(id)
+
+        # Change relative deadlines to absolute ones
+        for t in self._tasks.values():
+            if id in t.rel_deadlines:
+                t.deadline = t.rel_deadlines.pop(id)
 
     def get_cpu_graph(self) -> TaskGraph:
         return self.partial_graph(ProcessorType.CPU)
@@ -516,12 +509,12 @@ class TaskGraph:
     def get_qpu_graph(self) -> TaskGraph:
         return self.partial_graph(ProcessorType.QPU)
 
-    def cross_predecessors(self, task_id: int, indirect: bool = False) -> Set[int]:
+    def cross_predecessors(self, task_id: int, immediate: bool = True) -> Set[int]:
         # Return all (IDs of) tasks that are predecessors that run on
         # the other processor (CPU/QPU).
-        # If indirect = True, return all closest such predecessor, even if they are
+        # If immediate = False, return all closest such predecessor, even if they are
         # no immediate parents.
-        # If indirect = False, return only immediate parents with a different processor
+        # If immediate = True, return only immediate parents with a different processor
         # type.
         # TODO: remove items from result set when they are ancestors of other items
         # in the set (in which case they are redundant)
@@ -531,8 +524,10 @@ class TaskGraph:
         for pred in self.predecessors(task_id):
             if self.tasks[pred].processor_type != proc_type:
                 cross_preds.add(pred)
-            elif indirect:
-                cross_preds = cross_preds.union(self.cross_predecessors(pred, indirect))
+            elif immediate:
+                cross_preds = cross_preds.union(
+                    self.cross_predecessors(pred, immediate)
+                )
         return cross_preds
 
     def double_cross_predecessors(self, task_id: int) -> Set[int]:
@@ -543,7 +538,7 @@ class TaskGraph:
         double_cross_preds = set()
         for cp in cross_preds:
             double_cross_preds = double_cross_preds.union(
-                self.cross_predecessors(cp, indirect=True)
+                self.cross_predecessors(cp, immediate=False)
             )
         return double_cross_preds
 
@@ -593,7 +588,7 @@ class TaskCreator:
     def __init__(self, mode: TaskExecutionMode) -> None:
         self._mode = mode
         self._task_id_counter = 0
-        self._graph = TaskGraph.empty()
+        self._graph = TaskGraph()
 
     def unique_id(self) -> int:
         id = self._task_id_counter

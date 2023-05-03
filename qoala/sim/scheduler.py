@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, Generator, List, Optional
 
+import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
@@ -16,11 +17,11 @@ from qoala.runtime.program import (
     ProgramInstance,
     ProgramResult,
 )
-from qoala.runtime.schedule import StaticSchedule
-from qoala.runtime.task import TaskCreator, TaskExecutionMode, TaskGraph
-from qoala.sim.driver import CpuDriver, QpuDriver, TimeTriggeredScheduler
+from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
+from qoala.runtime.task import QoalaTask, TaskCreator, TaskExecutionMode, TaskGraph
+from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
-from qoala.sim.events import EVENT_WAIT
+from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager
@@ -30,7 +31,7 @@ from qoala.sim.qnos import Qnos
 from qoala.util.logging import LogManager
 
 
-class Scheduler(Protocol):
+class NodeScheduler(Protocol):
     def __init__(
         self,
         node_name: str,
@@ -68,11 +69,18 @@ class Scheduler(Protocol):
 
         self._block_schedule: Optional[StaticSchedule] = None
 
-        cpudriver = CpuDriver(node_name, host.processor, memmgr)
+        scheduler_memory = SharedSchedulerMemory()
+        cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
         self._cpu_scheduler = TimeTriggeredScheduler(node_name, cpudriver)
 
         qpudriver = QpuDriver(
-            node_name, host.processor, qnos.processor, netstack.processor, memmgr, tem
+            node_name,
+            scheduler_memory,
+            host.processor,
+            qnos.processor,
+            netstack.processor,
+            memmgr,
+            tem,
         )
         self._qpu_scheduler = TimeTriggeredScheduler(node_name, qpudriver)
 
@@ -96,12 +104,12 @@ class Scheduler(Protocol):
         return self._memmgr
 
     @property
-    def cpudriver(self) -> CpuDriver:
-        return self._cpudriver
+    def cpu_scheduler(self) -> TimeTriggeredScheduler:
+        return self._cpu_scheduler
 
     @property
-    def qpudriver(self) -> QpuDriver:
-        return self._qpudriver
+    def qpu_scheduler(self) -> TimeTriggeredScheduler:
+        return self._qpu_scheduler
 
     @property
     def block_schedule(self) -> StaticSchedule:
@@ -243,3 +251,96 @@ class Scheduler(Protocol):
                 all_tasks.append(inst.task_graph)
 
         return all_tasks
+
+
+class ProcessorScheduler(Protocol):
+    def __init__(self, name: str, driver: Driver) -> None:
+        super().__init__(name=name)
+        self.add_signal(SIGNAL_TASK_COMPLETED)
+
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}({name})"
+        )
+        self._driver = driver
+        self._other_scheduler: Optional[TimeTriggeredScheduler] = None
+
+    @property
+    def driver(self) -> Driver:
+        return self._driver
+
+    def set_other_scheduler(self, other: TimeTriggeredScheduler) -> None:
+        self._other_scheduler = other
+
+    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
+        self._schedule_after(delta_time, EVENT_WAIT)
+        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
+        yield event_expr
+
+
+class TimeTriggeredScheduler(ProcessorScheduler):
+    def __init__(self, name: str, driver: Driver) -> None:
+        super().__init__(name=name, driver=driver)
+
+        self._task_list: List[StaticScheduleEntry] = []
+        self._finished_tasks: List[QoalaTask] = []
+
+    def upload_schedule(self, schedule: StaticSchedule) -> None:
+        self._task_list.extend(schedule.entries)
+
+    def next_entry(self) -> StaticScheduleEntry:
+        return self._task_list.pop(0)
+
+    def has_finished(self, task: QoalaTask) -> bool:
+        return task in self._finished_tasks
+
+    def run(self) -> Generator[EventExpression, None, None]:
+        while True:
+            try:
+                entry = self.next_entry()
+                time = entry.timestamp
+                task = entry.task
+                prev = entry.prev
+                if time is not None:
+                    now = ns.sim_time()
+                    self._logger.debug(
+                        f"{ns.sim_time()}: {self.name}: checking next task {task}"
+                    )
+                    self._logger.debug(f"scheduled for {time}")
+                    self._logger.debug(f"waiting for {time - now}...")
+                    yield from self.wait(time - now)
+                if prev is not None:
+                    assert self._other_scheduler is not None
+                    while not all(self._other_scheduler.has_finished(p) for p in prev):
+                        # Wait for a signal that the other scheduler completed a task.
+                        yield self.await_signal(
+                            sender=self._other_scheduler,
+                            signal_label=SIGNAL_TASK_COMPLETED,
+                        )
+
+                self._logger.info(f"executing task {task}")
+                yield from self._driver.handle_task(task)
+                self._finished_tasks.append(task)
+                self.send_signal(SIGNAL_TASK_COMPLETED)
+                self._logger.info(f"finished task {task}")
+            except IndexError:
+                break
+
+
+class EdfScheduler(ProcessorScheduler):
+    def __init__(self, name: str, driver: Driver) -> None:
+        super().__init__(name=name, driver=driver)
+
+        self._task_graph: Optional[TaskGraph] = None
+
+    def init_task_graph(self, graph: TaskGraph) -> None:
+        self._task_graph = graph
+
+    def next_task(self) -> int:
+        tg = self._task_graph
+        roots = tg.roots()
+        deadlines = {r: tg.deadlines(r) for r in roots}
+        sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])
+        return sorted_by_deadline[0][0]
+
+    def run(self) -> Generator[EventExpression, None, None]:
+        pass

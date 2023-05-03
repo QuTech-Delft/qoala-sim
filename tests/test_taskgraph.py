@@ -23,8 +23,10 @@ class SimpleTask(QoalaTask):
 def linear():
     tasks = {i: SimpleTask(i) for i in range(5)}
     precedences = [(i - 1, i) for i in range(1, 5)]
-    rel_deadlines = {i: {i - 1: 100} for i in range(1, 5)}
-    graph = TaskGraph(tasks, precedences, [], rel_deadlines, {})
+    rel_deadlines = [((i - 1, i), 100) for i in range(1, 5)]
+    graph = TaskGraph(tasks)
+    graph.add_precedences(precedences)
+    graph.add_rel_deadlines(rel_deadlines)
 
     assert graph.roots() == [0]
     assert graph.predecessors(0) == []

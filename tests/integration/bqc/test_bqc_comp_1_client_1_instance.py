@@ -70,7 +70,7 @@ def instantiate(
         program,
         inputs,
         unit_module=unit_module,
-        task_graph=TaskGraph.empty(),
+        task_graph=TaskGraph(),
     )
 
 

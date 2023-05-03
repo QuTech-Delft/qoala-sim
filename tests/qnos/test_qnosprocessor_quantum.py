@@ -122,7 +122,7 @@ def create_process(
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph.empty(),
+        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 
