@@ -335,12 +335,32 @@ class EdfScheduler(ProcessorScheduler):
     def init_task_graph(self, graph: TaskGraph) -> None:
         self._task_graph = graph
 
-    def next_task(self) -> int:
+    def next_task(self) -> Optional[int]:
         tg = self._task_graph
-        roots = tg.roots()
-        deadlines = {r: tg.deadlines(r) for r in roots}
-        sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])
-        return sorted_by_deadline[0][0]
+        # Get all tasks without predecessors
+        roots = tg.get_roots()
+        if len(roots) == 0:
+            return None
+
+        # Get all roots with deadlines
+        roots_with_deadline = [r for r in roots if tg.get_tinfo(r).deadline]
+        if len(roots_with_deadline) > 0:
+            # Sort them by deadline and return the one with the earliest deadline
+            deadlines = {r: tg.get_tinfo(r).deadline for r in roots_with_deadline}
+            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])
+            return sorted_by_deadline[0][0]
+        else:
+            # No deadlines: just return the first in the list
+            return roots[0]
+
+    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
+        task = self._task_graph.get_tinfo(task_id).task
+        before = ns.sim_time()
+        yield from self._driver.handle_task(task)
+        duration = ns.sim_time() - before
+        self._task_graph.decrease_deadlines(duration)
+        self._task_graph.remove_task(task_id)
 
     def run(self) -> Generator[EventExpression, None, None]:
-        pass
+        while (task_id := self.next_task()) is not None:
+            yield from self.handle_task(task_id)

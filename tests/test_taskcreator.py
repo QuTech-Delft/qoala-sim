@@ -22,6 +22,7 @@ from qoala.runtime.task import (
     SinglePairTask,
     TaskCreator,
     TaskExecutionMode,
+    TaskGraph,
 )
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
@@ -63,20 +64,25 @@ def test_from_program_1():
     pid = 3
     task_graph = creator.from_program(program, pid)
 
-    assert task_graph.tasks == {
-        0: BlockTask(0, pid, "b0", CL),
-        1: BlockTask(1, pid, "b1", QC),
-        2: BlockTask(2, pid, "b2", QL),
-        3: BlockTask(3, pid, "b3", QC),
-        4: BlockTask(4, pid, "b4", QL),
-        5: BlockTask(5, pid, "b5", CL),
-        6: BlockTask(6, pid, "b6", CC),
-        7: BlockTask(7, pid, "b7", CL),
-        8: BlockTask(8, pid, "b8", CC),
-        9: BlockTask(9, pid, "b9", CL),
-    }
+    expected_tasks = [
+        BlockTask(0, pid, "b0", CL),
+        BlockTask(1, pid, "b1", QC),
+        BlockTask(2, pid, "b2", QL),
+        BlockTask(3, pid, "b3", QC),
+        BlockTask(4, pid, "b4", QL),
+        BlockTask(5, pid, "b5", CL),
+        BlockTask(6, pid, "b6", CC),
+        BlockTask(7, pid, "b7", CL),
+        BlockTask(8, pid, "b8", CC),
+        BlockTask(9, pid, "b9", CL),
+    ]
+    expected_precedences = [(i - 1, i) for i in range(1, 10)]
 
-    assert task_graph.precedences == [(i - 1, i) for i in range(1, 10)]
+    expected_graph = TaskGraph()
+    expected_graph.add_tasks(expected_tasks)
+    expected_graph.add_precedences(expected_precedences)
+
+    assert task_graph == expected_graph
 
 
 def test_from_program_2():
@@ -98,23 +104,28 @@ def test_from_program_2():
     meas_time = alice.local_ehi.find_single_gate(0, core.MeasInstruction).duration
     epr_time = alice.network_ehi.get_link(0, 1).duration
 
-    assert task_graph.tasks == {
-        0: BlockTask(0, pid, "blk_host0", CL, 2 * cpu_time),
-        1: BlockTask(1, pid, "blk_host1", CL, 1 * cpu_time),
-        2: BlockTask(2, pid, "blk_host2", CL, 1 * cpu_time),
-        3: BlockTask(3, pid, "blk_prep_cc", CL, 2 * cpu_time),
-        4: BlockTask(4, pid, "blk_send", CL, 1 * cpu_time),
-        5: BlockTask(5, pid, "blk_recv", CC, 1 * recv_time),
-        6: BlockTask(6, pid, "blk_add_one", QL, 5 * qpu_time),
-        7: BlockTask(7, pid, "blk_epr_md_1", QC, 1 * epr_time),
-        8: BlockTask(8, pid, "blk_epr_md_2", QC, 2 * epr_time),
-        9: BlockTask(9, pid, "blk_epr_ck_1", QC, 1 * epr_time),
-        10: BlockTask(10, pid, "blk_meas_q0", QL, 3 * qpu_time + 1 * meas_time),
-        11: BlockTask(11, pid, "blk_epr_ck_2", QC, 2 * epr_time),
-        12: BlockTask(12, pid, "blk_meas_q0_q1", QL, 6 * qpu_time + 2 * meas_time),
-    }
+    expected_tasks = [
+        BlockTask(0, pid, "blk_host0", CL, 2 * cpu_time),
+        BlockTask(1, pid, "blk_host1", CL, 1 * cpu_time),
+        BlockTask(2, pid, "blk_host2", CL, 1 * cpu_time),
+        BlockTask(3, pid, "blk_prep_cc", CL, 2 * cpu_time),
+        BlockTask(4, pid, "blk_send", CL, 1 * cpu_time),
+        BlockTask(5, pid, "blk_recv", CC, 1 * recv_time),
+        BlockTask(6, pid, "blk_add_one", QL, 5 * qpu_time),
+        BlockTask(7, pid, "blk_epr_md_1", QC, 1 * epr_time),
+        BlockTask(8, pid, "blk_epr_md_2", QC, 2 * epr_time),
+        BlockTask(9, pid, "blk_epr_ck_1", QC, 1 * epr_time),
+        BlockTask(10, pid, "blk_meas_q0", QL, 3 * qpu_time + 1 * meas_time),
+        BlockTask(11, pid, "blk_epr_ck_2", QC, 2 * epr_time),
+        BlockTask(12, pid, "blk_meas_q0_q1", QL, 6 * qpu_time + 2 * meas_time),
+    ]
+    expected_precedences = [(i - 1, i) for i in range(1, 13)]
 
-    assert task_graph.precedences == [(i - 1, i) for i in range(1, 13)]
+    expected_graph = TaskGraph()
+    expected_graph.add_tasks(expected_tasks)
+    expected_graph.add_precedences(expected_precedences)
+
+    assert task_graph == expected_graph
 
 
 def test_routine_split_1_pair_callback():
@@ -134,27 +145,34 @@ def test_routine_split_1_pair_callback():
     pid = 3
     task_graph = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
 
-    assert task_graph.tasks == {
+    expected_tasks = [
         # blk_1_pair_wait_all
-        0: PreCallTask(0, pid, "blk_1_pair_wait_all", 0, cpu_time),
-        1: PostCallTask(1, pid, "blk_1_pair_wait_all", 0, cpu_time),
-        2: MultiPairTask(2, pid, 0, pair_time),
-        3: MultiPairCallbackTask(3, pid, "meas_1_pair", 0, cb_time),
+        PreCallTask(0, pid, "blk_1_pair_wait_all", 0, cpu_time),
+        PostCallTask(1, pid, "blk_1_pair_wait_all", 0, cpu_time),
+        MultiPairTask(2, pid, 0, pair_time),
+        MultiPairCallbackTask(3, pid, "meas_1_pair", 0, cb_time),
         # blk_1_pair_sequential
-        4: PreCallTask(4, pid, "blk_1_pair_sequential", 4, cpu_time),
-        5: PostCallTask(5, pid, "blk_1_pair_sequential", 4, cpu_time),
-        6: SinglePairTask(6, pid, 0, 4, pair_time),
-        7: SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
-    }
+        PreCallTask(4, pid, "blk_1_pair_sequential", 4, cpu_time),
+        PostCallTask(5, pid, "blk_1_pair_sequential", 4, cpu_time),
+        SinglePairTask(6, pid, 0, 4, pair_time),
+        SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
+    ]
 
-    assert (0, 2) in task_graph.precedences  # rr after precall
-    assert (2, 3) in task_graph.precedences  # callback after rr
-    assert (3, 1) in task_graph.precedences  # postcall after callback
+    expected_precedences = [
+        (0, 2),  # rr after precall
+        (2, 3),  # callback after rr
+        (3, 1),  # postcall after callback
+        (1, 4),  # second block after first block
+        (4, 6),  # rr after precall
+        (6, 7),  # callback after rr
+        (7, 5),  # postcall after callback
+    ]
 
-    assert (1, 4) in task_graph.precedences  # second block after first block
-    assert (4, 6) in task_graph.precedences  # rr after precall
-    assert (6, 7) in task_graph.precedences  # callback after rr
-    assert (7, 5) in task_graph.precedences  # postcall after callback
+    expected_graph = TaskGraph()
+    expected_graph.add_tasks(expected_tasks)
+    expected_graph.add_precedences(expected_precedences)
+
+    assert task_graph == expected_graph
 
 
 def test_routine_split_2_pairs_callback():
@@ -174,34 +192,39 @@ def test_routine_split_2_pairs_callback():
     pid = 3
     task_graph = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
 
-    assert task_graph.tasks == {
+    expected_tasks = [
         # blk_2_pairs_wait_all
-        0: PreCallTask(0, pid, "blk_2_pairs_wait_all", 0, cpu_time),
-        1: PostCallTask(1, pid, "blk_2_pairs_wait_all", 0, cpu_time),
-        2: MultiPairTask(2, pid, 0, 2 * pair_time),
-        3: MultiPairCallbackTask(3, pid, "meas_2_pairs", 0, cb_time),
+        PreCallTask(0, pid, "blk_2_pairs_wait_all", 0, cpu_time),
+        PostCallTask(1, pid, "blk_2_pairs_wait_all", 0, cpu_time),
+        MultiPairTask(2, pid, 0, 2 * pair_time),
+        MultiPairCallbackTask(3, pid, "meas_2_pairs", 0, cb_time),
         # blk_2_pairs_sequential
-        4: PreCallTask(4, pid, "blk_2_pairs_sequential", 4, cpu_time),
-        5: PostCallTask(5, pid, "blk_2_pairs_sequential", 4, cpu_time),
-        6: SinglePairTask(6, pid, 0, 4, pair_time),
-        7: SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
-        8: SinglePairTask(8, pid, 1, 4, pair_time),
-        9: SinglePairCallbackTask(9, pid, "meas_1_pair", 1, 4, cb_time),
-    }
+        PreCallTask(4, pid, "blk_2_pairs_sequential", 4, cpu_time),
+        PostCallTask(5, pid, "blk_2_pairs_sequential", 4, cpu_time),
+        SinglePairTask(6, pid, 0, 4, pair_time),
+        SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
+        SinglePairTask(8, pid, 1, 4, pair_time),
+        SinglePairCallbackTask(9, pid, "meas_1_pair", 1, 4, cb_time),
+    ]
 
-    assert (0, 2) in task_graph.precedences  # rr after precall
-    assert (2, 3) in task_graph.precedences  # callback after rr
-    assert (3, 1) in task_graph.precedences  # postcall after callback
+    expected_precedences = [
+        (0, 2),  # rr after precall
+        (2, 3),  # callback after rr
+        (3, 1),  # postcall after callback
+        (1, 4),  # second block after first block
+        (4, 6),  # 1st pair after precall
+        (6, 7),  # 1st pair callback after 1st pair rr
+        (4, 8),  # 2nd pair after precall
+        (8, 9),  # 2nd pair callback after 2nd pair rr
+        (7, 5),  # postcall after 1st pair callback
+        (9, 5),  # postcall after 2nd pair callback
+    ]
 
-    assert (1, 4) in task_graph.precedences  # second block after first block
-    assert (4, 6) in task_graph.precedences  # 1st pair after precall
-    assert (6, 7) in task_graph.precedences  # 1st pair callback after 1st pair rr
-    assert (4, 8) in task_graph.precedences  # 2nd pair after precall
-    assert (8, 9) in task_graph.precedences  # 2nd pair callback after 2nd pair rr
-    assert (7, 5) in task_graph.precedences  # postcall after 1st pair callback
-    assert (9, 5) in task_graph.precedences  # postcall after 2nd pair callback
+    expected_graph = TaskGraph()
+    expected_graph.add_tasks(expected_tasks)
+    expected_graph.add_precedences(expected_precedences)
 
-    assert task_graph.roots() == [0]
+    assert task_graph == expected_graph
 
 
 if __name__ == "__main__":

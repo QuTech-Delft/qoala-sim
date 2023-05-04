@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional, Set, Tuple
@@ -449,10 +450,7 @@ class TaskGraph:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TaskGraph):
             raise NotImplemented
-        return all(
-            tinfo1 == tinfo2
-            for tinfo1, tinfo2 in zip(self._tasks.values(), other._tasks.items())
-        )
+        return self._tasks == other._tasks
 
     def add_tasks(self, tasks: List[QoalaTask]) -> None:
         for task in tasks:
@@ -492,6 +490,9 @@ class TaskGraph:
             assert x not in self._tasks and y in self._tasks  # x is external
             self._tasks[y].ext_rel_deadlines[x] = d
 
+    def get_tasks(self) -> Dict[int, TaskInfo]:
+        return self._tasks
+
     def get_tinfo(self, id: int) -> TaskInfo:
         assert id in self._tasks
         return self._tasks[id]
@@ -517,12 +518,17 @@ class TaskGraph:
         # Remove precedences of successor tasks
         for t in self._tasks.values():
             if id in t.predecessors:
-                t.predecessors.pop(id)
+                t.predecessors.remove(id)
 
         # Change relative deadlines to absolute ones
         for t in self._tasks.values():
             if id in t.rel_deadlines:
                 t.deadline = t.rel_deadlines.pop(id)
+
+    def decrease_deadlines(self, amount: int) -> None:
+        for tinfo in self._tasks.values():
+            if tinfo.deadline is not None:
+                tinfo.deadline -= amount
 
     def get_cpu_graph(self) -> TaskGraph:
         return self.partial_graph(ProcessorType.CPU)
@@ -573,32 +579,36 @@ class TaskGraph:
     def partial_graph(self, proc_type: ProcessorType) -> TaskGraph:
         # Filter tasks with the correct type.
         partial_tasks: Dict[int, TaskInfo] = {
-            i: tinfo
+            i: deepcopy(tinfo)
             for i, tinfo in self._tasks.items()
             if tinfo.task.processor_type == proc_type
         }
 
         # Precedence constraints.
         # Move predecessor tasks that have been removed to ext_predecessors.
-        for tinfo in self._tasks.values():
+        for tinfo in partial_tasks.values():
             # Keep predecessors if they are still in the graph.
-            tinfo.predecessors = [
+            new_predecessors = [
                 pred for pred in tinfo.predecessors if pred in partial_tasks
             ]
             # Move others to ext_predecessors.
-            tinfo.ext_predecessors = [
+            new_ext_predecessors = [
                 pred for pred in tinfo.predecessors if pred not in partial_tasks
             ]
+            tinfo.predecessors = new_predecessors
+            tinfo.ext_predecessors = new_ext_predecessors
 
         # Precedence constraints for same-processor tasks that used to have a
         # precedence chain of other-processor tasks in between them.
         for tid, tinfo in partial_tasks.items():
+            if tinfo.task.task_id == 6:
+                x = 1
             for pred in self.double_cross_predecessors(tid):
                 if pred not in tinfo.predecessors:
                     tinfo.predecessors.append(pred)
 
         # Relative deadlines.
-        for tinfo in self._tasks.values():
+        for tinfo in partial_tasks.values():
             # Keep rel_deadline to pred if pred is still in the graph.
             tinfo.rel_deadlines = {
                 pred: dl
@@ -657,7 +667,7 @@ class TaskCreator:
                     duration = None
                 task_id = self.unique_id()
                 cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.tasks[task_id] = cputask
+                self._graph.add_tasks([cputask])
             elif block.typ == BasicBlockType.CC:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
@@ -668,7 +678,7 @@ class TaskCreator:
                     duration = None
                 task_id = self.unique_id()
                 cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.tasks[task_id] = cputask
+                self._graph.add_tasks([cputask])
             elif block.typ == BasicBlockType.QL:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
@@ -680,7 +690,7 @@ class TaskCreator:
                     duration = None
                 task_id = self.unique_id()
                 qputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.tasks[task_id] = qputask
+                self._graph.add_tasks([qputask])
             elif block.typ == BasicBlockType.QC:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
@@ -697,15 +707,16 @@ class TaskCreator:
                 qputask = BlockTask(
                     task_id, pid, block.name, block.typ, duration, remote_id=remote_id
                 )
-                self._graph.tasks[task_id] = qputask
+                self._graph.add_tasks([qputask])
 
         # We assume a linear program, where the task graph is a 1-dimensional chain of
         # block tasks. Hence we can trivially add a single dependency to each task.
         # We also make use of the fact that all tasks have incrementing indices
         # starting at 0.
-        for i in range(1, len(self._graph.tasks)):
-            # task (block) i should come after task (block) i - 1
-            self._graph.precedences.append((i - 1, i))
+        for i, tinfo in self._graph.get_tasks().items():
+            if i > 0:
+                # task (block) i should come after task (block) i - 1
+                tinfo.predecessors.append(i - 1)
 
     def _build_routine_split(
         self,
@@ -723,13 +734,15 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                self._graph.tasks[task_id] = HostLocalTask(
-                    task_id, pid, block.name, duration
+                self._graph.add_tasks(
+                    [HostLocalTask(task_id, pid, block.name, duration)]
                 )
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
-                    self._graph.precedences.append((prev_block_task_id, task_id))
+                    self._graph.get_tinfo(task_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.CC:
                 assert len(block.instructions) == 1
@@ -740,13 +753,15 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                self._graph.tasks[task_id] = HostEventTask(
-                    task_id, pid, block.name, duration
+                self._graph.add_tasks(
+                    [HostEventTask(task_id, pid, block.name, duration)]
                 )
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
-                    self._graph.precedences.append((prev_block_task_id, task_id))
+                    self._graph.get_tinfo(task_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.QL:
                 assert len(block.instructions) == 1
@@ -771,30 +786,32 @@ class TaskCreator:
                 precall_task = PreCallTask(
                     precall_id, pid, block.name, shared_ptr, pre_duration
                 )
-                self._graph.tasks[precall_id] = precall_task
+                self._graph.add_tasks([precall_task])
 
                 lr_id = self.unique_id()
                 qputask = LocalRoutineTask(
                     lr_id, pid, block.name, shared_ptr, lr_duration
                 )
-                self._graph.tasks[lr_id] = qputask
+                self._graph.add_tasks([qputask])
 
                 postcall_id = self.unique_id()
                 postcall_task = PostCallTask(
                     postcall_id, pid, block.name, shared_ptr, post_duration
                 )
-                self._graph.tasks[postcall_id] = postcall_task
+                self._graph.add_tasks([postcall_task])
 
                 # LR task should come after precall task
-                self._graph.precedences.append((precall_id, lr_id))
+                self._graph.get_tinfo(lr_id).predecessors.append(precall_id)
                 # postcall task should come after LR task
-                self._graph.precedences.append((lr_id, postcall_id))
+                self._graph.get_tinfo(postcall_id).predecessors.append(lr_id)
 
                 # Tasks for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     # First task for this block is precall task.
-                    self._graph.precedences.append((prev_block_task_id, precall_id))
+                    self._graph.get_tinfo(precall_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 # Last task for this block is postcall task.
                 prev_block_task_id = postcall_id
             elif block.typ == BasicBlockType.QC:
@@ -805,7 +822,9 @@ class TaskCreator:
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     # First task for QC block is precall task.
-                    self._graph.precedences.append((prev_block_task_id, precall_id))
+                    self._graph.get_tinfo(precall_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 # Last task for QC block is postcall task.
                 prev_block_task_id = postcall_id  # (not precall_id !)
 
@@ -850,34 +869,34 @@ class TaskCreator:
         precall_task = PreCallTask(
             precall_id, pid, block.name, shared_ptr, pre_duration
         )
-        self._graph.tasks[precall_id] = precall_task
+        self._graph.add_tasks([precall_task])
 
         postcall_id = self.unique_id()
         postcall_task = PostCallTask(
             postcall_id, pid, block.name, shared_ptr, post_duration
         )
-        self._graph.tasks[postcall_id] = postcall_task
+        self._graph.add_tasks([postcall_task])
 
         if req_routine.callback_type == CallbackType.WAIT_ALL:
             rr_id = self.unique_id()
             rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
-            self._graph.tasks[rr_id] = rr_task
+            self._graph.add_tasks([rr_task])
             # RR task should come after precall task
-            self._graph.precedences.append((precall_id, rr_id))
+            self._graph.get_tinfo(rr_id).predecessors.append(precall_id)
 
             if callback is not None:
                 cb_id = self.unique_id()
                 cb_task = MultiPairCallbackTask(
                     cb_id, pid, callback, shared_ptr, cb_duration
                 )
-                self._graph.tasks[cb_id] = cb_task
+                self._graph.add_tasks([cb_task])
                 # callback task should come after RR task
-                self._graph.precedences.append((rr_id, cb_id))
+                self._graph.get_tinfo(cb_id).predecessors.append(rr_id)
                 # postcall task should come after callback task
-                self._graph.precedences.append((cb_id, postcall_id))
+                self._graph.get_tinfo(postcall_id).predecessors.append(cb_id)
             else:  # no callback
                 # postcall task should come after RR task
-                self._graph.precedences.append((rr_id, postcall_id))
+                self._graph.get_tinfo(postcall_id).predecessors.append(rr_id)
 
         else:
             assert req_routine.callback_type == CallbackType.SEQUENTIAL
@@ -886,26 +905,26 @@ class TaskCreator:
                 rr_pair_task = SinglePairTask(
                     rr_pair_id, pid, i, shared_ptr, pair_duration
                 )
-                self._graph.tasks[rr_pair_id] = rr_pair_task
+                self._graph.add_tasks([rr_pair_task])
                 # RR pair task should come after precall task.
                 # Note: the RR pair tasks do not have precedence
                 # constraints among each other.
-                self._graph.precedences.append((precall_id, rr_pair_id))
+                self._graph.get_tinfo(rr_pair_id).predecessors.append(precall_id)
                 if callback is not None:
                     pair_cb_id = self.unique_id()
                     pair_cb_task = SinglePairCallbackTask(
                         pair_cb_id, pid, callback, i, shared_ptr, cb_duration
                     )
-                    self._graph.tasks[pair_cb_id] = pair_cb_task
+                    self._graph.add_tasks([pair_cb_task])
                     # Callback task for pair should come after corresponding
                     # RR pair task. Note: the pair callback tasks do not have
                     # precedence constraints among each other.
-                    self._graph.precedences.append((rr_pair_id, pair_cb_id))
+                    self._graph.get_tinfo(pair_cb_id).predecessors.append(rr_pair_id)
                     # postcall task should come after callback task
-                    self._graph.precedences.append((pair_cb_id, postcall_id))
+                    self._graph.get_tinfo(postcall_id).predecessors.append(pair_cb_id)
                 else:  # no callback
                     # postcall task should come after RR task
-                    self._graph.precedences.append((rr_pair_id, postcall_id))
+                    self._graph.get_tinfo(postcall_id).predecessors.append(rr_pair_id)
 
         return precall_id, postcall_id
 

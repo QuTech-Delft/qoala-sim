@@ -95,25 +95,17 @@ def test_get_cpu_graph():
     mp_ptr = 0
     lr_ptr = 1
 
-    class TaskCounter:
-        task_id = -1
-
-        def next(self) -> int:
-            self.task_id += 1
-            return self.task_id
-
-    tc = TaskCounter()
-    hl1 = HostLocalTask(tc.next(), pid, "hl1")
-    hl2 = HostLocalTask(tc.next(), pid, "hl2")
-    hl3 = HostLocalTask(tc.next(), pid, "hl2")
-    he1 = HostEventTask(tc.next(), pid, "he1")
-    prc1 = PreCallTask(tc.next(), pid, "prc1", mp_ptr)
-    prc2 = PreCallTask(tc.next(), pid, "prc2", lr_ptr)
-    poc1 = PreCallTask(tc.next(), pid, "poc1", mp_ptr)
-    poc2 = PreCallTask(tc.next(), pid, "poc2", lr_ptr)
-    mp1 = MultiPairTask(tc.next(), pid, mp_ptr)
-    mpc1 = MultiPairCallbackTask(tc.next(), pid, "mpc1", mp_ptr)
-    lr1 = LocalRoutineTask(tc.next(), pid, "lr1", lr_ptr)
+    hl1 = HostLocalTask(0, pid, "hl1")
+    hl2 = HostLocalTask(1, pid, "hl2")
+    hl3 = HostLocalTask(2, pid, "hl2")
+    he1 = HostEventTask(3, pid, "he1")
+    prc1 = PreCallTask(4, pid, "prc1", mp_ptr)
+    prc2 = PreCallTask(5, pid, "prc2", lr_ptr)
+    poc1 = PreCallTask(6, pid, "poc1", mp_ptr)
+    poc2 = PreCallTask(7, pid, "poc2", lr_ptr)
+    mp1 = MultiPairTask(8, pid, mp_ptr)
+    mpc1 = MultiPairCallbackTask(9, pid, "mpc1", mp_ptr)
+    lr1 = LocalRoutineTask(10, pid, "lr1", lr_ptr)
 
     precedences = [
         (hl1.task_id, hl2.task_id),
@@ -188,13 +180,8 @@ def test_get_cpu_graph():
     expected_cpu_graph.add_ext_precedences(expected_external_cpu_precedences)
     cpu_graph = graph.get_cpu_graph()
     assert cpu_graph == expected_cpu_graph
-    # assert set(cpu_graph.precedences) == set(expected_cpu_precedences)
-    # assert set(cpu_graph.external_precedences) == set(expected_external_cpu_precedences)
-    # assert cpu_graph.rel_deadlines == {}
-    # assert cpu_graph.external_rel_deadlines == {}
 
     # Check QPU graph
-    expected_qpu_tasks = {t.task_id: t for t in [mp1, mpc1, lr1]}
     expected_qpu_precedences = [
         (mp1.task_id, mpc1.task_id),
         (mpc1.task_id, lr1.task_id),
@@ -204,14 +191,32 @@ def test_get_cpu_graph():
         (prc2.task_id, lr1.task_id),
     ]
     qpu_graph = graph.get_qpu_graph()
-    assert qpu_graph.tasks == expected_qpu_tasks
-    assert set(qpu_graph.precedences) == set(expected_qpu_precedences)
-    assert set(qpu_graph.external_precedences) == set(expected_external_qpu_precedences)
-    assert qpu_graph.rel_deadlines == {}
-    assert qpu_graph.external_rel_deadlines == {}
+    expected_qpu_graph = TaskGraph()
+    expected_qpu_graph.add_tasks([mp1, mpc1, lr1])
+    expected_qpu_graph.add_precedences(expected_qpu_precedences)
+    expected_qpu_graph.add_ext_precedences(expected_external_qpu_precedences)
+    assert qpu_graph == expected_qpu_graph
+
+
+def test_dynamic_update():
+    graph = TaskGraph()
+    graph.add_tasks([SimpleTask(0), SimpleTask(1)])
+
+    # task 0 should start at <2000 from now
+    graph.add_deadlines([(0, 2000)])
+    # task 1 should start <100 after task 1 finishes
+    graph.add_rel_deadlines([((0, 1), 100)])
+
+    # Mock execution of task 0, taking 500 time units.
+    # First decrease all current absolute deadlines since removing task 0 will make
+    # the relative deadline of task 1 an absolute deadline, which we do not want to decrease.
+    graph.decrease_deadlines(500)
+    graph.remove_task(0)
+    assert graph.get_tinfo(1).deadline == 100
 
 
 if __name__ == "__main__":
     linear()
     no_precedence()
     test_get_cpu_graph()
+    test_dynamic_update()

@@ -94,7 +94,7 @@ class StaticSchedule:
 
         task_list: List[BlockTask] = []
         for graph in task_graphs:
-            tasks = list(graph.tasks.values())
+            tasks = [tinfo.task for tinfo in graph.get_tasks().values()]
             assert all(isinstance(task, BlockTask) for task in tasks)
             task_list.extend(tasks)  # type: ignore
 
@@ -125,9 +125,9 @@ class StaticSchedule:
             # Make a copy so we can alter it without affecting the original graph.
             graph = deepcopy(task_graph)  # TODO: refactor
 
-            while len(graph.tasks) > 0:
-                next_task_id = graph.roots()[0]
-                next_task = graph.tasks[next_task_id]
+            while len(graph.get_tasks()) > 0:
+                next_task_id = graph.get_roots()[0]
+                next_task = graph.get_tinfo(next_task_id).task
                 graph.remove_task(next_task_id)
                 entry = StaticScheduleEntry(task=next_task, timestamp=None, prev=None)
                 entries.append(entry)
@@ -150,7 +150,7 @@ class StaticSchedule:
 
         task_list: List[BlockTask] = []
         for graph in task_graphs:
-            tasks = list(graph.tasks.values())
+            tasks = [tinfo.task for tinfo in graph.get_tasks().values()]
             assert all(isinstance(task, BlockTask) for task in tasks)
             task_list.extend(tasks)  # type: ignore
 
