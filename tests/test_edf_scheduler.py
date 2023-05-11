@@ -1,13 +1,12 @@
-from typing import Dict, Generator, List
+from typing import Dict, Generator
 
 import netsquid as ns
 
 from pydynaa import EventExpression
-from qoala.runtime.task import HostLocalTask, ProcessorType, QoalaTask, TaskGraph
+from qoala.runtime.task import ProcessorType, QoalaTask, TaskGraph
 from qoala.sim.driver import Driver
 from qoala.sim.events import EVENT_WAIT
 from qoala.sim.scheduler import EdfScheduler
-from qoala.util.tests import netsquid_run
 
 
 class SimpleTask(QoalaTask):

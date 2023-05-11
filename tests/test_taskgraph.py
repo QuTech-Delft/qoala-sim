@@ -1,5 +1,3 @@
-from typing import Dict
-
 import pytest
 
 from qoala.runtime.task import (
@@ -12,7 +10,6 @@ from qoala.runtime.task import (
     ProcessorType,
     QoalaTask,
     TaskGraph,
-    TaskInfo,
 )
 
 

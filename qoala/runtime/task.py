@@ -5,9 +5,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional, Set, Tuple
 
-from click import Option
 from netqasm.lang.instr import core
-from numpy import isin
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.lang.hostlang import (
@@ -449,7 +447,7 @@ class TaskGraph:
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TaskGraph):
-            raise NotImplemented
+            raise NotImplementedError
         return self._tasks == other._tasks
 
     def add_tasks(self, tasks: List[QoalaTask]) -> None:
@@ -567,7 +565,7 @@ class TaskGraph:
         # Parents with same type already induce a normal precedence constraint in the
         # partial graph.
         cross_preds = self.cross_predecessors(task_id, immediate=True)
-        double_cross_preds = set()
+        double_cross_preds: Set[int] = set()
         for cp in cross_preds:
             # For each different-type parent, find the nearest ancestor of the original
             # type.
@@ -601,8 +599,6 @@ class TaskGraph:
         # Precedence constraints for same-processor tasks that used to have a
         # precedence chain of other-processor tasks in between them.
         for tid, tinfo in partial_tasks.items():
-            if tinfo.task.task_id == 6:
-                x = 1
             for pred in self.double_cross_predecessors(tid):
                 if pred not in tinfo.predecessors:
                     tinfo.predecessors.append(pred)

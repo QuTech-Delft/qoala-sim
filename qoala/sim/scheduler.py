@@ -336,6 +336,8 @@ class EdfScheduler(ProcessorScheduler):
         self._task_graph = graph
 
     def next_task(self) -> Optional[int]:
+        if self._task_graph is None:
+            return None
         tg = self._task_graph
         # Get all tasks without predecessors
         roots = tg.get_roots()
@@ -347,13 +349,14 @@ class EdfScheduler(ProcessorScheduler):
         if len(roots_with_deadline) > 0:
             # Sort them by deadline and return the one with the earliest deadline
             deadlines = {r: tg.get_tinfo(r).deadline for r in roots_with_deadline}
-            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])
+            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
             return sorted_by_deadline[0][0]
         else:
             # No deadlines: just return the first in the list
             return roots[0]
 
     def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
+        assert self._task_graph is not None
         task = self._task_graph.get_tinfo(task_id).task
         before = ns.sim_time()
         yield from self._driver.handle_task(task)

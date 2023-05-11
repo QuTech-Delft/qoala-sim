@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator
 
-import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.hostlang import BasicBlockType, RunRequestOp, RunSubroutineOp
 from qoala.runtime.message import LrCallTuple, RrCallTuple
-from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
 from qoala.runtime.task import (
     BlockTask,
     HostEventTask,
@@ -25,7 +23,6 @@ from qoala.runtime.task import (
     SinglePairTask,
     TaskExecutionMode,
 )
-from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.hostprocessor import HostProcessor
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackprocessor import NetstackProcessor
