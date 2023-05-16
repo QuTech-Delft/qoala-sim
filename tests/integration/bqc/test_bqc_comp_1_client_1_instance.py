@@ -129,10 +129,8 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
         server_id,
     )
 
-    schedule_server = StaticSchedule.consecutive_block_tasks([tasks_server])
-    schedule_client = StaticSchedule.consecutive_block_tasks([tasks_client])
-    server_procnode.scheduler.upload_schedule(schedule_server)
-    client_procnode.scheduler.upload_schedule(schedule_client)
+    server_procnode.scheduler.upload_task_graph(tasks_server)
+    client_procnode.scheduler.upload_task_graph(tasks_client)
 
     network.start()
     ns.sim_run()

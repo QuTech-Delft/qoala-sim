@@ -426,6 +426,7 @@ class TaskInfo:
     task: QoalaTask
     predecessors: List[int]
     ext_predecessors: List[int]
+    successors: List[int]
     deadline: Optional[int]
     rel_deadlines: Dict[int, int]
     ext_rel_deadlines: Dict[int, int]
@@ -433,7 +434,7 @@ class TaskInfo:
 
     @classmethod
     def only_task(cls, task: QoalaTask) -> TaskInfo:
-        return TaskInfo(task, [], [], None, {}, {}, None)
+        return TaskInfo(task, [], [], [], None, {}, {}, None)
 
     def is_cpu_task(self) -> bool:
         return self.task.processor_type == ProcessorType.CPU
@@ -466,6 +467,7 @@ class TaskGraph:
         for (x, y) in precedences:
             assert x in self._tasks and y in self._tasks
             self._tasks[y].predecessors.append(x)
+            self._tasks[x].successors.append(y)
 
     def add_ext_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x (which is not in this graph) precedes y
@@ -516,14 +518,32 @@ class TaskGraph:
                 if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) == 0
             ]
 
+    def linearize(self) -> Optional[List[int]]:
+        # Returns None if not linear
+        if len(self.get_tasks()) == 0:
+            return []  # empty graph is linear
+
+        roots = self.get_roots()
+        if len(roots) != 1:
+            return None
+
+        chain: List[int] = [roots[0]]
+        for _ in range(len(self._tasks) - 1):
+            successors = self.get_tinfo(chain[-1]).successors
+            if len(successors) != 1:
+                return None
+            chain.append(successors[0])
+        return chain
+
     def remove_task(self, id: int) -> None:
         assert id in self.get_roots(ignore_external=True)
-        self._tasks.pop(id)
+        tinfo = self._tasks.pop(id)
 
         # Remove precedences of successor tasks
-        for t in self._tasks.values():
-            if id in t.predecessors:
-                t.predecessors.remove(id)
+        for succ in tinfo.successors:
+            succ_info = self.get_tinfo(succ)
+            assert id in succ_info.predecessors
+            succ_info.predecessors.remove(id)
 
         # Change relative deadlines to absolute ones
         for t in self._tasks.values():
@@ -602,6 +622,8 @@ class TaskGraph:
             ]
             tinfo.predecessors = new_predecessors
             tinfo.ext_predecessors = new_ext_predecessors
+            # Clear successors. Will be filled in at the end of this function.
+            tinfo.successors = []
 
         # Precedence constraints for same-processor tasks that used to have a
         # precedence chain of other-processor tasks in between them.
@@ -625,12 +647,18 @@ class TaskGraph:
                 if pred not in partial_tasks
             }
 
+        # Fill in successors by taking opposite of predecessors.
+        for tid, tinfo in partial_tasks.items():
+            for pred in tinfo.predecessors:
+                pred_tinfo = partial_tasks[pred]
+                if tid not in pred_tinfo.successors:
+                    pred_tinfo.successors.append(tid)
         return TaskGraph(partial_tasks)
 
 
 class TaskGraphBuilder:
     @classmethod
-    def linear_block_tasks(cls, tasks: List[BlockTask]) -> TaskGraph:
+    def linear_tasks(cls, tasks: List[QoalaTask]) -> TaskGraph:
         tinfos: List[TaskInfo] = [TaskInfo.only_task(task) for task in tasks]
 
         for i in range(len(tinfos) - 1):
@@ -641,8 +669,8 @@ class TaskGraphBuilder:
         return TaskGraph(tasks={t.task.task_id: t for t in tinfos})
 
     @classmethod
-    def linear_block_tasks_with_start_times(
-        cls, tasks: List[Tuple[BlockTask, Optional[int]]]
+    def linear_tasks_with_start_times(
+        cls, tasks: List[Tuple[QoalaTask, Optional[int]]]
     ) -> TaskGraph:
         tinfos: List[TaskInfo] = []
         for task, start_time in tasks:
@@ -657,11 +685,41 @@ class TaskGraphBuilder:
 
         return TaskGraph(tasks={t.task.task_id: t for t in tinfos})
 
+    @classmethod
+    def merge(cls, graphs: List[TaskGraph]) -> TaskGraph:
+        merged_tinfos = {}
+        for graph in graphs:
+            for tid, tinfo in graph.get_tasks().items():
+                merged_tinfos[tid] = tinfo
+
+        return TaskGraph(merged_tinfos)
+
+    @classmethod
+    def merge_linear(cls, graphs: List[TaskGraph]) -> TaskGraph:
+        merged_tinfos = {}
+        for graph in graphs:
+            for tid, tinfo in graph.get_tasks().items():
+                merged_tinfos[tid] = deepcopy(tinfo)
+
+        merged = TaskGraph(merged_tinfos)
+
+        for i in range(1, len(graphs)):
+            chain1 = graphs[i - 1].linearize()
+            chain2 = graphs[i].linearize()
+            assert chain1 is not None
+            assert chain2 is not None
+            # Add precedence between last task of graph1 and first task of graph2
+            precedence = (chain1[-1], chain2[0])
+            merged.add_precedences([precedence])
+
+        return merged
+
 
 class TaskCreator:
-    def __init__(self, mode: TaskExecutionMode) -> None:
+    def __init__(self, mode: TaskExecutionMode, first_task_id: int = 0) -> None:
         self._mode = mode
-        self._task_id_counter = 0
+        self._first_task_id = first_task_id
+        self._task_id_counter = first_task_id
         self._graph = TaskGraph()
 
     def unique_id(self) -> int:
@@ -745,11 +803,13 @@ class TaskCreator:
         # We assume a linear program, where the task graph is a 1-dimensional chain of
         # block tasks. Hence we can trivially add a single dependency to each task.
         # We also make use of the fact that all tasks have incrementing indices
-        # starting at 0.
-        for i, tinfo in self._graph.get_tasks().items():
-            if i > 0:
-                # task (block) i should come after task (block) i - 1
-                tinfo.predecessors.append(i - 1)
+        # starting at first_task_id.
+        precedences = []
+        last_task_id = len(self._graph.get_tasks()) + self._first_task_id
+        for i in range(self._first_task_id + 1, last_task_id):
+            # task (block) i should come after task (block) i - 1
+            precedences.append((i - 1, i))
+        self._graph.add_precedences(precedences)
 
     def _build_routine_split(
         self,

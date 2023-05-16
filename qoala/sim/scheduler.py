@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum, auto
+from re import T
 from typing import Dict, Generator, List, Optional, Tuple
 
 import netsquid as ns
@@ -75,6 +76,7 @@ class NodeScheduler(Protocol):
         self._prog_results: Dict[int, ProgramResult] = {}  # program ID -> result
         self._batch_results: Dict[int, BatchResult] = {}  # batch ID -> result
 
+        self._task_counter = 0
         self._task_graph: Optional[TaskGraph] = None
 
         scheduler_memory = SharedSchedulerMemory()
@@ -138,9 +140,12 @@ class NodeScheduler(Protocol):
                 remote_id = network_info.get_node_id(remote_name)
             else:
                 remote_id = None
-            tasks = TaskCreator(mode=self._tem).from_program(
+            tasks = TaskCreator(
+                mode=self._tem, first_task_id=self._task_counter
+            ).from_program(
                 batch_info.program, pid, self._local_ehi, self._network_ehi, remote_id
             )
+            self._task_counter += len(tasks.get_tasks())
 
             instance = ProgramInstance(
                 pid=pid,

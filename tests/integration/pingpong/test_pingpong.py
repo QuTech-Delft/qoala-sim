@@ -17,8 +17,8 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
-from qoala.runtime.task import BlockTask
+from qoala.runtime.schedule import StaticSchedule
+from qoala.runtime.task import BlockTask, TaskGraphBuilder
 from qoala.sim.build import build_network
 
 
@@ -96,38 +96,28 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
     alice_task_graphs = alice_procnode.scheduler.get_tasks_to_schedule()
-    alice_tasks: List[BlockTask] = []
-    for graph in alice_task_graphs:
-        tasks = graph.tasks.values()
-        assert all(isinstance(task, BlockTask) for task in tasks)
-        alice_tasks.extend(tasks)
+    alice_merged = TaskGraphBuilder.merge_linear(alice_task_graphs)
+    alice_tasks = [tinfo.task for tinfo in alice_merged.get_tasks().values()]
     print("Alice tasks:")
     print([str(t) for t in alice_tasks])
     # alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
-    alice_schedule = StaticSchedule(
-        [
-            StaticScheduleEntry(alice_tasks[0], timestamp=0),
-            StaticScheduleEntry(alice_tasks[1], timestamp=500),
-            StaticScheduleEntry(alice_tasks[2], timestamp=25_000),
-            StaticScheduleEntry(alice_tasks[3], timestamp=600_000),
-            StaticScheduleEntry(
-                alice_tasks[4], timestamp=850_000, prev=[alice_tasks[3]]
-            ),
-            StaticScheduleEntry(alice_tasks[5], timestamp=1_200_000),
-            StaticScheduleEntry(
-                alice_tasks[6], timestamp=1_700_000, prev=[alice_tasks[5]]
-            ),
-            StaticScheduleEntry(alice_tasks[7], timestamp=2_100_000),
-            StaticScheduleEntry(
-                alice_tasks[8], timestamp=2_200_500, prev=[alice_tasks[7]]
-            ),
-            StaticScheduleEntry(alice_tasks[9], timestamp=2_220_000),
-            StaticScheduleEntry(alice_tasks[10], timestamp=2_228_000),
-        ]
-    )
-    print("\nAlice schedule:")
-    print(alice_schedule)
-    alice_procnode.scheduler.upload_schedule(alice_schedule)
+    alice_task_start_times = [
+        (alice_tasks[0], 0),
+        (alice_tasks[1], 500),
+        (alice_tasks[2], 25_000),
+        (alice_tasks[3], 600_000),
+        (alice_tasks[4], 850_000),
+        (alice_tasks[5], 1_200_000),
+        (alice_tasks[6], 1_700_000),
+        (alice_tasks[7], 2_100_000),
+        (alice_tasks[8], 2_200_500),
+        (alice_tasks[9], 2_220_000),
+        (alice_tasks[10], 2_228_000),
+    ]
+    alice_graph = TaskGraphBuilder.linear_tasks_with_start_times(alice_task_start_times)
+    print("\nAlice graph:")
+    print(alice_graph)
+    alice_procnode.scheduler.upload_task_graph(alice_graph)
 
     bob_program = load_program("pingpong_bob.iqoala")
     bob_inputs = [ProgramInput({"alice_id": alice_id}) for _ in range(num_iterations)]
@@ -137,28 +127,24 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
     bob_task_graphs = bob_procnode.scheduler.get_tasks_to_schedule()
-    bob_tasks: List[BlockTask] = []
-    for graph in bob_task_graphs:
-        tasks = graph.tasks.values()
-        assert all(isinstance(task, BlockTask) for task in tasks)
-        bob_tasks.extend(tasks)
+    bob_merged = TaskGraphBuilder.merge_linear(bob_task_graphs)
+    bob_tasks = [tinfo.task for tinfo in bob_merged.get_tasks().values()]
     print("\n\nBob tasks:")
     print([str(t) for t in bob_tasks])
-    bob_schedule = StaticSchedule(
-        [
-            StaticScheduleEntry(bob_tasks[0], timestamp=0),
-            StaticScheduleEntry(bob_tasks[1], timestamp=25_000),
-            StaticScheduleEntry(bob_tasks[2], timestamp=900_000, prev=[bob_tasks[1]]),
-            StaticScheduleEntry(bob_tasks[3], timestamp=1_000_000),
-            StaticScheduleEntry(bob_tasks[4], timestamp=1_100_000, prev=[bob_tasks[3]]),
-            StaticScheduleEntry(bob_tasks[5], timestamp=1_200_000),
-            StaticScheduleEntry(bob_tasks[6], timestamp=1_700_000),
-            StaticScheduleEntry(bob_tasks[7], timestamp=1_800_000, prev=[bob_tasks[6]]),
-        ]
-    )
-    print("\nBob schedule:")
-    print(bob_schedule)
-    bob_procnode.scheduler.upload_schedule(bob_schedule)
+    bob_task_start_times = [
+        (bob_tasks[0], 0),
+        (bob_tasks[1], 25_000),
+        (bob_tasks[2], 900_000),
+        (bob_tasks[3], 1_000_000),
+        (bob_tasks[4], 1_100_000),
+        (bob_tasks[5], 1_200_000),
+        (bob_tasks[6], 1_700_000),
+        (bob_tasks[7], 1_800_000),
+    ]
+    bob_graph = TaskGraphBuilder.linear_tasks_with_start_times(bob_task_start_times)
+    print("\nBob graph:")
+    print(bob_graph)
+    bob_procnode.scheduler.upload_task_graph(bob_graph)
 
     network.start()
     ns.sim_run()

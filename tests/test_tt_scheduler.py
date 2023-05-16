@@ -18,7 +18,6 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
 )
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import StaticSchedule
 from qoala.runtime.task import (
     BlockTask,
     TaskCreator,
@@ -145,7 +144,7 @@ def test_cpu_scheduler():
         (BlockTask(0, 0, "b0", CL), 0),
         (BlockTask(1, 0, "b1", CL), 1000),
     ]
-    graph = TaskGraphBuilder.linear_block_tasks_with_start_times(tasks_with_start_times)
+    graph = TaskGraphBuilder.linear_tasks_with_start_times(tasks_with_start_times)
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
@@ -173,7 +172,7 @@ def test_cpu_scheduler_no_time():
     procnode.scheduler.submit_program_instance(instance)
 
     tasks = [BlockTask(0, 0, "b0", CL), BlockTask(1, 0, "b1", CL)]
-    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    graph = TaskGraphBuilder.linear_tasks(tasks)
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
@@ -209,7 +208,7 @@ def test_cpu_scheduler_2_processes():
         (BlockTask(2, pid0, "b1", CL), 1000),
         (BlockTask(3, pid1, "b1", CL), 1500),
     ]
-    graph = TaskGraphBuilder.linear_block_tasks_with_start_times(tasks_with_start_times)
+    graph = TaskGraphBuilder.linear_tasks_with_start_times(tasks_with_start_times)
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
@@ -247,13 +246,13 @@ def test_qpu_scheduler():
     cpu_tasks_with_start_times = [
         (BlockTask(0, 0, "b0", CL), 0),
     ]
-    cpu_graph = TaskGraphBuilder.linear_block_tasks_with_start_times(
+    cpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(
         cpu_tasks_with_start_times
     )
     qpu_tasks_with_start_times = [
         (BlockTask(1, 0, "b1", QL), 1000),
     ]
-    qpu_graph = TaskGraphBuilder.linear_block_tasks_with_start_times(
+    qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(
         qpu_tasks_with_start_times
     )
 
@@ -300,12 +299,12 @@ def test_qpu_scheduler_2_processes():
         (BlockTask(0, pid0, "b0", CL), 0),
         (BlockTask(1, pid1, "b0", CL), 500),
     ]
-    cpu_graph = TaskGraphBuilder.linear_block_tasks_with_start_times(cpu_tasks)
+    cpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(cpu_tasks)
     qpu_tasks = [
         (BlockTask(0, pid0, "b1", QL), 500),
         (BlockTask(1, pid1, "b1", QL), 1000),
     ]
-    qpu_graph = TaskGraphBuilder.linear_block_tasks_with_start_times(qpu_tasks)
+    qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(qpu_tasks)
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
@@ -351,7 +350,7 @@ def test_host_program():
         BlockTask(0, pid, "blk_host0", CL),
         BlockTask(1, pid, "blk_host1", CL),
     ]
-    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    graph = TaskGraphBuilder.linear_tasks(tasks)
 
     alice.scheduler.upload_task_graph(graph)
     bob.scheduler.upload_task_graph(graph)
@@ -383,7 +382,7 @@ def test_lr_program():
         BlockTask(0, pid, "blk_host2", CL),
         BlockTask(1, pid, "blk_add_one", QL),
     ]
-    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    graph = TaskGraphBuilder.linear_tasks(tasks)
 
     LogManager.set_log_level("DEBUG")
     alice.scheduler.upload_task_graph(graph)
@@ -419,7 +418,7 @@ def test_epr_md_1():
     bob.scheduler.submit_program_instance(instance_bob)
 
     tasks = [BlockTask(0, pid, "blk_epr_md_1", QC)]
-    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
     bob.scheduler.upload_task_graph(graph)
 
@@ -451,7 +450,7 @@ def test_epr_md_2():
     bob.scheduler.submit_program_instance(instance_bob)
 
     tasks = [BlockTask(0, pid, "blk_epr_md_2", QC)]
-    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
     bob.scheduler.upload_task_graph(graph)
 
@@ -488,7 +487,7 @@ def test_epr_ck_1():
         BlockTask(0, pid, "blk_epr_ck_1", QC),
         BlockTask(1, pid, "blk_meas_q0", QL),
     ]
-    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
     bob.scheduler.upload_task_graph(graph)
 
@@ -527,7 +526,7 @@ def test_epr_ck_2():
         BlockTask(0, pid, "blk_epr_ck_2", QC),
         BlockTask(1, pid, "blk_meas_q0_q1", QL),
     ]
-    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
     bob.scheduler.upload_task_graph(graph)
 
@@ -573,13 +572,13 @@ def test_cc():
         (BlockTask(1, pid, "blk_send", CL), 2000),
         (BlockTask(2, pid, "blk_host1", CL), 10000),
     ]
-    graph_alice = TaskGraphBuilder.linear_block_tasks_with_start_times(tasks_alice)
+    graph_alice = TaskGraphBuilder.linear_tasks_with_start_times(tasks_alice)
     tasks_bob = [
         (BlockTask(4, pid, "blk_prep_cc", CL), 0),
         (BlockTask(5, pid, "blk_recv", CC), 3000),
         (BlockTask(6, pid, "blk_host1", CL), 10000),
     ]
-    graph_bob = TaskGraphBuilder.linear_block_tasks_with_start_times(tasks_bob)
+    graph_bob = TaskGraphBuilder.linear_tasks_with_start_times(tasks_bob)
     alice.scheduler.upload_cpu_task_graph(graph_alice)
     bob.scheduler.upload_cpu_task_graph(graph_bob)
 
@@ -633,12 +632,12 @@ def test_full_program():
 
 
 if __name__ == "__main__":
-    # test_cpu_scheduler()
-    # test_cpu_scheduler_no_time()
-    # test_cpu_scheduler_2_processes()
-    # test_qpu_scheduler()
-    # test_qpu_scheduler_2_processes()
-    # test_host_program()
+    test_cpu_scheduler()
+    test_cpu_scheduler_no_time()
+    test_cpu_scheduler_2_processes()
+    test_qpu_scheduler()
+    test_qpu_scheduler_2_processes()
+    test_host_program()
     test_lr_program()
     test_epr_md_1()
     test_epr_md_2()

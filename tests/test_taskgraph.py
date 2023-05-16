@@ -1,3 +1,5 @@
+from typing import List, Optional, Tuple
+
 import pytest
 
 from qoala.runtime.task import (
@@ -10,6 +12,7 @@ from qoala.runtime.task import (
     ProcessorType,
     QoalaTask,
     TaskGraph,
+    TaskGraphBuilder,
 )
 
 
@@ -212,8 +215,115 @@ def test_dynamic_update():
     assert graph.get_tinfo(1).deadline == 100
 
 
+def test_linear_tasks():
+    tasks = [SimpleTask(0), SimpleTask(1), SimpleTask(2), SimpleTask(3), SimpleTask(4)]
+
+    graph = TaskGraphBuilder.linear_tasks(tasks)
+    assert graph.get_tinfo(0).task == tasks[0]
+    assert graph.get_tinfo(0).predecessors == []
+    for i in range(1, len(tasks)):
+        assert graph.get_tinfo(i).task == tasks[i]
+        assert graph.get_tinfo(i).predecessors == [i - 1]
+
+
+def test_linear_tasks_with_timestamps():
+    tasks = [SimpleTask(0), SimpleTask(1), SimpleTask(2), SimpleTask(3), SimpleTask(4)]
+
+    start_times: List[Tuple[SimpleTask, Optional[int]]] = [
+        (tasks[0], 0),
+        (tasks[1], 2000),
+        (tasks[2], 3000),
+        (tasks[3], 12500),
+        (tasks[4], None),
+    ]
+
+    graph = TaskGraphBuilder.linear_tasks_with_start_times(start_times)
+    assert graph.get_tinfo(0).task == tasks[0]
+    assert graph.get_tinfo(0).predecessors == []
+    for i in range(1, len(tasks)):
+        assert graph.get_tinfo(i).task == tasks[i]
+        assert graph.get_tinfo(i).predecessors == [i - 1]
+
+    for task, start_time in start_times:
+        assert graph.get_tinfo(task.task_id).start_time == start_time
+
+
+def test_merge():
+    graph1 = TaskGraph()
+    graph1.add_tasks([SimpleTask(0), SimpleTask(1)])
+    graph1.add_precedences([(0, 1)])
+
+    graph2 = TaskGraph()
+    graph2.add_tasks([SimpleTask(2), SimpleTask(3)])
+    graph2.add_precedences([(2, 3)])
+
+    merged = TaskGraphBuilder.merge([graph1, graph2])
+    for i in range(4):
+        assert merged.get_tinfo(i).task == SimpleTask(i)
+
+    assert merged.get_tinfo(1).predecessors == [0]
+    assert merged.get_tinfo(3).predecessors == [2]
+
+
+def test_merge_linear():
+    graph1 = TaskGraph()
+    graph1.add_tasks([SimpleTask(0), SimpleTask(1)])
+    graph1.add_precedences([(0, 1)])
+
+    graph2 = TaskGraph()
+    graph2.add_tasks([SimpleTask(2), SimpleTask(3)])
+    graph2.add_precedences([(2, 3)])
+
+    merged = TaskGraphBuilder.merge_linear([graph1, graph2])
+    for i in range(4):
+        assert merged.get_tinfo(i).task == SimpleTask(i)
+
+    assert merged.get_tinfo(1).predecessors == [0]
+    assert merged.get_tinfo(3).predecessors == [2]
+
+    # Check that there is precedence between two original graphs
+    assert merged.get_tinfo(2).predecessors == [1]
+
+
+def test_linearize_1():
+    graph = TaskGraph()
+    graph.add_tasks([SimpleTask(0), SimpleTask(1)])
+    assert graph.linearize() is None
+
+
+def test_linearize_2():
+    graph = TaskGraph()
+    graph.add_tasks([SimpleTask(0), SimpleTask(1)])
+    graph.add_precedences([(0, 1)])
+    assert graph.linearize() == [0, 1]
+
+
+def test_linearize_3():
+    graph = TaskGraph()
+    graph.add_tasks([SimpleTask(0), SimpleTask(1), SimpleTask(2)])
+    graph.add_precedences([(0, 1)])
+    graph.add_precedences([(0, 2)])
+    assert graph.linearize() is None
+
+
+def test_linearize_4():
+    graph = TaskGraph()
+    graph.add_tasks([SimpleTask(0), SimpleTask(1), SimpleTask(2)])
+    graph.add_precedences([(1, 2)])
+    graph.add_precedences([(2, 0)])
+    assert graph.linearize() == [1, 2, 0]
+
+
 if __name__ == "__main__":
     linear()
     no_precedence()
     test_get_partial_graph()
     test_dynamic_update()
+    test_linear_tasks()
+    test_linear_tasks_with_timestamps()
+    test_merge()
+    test_merge_linear()
+    test_linearize_1()
+    test_linearize_2()
+    test_linearize_3()
+    test_linearize_4()

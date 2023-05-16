@@ -17,7 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import StaticSchedule
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
 
 
@@ -95,8 +95,8 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     server_procnode.submit_batch(server_batch)
     server_procnode.initialize_processes()
     server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
-    server_schedule = StaticSchedule.consecutive_block_tasks(server_tasks)
-    server_procnode.scheduler.upload_schedule(server_schedule)
+    server_merged = TaskGraphBuilder.merge_linear(server_tasks)
+    server_procnode.scheduler.upload_task_graph(server_merged)
 
     client_program = load_program("bqc_client.iqoala")
     client_inputs = [
@@ -119,8 +119,8 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     client_procnode.submit_batch(client_batch)
     client_procnode.initialize_processes()
     client_tasks = client_procnode.scheduler.get_tasks_to_schedule()
-    client_schedule = StaticSchedule.consecutive_block_tasks(client_tasks)
-    client_procnode.scheduler.upload_schedule(client_schedule)
+    client_merged = TaskGraphBuilder.merge_linear(client_tasks)
+    client_procnode.scheduler.upload_task_graph(client_merged)
 
     network.start()
     ns.sim_run()
