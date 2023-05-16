@@ -517,7 +517,7 @@ class TaskGraph:
             ]
 
     def remove_task(self, id: int) -> None:
-        assert id in self.get_roots()
+        assert id in self.get_roots(ignore_external=True)
         self._tasks.pop(id)
 
         # Remove precedences of successor tasks
@@ -632,6 +632,23 @@ class TaskGraphBuilder:
     @classmethod
     def linear_block_tasks(cls, tasks: List[BlockTask]) -> TaskGraph:
         tinfos: List[TaskInfo] = [TaskInfo.only_task(task) for task in tasks]
+
+        for i in range(len(tinfos) - 1):
+            t1 = tinfos[i]
+            t2 = tinfos[i + 1]
+            t2.predecessors.append(t1.task.task_id)
+
+        return TaskGraph(tasks={t.task.task_id: t for t in tinfos})
+
+    @classmethod
+    def linear_block_tasks_with_start_times(
+        cls, tasks: List[Tuple[BlockTask, Optional[int]]]
+    ) -> TaskGraph:
+        tinfos: List[TaskInfo] = []
+        for task, start_time in tasks:
+            tinfo = TaskInfo.only_task(task)
+            tinfo.start_time = start_time
+            tinfos.append(tinfo)
 
         for i in range(len(tinfos) - 1):
             t1 = tinfos[i]

@@ -87,7 +87,7 @@ def no_precedence():
     assert all(graph.get_tinfo(i).rel_deadlines == {i - 1: 100} for i in range(2, 4))
 
 
-def test_get_cpu_graph():
+def test_get_partial_graph():
     pid = 0
     mp_ptr = 0
     lr_ptr = 1
@@ -215,5 +215,5 @@ def test_dynamic_update():
 if __name__ == "__main__":
     linear()
     no_precedence()
-    test_get_cpu_graph()
+    test_get_partial_graph()
     test_dynamic_update()
