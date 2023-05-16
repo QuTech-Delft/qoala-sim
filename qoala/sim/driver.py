@@ -50,8 +50,13 @@ class Driver(Protocol):
                         f"{ns.sim_time()}: {self.name}: checking next task {task}"
                     )
                     self._logger.debug(f"scheduled for {time}")
-                    self._logger.debug(f"waiting for {time - now}...")
-                    yield from self.wait(time - now)
+                    if time - now <= 0:
+                        self._logger.debug(
+                            "scheduled time is in the past, so not waiting"
+                        )
+                    else:
+                        self._logger.debug(f"waiting for {time - now}...")
+                        yield from self.wait(time - now)
                 if prev is not None:
                     assert self._other_driver is not None
                     while prev not in self._other_driver._finished_tasks:
