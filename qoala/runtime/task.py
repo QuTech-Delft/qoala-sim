@@ -429,10 +429,17 @@ class TaskInfo:
     deadline: Optional[int]
     rel_deadlines: Dict[int, int]
     ext_rel_deadlines: Dict[int, int]
+    start_time: Optional[int]
 
     @classmethod
     def only_task(cls, task: QoalaTask) -> TaskInfo:
-        return TaskInfo(task, [], [], None, {}, {})
+        return TaskInfo(task, [], [], None, {}, {}, None)
+
+    def is_cpu_task(self) -> bool:
+        return self.task.processor_type == ProcessorType.CPU
+
+    def is_qpu_task(self) -> bool:
+        return self.task.processor_type == ProcessorType.QPU
 
 
 @dataclass(eq=True)
@@ -619,6 +626,19 @@ class TaskGraph:
             }
 
         return TaskGraph(partial_tasks)
+
+
+class TaskGraphBuilder:
+    @classmethod
+    def linear_block_tasks(cls, tasks: List[BlockTask]) -> TaskGraph:
+        tinfos: List[TaskInfo] = [TaskInfo.only_task(task) for task in tasks]
+
+        for i in range(len(tinfos) - 1):
+            t1 = tinfos[i]
+            t2 = tinfos[i + 1]
+            t2.predecessors.append(t1.task.task_id)
+
+        return TaskGraph(tasks={t.task.task_id: t for t in tinfos})
 
 
 class TaskCreator:

@@ -17,8 +17,15 @@ from qoala.runtime.program import (
     ProgramInstance,
     ProgramResult,
 )
-from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
-from qoala.runtime.task import QoalaTask, TaskCreator, TaskExecutionMode, TaskGraph
+from qoala.runtime.schedule import StaticSchedule
+from qoala.runtime.task import (
+    ProcessorType,
+    QoalaTask,
+    TaskCreator,
+    TaskExecutionMode,
+    TaskGraph,
+    TaskInfo,
+)
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
@@ -67,7 +74,7 @@ class NodeScheduler(Protocol):
         self._prog_results: Dict[int, ProgramResult] = {}  # program ID -> result
         self._batch_results: Dict[int, BatchResult] = {}  # batch ID -> result
 
-        self._block_schedule: Optional[StaticSchedule] = None
+        self._task_graph: Optional[TaskGraph] = None
 
         scheduler_memory = SharedSchedulerMemory()
         cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
@@ -217,16 +224,18 @@ class NodeScheduler(Protocol):
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
 
-    def upload_cpu_schedule(self, schedule: StaticSchedule) -> None:
-        self._cpu_scheduler.upload_schedule(schedule)
+    def upload_cpu_task_graph(self, graph: TaskGraph) -> None:
+        self._cpu_scheduler.upload_task_graph(graph)
 
-    def upload_qpu_schedule(self, schedule: StaticSchedule) -> None:
-        self._qpu_scheduler.upload_schedule(schedule)
+    def upload_qpu_task_graph(self, graph: TaskGraph) -> None:
+        self._qpu_scheduler.upload_task_graph(graph)
 
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._block_schedule = schedule
-        self._cpu_scheduler.upload_schedule(schedule.cpu_schedule)
-        self._qpu_scheduler.upload_schedule(schedule.qpu_schedule)
+    def upload_task_graph(self, graph: TaskGraph) -> None:
+        self._task_graph = graph
+        cpu_graph = graph.partial_graph(ProcessorType.CPU)
+        qpu_graph = graph.partial_graph(ProcessorType.QPU)
+        self._cpu_scheduler.upload_task_graph(cpu_graph)
+        self._qpu_scheduler.upload_task_graph(qpu_graph)
 
     def start(self) -> None:
         super().start()
@@ -281,49 +290,58 @@ class TimeTriggeredScheduler(ProcessorScheduler):
     def __init__(self, name: str, driver: Driver) -> None:
         super().__init__(name=name, driver=driver)
 
-        self._task_list: List[StaticScheduleEntry] = []
+        self._task_graph: Optional[TaskGraph] = None
         self._finished_tasks: List[QoalaTask] = []
 
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._task_list.extend(schedule.entries)
+    def upload_task_graph(self, graph: TaskGraph) -> None:
+        self._task_graph = graph
 
-    def next_entry(self) -> StaticScheduleEntry:
-        return self._task_list.pop(0)
+    def next_task(self) -> Optional[int]:
+        if self._task_graph is None:
+            return None
+        tg = self._task_graph
+        # Get all tasks without predecessors
+        roots = tg.get_roots()
+        if len(roots) == 0:
+            return None
+        assert len(roots) == 1  # TT Scheduler only allows 1D list of tasks
+        return roots[0]
 
     def has_finished(self, task: QoalaTask) -> bool:
         return task in self._finished_tasks
 
-    def run(self) -> Generator[EventExpression, None, None]:
-        while True:
-            try:
-                entry = self.next_entry()
-                time = entry.timestamp
-                task = entry.task
-                prev = entry.prev
-                if time is not None:
-                    now = ns.sim_time()
-                    self._logger.debug(
-                        f"{ns.sim_time()}: {self.name}: checking next task {task}"
-                    )
-                    self._logger.debug(f"scheduled for {time}")
-                    self._logger.debug(f"waiting for {time - now}...")
-                    yield from self.wait(time - now)
-                if prev is not None:
-                    assert self._other_scheduler is not None
-                    while not all(self._other_scheduler.has_finished(p) for p in prev):
-                        # Wait for a signal that the other scheduler completed a task.
-                        yield self.await_signal(
-                            sender=self._other_scheduler,
-                            signal_label=SIGNAL_TASK_COMPLETED,
-                        )
+    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
+        assert self._task_graph is not None
+        tinfo = self._task_graph.get_tinfo(task_id)
+        time = tinfo.start_time
+        task = tinfo.task
+        prev = tinfo.predecessors
+        if time is not None:
+            now = ns.sim_time()
+            self._logger.debug(
+                f"{ns.sim_time()}: {self.name}: checking next task {task}"
+            )
+            self._logger.debug(f"scheduled for {time}")
+            self._logger.debug(f"waiting for {time - now}...")
+            yield from self.wait(time - now)
+        if len(prev) > 0:
+            assert self._other_scheduler is not None
+            while not all(self._other_scheduler.has_finished(p) for p in prev):
+                # Wait for a signal that the other scheduler completed a task.
+                yield self.await_signal(
+                    sender=self._other_scheduler,
+                    signal_label=SIGNAL_TASK_COMPLETED,
+                )
 
-                self._logger.info(f"executing task {task}")
-                yield from self._driver.handle_task(task)
-                self._finished_tasks.append(task)
-                self.send_signal(SIGNAL_TASK_COMPLETED)
-                self._logger.info(f"finished task {task}")
-            except IndexError:
-                break
+        self._logger.info(f"executing task {task}")
+        yield from self._driver.handle_task(task)
+        self._finished_tasks.append(task)
+        self.send_signal(SIGNAL_TASK_COMPLETED)
+        self._logger.info(f"finished task {task}")
+
+    def run(self) -> Generator[EventExpression, None, None]:
+        while (task_id := self.next_task()) is not None:
+            yield from self.handle_task(task_id)
 
 
 class EdfScheduler(ProcessorScheduler):

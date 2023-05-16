@@ -1,24 +1,13 @@
 from __future__ import annotations
 
+import abc
 from copy import deepcopy
 from dataclasses import dataclass
+from math import ceil
 from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.hostlang import BasicBlockType
-from qoala.runtime.task import BlockTask, ProcessorType, QoalaTask, TaskGraph
-
-
-@dataclass
-class StaticScheduleEntry:
-    task: QoalaTask
-    timestamp: Optional[float] = None
-    prev: Optional[List[QoalaTask]] = None
-
-    def is_cpu_task(self) -> bool:
-        return self.task.processor_type == ProcessorType.CPU
-
-    def is_qpu_task(self) -> bool:
-        return self.task.processor_type == ProcessorType.QPU
+from qoala.runtime.task import BlockTask, ProcessorType, QoalaTask, TaskGraph, TaskInfo
 
 
 @dataclass
@@ -34,8 +23,21 @@ class QcSlotInfo:
 
 
 @dataclass
+class NetworkSchedule:
+    bin_length: int
+    first_bin: int
+    bin_period: int
+
+    def next_bin(self, time: int) -> int:
+        offset = time - self.first_bin
+        next_bin_index = ceil(offset / self.bin_period)
+        next_bin_start = next_bin_index * self.bin_period
+        return next_bin_start + self.first_bin
+
+
+@dataclass
 class StaticSchedule:
-    entries: List[StaticScheduleEntry]
+    entries: List[TaskInfo]
 
     @classmethod
     def _compute_timestamps(
@@ -90,7 +92,7 @@ class StaticSchedule:
     def consecutive_block_tasks(
         cls, task_graphs: List[TaskGraph], qc_slot_info: Optional[QcSlotInfo] = None
     ) -> StaticSchedule:
-        entries: List[StaticScheduleEntry] = []
+        entries: List[TaskInfo] = []
 
         task_list: List[BlockTask] = []
         for graph in task_graphs:
@@ -106,20 +108,21 @@ class StaticSchedule:
                 time = timestamps[i]
             else:
                 time = None
-            entry = StaticScheduleEntry(task=task, timestamp=time, prev=None)
+            entry = TaskInfo.only_task(task)
+            entry.start_time = time
             entries.append(entry)
 
         for i in range(len(entries) - 1):
             e1 = entries[i]
             e2 = entries[i + 1]
             if e1.is_cpu_task() != e2.is_cpu_task():
-                e2.prev = [e1.task]
+                e2.predecessors.append(e1.task)
 
         return StaticSchedule(entries)
 
     @classmethod
     def linear_graph(cls, task_graphs: List[TaskGraph]) -> StaticSchedule:
-        entries: List[StaticScheduleEntry] = []
+        entries: List[TaskInfo] = []
 
         for task_graph in task_graphs:
             # Make a copy so we can alter it without affecting the original graph.
@@ -129,14 +132,14 @@ class StaticSchedule:
                 next_task_id = graph.get_roots()[0]
                 next_task = graph.get_tinfo(next_task_id).task
                 graph.remove_task(next_task_id)
-                entry = StaticScheduleEntry(task=next_task, timestamp=None, prev=None)
+                entry = TaskInfo.only_task(next_task)
                 entries.append(entry)
 
             for i in range(len(entries) - 1):
                 e1 = entries[i]
                 e2 = entries[i + 1]
                 if e1.is_cpu_task() != e2.is_cpu_task():
-                    e2.prev = [e1.task]
+                    e2.predecessors.append(e1.task)
 
         return StaticSchedule(entries)
 
@@ -146,7 +149,7 @@ class StaticSchedule:
         task_graphs: List[TaskGraph],
         qc_slot_info: Optional[QcSlotInfo] = None,
     ) -> StaticSchedule:
-        entries: List[StaticScheduleEntry] = []
+        entries: List[TaskInfo] = []
 
         task_list: List[BlockTask] = []
         for graph in task_graphs:
@@ -158,7 +161,9 @@ class StaticSchedule:
 
         for i, task in enumerate(task_list):
             time = timestamps[i]
-            entries.append(StaticScheduleEntry(task, time, None))
+            entry = TaskInfo.only_task(task)
+            entry.start_time = time
+            entries.append(entry)
 
         return StaticSchedule(entries)
 

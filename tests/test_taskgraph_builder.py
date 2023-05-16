@@ -17,13 +17,14 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
 )
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import (
-    LinkSlotInfo,
-    QcSlotInfo,
-    StaticSchedule,
-    StaticScheduleEntry,
+from qoala.runtime.schedule import LinkSlotInfo, QcSlotInfo, StaticSchedule
+from qoala.runtime.task import (
+    BlockTask,
+    TaskCreator,
+    TaskExecutionMode,
+    TaskGraph,
+    TaskGraphBuilder,
 )
-from qoala.runtime.task import BlockTask, TaskCreator, TaskExecutionMode, TaskGraph
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
 
@@ -82,7 +83,7 @@ def task_list_to_graph(task_list: List[BlockTask]) -> TaskGraph:
     return graph
 
 
-def test_consecutive():
+def test_linear_block_tasks():
     pid = 0
     tasks = [
         BlockTask(0, pid, "blk_host0", CL, 1000),
@@ -91,71 +92,13 @@ def test_consecutive():
         BlockTask(3, pid, "blk_epr_md_1", QC, 1000),
         BlockTask(4, pid, "blk_host1", CL, 1000),
     ]
-    graph = task_list_to_graph(tasks)
-    schedule = StaticSchedule.consecutive_block_tasks([graph])
 
-    assert schedule.entries == [
-        StaticScheduleEntry(tasks[0], None, prev=None),
-        StaticScheduleEntry(tasks[1], None, prev=None),
-        StaticScheduleEntry(tasks[2], None, prev=[tasks[1]]),  # CPU -> QPU
-        StaticScheduleEntry(tasks[3], None, prev=None),
-        StaticScheduleEntry(tasks[4], None, prev=[tasks[3]]),  # QPU -> CPU
-    ]
-
-
-def test_consecutive_qc_slots():
-    pid = 0
-    tasks = [
-        BlockTask(0, pid, "blk_host0", CL, 1000),
-        BlockTask(1, pid, "blk_recv", CC, 10000),
-        BlockTask(2, pid, "blk_add_one", QL, 1000),
-        BlockTask(3, pid, "blk_epr_md_1", QC, 1000, remote_id=0),
-        BlockTask(4, pid, "blk_host1", CL, 1000),
-    ]
-    graph = task_list_to_graph(tasks)
-    schedule = StaticSchedule.consecutive_block_tasks(
-        [graph], qc_slot_info=QcSlotInfo({0: LinkSlotInfo(0, 100, 50_000)})
-    )
-
-    assert schedule.entries == [
-        StaticScheduleEntry(tasks[0], timestamp=None, prev=None),
-        StaticScheduleEntry(tasks[1], timestamp=None, prev=None),
-        StaticScheduleEntry(tasks[2], timestamp=None, prev=[tasks[1]]),  # CPU -> QPU
-        StaticScheduleEntry(tasks[3], timestamp=50_000, prev=None),  # QC task
-        StaticScheduleEntry(tasks[4], timestamp=None, prev=[tasks[3]]),  # QPU -> CPU
-    ]
-
-
-def test_consecutive_block_tasks_with_timestamps():
-    pid = 0
-
-    tasks = [
-        BlockTask(0, pid, "blk_host0", CL, 1000),
-        BlockTask(1, pid, "blk_lr0", QL, 5000),
-        BlockTask(2, pid, "blk_host1", CL, 200),
-        BlockTask(3, pid, "blk_rr0", QC, 30_000, remote_id=0),
-        BlockTask(4, pid, "blk_host2", CL, 4000),
-    ]
-    graph = task_list_to_graph(tasks)
-    schedule = StaticSchedule.consecutive_block_tasks_with_timestamps([graph])
-
-    assert schedule.entries == [
-        StaticScheduleEntry(tasks[0], 0),
-        StaticScheduleEntry(tasks[1], 1000),
-        StaticScheduleEntry(tasks[2], 1000 + 5000),
-        StaticScheduleEntry(tasks[3], 1000 + 5000 + 200),
-        StaticScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
-    ]
-
-    assert schedule.cpu_schedule.entries == [
-        StaticScheduleEntry(tasks[0], 0),
-        StaticScheduleEntry(tasks[2], 1000 + 5000),
-        StaticScheduleEntry(tasks[4], 1000 + 5000 + 200 + 30_000),
-    ]
-    assert schedule.qpu_schedule.entries == [
-        StaticScheduleEntry(tasks[1], 1000),
-        StaticScheduleEntry(tasks[3], 1000 + 5000 + 200),
-    ]
+    graph = TaskGraphBuilder.linear_block_tasks(tasks)
+    assert graph.get_tinfo(0).task == tasks[0]
+    assert graph.get_tinfo(0).predecessors == []
+    for i in range(1, len(tasks)):
+        assert graph.get_tinfo(i).task == tasks[i]
+        assert graph.get_tinfo(i).predecessors == [i - 1]
 
 
 def test_host_program():
@@ -174,7 +117,7 @@ def test_host_program():
         BlockTask(0, pid, "blk_host0", CL),
         BlockTask(1, pid, "blk_host1", CL),
     ]
-    graph = task_list_to_graph(tasks)
+    graph = TaskGraphBuilder.linear_block_tasks(tasks)
 
     cpu_schedule = StaticSchedule.consecutive_block_tasks([graph])
     alice.scheduler.upload_cpu_schedule(cpu_schedule)
@@ -465,9 +408,7 @@ def test_full_program():
 
 
 if __name__ == "__main__":
-    test_consecutive()
-    test_consecutive_qc_slots()
-    test_consecutive_block_tasks_with_timestamps()
+    test_linear_block_tasks()
     test_host_program()
     test_lr_program()
     test_epr_md_1()
