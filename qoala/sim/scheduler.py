@@ -113,11 +113,6 @@ class NodeScheduler(Protocol):
     def qpu_scheduler(self) -> ProcessorScheduler:
         return self._qpu_scheduler
 
-    @property
-    def block_schedule(self) -> StaticSchedule:
-        assert self._block_schedule is not None
-        return self._block_schedule
-
     def submit_batch(self, batch_info: BatchInfo) -> None:
         prog_instances: List[ProgramInstance] = []
 
@@ -327,7 +322,7 @@ class EdfScheduler(ProcessorScheduler):
             return SchedulerStatus.TASK_AVAILABLE, to_return
 
     def wait_until_start_time(
-        self, start_time: int
+        self, start_time: float
     ) -> Generator[EventExpression, None, None]:
         now = ns.sim_time()
         self._logger.debug(f"scheduled for {start_time}")
@@ -384,4 +379,5 @@ class EdfScheduler(ProcessorScheduler):
             status, task_id = self.next_task()
             if status == SchedulerStatus.GRAPH_EMPTY:
                 break
+            assert task_id is not None
             yield from self.handle_task(task_id)

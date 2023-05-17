@@ -115,7 +115,7 @@ class StaticSchedule:
             e1 = entries[i]
             e2 = entries[i + 1]
             if e1.is_cpu_task() != e2.is_cpu_task():
-                e2.predecessors.append(e1.task)
+                e2.predecessors.append(e1.task.task_id)
 
         return StaticSchedule(entries)
 
@@ -138,7 +138,7 @@ class StaticSchedule:
                 e1 = entries[i]
                 e2 = entries[i + 1]
                 if e1.is_cpu_task() != e2.is_cpu_task():
-                    e2.predecessors.append(e1.task)
+                    e2.predecessors.append(e1.task.task_id)
 
         return StaticSchedule(entries)
 
@@ -247,13 +247,13 @@ class ScheduleWriter:
             try:
                 cpu_entry = self._cpu_entries[cpu_index]
                 cpu_task = cpu_entry.task
-                cpu_time = cpu_entry.timestamp
+                cpu_time = cpu_entry.start_time
             except IndexError:
                 cpu_done = True
             try:
                 qpu_entry = self._qpu_entries[qpu_index]
                 qpu_task = qpu_entry.task
-                qpu_time = qpu_entry.timestamp
+                qpu_time = qpu_entry.start_time
             except IndexError:
                 qpu_done = True
             if cpu_done and qpu_done:

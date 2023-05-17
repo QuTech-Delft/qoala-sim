@@ -430,7 +430,7 @@ class TaskInfo:
     deadline: Optional[int]
     rel_deadlines: Dict[int, int]
     ext_rel_deadlines: Dict[int, int]
-    start_time: Optional[int]
+    start_time: Optional[float]
 
     @classmethod
     def only_task(cls, task: QoalaTask) -> TaskInfo:
