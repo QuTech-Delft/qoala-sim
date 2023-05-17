@@ -17,8 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.schedule import StaticSchedule
-from qoala.runtime.task import TaskExecutionMode
+from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
 from qoala.sim.build import build_network
 
 
@@ -71,7 +70,7 @@ def run_qkd(
     alice_file: str,
     bob_file: str,
     num_pairs: Optional[int] = None,
-    tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
+    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
 
@@ -125,15 +124,11 @@ def run_qkd(
     bob_procnode.initialize_processes()
 
     alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
+    alice_merged = TaskGraphBuilder.merge(alice_tasks)
+    alice_procnode.scheduler.upload_task_graph(alice_merged)
     bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
-    if tem == TaskExecutionMode.ROUTINE_ATOMIC:
-        alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
-        bob_schedule = StaticSchedule.consecutive_block_tasks(bob_tasks)
-    else:
-        alice_schedule = StaticSchedule.linear_graph(alice_tasks)
-        bob_schedule = StaticSchedule.linear_graph(bob_tasks)
-    alice_procnode.scheduler.upload_schedule(alice_schedule)
-    bob_procnode.scheduler.upload_schedule(bob_schedule)
+    bob_merged = TaskGraphBuilder.merge(bob_tasks)
+    bob_procnode.scheduler.upload_task_graph(bob_merged)
 
     network.start()
     ns.sim_run()
@@ -174,7 +169,7 @@ def test_qkd_md_1pair_task_split():
     bob_file = "qkd_md_1pair_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -220,7 +215,7 @@ def test_qkd_md_2pairs_task_split():
     bob_file = "qkd_md_2pairs_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
 
     alice_results = qkd_result.alice_result.results
@@ -266,7 +261,7 @@ def test_qkd_ck_1pair_task_split():
     bob_file = "qkd_ck_1pair_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -311,7 +306,7 @@ def test_qkd_ck_2pairs_task_split():
     bob_file = "qkd_ck_2pairs_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -356,7 +351,7 @@ def test_qkd_ck_callback_1pair_task_split():
     bob_file = "qkd_ck_callback_1pair_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -401,7 +396,7 @@ def test_qkd_ck_callback_2pairs_task_split():
     bob_file = "qkd_ck_callback_2pairs_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results

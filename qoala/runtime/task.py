@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from netqasm.lang.instr import core
 
@@ -20,8 +21,8 @@ from qoala.lang.routine import LocalRoutine
 
 
 class TaskExecutionMode(Enum):
-    ROUTINE_ATOMIC = 0
-    ROUTINE_SPLIT = auto()
+    BLOCK = 0
+    QOALA = auto()
 
 
 class ProcessorType(Enum):
@@ -69,7 +70,7 @@ class QoalaTask:
         )
 
 
-class HostCodeTask(QoalaTask):
+class HostLocalTask(QoalaTask):
     def __init__(
         self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
     ) -> None:
@@ -86,7 +87,7 @@ class HostCodeTask(QoalaTask):
         return self._block_name
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, HostCodeTask):
+        if not isinstance(other, HostLocalTask):
             return NotImplemented
         return super().__eq__(other) and self.block_name == other.block_name
 
@@ -420,70 +421,394 @@ class BlockTask(QoalaTask):
         )
 
 
+@dataclass
+class TaskInfo:
+    task: QoalaTask
+    predecessors: List[int]
+    ext_predecessors: List[int]
+    successors: List[int]
+    deadline: Optional[int]
+    rel_deadlines: Dict[int, int]
+    ext_rel_deadlines: Dict[int, int]
+    start_time: Optional[float]
+
+    @classmethod
+    def only_task(cls, task: QoalaTask) -> TaskInfo:
+        return TaskInfo(task, [], [], [], None, {}, {}, None)
+
+    def is_cpu_task(self) -> bool:
+        return self.task.processor_type == ProcessorType.CPU
+
+    def is_qpu_task(self) -> bool:
+        return self.task.processor_type == ProcessorType.QPU
+
+
 @dataclass(eq=True)
 class TaskGraph:
     """DAG of Tasks."""
 
-    tasks: Dict[int, QoalaTask]  # "nodes"
-
-    # an entry (x, y) means that x precedes y (y should execute after x)
-    # also known as "precedence constraints"
-    precedences: List[Tuple[int, int]]  # "edges"
-
-    # task ID -> {other_task_id: deadline_relative_to_other_task}
-    # E.g. if relative_deadlines[3] == {2: 17, 6: 25}, then
-    # task 3 must start at most 17 time units after task 2 has finished, and
-    # task 3 must start at most 25 time units after task 6 has finished, and
-    relative_deadlines: Dict[int, Dict[int, int]]
-
-    @classmethod
-    def empty(cls) -> TaskGraph:
-        return TaskGraph(tasks={}, precedences=[], relative_deadlines={})
-
-    def predecessors(self, task_id: int) -> List[int]:
-        # Return all (IDs of) tasks that are direct predecessors of the given task (ID)
-        assert task_id in self.tasks
-        return [x for (x, y) in self.precedences if y == task_id]
-
-    def roots(self) -> List[int]:
-        # Return all (IDs of) tasks that have no predecessors
-        return [i for i in self.tasks.keys() if len(self.predecessors(i)) == 0]
-
-    def deadlines(self, id: int) -> Dict[int, int]:
-        if id in self.relative_deadlines:
-            return self.relative_deadlines[id]
+    def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None) -> None:
+        if tasks is None:
+            self._tasks: Dict[int, TaskInfo] = {}
         else:
-            assert id in self.tasks
-            return {}
+            self._tasks = tasks
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TaskGraph):
+            raise NotImplementedError
+        return self._tasks == other._tasks
+
+    def __str__(self) -> str:
+        return "\n".join(f"{i}: {t}" for i, t in self._tasks.items())
+
+    def add_tasks(self, tasks: List[QoalaTask]) -> None:
+        for task in tasks:
+            self._tasks[task.task_id] = TaskInfo.only_task(task)
+
+    def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
+        # an entry (x, y) means that x precedes y (y should execute after x)
+        for (x, y) in precedences:
+            assert x in self._tasks and y in self._tasks
+            self._tasks[y].predecessors.append(x)
+            self._tasks[x].successors.append(y)
+
+    def update_successors(self) -> None:
+        # Make sure all `successors` of all tinfos match all predecessors
+        for tid, tinfo in self.get_tasks().items():
+            for pred in tinfo.predecessors:
+                pred_tinfo = self.get_tinfo(pred)
+                if tid not in pred_tinfo.successors:
+                    pred_tinfo.successors.append(tid)
+
+    def add_ext_precedences(self, precedences: List[Tuple[int, int]]) -> None:
+        # an entry (x, y) means that x (which is not in this graph) precedes y
+        # (which is in this graph)
+        for (x, y) in precedences:
+            assert x not in self._tasks and y in self._tasks
+            self._tasks[y].ext_predecessors.append(x)
+
+    def add_deadlines(self, deadlines: List[Tuple[int, int]]) -> None:
+        for (x, d) in deadlines:
+            assert x in self._tasks
+            self._tasks[x].deadline = d
+
+    def add_rel_deadlines(self, deadlines: List[Tuple[Tuple[int, int], int]]) -> None:
+        # entry ((x, y), d) means
+        # task y must start at most time d time units after task x has finished
+        for ((x, y), d) in deadlines:
+            assert x in self._tasks and y in self._tasks
+            self._tasks[y].rel_deadlines[x] = d
+
+    def add_ext_rel_deadlines(
+        self, deadlines: List[Tuple[Tuple[int, int], int]]
+    ) -> None:
+        # entry ((x, y), d) means
+        # task y must start at most time d time units after task x has finished
+        for ((x, y), d) in deadlines:
+            assert x not in self._tasks and y in self._tasks  # x is external
+            self._tasks[y].ext_rel_deadlines[x] = d
+
+    def get_tasks(self) -> Dict[int, TaskInfo]:
+        return self._tasks
+
+    def get_tinfo(self, id: int) -> TaskInfo:
+        assert id in self._tasks
+        return self._tasks[id]
+
+    def get_roots(self, ignore_external: bool = False) -> List[int]:
+        # Return all (IDs of) tasks that have no predecessors
+
+        if ignore_external:
+            return [
+                i for i, tinfo in self._tasks.items() if len(tinfo.predecessors) == 0
+            ]
+        else:
+            return [
+                i
+                for i, tinfo in self._tasks.items()
+                if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) == 0
+            ]
+
+    def linearize(self) -> Optional[List[int]]:
+        # Returns None if not linear
+        if len(self.get_tasks()) == 0:
+            return []  # empty graph is linear
+
+        roots = self.get_roots()
+        if len(roots) != 1:
+            return None
+
+        chain: List[int] = [roots[0]]
+        for _ in range(len(self._tasks) - 1):
+            successors = self.get_tinfo(chain[-1]).successors
+            if len(successors) != 1:
+                return None
+            chain.append(successors[0])
+        return chain
 
     def remove_task(self, id: int) -> None:
-        assert id in self.roots()
-        self.tasks.pop(id)
-        self.precedences = [
-            (x, y) for (x, y) in self.precedences if x != id and y != id
-        ]
-        if id in self.relative_deadlines:
-            self.relative_deadlines.pop(id)
-        for task_id in self.relative_deadlines.keys():
-            self.relative_deadlines[task_id] = {
-                x: y
-                for x, y in self.relative_deadlines[task_id].items()
-                if x != id and y != id
+        assert id in self.get_roots(ignore_external=True)
+        tinfo = self._tasks.pop(id)
+
+        # Remove precedences of successor tasks
+        for succ in tinfo.successors:
+            succ_info = self.get_tinfo(succ)
+            assert id in succ_info.predecessors
+            succ_info.predecessors.remove(id)
+
+        # Change relative deadlines to absolute ones
+        for t in self._tasks.values():
+            if id in t.rel_deadlines:
+                t.deadline = t.rel_deadlines.pop(id)
+
+    def decrease_deadlines(self, amount: int) -> None:
+        for tinfo in self._tasks.values():
+            if tinfo.deadline is not None:
+                tinfo.deadline -= amount
+
+    def get_cpu_graph(self) -> TaskGraph:
+        return self.partial_graph(ProcessorType.CPU)
+
+    def get_qpu_graph(self) -> TaskGraph:
+        return self.partial_graph(ProcessorType.QPU)
+
+    def cross_predecessors(self, task_id: int, immediate: bool = True) -> Set[int]:
+        # Return all (IDs of) tasks that are predecessors that run on
+        # the other processor (CPU/QPU).
+        # If immediate = False, return all closest such predecessor, even if they are
+        # no immediate parents.
+        # If immediate = True, return only immediate parents with a different processor
+        # type.
+        # TODO: remove items from result set when they are ancestors of other items
+        # in the set (in which case they are redundant)
+        proc_type = self.get_tinfo(task_id).task.processor_type
+        cross_preds = set()
+
+        for pred in self.get_tinfo(task_id).predecessors:
+            pred_type = self.get_tinfo(pred).task.processor_type
+            if pred_type != proc_type:
+                cross_preds.add(pred)  # immediate parent of different type
+            elif not immediate:
+                cross_preds = cross_preds.union(
+                    self.cross_predecessors(pred, immediate)
+                )
+        return cross_preds
+
+    def double_cross_predecessors(self, task_id: int) -> Set[int]:
+        # Return all (IDs of) tasks that are the closest predecessors that run on
+        # the same processor (CPU/QPU) but where there are tasks of the other processor
+        # type inbetween (in the precedence chain).
+
+        # For the first step: only check immediate parents that have different type.
+        # Parents with same type already induce a normal precedence constraint in the
+        # partial graph.
+        cross_preds = self.cross_predecessors(task_id, immediate=True)
+        double_cross_preds: Set[int] = set()
+        for cp in cross_preds:
+            # For each different-type parent, find the nearest ancestor of the original
+            # type.
+            double_cross_preds = double_cross_preds.union(
+                self.cross_predecessors(cp, immediate=False)
+            )
+        return double_cross_preds
+
+    def partial_graph(self, proc_type: ProcessorType) -> TaskGraph:
+        # Filter tasks with the correct type.
+        partial_tasks: Dict[int, TaskInfo] = {
+            i: deepcopy(tinfo)
+            for i, tinfo in self._tasks.items()
+            if tinfo.task.processor_type == proc_type
+        }
+
+        # Precedence constraints.
+        # Move predecessor tasks that have been removed to ext_predecessors.
+        for tinfo in partial_tasks.values():
+            # Keep predecessors if they are still in the graph.
+            new_predecessors = [
+                pred for pred in tinfo.predecessors if pred in partial_tasks
+            ]
+            # Move others to ext_predecessors.
+            new_ext_predecessors = [
+                pred for pred in tinfo.predecessors if pred not in partial_tasks
+            ]
+            tinfo.predecessors = new_predecessors
+            tinfo.ext_predecessors = new_ext_predecessors
+            # Clear successors. Will be filled in at the end of this function.
+            tinfo.successors = []
+
+        # Precedence constraints for same-processor tasks that used to have a
+        # precedence chain of other-processor tasks in between them.
+        for tid, tinfo in partial_tasks.items():
+            for pred in self.double_cross_predecessors(tid):
+                if pred not in tinfo.predecessors:
+                    tinfo.predecessors.append(pred)
+
+        # Relative deadlines.
+        for tinfo in partial_tasks.values():
+            # Keep rel_deadline to pred if pred is still in the graph.
+            tinfo.rel_deadlines = {
+                pred: dl
+                for pred, dl in tinfo.rel_deadlines.items()
+                if pred in partial_tasks
+            }
+            # Move others to ext_predecessors.
+            tinfo.ext_rel_deadlines = {
+                pred: dl
+                for pred, dl in tinfo.rel_deadlines.items()
+                if pred not in partial_tasks
             }
 
+        partial_graph = TaskGraph(partial_tasks)
+        # Fill in successors by taking opposite of predecessors.
+        partial_graph.update_successors()
+        return partial_graph
 
-class TaskCreator:
-    def __init__(self, mode: TaskExecutionMode) -> None:
-        self._mode = mode
-        self._task_id_counter = 0
-        self._graph = TaskGraph.empty()
+
+class TaskGraphBuilder:
+    @classmethod
+    def linear_tasks(cls, tasks: List[QoalaTask]) -> TaskGraph:
+        tinfos: List[TaskInfo] = [TaskInfo.only_task(task) for task in tasks]
+
+        for i in range(len(tinfos) - 1):
+            t1 = tinfos[i]
+            t2 = tinfos[i + 1]
+            t2.predecessors.append(t1.task.task_id)
+
+        graph = TaskGraph(tasks={t.task.task_id: t for t in tinfos})
+        graph.update_successors()
+        return graph
+
+    @classmethod
+    def linear_tasks_with_start_times(
+        cls, tasks: List[Tuple[QoalaTask, Optional[int]]]
+    ) -> TaskGraph:
+        tinfos: List[TaskInfo] = []
+        for task, start_time in tasks:
+            tinfo = TaskInfo.only_task(task)
+            tinfo.start_time = start_time
+            tinfos.append(tinfo)
+
+        for i in range(len(tinfos) - 1):
+            t1 = tinfos[i]
+            t2 = tinfos[i + 1]
+            t2.predecessors.append(t1.task.task_id)
+
+        graph = TaskGraph(tasks={t.task.task_id: t for t in tinfos})
+        graph.update_successors()
+        return graph
+
+    @classmethod
+    def merge(cls, graphs: List[TaskGraph]) -> TaskGraph:
+        merged_tinfos = {}
+        for graph in graphs:
+            for tid, tinfo in graph.get_tasks().items():
+                merged_tinfos[tid] = tinfo
+
+        merged = TaskGraph(merged_tinfos)
+        merged.update_successors()
+        return merged
+
+    @classmethod
+    def merge_linear(cls, graphs: List[TaskGraph]) -> TaskGraph:
+        merged_tinfos = {}
+        for graph in graphs:
+            for tid, tinfo in graph.get_tasks().items():
+                merged_tinfos[tid] = deepcopy(tinfo)
+
+        merged = TaskGraph(merged_tinfos)
+
+        for i in range(1, len(graphs)):
+            chain1 = graphs[i - 1].linearize()
+            chain2 = graphs[i].linearize()
+            assert chain1 is not None
+            assert chain2 is not None
+            # Add precedence between last task of graph1 and first task of graph2
+            precedence = (chain1[-1], chain2[0])
+            merged.add_precedences([precedence])
+
+        merged.update_successors()
+        return merged
+
+    @classmethod
+    def from_file(
+        cls,
+        program: QoalaProgram,
+        pid: int,
+        ehi: Optional[EhiNodeInfo] = None,
+        network_ehi: Optional[EhiNetworkInfo] = None,
+        first_task_id: int = 0,
+    ) -> TaskGraph:
+        return QoalaGraphFromProgramBuilder(first_task_id).build(
+            program, pid, ehi, network_ehi
+        )
+
+    @classmethod
+    def from_file_block_tasks(
+        cls,
+        program: QoalaProgram,
+        pid: int,
+        ehi: Optional[EhiNodeInfo] = None,
+        network_ehi: Optional[EhiNetworkInfo] = None,
+        remote_id: Optional[int] = None,
+        first_task_id: int = 0,
+    ) -> TaskGraph:
+        return BlockGraphFromProgramBuilder(first_task_id).build(
+            program, pid, ehi, network_ehi, remote_id
+        )
+
+
+class TaskDurationEstimator:
+    @classmethod
+    def lr_duration(self, ehi: EhiNodeInfo, routine: LocalRoutine) -> float:
+        duration = 0.0
+        # TODO: refactor this
+        for instr in routine.subroutine.instructions:
+            if (
+                type(instr)
+                in [
+                    core.SetInstruction,
+                    core.StoreInstruction,
+                    core.LoadInstruction,
+                    core.LeaInstruction,
+                ]
+                or isinstance(instr, core.BranchBinaryInstruction)
+                or isinstance(instr, core.BranchUnaryInstruction)
+                or isinstance(instr, core.JmpInstruction)
+                or isinstance(instr, core.ClassicalOpInstruction)
+                or isinstance(instr, core.ClassicalOpModInstruction)
+            ):
+                duration += ehi.latencies.qnos_instr_time
+            else:
+                max_duration = -1.0
+                # TODO: gate duration depends on which qubit!!
+                # currently we always take the worst case scenario but this is not ideal
+                for i in ehi.single_gate_infos.keys():
+                    if info := ehi.find_single_gate(i, type(instr)):
+                        max_duration = max(max_duration, info.duration)
+
+                for multi in ehi.multi_gate_infos.keys():
+                    if info := ehi.find_multi_gate(multi.qubit_ids, type(instr)):
+                        max_duration = max(max_duration, info.duration)
+
+                if max_duration != -1:
+                    duration += max_duration
+                else:
+                    raise RuntimeError
+        return duration
+
+
+class BlockGraphFromProgramBuilder:
+    def __init__(self, first_task_id: int = 0) -> None:
+        self._first_task_id = first_task_id
+        self._task_id_counter = first_task_id
+        self._graph = TaskGraph()
 
     def unique_id(self) -> int:
         id = self._task_id_counter
         self._task_id_counter += 1
         return id
 
-    def from_program(
+    def build(
         self,
         program: QoalaProgram,
         pid: int,
@@ -491,21 +816,6 @@ class TaskCreator:
         network_ehi: Optional[EhiNetworkInfo] = None,
         remote_id: Optional[int] = None,
     ) -> TaskGraph:
-        if self._mode == TaskExecutionMode.ROUTINE_ATOMIC:
-            self._build_routine_atomic(program, pid, ehi, network_ehi, remote_id)
-        else:
-            self._build_routine_split(program, pid, ehi, network_ehi, remote_id)
-
-        return self._graph
-
-    def _build_routine_atomic(
-        self,
-        program: QoalaProgram,
-        pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
-        network_ehi: Optional[EhiNetworkInfo] = None,
-        remote_id: Optional[int] = None,
-    ) -> None:
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
                 if ehi is not None:
@@ -514,7 +824,7 @@ class TaskCreator:
                     duration = None
                 task_id = self.unique_id()
                 cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.tasks[task_id] = cputask
+                self._graph.add_tasks([cputask])
             elif block.typ == BasicBlockType.CC:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
@@ -525,19 +835,19 @@ class TaskCreator:
                     duration = None
                 task_id = self.unique_id()
                 cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.tasks[task_id] = cputask
+                self._graph.add_tasks([cputask])
             elif block.typ == BasicBlockType.QL:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
                 assert isinstance(instr, RunSubroutineOp)
                 if ehi is not None:
                     local_routine = program.local_routines[instr.subroutine]
-                    duration = self._compute_lr_duration(ehi, local_routine)
+                    duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
                 else:
                     duration = None
                 task_id = self.unique_id()
                 qputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.tasks[task_id] = qputask
+                self._graph.add_tasks([qputask])
             elif block.typ == BasicBlockType.QC:
                 assert len(block.instructions) == 1
                 instr = block.instructions[0]
@@ -554,24 +864,40 @@ class TaskCreator:
                 qputask = BlockTask(
                     task_id, pid, block.name, block.typ, duration, remote_id=remote_id
                 )
-                self._graph.tasks[task_id] = qputask
+                self._graph.add_tasks([qputask])
 
         # We assume a linear program, where the task graph is a 1-dimensional chain of
         # block tasks. Hence we can trivially add a single dependency to each task.
         # We also make use of the fact that all tasks have incrementing indices
-        # starting at 0.
-        for i in range(1, len(self._graph.tasks)):
+        # starting at first_task_id.
+        precedences = []
+        last_task_id = len(self._graph.get_tasks()) + self._first_task_id
+        for i in range(self._first_task_id + 1, last_task_id):
             # task (block) i should come after task (block) i - 1
-            self._graph.precedences.append((i - 1, i))
+            precedences.append((i - 1, i))
+        self._graph.add_precedences(precedences)
+        self._graph.update_successors()
+        return self._graph
 
-    def _build_routine_split(
+
+class QoalaGraphFromProgramBuilder:
+    def __init__(self, first_task_id: int = 0) -> None:
+        self._first_task_id = first_task_id
+        self._task_id_counter = first_task_id
+        self._graph = TaskGraph()
+
+    def unique_id(self) -> int:
+        id = self._task_id_counter
+        self._task_id_counter += 1
+        return id
+
+    def build(
         self,
         program: QoalaProgram,
         pid: int,
         ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
-        remote_id: Optional[int] = None,
-    ) -> None:
+    ) -> TaskGraph:
         prev_block_task_id: Optional[int] = None
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
@@ -580,13 +906,15 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                self._graph.tasks[task_id] = HostCodeTask(
-                    task_id, pid, block.name, duration
+                self._graph.add_tasks(
+                    [HostLocalTask(task_id, pid, block.name, duration)]
                 )
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
-                    self._graph.precedences.append((prev_block_task_id, task_id))
+                    self._graph.get_tinfo(task_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.CC:
                 assert len(block.instructions) == 1
@@ -597,13 +925,15 @@ class TaskCreator:
                 else:
                     duration = None
                 task_id = self.unique_id()
-                self._graph.tasks[task_id] = HostEventTask(
-                    task_id, pid, block.name, duration
+                self._graph.add_tasks(
+                    [HostEventTask(task_id, pid, block.name, duration)]
                 )
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
-                    self._graph.precedences.append((prev_block_task_id, task_id))
+                    self._graph.get_tinfo(task_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.QL:
                 assert len(block.instructions) == 1
@@ -611,7 +941,7 @@ class TaskCreator:
                 assert isinstance(instr, RunSubroutineOp)
                 if ehi is not None:
                     local_routine = program.local_routines[instr.subroutine]
-                    lr_duration = self._compute_lr_duration(ehi, local_routine)
+                    lr_duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
                     pre_duration = ehi.latencies.host_instr_time
                     post_duration = ehi.latencies.host_instr_time
                 else:
@@ -628,30 +958,32 @@ class TaskCreator:
                 precall_task = PreCallTask(
                     precall_id, pid, block.name, shared_ptr, pre_duration
                 )
-                self._graph.tasks[precall_id] = precall_task
+                self._graph.add_tasks([precall_task])
 
                 lr_id = self.unique_id()
                 qputask = LocalRoutineTask(
                     lr_id, pid, block.name, shared_ptr, lr_duration
                 )
-                self._graph.tasks[lr_id] = qputask
+                self._graph.add_tasks([qputask])
 
                 postcall_id = self.unique_id()
                 postcall_task = PostCallTask(
                     postcall_id, pid, block.name, shared_ptr, post_duration
                 )
-                self._graph.tasks[postcall_id] = postcall_task
+                self._graph.add_tasks([postcall_task])
 
                 # LR task should come after precall task
-                self._graph.precedences.append((precall_id, lr_id))
+                self._graph.get_tinfo(lr_id).predecessors.append(precall_id)
                 # postcall task should come after LR task
-                self._graph.precedences.append((lr_id, postcall_id))
+                self._graph.get_tinfo(postcall_id).predecessors.append(lr_id)
 
                 # Tasks for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     # First task for this block is precall task.
-                    self._graph.precedences.append((prev_block_task_id, precall_id))
+                    self._graph.get_tinfo(precall_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 # Last task for this block is postcall task.
                 prev_block_task_id = postcall_id
             elif block.typ == BasicBlockType.QC:
@@ -662,9 +994,14 @@ class TaskCreator:
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     # First task for QC block is precall task.
-                    self._graph.precedences.append((prev_block_task_id, precall_id))
+                    self._graph.get_tinfo(precall_id).predecessors.append(
+                        prev_block_task_id
+                    )
                 # Last task for QC block is postcall task.
                 prev_block_task_id = postcall_id  # (not precall_id !)
+
+        self._graph.update_successors()
+        return self._graph
 
     def _build_from_qc_task_routine_split(
         self,
@@ -707,34 +1044,34 @@ class TaskCreator:
         precall_task = PreCallTask(
             precall_id, pid, block.name, shared_ptr, pre_duration
         )
-        self._graph.tasks[precall_id] = precall_task
+        self._graph.add_tasks([precall_task])
 
         postcall_id = self.unique_id()
         postcall_task = PostCallTask(
             postcall_id, pid, block.name, shared_ptr, post_duration
         )
-        self._graph.tasks[postcall_id] = postcall_task
+        self._graph.add_tasks([postcall_task])
 
         if req_routine.callback_type == CallbackType.WAIT_ALL:
             rr_id = self.unique_id()
             rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
-            self._graph.tasks[rr_id] = rr_task
+            self._graph.add_tasks([rr_task])
             # RR task should come after precall task
-            self._graph.precedences.append((precall_id, rr_id))
+            self._graph.get_tinfo(rr_id).predecessors.append(precall_id)
 
             if callback is not None:
                 cb_id = self.unique_id()
                 cb_task = MultiPairCallbackTask(
                     cb_id, pid, callback, shared_ptr, cb_duration
                 )
-                self._graph.tasks[cb_id] = cb_task
+                self._graph.add_tasks([cb_task])
                 # callback task should come after RR task
-                self._graph.precedences.append((rr_id, cb_id))
+                self._graph.get_tinfo(cb_id).predecessors.append(rr_id)
                 # postcall task should come after callback task
-                self._graph.precedences.append((cb_id, postcall_id))
+                self._graph.get_tinfo(postcall_id).predecessors.append(cb_id)
             else:  # no callback
                 # postcall task should come after RR task
-                self._graph.precedences.append((rr_id, postcall_id))
+                self._graph.get_tinfo(postcall_id).predecessors.append(rr_id)
 
         else:
             assert req_routine.callback_type == CallbackType.SEQUENTIAL
@@ -743,62 +1080,25 @@ class TaskCreator:
                 rr_pair_task = SinglePairTask(
                     rr_pair_id, pid, i, shared_ptr, pair_duration
                 )
-                self._graph.tasks[rr_pair_id] = rr_pair_task
+                self._graph.add_tasks([rr_pair_task])
                 # RR pair task should come after precall task.
                 # Note: the RR pair tasks do not have precedence
                 # constraints among each other.
-                self._graph.precedences.append((precall_id, rr_pair_id))
+                self._graph.get_tinfo(rr_pair_id).predecessors.append(precall_id)
                 if callback is not None:
                     pair_cb_id = self.unique_id()
                     pair_cb_task = SinglePairCallbackTask(
                         pair_cb_id, pid, callback, i, shared_ptr, cb_duration
                     )
-                    self._graph.tasks[pair_cb_id] = pair_cb_task
+                    self._graph.add_tasks([pair_cb_task])
                     # Callback task for pair should come after corresponding
                     # RR pair task. Note: the pair callback tasks do not have
                     # precedence constraints among each other.
-                    self._graph.precedences.append((rr_pair_id, pair_cb_id))
+                    self._graph.get_tinfo(pair_cb_id).predecessors.append(rr_pair_id)
                     # postcall task should come after callback task
-                    self._graph.precedences.append((pair_cb_id, postcall_id))
+                    self._graph.get_tinfo(postcall_id).predecessors.append(pair_cb_id)
                 else:  # no callback
                     # postcall task should come after RR task
-                    self._graph.precedences.append((rr_pair_id, postcall_id))
+                    self._graph.get_tinfo(postcall_id).predecessors.append(rr_pair_id)
 
         return precall_id, postcall_id
-
-    def _compute_lr_duration(self, ehi: EhiNodeInfo, routine: LocalRoutine) -> float:
-        duration = 0.0
-        # TODO: refactor this
-        for instr in routine.subroutine.instructions:
-            if (
-                type(instr)
-                in [
-                    core.SetInstruction,
-                    core.StoreInstruction,
-                    core.LoadInstruction,
-                    core.LeaInstruction,
-                ]
-                or isinstance(instr, core.BranchBinaryInstruction)
-                or isinstance(instr, core.BranchUnaryInstruction)
-                or isinstance(instr, core.JmpInstruction)
-                or isinstance(instr, core.ClassicalOpInstruction)
-                or isinstance(instr, core.ClassicalOpModInstruction)
-            ):
-                duration += ehi.latencies.qnos_instr_time
-            else:
-                max_duration = -1.0
-                # TODO: gate duration depends on which qubit!!
-                # currently we always take the worst case scenario but this is not ideal
-                for i in ehi.single_gate_infos.keys():
-                    if info := ehi.find_single_gate(i, type(instr)):
-                        max_duration = max(max_duration, info.duration)
-
-                for multi in ehi.multi_gate_infos.keys():
-                    if info := ehi.find_multi_gate(multi.qubit_ids, type(instr)):
-                        max_duration = max(max_duration, info.duration)
-
-                if max_duration != -1:
-                    duration += max_duration
-                else:
-                    raise RuntimeError
-        return duration

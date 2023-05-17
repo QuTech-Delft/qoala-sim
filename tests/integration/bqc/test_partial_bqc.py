@@ -25,6 +25,7 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
+from qoala.sim.driver import QpuDriver
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.host.csocket import ClassicalSocket
@@ -49,7 +50,7 @@ def create_process(
         program=program,
         inputs=prog_input,
         unit_module=unit_module,
-        task_graph=TaskGraph.empty(),
+        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=0)
 
@@ -134,13 +135,12 @@ class BqcProcNode(ProcNode):
         host_instr = process.program.instructions[host_instr_index]
         assert isinstance(host_instr, RunSubroutineOp)
         lrcall = self.host.processor.prepare_lr_call(process, host_instr)
-        self.scheduler.qpudriver.allocate_qubits_for_routine(
-            process, lrcall.routine_name
-        )
+        qpudriver: QpuDriver = self.scheduler.qpu_scheduler.driver
+        qpudriver.allocate_qubits_for_routine(process, lrcall.routine_name)
         yield from self.qnos.processor.assign_local_routine(
             process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
         )
-        self.scheduler.qpudriver.free_qubits_after_routine(process, lrcall.routine_name)
+        qpudriver.free_qubits_after_routine(process, lrcall.routine_name)
         self.host.processor.post_lr_call(process, host_instr, lrcall)
 
     def run_request(

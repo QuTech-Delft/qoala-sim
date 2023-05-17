@@ -141,7 +141,7 @@ def create_process(
         program=program,
         inputs=prog_input,
         unit_module=UnitModule.from_full_ehi(mock_ehi),
-        task_graph=TaskGraph.empty(),
+        task_graph=TaskGraph(),
     )
 
     mem = ProgramMemory(pid=0)

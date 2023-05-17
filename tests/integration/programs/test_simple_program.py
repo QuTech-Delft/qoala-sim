@@ -16,7 +16,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, ProgramInput
-from qoala.runtime.schedule import StaticSchedule
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
@@ -97,8 +97,8 @@ def run_program():
     procnode.submit_batch(batch_info)
     procnode.initialize_processes()
     tasks = procnode.scheduler.get_tasks_to_schedule()
-    schedule = StaticSchedule.consecutive_block_tasks(tasks)
-    procnode.scheduler.upload_schedule(schedule)
+    merged = TaskGraphBuilder.merge_linear(tasks)
+    procnode.scheduler.upload_task_graph(merged)
 
     network.start_all_nodes()
     ns.sim_run()

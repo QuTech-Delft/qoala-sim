@@ -20,7 +20,7 @@ from qoala.sim.process import QoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import Qnos, QnosComponent, QnosLatencies
-from qoala.sim.scheduler import Scheduler
+from qoala.sim.scheduler import NodeScheduler
 
 
 class ProcNode(Protocol):
@@ -37,9 +37,9 @@ class ProcNode(Protocol):
         network_ehi: EhiNetworkInfo,
         node: Optional[ProcNodeComponent] = None,
         node_id: Optional[int] = None,
-        scheduler: Optional[Scheduler] = None,
+        scheduler: Optional[NodeScheduler] = None,
         asynchronous: bool = False,
-        tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
+        tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
     ) -> None:
         """ProcNode constructor.
 
@@ -107,7 +107,7 @@ class ProcNode(Protocol):
         )
 
         if scheduler is None:
-            self._scheduler = Scheduler(
+            self._scheduler = NodeScheduler(
                 self._node.name,
                 self._host,
                 self._qnos,
@@ -176,11 +176,11 @@ class ProcNode(Protocol):
         return self._memmgr
 
     @property
-    def scheduler(self) -> Scheduler:
+    def scheduler(self) -> NodeScheduler:
         return self._scheduler
 
     @scheduler.setter
-    def scheduler(self, scheduler: Scheduler) -> None:
+    def scheduler(self, scheduler: NodeScheduler) -> None:
         self._scheduler = scheduler
 
     @property

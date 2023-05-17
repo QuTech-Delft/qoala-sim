@@ -2,19 +2,17 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator
 
-import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.hostlang import BasicBlockType, RunRequestOp, RunSubroutineOp
 from qoala.runtime.message import LrCallTuple, RrCallTuple
-from qoala.runtime.schedule import StaticSchedule, StaticScheduleEntry
 from qoala.runtime.task import (
     BlockTask,
-    HostCodeTask,
     HostEventTask,
+    HostLocalTask,
     LocalRoutineTask,
     MultiPairCallbackTask,
     MultiPairTask,
@@ -23,9 +21,7 @@ from qoala.runtime.task import (
     QoalaTask,
     SinglePairCallbackTask,
     SinglePairTask,
-    TaskExecutionMode,
 )
-from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.hostprocessor import HostProcessor
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackprocessor import NetstackProcessor
@@ -34,74 +30,8 @@ from qoala.sim.qnos.qnosprocessor import QnosProcessor
 from qoala.util.logging import LogManager
 
 
-class Driver(Protocol):
-    def __init__(self, name: str) -> None:
-        super().__init__(name=name)
-        self.add_signal(SIGNAL_TASK_COMPLETED)
-
-        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
-            f"{self.__class__.__name__}({name})"
-        )
-
-        self._other_driver: Optional[Driver] = None
-        self._task_list: List[StaticScheduleEntry] = []
-
-        self._finished_tasks: List[QoalaTask] = []
-
-    def set_other_driver(self, other: Driver) -> None:
-        self._other_driver = other
-
-    def run(self) -> Generator[EventExpression, None, None]:
-        while True:
-            try:
-                entry = self._task_list.pop(0)
-                time = entry.timestamp
-                task = entry.task
-                prev = entry.prev
-                if time is not None:
-                    now = ns.sim_time()
-                    self._logger.debug(
-                        f"{ns.sim_time()}: {self.name}: checking next task {task}"
-                    )
-                    self._logger.debug(f"scheduled for {time}")
-                    self._logger.debug(f"waiting for {time - now}...")
-                    yield from self.wait(time - now)
-                if prev is not None:
-                    assert self._other_driver is not None
-                    while not all(
-                        p in self._other_driver._finished_tasks for p in prev
-                    ):
-                        # Wait for a signal that the other driver completed a task.
-                        yield self.await_signal(
-                            sender=self._other_driver,
-                            signal_label=SIGNAL_TASK_COMPLETED,
-                        )
-
-                self._logger.info(f"executing task {task}")
-                yield from self._handle_task(task)
-                self._finished_tasks.append(task)
-                self.send_signal(SIGNAL_TASK_COMPLETED)
-                self._logger.info(f"finished task {task}")
-            except IndexError:
-                break
-
-    @abstractmethod
-    def _handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
-        raise NotImplementedError
-
-
-class CpuDriver(Driver):
-    def __init__(
-        self,
-        node_name: str,
-        hostprocessor: HostProcessor,
-        memmgr: MemoryManager,
-    ) -> None:
-        super().__init__(name=f"{node_name}_cpu_driver")
-
-        self._hostprocessor = hostprocessor
-        self._memmgr = memmgr
-
+class SharedSchedulerMemory:
+    def __init__(self) -> None:
         # Used to share information between related tasks:
         # specifically the lrcall/rrcall tuples that are shared between
         # precall, postcall, and pair/callback tasks
@@ -121,13 +51,34 @@ class CpuDriver(Driver):
     def read_shared_rrcall(self, ptr: int) -> RrCallTuple:
         return self._shared_rrcalls[ptr]
 
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._task_list.extend(schedule.entries)
 
-    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
-        self._schedule_after(delta_time, EVENT_WAIT)
-        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
-        yield event_expr
+class Driver(Protocol):
+    def __init__(self, name: str, memory: SharedSchedulerMemory) -> None:
+        super().__init__(name=name)
+
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}({name})"
+        )
+
+        self._memory = memory
+
+    @abstractmethod
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+        raise NotImplementedError
+
+
+class CpuDriver(Driver):
+    def __init__(
+        self,
+        node_name: str,
+        memory: SharedSchedulerMemory,
+        hostprocessor: HostProcessor,
+        memmgr: MemoryManager,
+    ) -> None:
+        super().__init__(name=f"{node_name}_cpu_driver", memory=memory)
+
+        self._hostprocessor = hostprocessor
+        self._memmgr = memmgr
 
     def _handle_precall_lr(self, task: PreCallTask) -> None:
         process = self._memmgr.get_process(task.pid)
@@ -139,7 +90,7 @@ class CpuDriver(Driver):
         # Let Host setup shared memory.
         lrcall = self._hostprocessor.prepare_lr_call(process, instr)
         # Store the lrcall object in the shared ptr, so other tasks can use it
-        self.write_shared_lrcall(task.shared_ptr, lrcall)
+        self._memory.write_shared_lrcall(task.shared_ptr, lrcall)
 
     def _handle_postcall_lr(self, task: PostCallTask) -> None:
         process = self._memmgr.get_process(task.pid)
@@ -148,7 +99,9 @@ class CpuDriver(Driver):
         instr = block.instructions[0]
         assert isinstance(instr, RunSubroutineOp)
 
-        lrcall = self.read_shared_lrcall(task.shared_ptr)
+        # The corresponding PreCallTask must have executed, and it must have written
+        # to the sharded scheduler memory.
+        lrcall = self._memory.read_shared_lrcall(task.shared_ptr)
         self._hostprocessor.post_lr_call(process, instr, lrcall)
 
     def _handle_precall_rr(self, task: PreCallTask) -> None:
@@ -161,7 +114,7 @@ class CpuDriver(Driver):
         # Let Host setup shared memory.
         rrcall = self._hostprocessor.prepare_rr_call(process, instr)
         # Store the lrcall object in the shared ptr, so other tasks can use it
-        self.write_shared_rrcall(task.shared_ptr, rrcall)
+        self._memory.write_shared_rrcall(task.shared_ptr, rrcall)
 
     def _handle_postcall_rr(self, task: PostCallTask) -> None:
         process = self._memmgr.get_process(task.pid)
@@ -170,14 +123,16 @@ class CpuDriver(Driver):
         instr = block.instructions[0]
         assert isinstance(instr, RunRequestOp)
 
-        rrcall = self.read_shared_rrcall(task.shared_ptr)
+        # The corresponding PreCallTask must have executed, and it must have written
+        # to the sharded scheduler memory.
+        rrcall = self._memory.read_shared_rrcall(task.shared_ptr)
         self._hostprocessor.post_rr_call(process, instr, rrcall)
 
-    def _handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
         if isinstance(task, BlockTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
-        elif isinstance(task, HostCodeTask):
+        elif isinstance(task, HostLocalTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
         elif isinstance(task, HostEventTask):
@@ -207,39 +162,18 @@ class QpuDriver(Driver):
     def __init__(
         self,
         node_name: str,
+        memory: SharedSchedulerMemory,
         hostprocessor: HostProcessor,
         qnosprocessor: QnosProcessor,
         netstackprocessor: NetstackProcessor,
         memmgr: MemoryManager,
-        tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
     ) -> None:
-        super().__init__(name=f"{node_name}_qpu_driver")
+        super().__init__(name=f"{node_name}_qpu_driver", memory=memory)
 
         self._hostprocessor = hostprocessor
         self._qnosprocessor = qnosprocessor
         self._netstackprocessor = netstackprocessor
         self._memmgr = memmgr
-        self._tem = tem
-
-    def upload_schedule(self, schedule: StaticSchedule) -> None:
-        self._task_list.extend(schedule.entries)
-
-    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
-        self._schedule_after(delta_time, EVENT_WAIT)
-        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
-        yield event_expr
-
-    def _handle_lr(self, task: BlockTask) -> Generator[EventExpression, None, None]:
-        if self._tem == TaskExecutionMode.ROUTINE_ATOMIC:
-            yield from self._handle_atomic_lr(task)
-        else:
-            raise NotImplementedError
-
-    def _handle_rr(self, task: BlockTask) -> Generator[EventExpression, None, None]:
-        if self._tem == TaskExecutionMode.ROUTINE_ATOMIC:
-            yield from self._handle_atomic_rr(task)
-        else:
-            raise NotImplementedError
 
     def allocate_qubits_for_routine(
         self, process: QoalaProcess, routine_name: str
@@ -257,7 +191,7 @@ class QpuDriver(Driver):
             if virt_id not in routine.metadata.qubit_keep:
                 self._memmgr.free(process.pid, virt_id)
 
-    def _handle_atomic_lr(
+    def _handle_block_ql(
         self, task: BlockTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
@@ -279,7 +213,7 @@ class QpuDriver(Driver):
         # Let Host get results from shared memory.
         self._hostprocessor.post_lr_call(process, instr, lrcall)
 
-    def _handle_atomic_rr(
+    def _handle_block_qc(
         self, task: BlockTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
@@ -305,9 +239,9 @@ class QpuDriver(Driver):
         instr = block.instructions[0]
         assert isinstance(instr, RunSubroutineOp)
 
-        assert self._other_driver is not None
-        cpudriver: CpuDriver = self._other_driver
-        lrcall: LrCallTuple = cpudriver.read_shared_lrcall(task.shared_ptr)
+        # The corresponding LrCallTask must have executed, and it must have written
+        # to the sharded scheduler memory.
+        lrcall: LrCallTuple = self._memory.read_shared_lrcall(task.shared_ptr)
 
         # Allocate required qubits.
         self.allocate_qubits_for_routine(process, lrcall.routine_name)
@@ -323,9 +257,9 @@ class QpuDriver(Driver):
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
 
-        assert self._other_driver is not None
-        cpudriver: CpuDriver = self._other_driver
-        rrcall: RrCallTuple = cpudriver.read_shared_rrcall(task.shared_ptr)
+        # The corresponding PreCallTask must have executed, and it must have written
+        # to the sharded scheduler memory.
+        rrcall: RrCallTuple = self._memory.read_shared_rrcall(task.shared_ptr)
 
         global_args = process.prog_instance.inputs.values
         self._netstackprocessor.instantiate_routine(process, rrcall, global_args)
@@ -339,9 +273,9 @@ class QpuDriver(Driver):
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
 
-        assert self._other_driver is not None
-        cpudriver: CpuDriver = self._other_driver
-        rrcall: RrCallTuple = cpudriver.read_shared_rrcall(task.shared_ptr)
+        # The corresponding PreCallTask must have executed, and it must have written
+        # to the sharded scheduler memory.
+        rrcall: RrCallTuple = self._memory.read_shared_rrcall(task.shared_ptr)
 
         yield from self._netstackprocessor.handle_multi_pair_callback(
             process, rrcall.routine_name, self._qnosprocessor
@@ -352,9 +286,9 @@ class QpuDriver(Driver):
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
 
-        assert self._other_driver is not None
-        cpudriver: CpuDriver = self._other_driver
-        rrcall: RrCallTuple = cpudriver.read_shared_rrcall(task.shared_ptr)
+        # The corresponding PreCallTask must have executed, and it must have written
+        # to the sharded scheduler memory.
+        rrcall: RrCallTuple = self._memory.read_shared_rrcall(task.shared_ptr)
 
         global_args = process.prog_instance.inputs.values
         self._netstackprocessor.instantiate_routine(process, rrcall, global_args)
@@ -368,20 +302,20 @@ class QpuDriver(Driver):
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
 
-        assert self._other_driver is not None
-        cpudriver: CpuDriver = self._other_driver
-        rrcall: RrCallTuple = cpudriver.read_shared_rrcall(task.shared_ptr)
+        # The corresponding PreCallTask must have executed, and it must have written
+        # to the sharded scheduler memory.
+        rrcall: RrCallTuple = self._memory.read_shared_rrcall(task.shared_ptr)
 
         yield from self._netstackprocessor.handle_single_pair_callback(
             process, rrcall.routine_name, self._qnosprocessor, task.pair_index
         )
 
-    def _handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
         if isinstance(task, BlockTask):
             if task.typ == BasicBlockType.QL:
-                yield from self._handle_lr(task)
+                yield from self._handle_block_ql(task)
             elif task.typ == BasicBlockType.QC:
-                yield from self._handle_rr(task)
+                yield from self._handle_block_qc(task)
             else:
                 raise RuntimeError
         elif isinstance(task, LocalRoutineTask):
