@@ -100,7 +100,6 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     alice_tasks = [tinfo.task for tinfo in alice_merged.get_tasks().values()]
     print("Alice tasks:")
     print([str(t) for t in alice_tasks])
-    # alice_schedule = StaticSchedule.consecutive_block_tasks(alice_tasks)
     alice_task_start_times = [
         (alice_tasks[0], 0),
         (alice_tasks[1], 500),
