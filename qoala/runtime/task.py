@@ -458,6 +458,9 @@ class TaskGraph:
             raise NotImplementedError
         return self._tasks == other._tasks
 
+    def __str__(self) -> str:
+        return "\n".join(f"{i}: {t}" for i, t in self._tasks.items())
+
     def add_tasks(self, tasks: List[QoalaTask]) -> None:
         for task in tasks:
             self._tasks[task.task_id] = TaskInfo.only_task(task)

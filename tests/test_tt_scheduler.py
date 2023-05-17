@@ -28,7 +28,7 @@ from qoala.runtime.task import (
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
-from qoala.sim.scheduler import TimeTriggeredScheduler
+from qoala.sim.scheduler import EdfScheduler
 from qoala.util.builder import ObjectBuilder
 from qoala.util.logging import LogManager
 
@@ -148,7 +148,7 @@ def test_cpu_scheduler():
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    scheduler = TimeTriggeredScheduler("alice", driver)
+    scheduler = EdfScheduler("alice", driver)
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -176,7 +176,7 @@ def test_cpu_scheduler_no_time():
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    scheduler = TimeTriggeredScheduler("alice", driver)
+    scheduler = EdfScheduler("alice", driver)
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -212,7 +212,7 @@ def test_cpu_scheduler_2_processes():
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    scheduler = TimeTriggeredScheduler("alice", driver)
+    scheduler = EdfScheduler("alice", driver)
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -258,7 +258,7 @@ def test_qpu_scheduler():
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    cpu_scheduler = TimeTriggeredScheduler("alice", cpu_driver)
+    cpu_scheduler = EdfScheduler("alice", cpu_driver)
     cpu_scheduler.upload_task_graph(cpu_graph)
 
     mem = SharedSchedulerMemory()
@@ -270,7 +270,7 @@ def test_qpu_scheduler():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = TimeTriggeredScheduler("alice", qpu_driver)
+    qpu_scheduler = EdfScheduler("alice", qpu_driver)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
     ns.sim_reset()
@@ -308,7 +308,7 @@ def test_qpu_scheduler_2_processes():
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    cpu_scheduler = TimeTriggeredScheduler("alice", cpu_driver)
+    cpu_scheduler = EdfScheduler("alice", cpu_driver)
     cpu_scheduler.upload_task_graph(cpu_graph)
 
     mem = SharedSchedulerMemory()
@@ -320,7 +320,7 @@ def test_qpu_scheduler_2_processes():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = TimeTriggeredScheduler("alice", qpu_driver)
+    qpu_scheduler = EdfScheduler("alice", qpu_driver)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
     ns.sim_reset()

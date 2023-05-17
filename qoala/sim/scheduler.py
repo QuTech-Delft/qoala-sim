@@ -73,7 +73,7 @@ class NodeScheduler(Protocol):
 
         scheduler_memory = SharedSchedulerMemory()
         cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
-        self._cpu_scheduler = TimeTriggeredScheduler(node_name, cpudriver)
+        self._cpu_scheduler = EdfScheduler(node_name, cpudriver)
 
         qpudriver = QpuDriver(
             node_name,
@@ -84,7 +84,7 @@ class NodeScheduler(Protocol):
             memmgr,
             tem,
         )
-        self._qpu_scheduler = TimeTriggeredScheduler(node_name, qpudriver)
+        self._qpu_scheduler = EdfScheduler(node_name, qpudriver)
 
         self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
         self._qpu_scheduler.set_other_scheduler(self._cpu_scheduler)
@@ -106,11 +106,11 @@ class NodeScheduler(Protocol):
         return self._memmgr
 
     @property
-    def cpu_scheduler(self) -> TimeTriggeredScheduler:
+    def cpu_scheduler(self) -> ProcessorScheduler:
         return self._cpu_scheduler
 
     @property
-    def qpu_scheduler(self) -> TimeTriggeredScheduler:
+    def qpu_scheduler(self) -> ProcessorScheduler:
         return self._qpu_scheduler
 
     @property
@@ -269,13 +269,22 @@ class ProcessorScheduler(Protocol):
             f"{self.__class__.__name__}_{driver.__class__.__name__}({name})"
         )
         self._driver = driver
-        self._other_scheduler: Optional[TimeTriggeredScheduler] = None
+        self._other_scheduler: Optional[ProcessorScheduler] = None
+
+        self._task_graph: Optional[TaskGraph] = None
+        self._finished_tasks: List[int] = []
 
     @property
     def driver(self) -> Driver:
         return self._driver
 
-    def set_other_scheduler(self, other: TimeTriggeredScheduler) -> None:
+    def upload_task_graph(self, graph: TaskGraph) -> None:
+        self._task_graph = graph
+
+    def has_finished(self, task_id: int) -> bool:
+        return task_id in self._finished_tasks
+
+    def set_other_scheduler(self, other: ProcessorScheduler) -> None:
         self._other_scheduler = other
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
@@ -290,15 +299,9 @@ class SchedulerStatus(Enum):
     TASK_AVAILABLE = auto()
 
 
-class TimeTriggeredScheduler(ProcessorScheduler):
+class EdfScheduler(ProcessorScheduler):
     def __init__(self, name: str, driver: Driver) -> None:
         super().__init__(name=name, driver=driver)
-
-        self._task_graph: Optional[TaskGraph] = None
-        self._finished_tasks: List[int] = []
-
-    def upload_task_graph(self, graph: TaskGraph) -> None:
-        self._task_graph = graph
 
     def next_task(self) -> Tuple[SchedulerStatus, Optional[int]]:
         if self._task_graph is None or len(self._task_graph.get_tasks()) == 0:
@@ -306,43 +309,68 @@ class TimeTriggeredScheduler(ProcessorScheduler):
         tg = self._task_graph
         # Get all tasks without predecessors
         roots = tg.get_roots(ignore_external=True)
-        assert len(roots) == 1  # TT Scheduler only allows 1D list of tasks
-        self._logger.debug(f"Return task {roots[0]}")
-        return SchedulerStatus.TASK_AVAILABLE, roots[0]
+        assert len(roots) >= 1
 
-    def has_finished(self, task_id: int) -> bool:
-        return task_id in self._finished_tasks
+        # Get all roots with deadlines
+        roots_with_deadline = [r for r in roots if tg.get_tinfo(r).deadline]
+        if len(roots_with_deadline) > 0:
+            # Sort them by deadline and return the one with the earliest deadline
+            deadlines = {r: tg.get_tinfo(r).deadline for r in roots_with_deadline}
+            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
+            to_return = sorted_by_deadline[0][0]
+            self._logger.debug(f"Return task {to_return}")
+            return SchedulerStatus.TASK_AVAILABLE, to_return
+        else:
+            # No deadlines: just return the first in the list
+            to_return = roots[0]
+            self._logger.debug(f"Return task {to_return}")
+            return SchedulerStatus.TASK_AVAILABLE, to_return
+
+    def wait_until_start_time(
+        self, start_time: int
+    ) -> Generator[EventExpression, None, None]:
+        now = ns.sim_time()
+        self._logger.debug(f"scheduled for {start_time}")
+        delta = start_time - now
+        if delta > 0:
+            self._logger.debug(f"waiting for {delta}...")
+            yield from self.wait(start_time - now)
+        else:
+            self._logger.warning(
+                f"start time is in the past (delta = {delta}), not waiting"
+            )
+
+    def wait_for_external_tasks(
+        self, ext_pred: List[int]
+    ) -> Generator[EventExpression, None, None]:
+        self._logger.debug("checking if external predecessors have finished...")
+        assert self._other_scheduler is not None
+        while not all(self._other_scheduler.has_finished(p) for p in ext_pred):
+            # Wait for a signal that the other scheduler completed a task.
+            self._logger.debug("waiting for predecessor task to finish...")
+            yield self.await_signal(
+                sender=self._other_scheduler,
+                signal_label=SIGNAL_TASK_COMPLETED,
+            )
 
     def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
         assert self._task_graph is not None
         tinfo = self._task_graph.get_tinfo(task_id)
-        time = tinfo.start_time
         task = tinfo.task
+        start_time = tinfo.start_time
         ext_pred = tinfo.ext_predecessors
-        if time is not None:
-            now = ns.sim_time()
-            self._logger.debug(
-                f"{ns.sim_time()}: {self.name}: checking next task {task}"
-            )
-            self._logger.debug(f"scheduled for {time}")
-            self._logger.debug(f"waiting for {time - now}...")
-            yield from self.wait(time - now)
+
+        self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
+
+        if start_time is not None:
+            yield from self.wait_until_start_time(start_time)
         if len(ext_pred) > 0:
-            self._logger.debug("checking if external predecessors have finished...")
-            assert self._other_scheduler is not None
-            while not all(self._other_scheduler.has_finished(p) for p in ext_pred):
-                # Wait for a signal that the other scheduler completed a task.
-                self._logger.debug("waiting for predecessor task to finish...")
-                yield self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
+            yield from self.wait_for_external_tasks(ext_pred)
 
         before = ns.sim_time()
 
         self._logger.info(f"executing task {task}")
         yield from self._driver.handle_task(task)
-
         duration = ns.sim_time() - before
         self._task_graph.decrease_deadlines(duration)
         self._task_graph.remove_task(task_id)
@@ -356,47 +384,4 @@ class TimeTriggeredScheduler(ProcessorScheduler):
             status, task_id = self.next_task()
             if status == SchedulerStatus.GRAPH_EMPTY:
                 break
-            yield from self.handle_task(task_id)
-
-
-class EdfScheduler(ProcessorScheduler):
-    def __init__(self, name: str, driver: Driver) -> None:
-        super().__init__(name=name, driver=driver)
-
-        self._task_graph: Optional[TaskGraph] = None
-
-    def init_task_graph(self, graph: TaskGraph) -> None:
-        self._task_graph = graph
-
-    def next_task(self) -> Optional[int]:
-        if self._task_graph is None:
-            return None
-        tg = self._task_graph
-        # Get all tasks without predecessors
-        roots = tg.get_roots()
-        if len(roots) == 0:
-            return None
-
-        # Get all roots with deadlines
-        roots_with_deadline = [r for r in roots if tg.get_tinfo(r).deadline]
-        if len(roots_with_deadline) > 0:
-            # Sort them by deadline and return the one with the earliest deadline
-            deadlines = {r: tg.get_tinfo(r).deadline for r in roots_with_deadline}
-            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
-            return sorted_by_deadline[0][0]
-        else:
-            # No deadlines: just return the first in the list
-            return roots[0]
-
-    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
-        assert self._task_graph is not None
-        task = self._task_graph.get_tinfo(task_id).task
-        before = ns.sim_time()
-        yield from self._driver.handle_task(task)
-        duration = ns.sim_time() - before
-        self._task_graph.decrease_deadlines(duration)
-        self._task_graph.remove_task(task_id)
-
-    def run(self) -> Generator[EventExpression, None, None]:
-        while (task_id := self.next_task()) is not None:
             yield from self.handle_task(task_id)

@@ -19,6 +19,7 @@ from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
+from qoala.util.logging import LogManager
 
 
 def create_network_info(names: List[str]) -> NetworkInfo:
@@ -155,7 +156,7 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
 
 
 def test_pingpong():
-    # LogManager.set_log_level("INFO")
+    LogManager.set_log_level("INFO")
 
     def check(num_iterations):
         ns.sim_reset()

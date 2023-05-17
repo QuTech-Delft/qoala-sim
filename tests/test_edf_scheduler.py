@@ -6,7 +6,7 @@ from pydynaa import EventExpression
 from qoala.runtime.task import ProcessorType, QoalaTask, TaskGraph
 from qoala.sim.driver import Driver
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.scheduler import EdfScheduler
+from qoala.sim.scheduler import EdfScheduler, SchedulerStatus
 
 
 class SimpleTask(QoalaTask):
@@ -39,8 +39,8 @@ def test_next_task_one_root():
     graph.add_rel_deadlines([((0, 1), 100)])
 
     scheduler = EdfScheduler(name="sched", driver=MockDriver())
-    scheduler.init_task_graph(graph)
-    assert scheduler.next_task() == 0
+    scheduler.upload_task_graph(graph)
+    assert scheduler.next_task() == (SchedulerStatus.TASK_AVAILABLE, 0)
 
 
 def test_next_task_two_roots():
@@ -49,8 +49,8 @@ def test_next_task_two_roots():
     graph.add_deadlines([(0, 1000), (1, 500)])
 
     scheduler = EdfScheduler(name="sched", driver=MockDriver())
-    scheduler.init_task_graph(graph)
-    assert scheduler.next_task() == 1
+    scheduler.upload_task_graph(graph)
+    assert scheduler.next_task() == (SchedulerStatus.TASK_AVAILABLE, 1)
 
 
 def test_edf_1():
@@ -60,7 +60,7 @@ def test_edf_1():
     graph.add_rel_deadlines([((0, 1), 100)])
 
     scheduler = EdfScheduler(name="sched", driver=MockDriver())
-    scheduler.init_task_graph(graph)
+    scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
     scheduler.start()
@@ -78,7 +78,7 @@ def test_edf_2():
     graph.add_rel_deadlines([((1, 2), 200), ((1, 3), 400), ((2, 4), 100)])
 
     scheduler = EdfScheduler(name="sched", driver=MockDriver())
-    scheduler.init_task_graph(graph)
+    scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
     scheduler.start()
