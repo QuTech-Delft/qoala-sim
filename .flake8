@@ -11,7 +11,7 @@ per-file-ignores =
     tests/test_process.py:W291
     tests/test_request.py:W291
     tests/test_driver.py:W291
-    tests/test_tt_scheduler.py:W291
+    tests/test_scheduler.py:W291
     tests/qnos/test_qnosprocessor.py:W291
 
 
