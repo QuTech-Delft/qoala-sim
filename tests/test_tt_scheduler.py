@@ -18,13 +18,7 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
 )
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.task import (
-    BlockTask,
-    TaskCreator,
-    TaskExecutionMode,
-    TaskGraph,
-    TaskGraphBuilder,
-)
+from qoala.runtime.task import BlockTask, TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
@@ -610,10 +604,10 @@ def test_full_program():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    tasks_alice = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
+    tasks_alice = TaskGraphBuilder.from_file_block_tasks(
         program_alice, pid, alice.local_ehi, alice.network_ehi
     )
-    tasks_bob = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
+    tasks_bob = TaskGraphBuilder.from_file_block_tasks(
         program_bob, pid, bob.local_ehi, bob.network_ehi
     )
 

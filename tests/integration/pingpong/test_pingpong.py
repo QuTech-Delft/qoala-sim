@@ -17,7 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskGraphBuilder
+from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
 from qoala.sim.build import build_network
 from qoala.util.logging import LogManager
 
@@ -68,7 +68,9 @@ class PingPongResult:
     bob_results: Dict[int, BatchResult]
 
 
-def run_pingpong(num_iterations: int) -> PingPongResult:
+def run_pingpong(
+    num_iterations: int, tem: TaskExecutionMode = TaskExecutionMode.BLOCK
+) -> PingPongResult:
     ns.sim_reset()
 
     num_qubits = 3
@@ -77,7 +79,9 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     bob_id = network_info.get_node_id("bob")
 
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    alice_node_cfg.tem = tem.name
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
+    bob_node_cfg.tem = tem.name
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=500_000
@@ -96,27 +100,8 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     alice_procnode.submit_batch(alice_batch)
     alice_procnode.initialize_processes()
     alice_task_graphs = alice_procnode.scheduler.get_tasks_to_schedule()
-    alice_merged = TaskGraphBuilder.merge_linear(alice_task_graphs)
-    alice_tasks = [tinfo.task for tinfo in alice_merged.get_tasks().values()]
-    print("Alice tasks:")
-    print([str(t) for t in alice_tasks])
-    alice_task_start_times = [
-        (alice_tasks[0], 0),
-        (alice_tasks[1], 500),
-        (alice_tasks[2], 25_000),
-        (alice_tasks[3], 600_000),
-        (alice_tasks[4], 850_000),
-        (alice_tasks[5], 1_200_000),
-        (alice_tasks[6], 1_700_000),
-        (alice_tasks[7], 2_100_000),
-        (alice_tasks[8], 2_200_500),
-        (alice_tasks[9], 2_220_000),
-        (alice_tasks[10], 2_228_000),
-    ]
-    alice_graph = TaskGraphBuilder.linear_tasks_with_start_times(alice_task_start_times)
-    print("\nAlice graph:")
-    print(alice_graph)
-    alice_procnode.scheduler.upload_task_graph(alice_graph)
+    alice_merged = TaskGraphBuilder.merge(alice_task_graphs)
+    alice_procnode.scheduler.upload_task_graph(alice_merged)
 
     bob_program = load_program("pingpong_bob.iqoala")
     bob_inputs = [ProgramInput({"alice_id": alice_id}) for _ in range(num_iterations)]
@@ -126,24 +111,8 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     bob_procnode.submit_batch(bob_batch)
     bob_procnode.initialize_processes()
     bob_task_graphs = bob_procnode.scheduler.get_tasks_to_schedule()
-    bob_merged = TaskGraphBuilder.merge_linear(bob_task_graphs)
-    bob_tasks = [tinfo.task for tinfo in bob_merged.get_tasks().values()]
-    print("\n\nBob tasks:")
-    print([str(t) for t in bob_tasks])
-    bob_task_start_times = [
-        (bob_tasks[0], 0),
-        (bob_tasks[1], 25_000),
-        (bob_tasks[2], 900_000),
-        (bob_tasks[3], 1_000_000),
-        (bob_tasks[4], 1_100_000),
-        (bob_tasks[5], 1_200_000),
-        (bob_tasks[6], 1_700_000),
-        (bob_tasks[7], 1_800_000),
-    ]
-    bob_graph = TaskGraphBuilder.linear_tasks_with_start_times(bob_task_start_times)
-    print("\nBob graph:")
-    print(bob_graph)
-    bob_procnode.scheduler.upload_task_graph(bob_graph)
+    bob_merged = TaskGraphBuilder.merge(bob_task_graphs)
+    bob_procnode.scheduler.upload_task_graph(bob_merged)
 
     network.start()
     ns.sim_run()
@@ -154,23 +123,29 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     return PingPongResult(alice_results, bob_results)
 
 
-def test_pingpong():
+def check_pingpong(num_iterations: int, tem: TaskExecutionMode):
     LogManager.set_log_level("INFO")
 
-    def check(num_iterations):
-        ns.sim_reset()
-        result = run_pingpong(num_iterations=num_iterations)
-        assert len(result.alice_results) > 0
-        assert len(result.bob_results) > 0
+    ns.sim_reset()
+    result = run_pingpong(num_iterations=num_iterations, tem=tem)
+    assert len(result.alice_results) > 0
+    assert len(result.bob_results) > 0
 
-        alice_batch_results = result.alice_results
-        for _, batch_results in alice_batch_results.items():
-            program_results = batch_results.results
-            outcomes = [result.values["outcome"] for result in program_results]
-            assert all(outcome == 1 for outcome in outcomes)
+    alice_batch_results = result.alice_results
+    for _, batch_results in alice_batch_results.items():
+        program_results = batch_results.results
+        outcomes = [result.values["outcome"] for result in program_results]
+        assert all(outcome == 1 for outcome in outcomes)
 
-    check(1)
+
+def test_pingpong_block_tasks():
+    check_pingpong(10, TaskExecutionMode.BLOCK)
+
+
+def test_pingpong_qoala_tasks():
+    check_pingpong(10, TaskExecutionMode.QOALA)
 
 
 if __name__ == "__main__":
-    test_pingpong()
+    test_pingpong_block_tasks()
+    test_pingpong_qoala_tasks()

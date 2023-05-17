@@ -332,7 +332,7 @@ def build_procnode(
     qprocessor = build_qprocessor_from_topology(name=cfg.node_name, topology=topology)
     latencies = LhiLatencies.from_config(cfg.latencies)
     if cfg.tem is None:
-        tem = TaskExecutionMode.ROUTINE_ATOMIC
+        tem = TaskExecutionMode.BLOCK
     else:
         tem = TaskExecutionMode[cfg.tem.upper()]
     procnode = ProcNode(

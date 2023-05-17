@@ -21,7 +21,6 @@ from qoala.runtime.task import (
     QoalaTask,
     SinglePairCallbackTask,
     SinglePairTask,
-    TaskExecutionMode,
 )
 from qoala.sim.host.hostprocessor import HostProcessor
 from qoala.sim.memmgr import MemoryManager
@@ -168,7 +167,6 @@ class QpuDriver(Driver):
         qnosprocessor: QnosProcessor,
         netstackprocessor: NetstackProcessor,
         memmgr: MemoryManager,
-        tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
     ) -> None:
         super().__init__(name=f"{node_name}_qpu_driver", memory=memory)
 
@@ -176,19 +174,6 @@ class QpuDriver(Driver):
         self._qnosprocessor = qnosprocessor
         self._netstackprocessor = netstackprocessor
         self._memmgr = memmgr
-        self._tem = tem
-
-    def _handle_lr(self, task: BlockTask) -> Generator[EventExpression, None, None]:
-        if self._tem == TaskExecutionMode.ROUTINE_ATOMIC:
-            yield from self._handle_atomic_lr(task)
-        else:
-            raise NotImplementedError
-
-    def _handle_rr(self, task: BlockTask) -> Generator[EventExpression, None, None]:
-        if self._tem == TaskExecutionMode.ROUTINE_ATOMIC:
-            yield from self._handle_atomic_rr(task)
-        else:
-            raise NotImplementedError
 
     def allocate_qubits_for_routine(
         self, process: QoalaProcess, routine_name: str
@@ -206,7 +191,7 @@ class QpuDriver(Driver):
             if virt_id not in routine.metadata.qubit_keep:
                 self._memmgr.free(process.pid, virt_id)
 
-    def _handle_atomic_lr(
+    def _handle_block_ql(
         self, task: BlockTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
@@ -228,7 +213,7 @@ class QpuDriver(Driver):
         # Let Host get results from shared memory.
         self._hostprocessor.post_lr_call(process, instr, lrcall)
 
-    def _handle_atomic_rr(
+    def _handle_block_qc(
         self, task: BlockTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
@@ -328,9 +313,9 @@ class QpuDriver(Driver):
     def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
         if isinstance(task, BlockTask):
             if task.typ == BasicBlockType.QL:
-                yield from self._handle_lr(task)
+                yield from self._handle_block_ql(task)
             elif task.typ == BasicBlockType.QC:
-                yield from self._handle_rr(task)
+                yield from self._handle_block_qc(task)
             else:
                 raise RuntimeError
         elif isinstance(task, LocalRoutineTask):

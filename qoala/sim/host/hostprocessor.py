@@ -72,13 +72,13 @@ class HostProcessor:
         first_half = instr_time / 2
         second_half = instr_time - first_half  # just to make it adds up
 
-        self._logger.info(f"Interpreting LHR instruction {instr}")
+        self._logger.debug(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, hostlang.AssignCValueOp):
             yield from self._interface.wait(first_half)
             value = instr.attributes[0]
             assert isinstance(value, int)
             loc = instr.results[0]  # type: ignore
-            self._logger.info(f"writing {value} to {loc}")
+            self._logger.debug(f"writing {value} to {loc}")
             yield from self._interface.wait(second_half)
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.SendCMsgOp):
@@ -110,7 +110,7 @@ class HostProcessor:
             arg1 = host_mem.read(instr.arguments[1])
             loc = instr.results[0]  # type: ignore
             result = arg0 + arg1
-            self._logger.info(f"computing {loc} = {arg0} + {arg1} = {result}")
+            self._logger.debug(f"computing {loc} = {arg0} + {arg1} = {result}")
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
@@ -122,7 +122,7 @@ class HostProcessor:
             assert isinstance(const, int)
             loc = instr.results[0]  # type: ignore
             result = arg0 * const
-            self._logger.info(f"computing {loc} = {arg0} * {const} = {result}")
+            self._logger.debug(f"computing {loc} = {arg0} * {const} = {result}")
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
@@ -139,7 +139,7 @@ class HostProcessor:
                 result = arg0 * const
             else:
                 result = arg0
-            self._logger.info(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
+            self._logger.debug(f"computing {loc} = {arg0} * {const}^{cond} = {result}")
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
@@ -169,7 +169,7 @@ class HostProcessor:
             assert isinstance(instr.arguments[0], str)
             loc = instr.arguments[0]
             value = host_mem.read(loc)
-            self._logger.info(f"returning {loc} = {value}")
+            self._logger.debug(f"returning {loc} = {value}")
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             process.result.values[loc] = value
@@ -186,7 +186,8 @@ class HostProcessor:
         assert isinstance(subrt_name, str)
 
         routine = process.get_local_routine(subrt_name)
-        self._logger.info(f"executing subroutine {routine}")
+        self._logger.info(f"executing subroutine {routine.name}")
+        self._logger.debug(f"subroutine contents of {routine.name}: \n{routine}")
 
         arg_values = {arg: host_mem.read(arg) for arg in args}
 

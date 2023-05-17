@@ -70,7 +70,7 @@ def run_qkd(
     alice_file: str,
     bob_file: str,
     num_pairs: Optional[int] = None,
-    tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
+    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
 
@@ -169,7 +169,7 @@ def test_qkd_md_1pair_task_split():
     bob_file = "qkd_md_1pair_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -215,7 +215,7 @@ def test_qkd_md_2pairs_task_split():
     bob_file = "qkd_md_2pairs_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
 
     alice_results = qkd_result.alice_result.results
@@ -261,7 +261,7 @@ def test_qkd_ck_1pair_task_split():
     bob_file = "qkd_ck_1pair_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -306,7 +306,7 @@ def test_qkd_ck_2pairs_task_split():
     bob_file = "qkd_ck_2pairs_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -351,7 +351,7 @@ def test_qkd_ck_callback_1pair_task_split():
     bob_file = "qkd_ck_callback_1pair_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -396,7 +396,7 @@ def test_qkd_ck_callback_2pairs_task_split():
     bob_file = "qkd_ck_callback_2pairs_bob.iqoala"
 
     qkd_result = run_qkd(
-        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.ROUTINE_SPLIT
+        num_iterations, alice_file, bob_file, tem=TaskExecutionMode.QOALA
     )
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results

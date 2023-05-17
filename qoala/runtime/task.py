@@ -21,8 +21,8 @@ from qoala.lang.routine import LocalRoutine
 
 
 class TaskExecutionMode(Enum):
-    ROUTINE_ATOMIC = 0
-    ROUTINE_SPLIT = auto()
+    BLOCK = 0
+    QOALA = auto()
 
 
 class ProcessorType(Enum):
@@ -729,10 +729,76 @@ class TaskGraphBuilder:
         merged.update_successors()
         return merged
 
+    @classmethod
+    def from_file(
+        cls,
+        program: QoalaProgram,
+        pid: int,
+        ehi: Optional[EhiNodeInfo] = None,
+        network_ehi: Optional[EhiNetworkInfo] = None,
+        first_task_id: int = 0,
+    ) -> TaskGraph:
+        return QoalaGraphFromProgramBuilder(first_task_id).build(
+            program, pid, ehi, network_ehi
+        )
 
-class TaskCreator:
-    def __init__(self, mode: TaskExecutionMode, first_task_id: int = 0) -> None:
-        self._mode = mode
+    @classmethod
+    def from_file_block_tasks(
+        cls,
+        program: QoalaProgram,
+        pid: int,
+        ehi: Optional[EhiNodeInfo] = None,
+        network_ehi: Optional[EhiNetworkInfo] = None,
+        remote_id: Optional[int] = None,
+        first_task_id: int = 0,
+    ) -> TaskGraph:
+        return BlockGraphFromProgramBuilder(first_task_id).build(
+            program, pid, ehi, network_ehi, remote_id
+        )
+
+
+class TaskDurationEstimator:
+    @classmethod
+    def lr_duration(self, ehi: EhiNodeInfo, routine: LocalRoutine) -> float:
+        duration = 0.0
+        # TODO: refactor this
+        for instr in routine.subroutine.instructions:
+            if (
+                type(instr)
+                in [
+                    core.SetInstruction,
+                    core.StoreInstruction,
+                    core.LoadInstruction,
+                    core.LeaInstruction,
+                ]
+                or isinstance(instr, core.BranchBinaryInstruction)
+                or isinstance(instr, core.BranchUnaryInstruction)
+                or isinstance(instr, core.JmpInstruction)
+                or isinstance(instr, core.ClassicalOpInstruction)
+                or isinstance(instr, core.ClassicalOpModInstruction)
+            ):
+                duration += ehi.latencies.qnos_instr_time
+            else:
+                max_duration = -1.0
+                # TODO: gate duration depends on which qubit!!
+                # currently we always take the worst case scenario but this is not ideal
+                for i in ehi.single_gate_infos.keys():
+                    if info := ehi.find_single_gate(i, type(instr)):
+                        max_duration = max(max_duration, info.duration)
+
+                for multi in ehi.multi_gate_infos.keys():
+                    if info := ehi.find_multi_gate(multi.qubit_ids, type(instr)):
+                        max_duration = max(max_duration, info.duration)
+
+                if max_duration != -1:
+                    duration += max_duration
+                else:
+                    raise RuntimeError
+        return duration
+
+
+class BlockGraphFromProgramBuilder:
+    def __init__(self, first_task_id: int = 0) -> None:
         self._first_task_id = first_task_id
         self._task_id_counter = first_task_id
         self._graph = TaskGraph()
@@ -742,7 +808,7 @@ class TaskCreator:
         self._task_id_counter += 1
         return id
 
-    def from_program(
+    def build(
         self,
         program: QoalaProgram,
         pid: int,
@@ -750,24 +816,6 @@ class TaskCreator:
         network_ehi: Optional[EhiNetworkInfo] = None,
         remote_id: Optional[int] = None,
     ) -> TaskGraph:
-        if self._mode == TaskExecutionMode.ROUTINE_ATOMIC:
-            self._build_routine_atomic(program, pid, ehi, network_ehi, remote_id)
-        else:
-            self._build_routine_split(program, pid, ehi, network_ehi, remote_id)
-
-        # Make sure successors match predecessors
-        # TODO: improve, currently ad-hoc/error-prone
-        self._graph.update_successors()
-        return self._graph
-
-    def _build_routine_atomic(
-        self,
-        program: QoalaProgram,
-        pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
-        network_ehi: Optional[EhiNetworkInfo] = None,
-        remote_id: Optional[int] = None,
-    ) -> None:
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
                 if ehi is not None:
@@ -794,7 +842,7 @@ class TaskCreator:
                 assert isinstance(instr, RunSubroutineOp)
                 if ehi is not None:
                     local_routine = program.local_routines[instr.subroutine]
-                    duration = self._compute_lr_duration(ehi, local_routine)
+                    duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
                 else:
                     duration = None
                 task_id = self.unique_id()
@@ -828,15 +876,28 @@ class TaskCreator:
             # task (block) i should come after task (block) i - 1
             precedences.append((i - 1, i))
         self._graph.add_precedences(precedences)
+        self._graph.update_successors()
+        return self._graph
 
-    def _build_routine_split(
+
+class QoalaGraphFromProgramBuilder:
+    def __init__(self, first_task_id: int = 0) -> None:
+        self._first_task_id = first_task_id
+        self._task_id_counter = first_task_id
+        self._graph = TaskGraph()
+
+    def unique_id(self) -> int:
+        id = self._task_id_counter
+        self._task_id_counter += 1
+        return id
+
+    def build(
         self,
         program: QoalaProgram,
         pid: int,
         ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
-        remote_id: Optional[int] = None,
-    ) -> None:
+    ) -> TaskGraph:
         prev_block_task_id: Optional[int] = None
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
@@ -880,7 +941,7 @@ class TaskCreator:
                 assert isinstance(instr, RunSubroutineOp)
                 if ehi is not None:
                     local_routine = program.local_routines[instr.subroutine]
-                    lr_duration = self._compute_lr_duration(ehi, local_routine)
+                    lr_duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
                     pre_duration = ehi.latencies.host_instr_time
                     post_duration = ehi.latencies.host_instr_time
                 else:
@@ -938,6 +999,9 @@ class TaskCreator:
                     )
                 # Last task for QC block is postcall task.
                 prev_block_task_id = postcall_id  # (not precall_id !)
+
+        self._graph.update_successors()
+        return self._graph
 
     def _build_from_qc_task_routine_split(
         self,
@@ -1038,40 +1102,3 @@ class TaskCreator:
                     self._graph.get_tinfo(postcall_id).predecessors.append(rr_pair_id)
 
         return precall_id, postcall_id
-
-    def _compute_lr_duration(self, ehi: EhiNodeInfo, routine: LocalRoutine) -> float:
-        duration = 0.0
-        # TODO: refactor this
-        for instr in routine.subroutine.instructions:
-            if (
-                type(instr)
-                in [
-                    core.SetInstruction,
-                    core.StoreInstruction,
-                    core.LoadInstruction,
-                    core.LeaInstruction,
-                ]
-                or isinstance(instr, core.BranchBinaryInstruction)
-                or isinstance(instr, core.BranchUnaryInstruction)
-                or isinstance(instr, core.JmpInstruction)
-                or isinstance(instr, core.ClassicalOpInstruction)
-                or isinstance(instr, core.ClassicalOpModInstruction)
-            ):
-                duration += ehi.latencies.qnos_instr_time
-            else:
-                max_duration = -1.0
-                # TODO: gate duration depends on which qubit!!
-                # currently we always take the worst case scenario but this is not ideal
-                for i in ehi.single_gate_infos.keys():
-                    if info := ehi.find_single_gate(i, type(instr)):
-                        max_duration = max(max_duration, info.duration)
-
-                for multi in ehi.multi_gate_infos.keys():
-                    if info := ehi.find_multi_gate(multi.qubit_ids, type(instr)):
-                        max_duration = max(max_duration, info.duration)
-
-                if max_duration != -1:
-                    duration += max_duration
-                else:
-                    raise RuntimeError
-        return duration

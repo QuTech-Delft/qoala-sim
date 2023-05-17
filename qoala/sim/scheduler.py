@@ -18,7 +18,12 @@ from qoala.runtime.program import (
     ProgramInstance,
     ProgramResult,
 )
-from qoala.runtime.task import ProcessorType, TaskCreator, TaskExecutionMode, TaskGraph
+from qoala.runtime.task import (
+    ProcessorType,
+    TaskExecutionMode,
+    TaskGraph,
+    TaskGraphBuilder,
+)
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
@@ -42,7 +47,7 @@ class NodeScheduler(Protocol):
         local_env: LocalEnvironment,
         local_ehi: EhiNodeInfo,
         network_ehi: EhiNetworkInfo,
-        tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
+        tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
@@ -81,7 +86,6 @@ class NodeScheduler(Protocol):
             qnos.processor,
             netstack.processor,
             memmgr,
-            tem,
         )
         self._qpu_scheduler = EdfScheduler(node_name, qpudriver)
 
@@ -126,11 +130,23 @@ class NodeScheduler(Protocol):
                 remote_id = network_info.get_node_id(remote_name)
             else:
                 remote_id = None
-            tasks = TaskCreator(
-                mode=self._tem, first_task_id=self._task_counter
-            ).from_program(
-                batch_info.program, pid, self._local_ehi, self._network_ehi, remote_id
-            )
+            if self._tem == TaskExecutionMode.BLOCK:
+                tasks = TaskGraphBuilder.from_file_block_tasks(
+                    batch_info.program,
+                    pid,
+                    self._local_ehi,
+                    self._network_ehi,
+                    remote_id,
+                    first_task_id=self._task_counter,
+                )
+            else:
+                tasks = TaskGraphBuilder.from_file(
+                    batch_info.program,
+                    pid,
+                    self._local_ehi,
+                    self._network_ehi,
+                    first_task_id=self._task_counter,
+                )
             self._task_counter += len(tasks.get_tasks())
 
             instance = ProgramInstance(

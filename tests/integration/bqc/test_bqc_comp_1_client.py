@@ -17,7 +17,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskGraphBuilder
+from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
 from qoala.sim.build import build_network
 
 
@@ -65,7 +65,14 @@ class BqcResult:
     server_results: Dict[int, BatchResult]
 
 
-def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
+def run_bqc(
+    alpha,
+    beta,
+    theta1,
+    theta2,
+    num_iterations: int,
+    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
+) -> BqcResult:
     ns.sim_reset()
 
     num_qubits = 3
@@ -74,7 +81,9 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     client_id = network_info.get_node_id("client")
 
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
+    server_node_cfg.tem = tem.name
     client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
+    client_node_cfg.tem = tem.name
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
@@ -95,7 +104,7 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     server_procnode.submit_batch(server_batch)
     server_procnode.initialize_processes()
     server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
-    server_merged = TaskGraphBuilder.merge_linear(server_tasks)
+    server_merged = TaskGraphBuilder.merge(server_tasks)
     server_procnode.scheduler.upload_task_graph(server_merged)
 
     client_program = load_program("bqc_client.iqoala")
@@ -119,7 +128,7 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     client_procnode.submit_batch(client_batch)
     client_procnode.initialize_processes()
     client_tasks = client_procnode.scheduler.get_tasks_to_schedule()
-    client_merged = TaskGraphBuilder.merge_linear(client_tasks)
+    client_merged = TaskGraphBuilder.merge(client_tasks)
     client_procnode.scheduler.upload_task_graph(client_merged)
 
     network.start()
@@ -131,39 +140,48 @@ def run_bqc(alpha, beta, theta1, theta2, num_iterations: int) -> BqcResult:
     return BqcResult(client_results, server_results)
 
 
-def test_bqc():
+def check(alpha, beta, theta1, theta2, expected, num_iterations, tem):
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome
 
     # angles are in multiples of pi/16
 
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("test_run.log")
+    ns.sim_reset()
+    bqc_result = run_bqc(
+        alpha=alpha,
+        beta=beta,
+        theta1=theta1,
+        theta2=theta2,
+        num_iterations=num_iterations,
+        tem=tem,
+    )
+    assert len(bqc_result.client_results) > 0
+    assert len(bqc_result.server_results) > 0
 
-    def check(alpha, beta, theta1, theta2, expected, num_iterations):
-        ns.sim_reset()
-        bqc_result = run_bqc(
-            alpha=alpha,
-            beta=beta,
-            theta1=theta1,
-            theta2=theta2,
-            num_iterations=num_iterations,
-        )
-        assert len(bqc_result.client_results) > 0
-        assert len(bqc_result.server_results) > 0
+    server_batch_results = bqc_result.server_results
+    for _, batch_results in server_batch_results.items():
+        program_results = batch_results.results
+        m2s = [result.values["m2"] for result in program_results]
+        assert all(m2 == expected for m2 in m2s)
 
-        server_batch_results = bqc_result.server_results
-        for _, batch_results in server_batch_results.items():
-            program_results = batch_results.results
-            m2s = [result.values["m2"] for result in program_results]
-            assert all(m2 == expected for m2 in m2s)
 
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10)
+def test_bqc_block_tasks():
+    tem = TaskExecutionMode.BLOCK
+    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
+
+
+def test_bqc_qoala_tasks():
+    tem = TaskExecutionMode.QOALA
+    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
 
 
 if __name__ == "__main__":
-    test_bqc()
+    test_bqc_block_tasks()
+    test_bqc_qoala_tasks()

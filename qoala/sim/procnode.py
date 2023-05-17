@@ -39,7 +39,7 @@ class ProcNode(Protocol):
         node_id: Optional[int] = None,
         scheduler: Optional[NodeScheduler] = None,
         asynchronous: bool = False,
-        tem: TaskExecutionMode = TaskExecutionMode.ROUTINE_ATOMIC,
+        tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
     ) -> None:
         """ProcNode constructor.
 

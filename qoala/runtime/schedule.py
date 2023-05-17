@@ -2,19 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import ceil
-from typing import Dict
-
-
-@dataclass
-class LinkSlotInfo:
-    offset1: float  # time for first pair
-    offset2: float  # time for second pair
-    period: float  # time until next cycle (with again two pairs)
-
-
-@dataclass
-class QcSlotInfo:
-    links: Dict[int, LinkSlotInfo]
 
 
 @dataclass

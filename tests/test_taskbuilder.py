@@ -20,9 +20,8 @@ from qoala.runtime.task import (
     PreCallTask,
     SinglePairCallbackTask,
     SinglePairTask,
-    TaskCreator,
-    TaskExecutionMode,
     TaskGraph,
+    TaskGraphBuilder,
 )
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
@@ -54,15 +53,14 @@ def setup_network() -> ProcNodeNetwork:
     return build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
 
 
-def test_from_program_1():
+def test_block_tasks_from_program_1():
     path = relative_path("integration/bqc/vbqc_client.iqoala")
     with open(path) as file:
         text = file.read()
     program = QoalaParser(text).parse()
 
-    creator = TaskCreator(TaskExecutionMode.ROUTINE_ATOMIC)
     pid = 3
-    task_graph = creator.from_program(program, pid)
+    task_graph = TaskGraphBuilder.from_file_block_tasks(program, pid)
 
     expected_tasks = [
         BlockTask(0, pid, "b0", CL),
@@ -85,7 +83,7 @@ def test_from_program_1():
     assert task_graph == expected_graph
 
 
-def test_from_program_2():
+def test_block_tasks_from_program_2():
     network = setup_network()
     alice = network.nodes["alice"]
 
@@ -94,9 +92,10 @@ def test_from_program_2():
         text = file.read()
     program = QoalaParser(text).parse()
 
-    creator = TaskCreator(TaskExecutionMode.ROUTINE_ATOMIC)
     pid = 3
-    task_graph = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
+    task_graph = TaskGraphBuilder.from_file_block_tasks(
+        program, pid, alice.local_ehi, alice.network_ehi
+    )
 
     cpu_time = alice.local_ehi.latencies.host_instr_time
     recv_time = alice.local_ehi.latencies.host_peer_latency
@@ -128,7 +127,7 @@ def test_from_program_2():
     assert task_graph == expected_graph
 
 
-def test_routine_split_1_pair_callback():
+def test_qoala_tasks_1_pair_callback():
     network = setup_network()
     alice = network.nodes["alice"]
 
@@ -141,9 +140,10 @@ def test_routine_split_1_pair_callback():
     cb_time = alice.local_ehi.latencies.qnos_instr_time
     pair_time = alice.network_ehi.get_link(0, 1).duration
 
-    creator = TaskCreator(TaskExecutionMode.ROUTINE_SPLIT)
     pid = 3
-    task_graph = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
+    task_graph = TaskGraphBuilder.from_file(
+        program, pid, alice.local_ehi, alice.network_ehi
+    )
 
     expected_tasks = [
         # blk_1_pair_wait_all
@@ -175,7 +175,7 @@ def test_routine_split_1_pair_callback():
     assert task_graph == expected_graph
 
 
-def test_routine_split_2_pairs_callback():
+def test_qoala_tasks_2_pairs_callback():
     network = setup_network()
     alice = network.nodes["alice"]
 
@@ -188,9 +188,10 @@ def test_routine_split_2_pairs_callback():
     cb_time = alice.local_ehi.latencies.qnos_instr_time
     pair_time = alice.network_ehi.get_link(0, 1).duration
 
-    creator = TaskCreator(TaskExecutionMode.ROUTINE_SPLIT)
     pid = 3
-    task_graph = creator.from_program(program, pid, alice.local_ehi, alice.network_ehi)
+    task_graph = TaskGraphBuilder.from_file(
+        program, pid, alice.local_ehi, alice.network_ehi
+    )
 
     expected_tasks = [
         # blk_2_pairs_wait_all
@@ -228,7 +229,7 @@ def test_routine_split_2_pairs_callback():
 
 
 if __name__ == "__main__":
-    test_from_program_1()
-    test_from_program_2()
-    test_routine_split_1_pair_callback()
-    test_routine_split_2_pairs_callback()
+    test_block_tasks_from_program_1()
+    test_block_tasks_from_program_2()
+    test_qoala_tasks_1_pair_callback()
+    test_qoala_tasks_2_pairs_callback()

@@ -17,9 +17,8 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.task import TaskCreator, TaskExecutionMode, TaskGraph
+from qoala.runtime.task import TaskExecutionMode, TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network
-from qoala.util.logging import LogManager
 
 
 def create_network_info(names: List[str]) -> NetworkInfo:
@@ -73,7 +72,13 @@ def instantiate(
     )
 
 
-def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
+def run_bqc(
+    alpha,
+    beta,
+    theta1,
+    theta2,
+    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
+) -> SimpleBqcResult:
     ns.sim_reset()
 
     num_qubits = 3
@@ -82,7 +87,9 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     client_id = network_info.get_node_id("client")
 
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
+    server_node_cfg.tem = tem.name
     client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
+    client_node_cfg.tem = tem.name
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
@@ -113,14 +120,14 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     )
     client_procnode.scheduler.submit_program_instance(client_instance)
 
-    tasks_server = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
+    tasks_server = TaskGraphBuilder.from_file_block_tasks(
         server_program,
         0,
         server_procnode.local_ehi,
         server_procnode.network_ehi,
         client_id,
     )
-    tasks_client = TaskCreator(mode=TaskExecutionMode.ROUTINE_ATOMIC).from_program(
+    tasks_client = TaskGraphBuilder.from_file_block_tasks(
         client_program,
         0,
         client_procnode.local_ehi,
@@ -140,27 +147,38 @@ def run_bqc(alpha, beta, theta1, theta2) -> SimpleBqcResult:
     return SimpleBqcResult(client_result, server_result)
 
 
-def test_bqc():
+def check(alpha, beta, theta1, theta2, expected, num_iterations, tem):
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome
 
     # angles are in multiples of pi/16
 
-    LogManager.set_log_level("WARNING")
+    ns.sim_reset()
 
-    def check(alpha, beta, theta1, theta2, expected, num_iterations):
-        ns.sim_reset()
+    for _ in range(num_iterations):
+        bqc_result = run_bqc(
+            alpha=alpha, beta=beta, theta1=theta1, theta2=theta2, tem=tem
+        )
+        assert bqc_result.server_result["m2"] == expected
 
-        for _ in range(num_iterations):
-            bqc_result = run_bqc(alpha=alpha, beta=beta, theta1=theta1, theta2=theta2)
-            assert bqc_result.server_result["m2"] == expected
 
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10)
+def test_bqc_block_tasks():
+    tem = TaskExecutionMode.BLOCK
+    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
+
+
+def test_bqc_qoala_tasks():
+    tem = TaskExecutionMode.QOALA
+    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
 
 
 if __name__ == "__main__":
-    test_bqc()
+    test_bqc_block_tasks()
+    test_bqc_qoala_tasks()
