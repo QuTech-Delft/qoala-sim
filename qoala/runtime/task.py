@@ -469,6 +469,14 @@ class TaskGraph:
             self._tasks[y].predecessors.append(x)
             self._tasks[x].successors.append(y)
 
+    def update_successors(self) -> None:
+        # Make sure all `successors` of all tinfos match all predecessors
+        for tid, tinfo in self.get_tasks().items():
+            for pred in tinfo.predecessors:
+                pred_tinfo = self.get_tinfo(pred)
+                if tid not in pred_tinfo.successors:
+                    pred_tinfo.successors.append(tid)
+
     def add_ext_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x (which is not in this graph) precedes y
         # (which is in this graph)
@@ -647,13 +655,10 @@ class TaskGraph:
                 if pred not in partial_tasks
             }
 
+        partial_graph = TaskGraph(partial_tasks)
         # Fill in successors by taking opposite of predecessors.
-        for tid, tinfo in partial_tasks.items():
-            for pred in tinfo.predecessors:
-                pred_tinfo = partial_tasks[pred]
-                if tid not in pred_tinfo.successors:
-                    pred_tinfo.successors.append(tid)
-        return TaskGraph(partial_tasks)
+        partial_graph.update_successors()
+        return partial_graph
 
 
 class TaskGraphBuilder:
@@ -666,7 +671,9 @@ class TaskGraphBuilder:
             t2 = tinfos[i + 1]
             t2.predecessors.append(t1.task.task_id)
 
-        return TaskGraph(tasks={t.task.task_id: t for t in tinfos})
+        graph = TaskGraph(tasks={t.task.task_id: t for t in tinfos})
+        graph.update_successors()
+        return graph
 
     @classmethod
     def linear_tasks_with_start_times(
@@ -683,7 +690,9 @@ class TaskGraphBuilder:
             t2 = tinfos[i + 1]
             t2.predecessors.append(t1.task.task_id)
 
-        return TaskGraph(tasks={t.task.task_id: t for t in tinfos})
+        graph = TaskGraph(tasks={t.task.task_id: t for t in tinfos})
+        graph.update_successors()
+        return graph
 
     @classmethod
     def merge(cls, graphs: List[TaskGraph]) -> TaskGraph:
@@ -692,7 +701,9 @@ class TaskGraphBuilder:
             for tid, tinfo in graph.get_tasks().items():
                 merged_tinfos[tid] = tinfo
 
-        return TaskGraph(merged_tinfos)
+        merged = TaskGraph(merged_tinfos)
+        merged.update_successors()
+        return merged
 
     @classmethod
     def merge_linear(cls, graphs: List[TaskGraph]) -> TaskGraph:
@@ -712,6 +723,7 @@ class TaskGraphBuilder:
             precedence = (chain1[-1], chain2[0])
             merged.add_precedences([precedence])
 
+        merged.update_successors()
         return merged
 
 
@@ -740,6 +752,9 @@ class TaskCreator:
         else:
             self._build_routine_split(program, pid, ehi, network_ehi, remote_id)
 
+        # Make sure successors match predecessors
+        # TODO: improve, currently ad-hoc/error-prone
+        self._graph.update_successors()
         return self._graph
 
     def _build_routine_atomic(

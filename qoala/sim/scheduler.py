@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from enum import Enum, auto
-from re import T
 from typing import Dict, Generator, List, Optional, Tuple
 
 import netsquid as ns
@@ -20,14 +19,7 @@ from qoala.runtime.program import (
     ProgramResult,
 )
 from qoala.runtime.schedule import StaticSchedule
-from qoala.runtime.task import (
-    ProcessorType,
-    QoalaTask,
-    TaskCreator,
-    TaskExecutionMode,
-    TaskGraph,
-    TaskInfo,
-)
+from qoala.runtime.task import ProcessorType, TaskCreator, TaskExecutionMode, TaskGraph
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED

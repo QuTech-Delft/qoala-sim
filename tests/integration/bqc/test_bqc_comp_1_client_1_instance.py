@@ -17,7 +17,6 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.schedule import StaticSchedule
 from qoala.runtime.task import TaskCreator, TaskExecutionMode, TaskGraph
 from qoala.sim.build import build_network
 from qoala.util.logging import LogManager

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import abc
 from copy import deepcopy
 from dataclasses import dataclass
 from math import ceil
 from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.hostlang import BasicBlockType
-from qoala.runtime.task import BlockTask, ProcessorType, QoalaTask, TaskGraph, TaskInfo
+from qoala.runtime.task import BlockTask, QoalaTask, TaskGraph, TaskInfo
 
 
 @dataclass
