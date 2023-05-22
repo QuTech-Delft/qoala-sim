@@ -9,13 +9,14 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     IqoalaTuple,
+    IqoalaVector,
     ReceiveCMsgOp,
     ReturnResultOp,
     RunSubroutineOp,
     SendCMsgOp,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
-from qoala.lang.routine import RoutineMetadata
+from qoala.lang.routine import LrReturnVector, RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -63,6 +64,7 @@ def test_serialize_host_code_1():
     my_value = add_cval_c(new_value, new_value)
 ^b1 {type = QL}:
     tuple<m> = run_subroutine(tuple<my_value>) : subrt1
+    x<5> = run_subroutine(tuple<>) : subrt2
 ^b2 {type = CL}:
     return_result(m)
     """
@@ -84,6 +86,7 @@ def test_serialize_host_code_1():
         BasicBlockType.QL,
         instructions=[
             RunSubroutineOp(IqoalaTuple(["m"]), IqoalaTuple(["my_value"]), "subrt1"),
+            RunSubroutineOp(IqoalaVector("x", 5), IqoalaTuple([]), "subrt2"),
         ],
     )
     b2 = BasicBlock(
@@ -141,7 +144,7 @@ def test_serialize_subroutines_2():
     expected = """
 SUBROUTINE subrt1
     params: param1
-    returns: m
+    returns: outcomes<10>
     uses: 0
     keeps: 
   NETQASM_START
@@ -171,7 +174,7 @@ SUBROUTINE subrt2
             ],
             arguments=["param1"],
         ),
-        return_vars=["m"],
+        return_vars=[LrReturnVector("outcomes", 10)],
         metadata=RoutineMetadata.free_all([0]),
     )
     subrt2 = LocalRoutine(

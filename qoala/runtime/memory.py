@@ -38,11 +38,20 @@ class HostMemory:
         # Variables have a name (str) and values (int).
         self._mem: Dict[str, int] = {}
 
+        # Vectors are stored separately.
+        self._vec_mem: Dict[str, List[int]] = {}
+
     def write(self, loc: str, value: int) -> None:
         self._mem[loc] = value
 
     def read(self, loc: str) -> int:
         return self._mem[loc]
+
+    def write_vec(self, loc: str, values: List[int]) -> None:
+        self._vec_mem[loc] = values
+
+    def read_vec(self, loc: str) -> List[int]:
+        return self._vec_mem[loc]
 
 
 @dataclass

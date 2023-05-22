@@ -9,6 +9,7 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     IqoalaTuple,
+    IqoalaVector,
     RunSubroutineOp,
 )
 from qoala.lang.parse import (
@@ -29,7 +30,7 @@ from qoala.lang.request import (
     RequestRoutine,
     RequestVirtIdMapping,
 )
-from qoala.lang.routine import RoutineMetadata
+from qoala.lang.routine import LrReturnVector, RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -129,7 +130,7 @@ x = assign_cval
         IqoalaInstrParser(text).parse()
 
 
-def test_parse_vec():
+def test_parse_tuple():
     text = """
 run_subroutine(tuple<x>) : subrt1
     """
@@ -141,7 +142,7 @@ run_subroutine(tuple<x>) : subrt1
     )
 
 
-def test_parse_vec_2_elements():
+def test_parse_tuple_2_elements():
     text = """
 run_subroutine(tuple<x; y>) : subrt1
     """
@@ -153,7 +154,7 @@ run_subroutine(tuple<x; y>) : subrt1
     )
 
 
-def test_parse_vec_2_elements_and_return():
+def test_parse_tuple_2_elements_and_return():
     text = """
 tuple<m> = run_subroutine(tuple<x; y>) : subrt1
     """
@@ -165,7 +166,7 @@ tuple<m> = run_subroutine(tuple<x; y>) : subrt1
     )
 
 
-def test_parse_vec_2_elements_and_return_2_elements():
+def test_parse_tuple_2_elements_and_return_2_elements():
     text = """
 tuple<m1; m2> = run_subroutine(tuple<x; y>) : subrt1
     """
@@ -176,6 +177,18 @@ tuple<m1; m2> = run_subroutine(tuple<x; y>) : subrt1
         result=IqoalaTuple(["m1", "m2"]),
         values=IqoalaTuple(["x", "y"]),
         subrt="subrt1",
+    )
+
+
+def test_parse_vector():
+    text = """
+my_vec<3> = run_subroutine(tuple<>) : subrt1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 1
+    assert instructions[0] == RunSubroutineOp(
+        result=IqoalaVector("my_vec", 3), values=IqoalaTuple([]), subrt="subrt1"
     )
 
 
@@ -306,6 +319,42 @@ SUBROUTINE my_subroutine
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
         return_vars=["result1", "result2"],
+    )
+
+
+def test_parse_subrt_3():
+    text = """
+SUBROUTINE my_subroutine
+    params: param1, param2
+    returns: outcomes<10>
+    uses: 0, 1
+    keeps: 
+    request: 
+  NETQASM_START
+    set R0 {param1}
+    set R1 {param2}
+    meas Q0 M5
+    meas Q1 M6
+  NETQASM_END
+    """
+
+    parsed = LocalRoutineParser(text).parse()
+    assert len(parsed) == 1
+    assert "my_subroutine" in parsed
+    subrt = parsed["my_subroutine"]
+
+    expected_instrs = [
+        SetInstruction(reg=Register.from_str("R0"), imm=Template("param1")),
+        SetInstruction(reg=Register.from_str("R1"), imm=Template("param2")),
+        MeasInstruction(reg0=Register.from_str("Q0"), reg1=Register.from_str("M5")),
+        MeasInstruction(reg0=Register.from_str("Q1"), reg1=Register.from_str("M6")),
+    ]
+    expected_args = ["param1", "param2"]
+    assert subrt == LocalRoutine(
+        name="my_subroutine",
+        subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        metadata=RoutineMetadata.free_all([0, 1]),
+        return_vars=[LrReturnVector("outcomes", 10)],
     )
 
 
@@ -1069,16 +1118,18 @@ if __name__ == "__main__":
     test_parse_1_instr()
     test_parse_2_instr()
     test_parse_faulty_instr()
-    test_parse_vec()
-    test_parse_vec_2_elements()
-    test_parse_vec_2_elements_and_return()
-    test_parse_vec_2_elements_and_return_2_elements()
+    test_parse_tuple()
+    test_parse_tuple_2_elements()
+    test_parse_tuple_2_elements_and_return()
+    test_parse_tuple_2_elements_and_return_2_elements()
+    test_parse_vector()
     test_parse_block_header()
     test_parse_block()
     test_get_block_texts()
     test_parse_multiple_blocks()
     test_parse_subrt()
     test_parse_subrt_2()
+    test_parse_subrt_3()
     test_parse_multiple_subrt()
     test_parse_invalid_subrt()
     test_parse_request()

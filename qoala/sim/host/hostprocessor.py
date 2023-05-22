@@ -144,6 +144,8 @@ class HostProcessor:
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.RunSubroutineOp):
+            # NOTE: this code is in practice never reached when using a Scheduler.
+            # (The Scheduler manually calls prepare_lr_call and post_lr_call).
             lrcall = self.prepare_lr_call(process, instr)
 
             # Send a message to Qnos asking to run the routine.
@@ -168,7 +170,11 @@ class HostProcessor:
         elif isinstance(instr, hostlang.ReturnResultOp):
             assert isinstance(instr.arguments[0], str)
             loc = instr.arguments[0]
-            value = host_mem.read(loc)
+            # TODO: improve this
+            try:
+                value = host_mem.read(loc)
+            except KeyError:
+                value = host_mem.read_vec(loc)
             self._logger.debug(f"returning {loc} = {value}")
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
@@ -200,8 +206,12 @@ class HostProcessor:
         input_addr = shared_mem.allocate_lr_in(len(arg_values))
         shared_mem.write_lr_in(input_addr, list(arg_values.values()))
 
+        # Check if the expected number of results match the number of result variables.
+        result_vars_len = self._calculate_result_size(instr)
+        assert result_vars_len == routine.get_return_size()
+
         # Allocate result memory.
-        result_addr = shared_mem.allocate_lr_out(len(routine.return_vars))
+        result_addr = shared_mem.allocate_lr_out(result_vars_len)
 
         return LrCallTuple(subrt_name, input_addr, result_addr)
 
@@ -213,23 +223,26 @@ class HostProcessor:
     ) -> None:
         shared_mem = process.prog_memory.shared_mem
 
-        # Collect the host variables that should obtain the LR results.
-        result_vars: List[str]
-        if isinstance(instr.results, list):
-            result_vars = instr.results
-        elif isinstance(instr.results, hostlang.IqoalaTuple):
-            result_vec: hostlang.IqoalaTuple = instr.results
-            result_vars = result_vec.values
-        else:
-            raise RuntimeError
-
         # Read the results from shared memory.
-        result = shared_mem.read_lr_out(lrcall.result_addr, len(result_vars))
+        result_vars_len = self._calculate_result_size(instr)
+        result = shared_mem.read_lr_out(lrcall.result_addr, result_vars_len)
 
         # Copy results to local host variables.
-        assert len(result) == len(result_vars)
-        for value, var in zip(result, result_vars):
-            process.host_mem.write(var, value)
+        assert len(result) == result_vars_len
+
+        # Collect the host variables that should obtain the LR results.
+        if isinstance(instr.results, list):
+            for value, var in zip(result, instr.results):
+                process.host_mem.write(var, value)
+        elif isinstance(instr.results, hostlang.IqoalaTuple):
+            result_tup: hostlang.IqoalaTuple = instr.results
+            for value, var in zip(result, result_tup.values):
+                process.host_mem.write(var, value)
+        elif isinstance(instr.results, hostlang.IqoalaVector):
+            result_vec: hostlang.IqoalaVector = instr.results
+            process.host_mem.write_vec(result_vec.name, result)
+        else:
+            raise RuntimeError
 
     def prepare_rr_call(
         self, process: QoalaProcess, instr: hostlang.RunRequestOp
@@ -354,3 +367,15 @@ class HostProcessor:
         assert len(all_results) == len(result_vars)
         for value, var in zip(all_results, result_vars):
             process.host_mem.write(var, value)
+
+    def _calculate_result_size(self, instr: hostlang.RunSubroutineOp) -> int:
+        if isinstance(instr.results, list):
+            return len(instr.results)
+        elif isinstance(instr.results, hostlang.IqoalaTuple):
+            result_tup: hostlang.IqoalaTuple = instr.results
+            return len(result_tup.values)
+        elif isinstance(instr.results, hostlang.IqoalaVector):
+            result_vec: hostlang.IqoalaVector = instr.results
+            return result_vec.size
+        else:
+            raise RuntimeError

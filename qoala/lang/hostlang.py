@@ -42,6 +42,30 @@ class IqoalaTuple:
         return self.values == other.values
 
 
+class IqoalaVector:
+    # TODO: create single IqoalaVar class that IqoalaVector, IqoalaTuple,
+    # and IqoalaSingleton derive from
+    def __init__(self, name: str, size: int) -> None:
+        self._name = name
+        self._size = size
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    def __str__(self) -> str:
+        return f"{self.name}<{self.size}>"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, IqoalaVector):
+            return NotImplemented
+        return self.name == other.name and self.size == other.size
+
+
 class ClassicalIqoalaOp:
     OP_NAME: str = None  # type: ignore
     TYP: IqoalaInstructionType = None  # type: ignore
@@ -49,13 +73,13 @@ class ClassicalIqoalaOp:
     def __init__(
         self,
         arguments: Optional[Union[List[str], List[IqoalaTuple]]] = None,
-        results: Optional[Union[List[str], IqoalaTuple]] = None,
+        results: Optional[Union[List[str], IqoalaTuple, IqoalaVector]] = None,
         attributes: Optional[List[IqoalaValue]] = None,
     ) -> None:
         # TODO: support list of strs and tuples
         # currently not needed and confuses mypy
         self._arguments: Union[List[str], List[IqoalaTuple]]
-        self._results: Union[List[str], IqoalaTuple]
+        self._results: Union[List[str], IqoalaTuple, IqoalaVector]
         self._attributes: List[IqoalaValue]
 
         if arguments is None:
@@ -69,7 +93,7 @@ class ClassicalIqoalaOp:
             # List of ints
             self._results = results
         else:
-            assert isinstance(results, IqoalaTuple)
+            assert isinstance(results, IqoalaTuple) or isinstance(results, IqoalaVector)
             self._results = results
 
         if attributes is None:
@@ -81,7 +105,9 @@ class ClassicalIqoalaOp:
         if isinstance(self.results, list):
             results = ", ".join(str(r) for r in self.results)
         else:
-            assert isinstance(self.results, IqoalaTuple)
+            assert isinstance(self.results, IqoalaTuple) or isinstance(
+                self.results, IqoalaVector
+            )
             results = str(self.results)
         args = ", ".join(str(a) for a in self.arguments)
         attrs = ", ".join(str(a) for a in self.attributes)
@@ -119,7 +145,7 @@ class ClassicalIqoalaOp:
         return self._arguments
 
     @property
-    def results(self) -> Union[List[str], IqoalaTuple]:
+    def results(self) -> Union[List[str], IqoalaTuple, IqoalaVector]:
         return self._results
 
     @property
@@ -242,7 +268,10 @@ class RunSubroutineOp(ClassicalIqoalaOp):
     TYP = IqoalaInstructionType.CL
 
     def __init__(
-        self, result: Optional[IqoalaTuple], values: IqoalaTuple, subrt: str
+        self,
+        result: Optional[Union[IqoalaTuple, IqoalaVector]],
+        values: IqoalaTuple,
+        subrt: str,
     ) -> None:
         super().__init__(results=result, arguments=[values], attributes=[subrt])
 
@@ -251,7 +280,7 @@ class RunSubroutineOp(ClassicalIqoalaOp):
         cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
     ):
         if result is not None:
-            assert isinstance(result, IqoalaTuple)
+            assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
         assert len(args) == 1
         assert isinstance(args[0], IqoalaTuple)
         assert isinstance(attr, str)

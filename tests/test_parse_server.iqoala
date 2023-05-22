@@ -80,7 +80,6 @@ SUBROUTINE meas_qubit_1
     rot_z Q1 {delta1} 4
     h Q1
     meas Q1 M0
-    qfree Q1
   NETQASM_END
 
 SUBROUTINE meas_qubit_0
@@ -94,7 +93,6 @@ SUBROUTINE meas_qubit_0
     rot_z Q0 {delta2} 4
     h Q0
     meas Q0 M0
-    qfree Q0
   NETQASM_END
 
 REQUEST req0

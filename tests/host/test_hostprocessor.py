@@ -17,6 +17,7 @@ from qoala.lang.hostlang import (
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
     IqoalaTuple,
+    IqoalaVector,
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
     ReturnResultOp,
@@ -33,7 +34,7 @@ from qoala.lang.request import (
     RequestRoutine,
     RequestVirtIdMapping,
 )
-from qoala.lang.routine import LocalRoutine, RoutineMetadata
+from qoala.lang.routine import LocalRoutine, LrReturnVector, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
@@ -403,6 +404,57 @@ def test_run_subroutine_2():
     assert process.prog_memory.host_mem.read("m") == MOCK_QNOS_RET_VALUE
 
 
+def test_prepare_lr_call():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+    )
+    instr = RunSubroutineOp(
+        result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+
+    program = create_program(instrs=[instr], subroutines={"subrt1": routine})
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    lrcall = processor.prepare_lr_call(process, program.instructions[0])
+
+    # Host processor should have allocated shared memory space.
+    assert lrcall.routine_name == "subrt1"
+    assert len(process.shared_mem.raw_arrays.raw_memory[lrcall.result_addr]) == 3
+
+
+def test_post_lr_call():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+    )
+    instr = RunSubroutineOp(
+        result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+
+    program = create_program(instrs=[instr], subroutines={"subrt1": routine})
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    lrcall = processor.prepare_lr_call(process, program.instructions[0])
+    # Mock LR execution by writing results to shared memory.
+    process.shared_mem.write_lr_out(lrcall.result_addr, [1, 2, 3])
+
+    processor.post_lr_call(process, program.instructions[0], lrcall)
+
+    # Host memory should contain the results.
+    assert process.host_mem.read_vec("res") == [1, 2, 3]
+
+
 def create_simple_request(
     remote_id: int,
     num_pairs: int,
@@ -484,5 +536,6 @@ if __name__ == "__main__":
     test_bit_cond_mult()
     test_run_subroutine()
     test_run_subroutine_2()
+    test_prepare_lr_call()
     test_run_request()
     test_return_result()

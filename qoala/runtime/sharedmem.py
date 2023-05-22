@@ -28,6 +28,10 @@ class NetQASMArrays:
         self._next_addr: int = 0
         self._memory: Dict[MemAddr, List[Optional[int]]] = {}
 
+    @property
+    def raw_memory(self) -> Dict[MemAddr, List[Optional[int]]]:
+        return self._memory
+
     def allocate(self, addr: MemAddr, size: int) -> None:
         assert addr not in self._memory
         self._memory[addr] = [None] * size
@@ -61,6 +65,10 @@ class SharedMemory:
         self._lr_out_addrs: List[MemAddr] = []
 
         self._addr_counter: int = 0
+
+    @property
+    def raw_arrays(self) -> NetQASMArrays:
+        return self._arrays
 
     def _allocate(self, size: int) -> MemAddr:
         addr = MemAddr(self._addr_counter)
