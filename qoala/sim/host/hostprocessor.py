@@ -179,8 +179,8 @@ class HostProcessor:
     ) -> LrCallTuple:
         host_mem = process.prog_memory.host_mem
 
-        assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
-        arg_vec: hostlang.IqoalaVector = instr.arguments[0]
+        assert isinstance(instr.arguments[0], hostlang.IqoalaTuple)
+        arg_vec: hostlang.IqoalaTuple = instr.arguments[0]
         args = arg_vec.values
         subrt_name = instr.attributes[0]
         assert isinstance(subrt_name, str)
@@ -217,8 +217,8 @@ class HostProcessor:
         result_vars: List[str]
         if isinstance(instr.results, list):
             result_vars = instr.results
-        elif isinstance(instr.results, hostlang.IqoalaVector):
-            result_vec: hostlang.IqoalaVector = instr.results
+        elif isinstance(instr.results, hostlang.IqoalaTuple):
+            result_vec: hostlang.IqoalaTuple = instr.results
             result_vars = result_vec.values
         else:
             raise RuntimeError
@@ -236,8 +236,8 @@ class HostProcessor:
     ) -> RrCallTuple:
         host_mem = process.prog_memory.host_mem
 
-        assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
-        arg_vec: hostlang.IqoalaVector = instr.arguments[0]
+        assert isinstance(instr.arguments[0], hostlang.IqoalaTuple)
+        arg_vec: hostlang.IqoalaTuple = instr.arguments[0]
         args = arg_vec.values
         routine_name = instr.attributes[0]
         assert isinstance(routine_name, str)
@@ -344,8 +344,8 @@ class HostProcessor:
         result_vars: List[str]
         if isinstance(instr.results, list):
             result_vars = instr.results
-        elif isinstance(instr.results, hostlang.IqoalaVector):
-            result_vec: hostlang.IqoalaVector = instr.results
+        elif isinstance(instr.results, hostlang.IqoalaTuple):
+            result_vec: hostlang.IqoalaTuple = instr.results
             result_vars = result_vec.values
         else:
             raise RuntimeError

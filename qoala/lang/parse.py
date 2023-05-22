@@ -129,14 +129,14 @@ class IqoalaInstrParser:
                 return line
             # if no non-empty line, will always break on EndOfLineException
 
-    def _parse_var(self, var_str: str) -> Union[str, hl.IqoalaVector]:
-        if var_str.startswith("vec<"):
-            vec_values_str = var_str[4:-1]
-            if len(vec_values_str) == 0:
-                vec_values = []
+    def _parse_var(self, var_str: str) -> Union[str, hl.IqoalaTuple]:
+        if var_str.startswith("tuple<"):
+            tup_values_str = var_str[6:-1]
+            if len(tup_values_str) == 0:
+                tup_values = []
             else:
-                vec_values = [x.strip() for x in vec_values_str.split(";")]
-            return hl.IqoalaVector(vec_values)
+                tup_values = [x.strip() for x in tup_values_str.split(";")]
+            return hl.IqoalaTuple(tup_values)
         else:
             return var_str
 

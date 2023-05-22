@@ -6,10 +6,10 @@ META_START
 META_END
 
 ^b1 {type = QC}:
-    run_request(vec<>) : req
+    run_request(tuple<>) : req
 
 ^b2 {type = QL}:
-    vec<m0> = run_subroutine(vec<>) : post_epr
+    tuple<m0> = run_subroutine(tuple<>) : post_epr
 
 ^b3 {type = CL}:
     return_result(m0)

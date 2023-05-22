@@ -9,13 +9,13 @@ META_END
     csocket = assign_cval() : 0
 
 ^b1 {type = QL}:
-    run_subroutine(vec<>) : prepare_qubit
+    run_subroutine(tuple<>) : prepare_qubit
 
 ^b2 {type = QC}:
-    run_request(vec<>) : epr_gen
+    run_request(tuple<>) : epr_gen
 
 ^b3 {type = QL}:
-    vec<m1; m2> = run_subroutine(vec<>) : bsm
+    tuple<m1; m2> = run_subroutine(tuple<>) : bsm
 
 ^b4 {type = CL}:
     send_cmsg(csocket, m1)

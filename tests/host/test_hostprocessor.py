@@ -16,7 +16,7 @@ from qoala.lang.hostlang import (
     BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
-    IqoalaVector,
+    IqoalaTuple,
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
     ReturnResultOp,
@@ -335,7 +335,7 @@ def test_run_subroutine():
     routine = LocalRoutine("subrt1", subrt, return_vars=[], metadata=metadata)
 
     program = create_program(
-        instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
+        instrs=[RunSubroutineOp(None, IqoalaTuple([]), "subrt1")],
         subroutines={"subrt1": routine},
     )
     process = create_process(program, interface)
@@ -372,7 +372,7 @@ def test_run_subroutine_2():
     program = create_program(
         instrs=[
             AssignCValueOp("my_value", 16),
-            RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
+            RunSubroutineOp(IqoalaTuple(["m"]), IqoalaTuple(["my_value"]), "subrt1"),
         ],
         subroutines={"subrt1": routine},
     )
@@ -437,7 +437,7 @@ def test_run_request():
     routine = RequestRoutine("req", request, [], CallbackType.WAIT_ALL, None)
 
     program = create_program(
-        instrs=[RunRequestOp(None, IqoalaVector([]), "req")],
+        instrs=[RunRequestOp(None, IqoalaTuple([]), "req")],
         requests={"req": routine},
     )
     process = create_process(program, interface)

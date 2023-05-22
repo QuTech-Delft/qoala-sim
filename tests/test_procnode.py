@@ -15,7 +15,7 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     ClassicalIqoalaOp,
-    IqoalaVector,
+    IqoalaTuple,
     ReceiveCMsgOp,
     RunSubroutineOp,
     SendCMsgOp,
@@ -394,7 +394,7 @@ def test_2():
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    instrs = [RunSubroutineOp(IqoalaVector(["result"]), IqoalaVector([]), "subrt1")]
+    instrs = [RunSubroutineOp(IqoalaTuple(["result"]), IqoalaTuple([]), "subrt1")]
     subroutines = parse_iqoala_subroutines(
         """
 SUBROUTINE subrt1
@@ -811,7 +811,7 @@ META_END
 ^b0 {type = CL}:
     remote_id = assign_cval() : {client_id}
 ^b1 {type = QC}:
-    run_request(vec<>) : req1
+    run_request(tuple<>) : req1
 
 REQUEST req1
   callback_type: wait_all
@@ -874,7 +874,7 @@ META_END
 ^b0 {type = CL}:
     remote_id = assign_cval() : {server_id}
 ^b1 {type = QL}:
-    run_request(vec<>) : req1
+    run_request(tuple<>) : req1
 
 REQUEST req1
   callback_type: wait_all

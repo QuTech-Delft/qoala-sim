@@ -8,7 +8,7 @@ from netqasm.lang.subroutine import Subroutine
 from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
-    IqoalaVector,
+    IqoalaTuple,
     RunSubroutineOp,
 )
 from qoala.lang.parse import (
@@ -131,50 +131,50 @@ x = assign_cval
 
 def test_parse_vec():
     text = """
-run_subroutine(vec<x>) : subrt1
+run_subroutine(tuple<x>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=None, values=IqoalaVector(["x"]), subrt="subrt1"
+        result=None, values=IqoalaTuple(["x"]), subrt="subrt1"
     )
 
 
 def test_parse_vec_2_elements():
     text = """
-run_subroutine(vec<x; y>) : subrt1
+run_subroutine(tuple<x; y>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=None, values=IqoalaVector(["x", "y"]), subrt="subrt1"
+        result=None, values=IqoalaTuple(["x", "y"]), subrt="subrt1"
     )
 
 
 def test_parse_vec_2_elements_and_return():
     text = """
-vec<m> = run_subroutine(vec<x; y>) : subrt1
+tuple<m> = run_subroutine(tuple<x; y>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=IqoalaVector(["m"]), values=IqoalaVector(["x", "y"]), subrt="subrt1"
+        result=IqoalaTuple(["m"]), values=IqoalaTuple(["x", "y"]), subrt="subrt1"
     )
 
 
 def test_parse_vec_2_elements_and_return_2_elements():
     text = """
-vec<m1; m2> = run_subroutine(vec<x; y>) : subrt1
+tuple<m1; m2> = run_subroutine(tuple<x; y>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=IqoalaVector(["m1", "m2"]),
-        values=IqoalaVector(["x", "y"]),
+        result=IqoalaTuple(["m1", "m2"]),
+        values=IqoalaTuple(["x", "y"]),
         subrt="subrt1",
     )
 
@@ -209,7 +209,7 @@ def test_get_block_texts():
     y = assign_cval() : 17
 
 ^b1 {type = QL}:
-    run_subroutine(vec<x>) : subrt1
+    run_subroutine(tuple<x>) : subrt1
     """
 
     block_texts = HostCodeParser(text).get_block_texts()
@@ -223,7 +223,7 @@ def test_parse_multiple_blocks():
     y = assign_cval() : 17
 
 ^b1 {type = QL}:
-    run_subroutine(vec<x>) : subrt1
+    run_subroutine(tuple<x>) : subrt1
     """
 
     blocks = HostCodeParser(text).parse()
@@ -239,7 +239,7 @@ def test_parse_multiple_blocks():
     assert blocks[1].typ == BasicBlockType.QL
     assert len(blocks[1].instructions) == 1
     assert blocks[1].instructions[0] == RunSubroutineOp(
-        result=None, values=IqoalaVector(["x"]), subrt="subrt1"
+        result=None, values=IqoalaTuple(["x"]), subrt="subrt1"
     )
 
 
@@ -623,10 +623,10 @@ META_END
     my_value = add_cval_c(new_value, new_value)
 
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
 
 ^b2 {type = QC}:
-    vec<m> = run_request(vec<my_value>) : req1
+    tuple<m> = run_request(tuple<my_value>) : req1
 
 ^b3 {type = CL}:
     return_result(m)
@@ -695,7 +695,7 @@ META_END
     my_value = add_cval_c(new_value, new_value)
 
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
 
 ^b1 {type = CL}:
     return_result(m)
@@ -783,7 +783,7 @@ META_END
 ^b0 {type = CL}:
     my_value = assign_cval() : 1
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : non_existing_subrt
+    tuple<m> = run_subroutine(tuple<my_value>) : non_existing_subrt
 ^b2 {type = CL}:
     return_result(m)
     """
@@ -823,7 +823,7 @@ META_END
 ^b0 {type = CL}:
     my_value = assign_cval() : 1
 ^b1 {type = QL}:
-    vec<m> = run_request(vec<my_value>) : non_existing_req
+    tuple<m> = run_request(tuple<my_value>) : non_existing_req
 ^b2 {type = CL}:
     return_result(m)
     """
@@ -959,7 +959,7 @@ META_END
     ^b0 {type = CL}:
         remote_id = assign_cval() : {client_id}
     ^b1 {type = QC}:
-        run_request(vec<>) : req1
+        run_request(tuple<>) : req1
         """
 
     req_text = """
@@ -1002,7 +1002,7 @@ META_END
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
 ^b2 {type = CL}:
     return_result(m)
 
