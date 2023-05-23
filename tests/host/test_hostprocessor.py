@@ -16,6 +16,7 @@ from qoala.lang.hostlang import (
     BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
+    IqoalaTuple,
     IqoalaVector,
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
@@ -32,8 +33,9 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
+    RrReturnVector,
 )
-from qoala.lang.routine import LocalRoutine, RoutineMetadata
+from qoala.lang.routine import LocalRoutine, LrReturnVector, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
@@ -335,7 +337,7 @@ def test_run_subroutine():
     routine = LocalRoutine("subrt1", subrt, return_vars=[], metadata=metadata)
 
     program = create_program(
-        instrs=[RunSubroutineOp(None, IqoalaVector([]), "subrt1")],
+        instrs=[RunSubroutineOp(None, IqoalaTuple([]), "subrt1")],
         subroutines={"subrt1": routine},
     )
     process = create_process(program, interface)
@@ -372,7 +374,7 @@ def test_run_subroutine_2():
     program = create_program(
         instrs=[
             AssignCValueOp("my_value", 16),
-            RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
+            RunSubroutineOp(IqoalaTuple(["m"]), IqoalaTuple(["my_value"]), "subrt1"),
         ],
         subroutines={"subrt1": routine},
     )
@@ -403,6 +405,57 @@ def test_run_subroutine_2():
     assert process.prog_memory.host_mem.read("m") == MOCK_QNOS_RET_VALUE
 
 
+def test_prepare_lr_call():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+    )
+    instr = RunSubroutineOp(
+        result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+
+    program = create_program(instrs=[instr], subroutines={"subrt1": routine})
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    lrcall = processor.prepare_lr_call(process, program.instructions[0])
+
+    # Host processor should have allocated shared memory space.
+    assert lrcall.routine_name == "subrt1"
+    assert len(process.shared_mem.raw_arrays.raw_memory[lrcall.result_addr]) == 3
+
+
+def test_post_lr_call():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+    )
+    instr = RunSubroutineOp(
+        result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+
+    program = create_program(instrs=[instr], subroutines={"subrt1": routine})
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    lrcall = processor.prepare_lr_call(process, program.instructions[0])
+    # Mock LR execution by writing results to shared memory.
+    process.shared_mem.write_lr_out(lrcall.result_addr, [1, 2, 3])
+
+    processor.post_lr_call(process, program.instructions[0], lrcall)
+
+    # Host memory should contain the results.
+    assert process.host_mem.read_vec("res") == [1, 2, 3]
+
+
 def create_simple_request(
     remote_id: int,
     num_pairs: int,
@@ -423,6 +476,118 @@ def create_simple_request(
     )
 
 
+def test_prepare_rr_call():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    request = create_simple_request(
+        remote_id=0,
+        num_pairs=10,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
+    )
+    routine = RequestRoutine(
+        "req", request, [RrReturnVector("outcomes", 10)], CallbackType.WAIT_ALL, None
+    )
+    instr = RunRequestOp(
+        result=IqoalaVector("outcomes", 10), values=IqoalaTuple([]), routine="req"
+    )
+
+    program = create_program(instrs=[instr], requests={"req": routine})
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    rrcall = processor.prepare_rr_call(process, program.instructions[0])
+
+    # Host processor should have allocated shared memory space.
+    assert rrcall.routine_name == "req"
+    assert len(process.shared_mem.raw_arrays.raw_memory[rrcall.result_addr]) == 10
+
+
+def test_prepare_rr_call_with_callbacks():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    local_routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+    )
+
+    request = create_simple_request(
+        remote_id=0,
+        num_pairs=10,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
+    )
+    routine = RequestRoutine("req", request, [], CallbackType.SEQUENTIAL, "subrt1")
+
+    # We expect 10 (num_pairs) * 3 (per callback) = 30 results
+    instr = RunRequestOp(
+        result=IqoalaVector("outcomes", 30), values=IqoalaTuple([]), routine="req"
+    )
+
+    program = create_program(
+        instrs=[instr], subroutines={"subrt1": local_routine}, requests={"req": routine}
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    rrcall = processor.prepare_rr_call(process, program.instructions[0])
+
+    # Host processor should have allocated shared memory space.
+    assert rrcall.routine_name == "req"
+    raw_memory = process.shared_mem.raw_arrays.raw_memory
+    # 0 entries for the RR itself
+    assert len(raw_memory[rrcall.result_addr]) == 0
+    # 3 entries for each of the callbacks
+    assert all(len(raw_memory[addr]) == 3 for addr in rrcall.cb_output_addrs)
+
+
+def test_post_rr_call_with_callbacks():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    local_routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+    )
+
+    request = create_simple_request(
+        remote_id=0,
+        num_pairs=10,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
+    )
+    routine = RequestRoutine("req", request, [], CallbackType.SEQUENTIAL, "subrt1")
+
+    # We expect 10 (num_pairs) * 3 (per callback) = 30 results
+    instr = RunRequestOp(
+        result=IqoalaVector("outcomes", 30), values=IqoalaTuple([]), routine="req"
+    )
+
+    program = create_program(
+        instrs=[instr], subroutines={"subrt1": local_routine}, requests={"req": routine}
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    rrcall = processor.prepare_rr_call(process, program.instructions[0])
+    # Mock RR execution by writing results to shared memory.
+    for i in range(10):
+        data = [3 * i, 3 * i + 1, 3 * i + 2]
+        process.shared_mem.write_lr_out(rrcall.cb_output_addrs[i], data)
+
+    processor.post_rr_call(process, program.instructions[0], rrcall)
+
+    # Host memory should contain the results.
+    assert process.host_mem.read_vec("outcomes") == [i for i in range(30)]
+
+
 def test_run_request():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero(), asynchronous=True)
@@ -437,7 +602,7 @@ def test_run_request():
     routine = RequestRoutine("req", request, [], CallbackType.WAIT_ALL, None)
 
     program = create_program(
-        instrs=[RunRequestOp(None, IqoalaVector([]), "req")],
+        instrs=[RunRequestOp(None, IqoalaTuple([]), "req")],
         requests={"req": routine},
     )
     process = create_process(program, interface)
@@ -484,5 +649,10 @@ if __name__ == "__main__":
     test_bit_cond_mult()
     test_run_subroutine()
     test_run_subroutine_2()
+    test_prepare_lr_call()
+    test_post_lr_call()
     test_run_request()
+    test_prepare_rr_call()
+    test_prepare_rr_call_with_callbacks()
+    test_post_rr_call_with_callbacks()
     test_return_result()

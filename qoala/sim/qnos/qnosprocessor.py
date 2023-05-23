@@ -152,7 +152,7 @@ class QnosProcessor:
         # TODO: handle program counter and jumping!!
         instr = subroutine.instructions[instr_idx]
         self._logger.debug(
-            f"{ns.sim_time()} interpreting instruction {instr} at line {instr_idx}"
+            f"{ns.sim_time()} interpreting instruction {instr_idx}: {instr}"
         )
 
         next_instr_idx: int
@@ -162,8 +162,10 @@ class QnosProcessor:
             or isinstance(instr, core.BranchUnaryInstruction)
             or isinstance(instr, core.BranchBinaryInstruction)
         ):
-            if new_line := (yield from self._interpret_branch_instr(pid, instr)):
-                next_instr_idx = new_line
+            if new_line_relative := (
+                yield from self._interpret_branch_instr(pid, instr)
+            ):
+                next_instr_idx = instr_idx + new_line_relative
             else:
                 next_instr_idx = instr_idx + 1
         else:

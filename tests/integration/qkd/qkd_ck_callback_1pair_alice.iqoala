@@ -6,7 +6,7 @@ META_START
 META_END
 
 ^b1 {type = QC}:
-    vec<m0> = run_request(vec<>) : req
+    tuple<m0> = run_request(tuple<>) : req
 
 ^b2 {type = CL}:
     return_result(m0)

@@ -9,7 +9,7 @@ META_END
     csocket = assign_cval() : 0
 
 ^b1 {type = QC}:
-    run_request(vec<>) : epr_gen_1
+    run_request(tuple<>) : epr_gen_1
 
 ^b2 {type = CC}:
     m1 = recv_cmsg(csocket)
@@ -18,16 +18,16 @@ META_END
     m2 = recv_cmsg(csocket)
 
 ^b4 {type = QL}:
-    run_subroutine(vec<m1; m2>) : bsm_corrections
+    run_subroutine(tuple<m1; m2>) : bsm_corrections
 
 ^b5 {type = QL}:
-    run_subroutine(vec<>) : move_qubit
+    run_subroutine(tuple<>) : move_qubit
 
 ^b6 {type = QC}:
-    run_request(vec<>) : epr_gen_2
+    run_request(tuple<>) : epr_gen_2
 
 ^b7 {type = QL}:
-    vec<p1; p2> = run_subroutine(vec<>) : bsm
+    tuple<p1; p2> = run_subroutine(tuple<>) : bsm
 
 ^b8 {type = CL}:
     send_cmsg(csocket, p1)
@@ -47,9 +47,9 @@ SUBROUTINE bsm_corrections
     load C1 @input[C14]
     set Q0 0
     set R0 0
-    beq C0 R0 8
+    beq C0 R0 2
     rot_z Q0 16 4
-    beq C1 R0 10
+    beq C1 R0 2
     rot_x Q0 16 4
     set R15 0
   NETQASM_END

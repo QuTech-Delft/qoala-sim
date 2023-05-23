@@ -15,8 +15,9 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
+    RrReturnVector,
 )
-from qoala.lang.routine import RoutineMetadata
+from qoala.lang.routine import LrReturnVector, RoutineMetadata
 
 LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
     cls.OP_NAME: cls  # type: ignore
@@ -129,14 +130,26 @@ class IqoalaInstrParser:
                 return line
             # if no non-empty line, will always break on EndOfLineException
 
-    def _parse_var(self, var_str: str) -> Union[str, hl.IqoalaVector]:
-        if var_str.startswith("vec<"):
-            vec_values_str = var_str[4:-1]
-            if len(vec_values_str) == 0:
-                vec_values = []
+    def _parse_var(self, var_str: str) -> Union[str, hl.IqoalaTuple, hl.IqoalaVector]:
+        if var_str.startswith("tuple<"):
+            tup_values_str = var_str[6:-1]
+            if len(tup_values_str) == 0:
+                tup_values = []
             else:
-                vec_values = [x.strip() for x in vec_values_str.split(";")]
-            return hl.IqoalaVector(vec_values)
+                tup_values = [x.strip() for x in tup_values_str.split(";")]
+            return hl.IqoalaTuple(tup_values)
+        elif "<" in var_str:
+            if not var_str.endswith(">"):
+                raise QoalaParseError
+            vec_split = var_str.split("<")
+            vec_name = vec_split[0]
+            vec_size_str = vec_split[1][:-1]  # strip last ">"
+            vec_size: Union[str, int]
+            try:
+                vec_size = int(vec_size_str)
+            except ValueError:
+                vec_size = vec_size_str
+            return hl.IqoalaVector(vec_name, vec_size)
         else:
             return var_str
 
@@ -289,6 +302,33 @@ class LocalRoutineParser:
         values = split[1].split(",")
         return [v.strip() for v in values]
 
+    def _parse_subrt_meta_line_with_vecs(
+        self, key: str, line: str
+    ) -> List[Union[str, LrReturnVector]]:
+        split = line.split(":")
+        assert len(split) >= 1
+        assert split[0] == key
+        if len(split) == 1:
+            return []
+        assert len(split) == 2
+        if len(split[1]) == 0:
+            return []
+        values_str = split[1].split(",")
+        values_str = [v.strip() for v in values_str]
+        values: List[Union[str, LrReturnVector]] = []
+        for v in values_str:
+            if "<" in v:
+                if not v.endswith(">"):
+                    raise QoalaParseError
+                vec_split = v.split("<")
+                vec_name = vec_split[0]
+                vec_size_str = vec_split[1][:-1]  # strip last ">"
+                vec_size = int(vec_size_str)
+                values.append(LrReturnVector(vec_name, vec_size))
+            else:
+                values.append(v)
+        return values
+
     def _parse_subroutine(self) -> LocalRoutine:
         name_line = self._read_line()
         assert name_line.startswith("SUBROUTINE ")
@@ -296,8 +336,10 @@ class LocalRoutineParser:
         params_line = self._parse_subrt_meta_line("params", self._read_line())
         # TODO: use params line?
 
-        return_vars = self._parse_subrt_meta_line("returns", self._read_line())
-        assert all(" " not in v for v in return_vars)
+        return_vars = self._parse_subrt_meta_line_with_vecs(
+            "returns", self._read_line()
+        )
+        assert all(" " not in v for v in return_vars if isinstance(v, str))
 
         uses_line = self._parse_subrt_meta_line("uses", self._read_line())
         uses = [int(u) for u in uses_line]
@@ -370,6 +412,42 @@ class RequestRoutineParser:
             return []
         values = split[1].split(",")
         return [v.strip() for v in values]
+
+    def _parse_request_line_with_vecs(
+        self, key: str, line: str, allow_template: bool = False
+    ) -> List[Union[str, RrReturnVector]]:
+        split = line.split(":")
+        assert len(split) >= 1
+        assert split[0] == key
+        if len(split) == 1:
+            return []
+        assert len(split) == 2
+        if len(split[1]) == 0:
+            return []
+        values_str = split[1].split(",")
+        values_str = [v.strip() for v in values_str]
+        values: List[Union[str, RrReturnVector]] = []
+        for v in values_str:
+            if "<" in v:
+                if not v.endswith(">"):
+                    raise QoalaParseError
+                vec_split = v.split("<")
+                vec_name = vec_split[0]
+                vec_size_str = vec_split[1][:-1]  # strip last ">"
+                vec_size: Union[int, Template]
+                if (
+                    allow_template
+                    and vec_size_str.startswith("{")
+                    and vec_size_str.endswith("}")
+                ):
+                    vec_size_str = vec_size_str.strip("{}").strip()
+                    vec_size = Template(vec_size_str)
+                else:
+                    vec_size = int(vec_size_str)
+                values.append(RrReturnVector(vec_name, vec_size))
+            else:
+                values.append(v)
+        return values
 
     def _parse_single_int_value(
         self, key: str, line: str, allow_template: bool = False
@@ -445,7 +523,10 @@ class RequestRoutineParser:
 
         callback = self._parse_optional_str_value("callback", self._read_line())
 
-        return_vars = self._parse_request_line("return_vars", self._read_line())
+        return_vars = self._parse_request_line_with_vecs(
+            "return_vars", self._read_line(), allow_template=True
+        )
+        assert all(" " not in v for v in return_vars if isinstance(v, str))
 
         remote_id = self._parse_single_int_value(
             "remote_id", self._read_line(), allow_template=True

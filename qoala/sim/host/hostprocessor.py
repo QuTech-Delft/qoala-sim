@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Generator, List
+from typing import Dict, Generator, List, Optional, Union
 
 from netqasm.lang.operand import Template
 
@@ -144,6 +144,8 @@ class HostProcessor:
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.RunSubroutineOp):
+            # NOTE: this code is in practice never reached when using a Scheduler.
+            # (The Scheduler manually calls prepare_lr_call and post_lr_call).
             lrcall = self.prepare_lr_call(process, instr)
 
             # Send a message to Qnos asking to run the routine.
@@ -168,7 +170,11 @@ class HostProcessor:
         elif isinstance(instr, hostlang.ReturnResultOp):
             assert isinstance(instr.arguments[0], str)
             loc = instr.arguments[0]
-            value = host_mem.read(loc)
+            # TODO: improve this
+            try:
+                value = host_mem.read(loc)
+            except KeyError:
+                value = host_mem.read_vec(loc)
             self._logger.debug(f"returning {loc} = {value}")
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
@@ -179,8 +185,8 @@ class HostProcessor:
     ) -> LrCallTuple:
         host_mem = process.prog_memory.host_mem
 
-        assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
-        arg_vec: hostlang.IqoalaVector = instr.arguments[0]
+        assert isinstance(instr.arguments[0], hostlang.IqoalaTuple)
+        arg_vec: hostlang.IqoalaTuple = instr.arguments[0]
         args = arg_vec.values
         subrt_name = instr.attributes[0]
         assert isinstance(subrt_name, str)
@@ -200,8 +206,12 @@ class HostProcessor:
         input_addr = shared_mem.allocate_lr_in(len(arg_values))
         shared_mem.write_lr_in(input_addr, list(arg_values.values()))
 
+        # Check if the expected number of results match the number of result variables.
+        result_vars_len = self._calculate_result_size(instr.results)
+        assert result_vars_len == routine.get_return_size()
+
         # Allocate result memory.
-        result_addr = shared_mem.allocate_lr_out(len(routine.return_vars))
+        result_addr = shared_mem.allocate_lr_out(result_vars_len)
 
         return LrCallTuple(subrt_name, input_addr, result_addr)
 
@@ -213,31 +223,32 @@ class HostProcessor:
     ) -> None:
         shared_mem = process.prog_memory.shared_mem
 
-        # Collect the host variables that should obtain the LR results.
-        result_vars: List[str]
-        if isinstance(instr.results, list):
-            result_vars = instr.results
-        elif isinstance(instr.results, hostlang.IqoalaVector):
-            result_vec: hostlang.IqoalaVector = instr.results
-            result_vars = result_vec.values
-        else:
-            raise RuntimeError
-
         # Read the results from shared memory.
-        result = shared_mem.read_lr_out(lrcall.result_addr, len(result_vars))
+        result_vars_len = self._calculate_result_size(instr.results)
+        result = shared_mem.read_lr_out(lrcall.result_addr, result_vars_len)
+        assert len(result) == result_vars_len
 
         # Copy results to local host variables.
-        assert len(result) == len(result_vars)
-        for value, var in zip(result, result_vars):
-            process.host_mem.write(var, value)
+        if isinstance(instr.results, list):
+            for value, var in zip(result, instr.results):
+                process.host_mem.write(var, value)
+        elif isinstance(instr.results, hostlang.IqoalaTuple):
+            result_tup: hostlang.IqoalaTuple = instr.results
+            for value, var in zip(result, result_tup.values):
+                process.host_mem.write(var, value)
+        elif isinstance(instr.results, hostlang.IqoalaVector):
+            result_vec: hostlang.IqoalaVector = instr.results
+            process.host_mem.write_vec(result_vec.name, result)
+        else:
+            raise RuntimeError
 
     def prepare_rr_call(
         self, process: QoalaProcess, instr: hostlang.RunRequestOp
     ) -> RrCallTuple:
         host_mem = process.prog_memory.host_mem
 
-        assert isinstance(instr.arguments[0], hostlang.IqoalaVector)
-        arg_vec: hostlang.IqoalaVector = instr.arguments[0]
+        assert isinstance(instr.arguments[0], hostlang.IqoalaTuple)
+        arg_vec: hostlang.IqoalaTuple = instr.arguments[0]
         args = arg_vec.values
         routine_name = instr.attributes[0]
         assert isinstance(routine_name, str)
@@ -264,11 +275,15 @@ class HostProcessor:
         # The filled-in value is then part of a `RunningRequestRoutine`. However, it is
         # not accessible by this code here.
         # For now we use the following 'hack' where we peek in the ProgramInputs:
+        prog_input = process.prog_instance.inputs.values
         if isinstance(routine.request.num_pairs, Template):
             template_name = routine.request.num_pairs.name
-            num_pairs = process.prog_instance.inputs.values[template_name]
+            num_pairs = prog_input[template_name]
         else:
             num_pairs = routine.request.num_pairs
+
+        # Calculate total return size (RR itself + callbacks).
+        total_return_size = 0
 
         # Allocate memory for callbacks.
         if routine.callback is not None:
@@ -281,8 +296,9 @@ class HostProcessor:
                     cb_input_addrs.append(shared_mem.allocate_cr_in(len(cb_args)))
 
                     # Allocate result memory.
-                    cb_results = cb_routine.return_vars
-                    cb_output_addrs.append(shared_mem.allocate_lr_out(len(cb_results)))
+                    cb_results_len = cb_routine.get_return_size()
+                    cb_output_addrs.append(shared_mem.allocate_lr_out(cb_results_len))
+                    total_return_size += cb_results_len
             elif routine.callback_type == CallbackType.WAIT_ALL:
                 cb_routine = process.get_local_routine(routine.callback)
                 # Allocate input memory.
@@ -291,11 +307,18 @@ class HostProcessor:
                 cb_input_addrs.append(shared_mem.allocate_cr_in(len(cb_args)))
 
                 # Allocate result memory.
-                cb_results = cb_routine.return_vars
-                cb_output_addrs.append(shared_mem.allocate_lr_out(len(cb_results)))
+                cb_results_len = cb_routine.get_return_size()
+                cb_output_addrs.append(shared_mem.allocate_lr_out(cb_results_len))
+                total_return_size += cb_results_len
 
         # Allocate result memory for RR itself.
-        result_addr = shared_mem.allocate_rr_out(len(routine.return_vars))
+        routine_return_size = routine.get_return_size(prog_input)
+        result_addr = shared_mem.allocate_rr_out(routine_return_size)
+        total_return_size += routine_return_size
+
+        # Check that host variables match the RR total result in length
+        result_vars_len = self._calculate_result_size(instr.results, prog_input)
+        assert result_vars_len == total_return_size
 
         return RrCallTuple(
             routine_name, input_addr, result_addr, cb_input_addrs, cb_output_addrs
@@ -307,15 +330,18 @@ class HostProcessor:
         shared_mem = process.prog_memory.shared_mem
         routine = process.get_request_routine(rrcall.routine_name)
 
-        # Read the RR results from shared memory.
-        rr_result = shared_mem.read_rr_out(rrcall.result_addr, len(routine.return_vars))
-
         # Bit of a hack; see prepare_rr_call comments.
+        prog_input = process.prog_instance.inputs.values
         if isinstance(routine.request.num_pairs, Template):
             template_name = routine.request.num_pairs.name
-            num_pairs = process.prog_instance.inputs.values[template_name]
+            num_pairs = prog_input[template_name]
         else:
             num_pairs = routine.request.num_pairs
+
+        # Read the RR results from shared memory.
+        rr_result = shared_mem.read_rr_out(
+            rrcall.result_addr, routine.get_return_size(prog_input)
+        )
 
         # Read the callback results from shared memory.
         cb_results: List[int] = []
@@ -324,33 +350,53 @@ class HostProcessor:
                 cb_routine = process.get_local_routine(routine.callback)
                 for i in range(num_pairs):
                     # Read result memory.
-                    cb_ret_vars = cb_routine.return_vars
+                    cb_results_len = cb_routine.get_return_size()
                     cb_output_addr = rrcall.cb_output_addrs[i]
-                    result = shared_mem.read_lr_out(cb_output_addr, len(cb_ret_vars))
+                    result = shared_mem.read_lr_out(cb_output_addr, cb_results_len)
                     cb_results.extend(result)
             elif routine.callback_type == CallbackType.WAIT_ALL:
                 cb_routine = process.get_local_routine(routine.callback)
                 # Read result memory.
-                cb_ret_vars = cb_routine.return_vars
+                cb_results_len = cb_routine.get_return_size()
                 cb_output_addr = rrcall.cb_output_addrs[0]
-                result = shared_mem.read_lr_out(cb_output_addr, len(cb_ret_vars))
+                result = shared_mem.read_lr_out(cb_output_addr, cb_results_len)
                 cb_results.extend(result)
 
         all_results = rr_result + cb_results
         # At this point, `all_results` contains all the results of both the RR itself
         # as well as from all the callbacks, in order.
 
+        result_vars_len = self._calculate_result_size(instr.results, prog_input)
+        assert len(all_results) == result_vars_len
+
         # Collect the host variables to which to copy these results.
-        result_vars: List[str]
         if isinstance(instr.results, list):
-            result_vars = instr.results
+            for value, var in zip(all_results, instr.results):
+                process.host_mem.write(var, value)
+        elif isinstance(instr.results, hostlang.IqoalaTuple):
+            result_tup: hostlang.IqoalaTuple = instr.results
+            for value, var in zip(all_results, result_tup.values):
+                process.host_mem.write(var, value)
         elif isinstance(instr.results, hostlang.IqoalaVector):
             result_vec: hostlang.IqoalaVector = instr.results
-            result_vars = result_vec.values
+            process.host_mem.write_vec(result_vec.name, all_results)
         else:
             raise RuntimeError
 
-        # Copy all results to local host variables.
-        assert len(all_results) == len(result_vars)
-        for value, var in zip(all_results, result_vars):
-            process.host_mem.write(var, value)
+    def _calculate_result_size(
+        self,
+        results: Union[List[str], hostlang.IqoalaTuple, hostlang.IqoalaVector],
+        prog_input: Optional[Dict[str, int]] = None,
+    ) -> int:
+        if isinstance(results, list):
+            return len(results)
+        elif isinstance(results, hostlang.IqoalaTuple):
+            return len(results.values)
+        elif isinstance(results, hostlang.IqoalaVector):
+            if isinstance(results.size, int):
+                return results.size
+            else:  # Size is a variable. Get its value from the Program Inputs.
+                assert prog_input is not None
+                return prog_input[results.size]
+        else:
+            raise RuntimeError

@@ -6,10 +6,10 @@ META_START
 META_END
 
 ^blk_2_pairs_wait_all {type = QC}:
-    run_request(vec<>) : req_2_pairs_wait_all
+    run_request(tuple<>) : req_2_pairs_wait_all
 
 ^blk_2_pairs_sequential {type = QC}:
-    run_request(vec<>) : req_2_pairs_sequential
+    run_request(tuple<>) : req_2_pairs_sequential
 
 
 SUBROUTINE meas_1_pair

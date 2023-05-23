@@ -138,6 +138,7 @@ class NodeScheduler(Protocol):
                     self._network_ehi,
                     remote_id,
                     first_task_id=self._task_counter,
+                    prog_input=batch_info.inputs[i].values,
                 )
             else:
                 tasks = TaskGraphBuilder.from_file(
@@ -146,6 +147,7 @@ class NodeScheduler(Protocol):
                     self._local_ehi,
                     self._network_ehi,
                     first_task_id=self._task_counter,
+                    prog_input=batch_info.inputs[i].values,
                 )
             self._task_counter += len(tasks.get_tasks())
 

@@ -8,7 +8,9 @@ from netqasm.lang.subroutine import Subroutine
 from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
+    IqoalaTuple,
     IqoalaVector,
+    RunRequestOp,
     RunSubroutineOp,
 )
 from qoala.lang.parse import (
@@ -28,8 +30,9 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
+    RrReturnVector,
 )
-from qoala.lang.routine import RoutineMetadata
+from qoala.lang.routine import LrReturnVector, RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -129,53 +132,89 @@ x = assign_cval
         IqoalaInstrParser(text).parse()
 
 
-def test_parse_vec():
+def test_parse_tuple():
     text = """
-run_subroutine(vec<x>) : subrt1
+run_subroutine(tuple<x>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=None, values=IqoalaVector(["x"]), subrt="subrt1"
+        result=None, values=IqoalaTuple(["x"]), subrt="subrt1"
     )
 
 
-def test_parse_vec_2_elements():
+def test_parse_tuple_2_elements():
     text = """
-run_subroutine(vec<x; y>) : subrt1
+run_subroutine(tuple<x; y>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=None, values=IqoalaVector(["x", "y"]), subrt="subrt1"
+        result=None, values=IqoalaTuple(["x", "y"]), subrt="subrt1"
     )
 
 
-def test_parse_vec_2_elements_and_return():
+def test_parse_tuple_2_elements_and_return():
     text = """
-vec<m> = run_subroutine(vec<x; y>) : subrt1
+tuple<m> = run_subroutine(tuple<x; y>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=IqoalaVector(["m"]), values=IqoalaVector(["x", "y"]), subrt="subrt1"
+        result=IqoalaTuple(["m"]), values=IqoalaTuple(["x", "y"]), subrt="subrt1"
     )
 
 
-def test_parse_vec_2_elements_and_return_2_elements():
+def test_parse_tuple_2_elements_and_return_2_elements():
     text = """
-vec<m1; m2> = run_subroutine(vec<x; y>) : subrt1
+tuple<m1; m2> = run_subroutine(tuple<x; y>) : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
-        result=IqoalaVector(["m1", "m2"]),
-        values=IqoalaVector(["x", "y"]),
+        result=IqoalaTuple(["m1", "m2"]),
+        values=IqoalaTuple(["x", "y"]),
         subrt="subrt1",
+    )
+
+
+def test_parse_vector():
+    text = """
+my_vec<3> = run_subroutine(tuple<>) : subrt1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 1
+    assert instructions[0] == RunSubroutineOp(
+        result=IqoalaVector("my_vec", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+
+
+def test_parse_vector_2():
+    text = """
+my_vec<3> = run_request(tuple<>) : req1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 1
+    assert instructions[0] == RunRequestOp(
+        result=IqoalaVector("my_vec", 3), values=IqoalaTuple([]), routine="req1"
+    )
+
+
+def test_parse_vector_with_var():
+    text = """
+my_vec<N> = run_request(tuple<>) : req1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 1
+    assert instructions[0] == RunRequestOp(
+        result=IqoalaVector("my_vec", "N"), values=IqoalaTuple([]), routine="req1"
     )
 
 
@@ -209,7 +248,7 @@ def test_get_block_texts():
     y = assign_cval() : 17
 
 ^b1 {type = QL}:
-    run_subroutine(vec<x>) : subrt1
+    run_subroutine(tuple<x>) : subrt1
     """
 
     block_texts = HostCodeParser(text).get_block_texts()
@@ -223,7 +262,7 @@ def test_parse_multiple_blocks():
     y = assign_cval() : 17
 
 ^b1 {type = QL}:
-    run_subroutine(vec<x>) : subrt1
+    run_subroutine(tuple<x>) : subrt1
     """
 
     blocks = HostCodeParser(text).parse()
@@ -239,7 +278,7 @@ def test_parse_multiple_blocks():
     assert blocks[1].typ == BasicBlockType.QL
     assert len(blocks[1].instructions) == 1
     assert blocks[1].instructions[0] == RunSubroutineOp(
-        result=None, values=IqoalaVector(["x"]), subrt="subrt1"
+        result=None, values=IqoalaTuple(["x"]), subrt="subrt1"
     )
 
 
@@ -306,6 +345,42 @@ SUBROUTINE my_subroutine
         subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
         return_vars=["result1", "result2"],
+    )
+
+
+def test_parse_subrt_3():
+    text = """
+SUBROUTINE my_subroutine
+    params: param1, param2
+    returns: outcomes<10>
+    uses: 0, 1
+    keeps: 
+    request: 
+  NETQASM_START
+    set R0 {param1}
+    set R1 {param2}
+    meas Q0 M5
+    meas Q1 M6
+  NETQASM_END
+    """
+
+    parsed = LocalRoutineParser(text).parse()
+    assert len(parsed) == 1
+    assert "my_subroutine" in parsed
+    subrt = parsed["my_subroutine"]
+
+    expected_instrs = [
+        SetInstruction(reg=Register.from_str("R0"), imm=Template("param1")),
+        SetInstruction(reg=Register.from_str("R1"), imm=Template("param2")),
+        MeasInstruction(reg0=Register.from_str("Q0"), reg1=Register.from_str("M5")),
+        MeasInstruction(reg0=Register.from_str("Q1"), reg1=Register.from_str("M6")),
+    ]
+    expected_args = ["param1", "param2"]
+    assert subrt == LocalRoutine(
+        name="my_subroutine",
+        subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        metadata=RoutineMetadata.free_all([0, 1]),
+        return_vars=[LrReturnVector("outcomes", 10)],
     )
 
 
@@ -424,7 +499,7 @@ def test_parse_request_2():
 REQUEST req1
   callback_type: sequential
   callback: subrt1
-  return_vars: 
+  return_vars: outcomes<3>
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -442,7 +517,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[],
+        return_vars=[RrReturnVector("outcomes", 3)],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=QoalaRequest(
@@ -488,6 +563,46 @@ REQUEST req1
         request=QoalaRequest(
             name="req1",
             remote_id=Template("client_id"),
+            epr_socket_id=0,
+            num_pairs=3,
+            virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
+            timeout=1000,
+            fidelity=0.65,
+            typ=EprType.MEASURE_DIRECTLY,
+            role=EprRole.RECEIVE,
+        ),
+    )
+
+
+def test_parse_request_with_vector_template():
+    text = """
+REQUEST req1
+  callback_type: wait_all
+  callback: 
+  return_vars: outcomes<{N}>
+  remote_id: 0
+  epr_socket_id: 0
+  num_pairs: 3
+  virt_ids: custom 1, 2, 3
+  timeout: 1000
+  fidelity: 0.65
+  typ: measure_directly
+  role: receive
+    """
+
+    parsed = RequestRoutineParser(text).parse()
+    assert len(parsed) == 1
+    assert "req1" in parsed
+    routine = parsed["req1"]
+
+    assert routine == RequestRoutine(
+        name="req1",
+        return_vars=[RrReturnVector("outcomes", Template("N"))],
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=QoalaRequest(
+            name="req1",
+            remote_id=0,
             epr_socket_id=0,
             num_pairs=3,
             virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
@@ -623,10 +738,10 @@ META_END
     my_value = add_cval_c(new_value, new_value)
 
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
 
 ^b2 {type = QC}:
-    vec<m> = run_request(vec<my_value>) : req1
+    tuple<m> = run_request(tuple<my_value>) : req1
 
 ^b3 {type = CL}:
     return_result(m)
@@ -695,7 +810,7 @@ META_END
     my_value = add_cval_c(new_value, new_value)
 
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
 
 ^b1 {type = CL}:
     return_result(m)
@@ -783,7 +898,7 @@ META_END
 ^b0 {type = CL}:
     my_value = assign_cval() : 1
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : non_existing_subrt
+    tuple<m> = run_subroutine(tuple<my_value>) : non_existing_subrt
 ^b2 {type = CL}:
     return_result(m)
     """
@@ -823,7 +938,7 @@ META_END
 ^b0 {type = CL}:
     my_value = assign_cval() : 1
 ^b1 {type = QL}:
-    vec<m> = run_request(vec<my_value>) : non_existing_req
+    tuple<m> = run_request(tuple<my_value>) : non_existing_req
 ^b2 {type = CL}:
     return_result(m)
     """
@@ -959,7 +1074,7 @@ META_END
     ^b0 {type = CL}:
         remote_id = assign_cval() : {client_id}
     ^b1 {type = QC}:
-        run_request(vec<>) : req1
+        run_request(tuple<>) : req1
         """
 
     req_text = """
@@ -1002,7 +1117,7 @@ META_END
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
 ^b2 {type = CL}:
     return_result(m)
 
@@ -1069,21 +1184,26 @@ if __name__ == "__main__":
     test_parse_1_instr()
     test_parse_2_instr()
     test_parse_faulty_instr()
-    test_parse_vec()
-    test_parse_vec_2_elements()
-    test_parse_vec_2_elements_and_return()
-    test_parse_vec_2_elements_and_return_2_elements()
+    test_parse_tuple()
+    test_parse_tuple_2_elements()
+    test_parse_tuple_2_elements_and_return()
+    test_parse_tuple_2_elements_and_return_2_elements()
+    test_parse_vector()
+    test_parse_vector_2()
+    test_parse_vector_with_var()
     test_parse_block_header()
     test_parse_block()
     test_get_block_texts()
     test_parse_multiple_blocks()
     test_parse_subrt()
     test_parse_subrt_2()
+    test_parse_subrt_3()
     test_parse_multiple_subrt()
     test_parse_invalid_subrt()
     test_parse_request()
     test_parse_request_2()
     test_parse_request_with_template()
+    test_parse_request_with_vector_template()
     test_parse_multiple_request()
     test_parse_invalid_request()
     test_parse_program()

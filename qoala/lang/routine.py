@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from netqasm.lang.subroutine import Subroutine
 
@@ -25,12 +25,21 @@ class RoutineMetadata:
         return RoutineMetadata(ids, [])
 
 
+@dataclass(eq=True, frozen=True)
+class LrReturnVector:
+    name: str
+    size: int
+
+    def __str__(self) -> str:
+        return f"{self.name}<{self.size}>"
+
+
 class LocalRoutine:
     def __init__(
         self,
         name: str,
         subrt: Subroutine,
-        return_vars: List[str],
+        return_vars: List[Union[str, LrReturnVector]],
         metadata: RoutineMetadata,
         request_name: Optional[str] = None,
     ) -> None:
@@ -49,7 +58,7 @@ class LocalRoutine:
         return self._subrt
 
     @property
-    def return_vars(self) -> List[str]:
+    def return_vars(self) -> List[Union[str, LrReturnVector]]:
         return self._return_vars
 
     @property
@@ -59,6 +68,15 @@ class LocalRoutine:
     @property
     def request_name(self) -> Optional[str]:
         return self._request_name
+
+    def get_return_size(self) -> int:
+        size = 0
+        for v in self.return_vars:
+            if isinstance(v, LrReturnVector):
+                size += v.size
+            else:
+                size += 1
+        return size
 
     def serialize(self) -> str:
         s = f"SUBROUTINE {self.name}"

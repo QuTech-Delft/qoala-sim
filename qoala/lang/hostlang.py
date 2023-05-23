@@ -25,7 +25,7 @@ class IqoalaAttribute:
         return self._value
 
 
-class IqoalaVector:
+class IqoalaTuple:
     def __init__(self, values: List[str]) -> None:
         self._values = values
 
@@ -34,12 +34,36 @@ class IqoalaVector:
         return self._values
 
     def __str__(self) -> str:
-        return f"vec<{','.join(v for v in self.values)}>"
+        return f"tuple<{','.join(v for v in self.values)}>"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, IqoalaTuple):
+            return NotImplemented
+        return self.values == other.values
+
+
+class IqoalaVector:
+    # TODO: create single IqoalaVar class that IqoalaVector, IqoalaTuple,
+    # and IqoalaSingleton derive from
+    def __init__(self, name: str, size: Union[int, str]) -> None:
+        self._name = name
+        self._size = size
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def size(self) -> Union[int, str]:
+        return self._size
+
+    def __str__(self) -> str:
+        return f"{self.name}<{self.size}>"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, IqoalaVector):
             return NotImplemented
-        return self.values == other.values
+        return self.name == other.name and self.size == other.size
 
 
 class ClassicalIqoalaOp:
@@ -48,14 +72,14 @@ class ClassicalIqoalaOp:
 
     def __init__(
         self,
-        arguments: Optional[Union[List[str], List[IqoalaVector]]] = None,
-        results: Optional[Union[List[str], IqoalaVector]] = None,
+        arguments: Optional[Union[List[str], List[IqoalaTuple]]] = None,
+        results: Optional[Union[List[str], IqoalaTuple, IqoalaVector]] = None,
         attributes: Optional[List[IqoalaValue]] = None,
     ) -> None:
-        # TODO: support list of strs and vectors
+        # TODO: support list of strs and tuples
         # currently not needed and confuses mypy
-        self._arguments: Union[List[str], List[IqoalaVector]]
-        self._results: Union[List[str], IqoalaVector]
+        self._arguments: Union[List[str], List[IqoalaTuple]]
+        self._results: Union[List[str], IqoalaTuple, IqoalaVector]
         self._attributes: List[IqoalaValue]
 
         if arguments is None:
@@ -69,7 +93,7 @@ class ClassicalIqoalaOp:
             # List of ints
             self._results = results
         else:
-            assert isinstance(results, IqoalaVector)
+            assert isinstance(results, IqoalaTuple) or isinstance(results, IqoalaVector)
             self._results = results
 
         if attributes is None:
@@ -81,7 +105,9 @@ class ClassicalIqoalaOp:
         if isinstance(self.results, list):
             results = ", ".join(str(r) for r in self.results)
         else:
-            assert isinstance(self.results, IqoalaVector)
+            assert isinstance(self.results, IqoalaTuple) or isinstance(
+                self.results, IqoalaVector
+            )
             results = str(self.results)
         args = ", ".join(str(a) for a in self.arguments)
         attrs = ", ".join(str(a) for a in self.attributes)
@@ -115,11 +141,11 @@ class ClassicalIqoalaOp:
         return self.__class__.OP_NAME  # type: ignore
 
     @property
-    def arguments(self) -> Union[List[str], List[IqoalaVector]]:
+    def arguments(self) -> Union[List[str], List[IqoalaTuple]]:
         return self._arguments
 
     @property
-    def results(self) -> Union[List[str], IqoalaVector]:
+    def results(self) -> Union[List[str], IqoalaTuple, IqoalaVector]:
         return self._results
 
     @property
@@ -242,7 +268,10 @@ class RunSubroutineOp(ClassicalIqoalaOp):
     TYP = IqoalaInstructionType.CL
 
     def __init__(
-        self, result: Optional[IqoalaVector], values: IqoalaVector, subrt: str
+        self,
+        result: Optional[Union[IqoalaTuple, IqoalaVector]],
+        values: IqoalaTuple,
+        subrt: str,
     ) -> None:
         super().__init__(results=result, arguments=[values], attributes=[subrt])
 
@@ -251,9 +280,9 @@ class RunSubroutineOp(ClassicalIqoalaOp):
         cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
     ):
         if result is not None:
-            assert isinstance(result, IqoalaVector)
+            assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
         assert len(args) == 1
-        assert isinstance(args[0], IqoalaVector)
+        assert isinstance(args[0], IqoalaTuple)
         assert isinstance(attr, str)
         return cls(result, args[0], attr)
 
@@ -271,7 +300,10 @@ class RunRequestOp(ClassicalIqoalaOp):
     TYP = IqoalaInstructionType.CL
 
     def __init__(
-        self, result: Optional[IqoalaVector], values: IqoalaVector, routine: str
+        self,
+        result: Optional[Union[IqoalaTuple, IqoalaVector]],
+        values: IqoalaTuple,
+        routine: str,
     ) -> None:
         super().__init__(results=result, arguments=[values], attributes=[routine])
 
@@ -280,9 +312,9 @@ class RunRequestOp(ClassicalIqoalaOp):
         cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
     ):
         if result is not None:
-            assert isinstance(result, IqoalaVector)
+            assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
         assert len(args) == 1
-        assert isinstance(args[0], IqoalaVector)
+        assert isinstance(args[0], IqoalaTuple)
         assert isinstance(attr, str)
         return cls(result, args[0], attr)
 

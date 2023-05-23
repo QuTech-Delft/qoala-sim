@@ -8,6 +8,7 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlock,
     BasicBlockType,
+    IqoalaTuple,
     IqoalaVector,
     ReceiveCMsgOp,
     ReturnResultOp,
@@ -15,7 +16,7 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
-from qoala.lang.routine import RoutineMetadata
+from qoala.lang.routine import LrReturnVector, RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -62,7 +63,8 @@ def test_serialize_host_code_1():
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
+    x<5> = run_subroutine(tuple<>) : subrt2
 ^b2 {type = CL}:
     return_result(m)
     """
@@ -83,7 +85,8 @@ def test_serialize_host_code_1():
         "b1",
         BasicBlockType.QL,
         instructions=[
-            RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1"),
+            RunSubroutineOp(IqoalaTuple(["m"]), IqoalaTuple(["my_value"]), "subrt1"),
+            RunSubroutineOp(IqoalaVector("x", 5), IqoalaTuple([]), "subrt2"),
         ],
     )
     b2 = BasicBlock(
@@ -141,7 +144,7 @@ def test_serialize_subroutines_2():
     expected = """
 SUBROUTINE subrt1
     params: param1
-    returns: m
+    returns: outcomes<10>
     uses: 0
     keeps: 
   NETQASM_START
@@ -171,7 +174,7 @@ SUBROUTINE subrt2
             ],
             arguments=["param1"],
         ),
-        return_vars=["m"],
+        return_vars=[LrReturnVector("outcomes", 10)],
         metadata=RoutineMetadata.free_all([0]),
     )
     subrt2 = LocalRoutine(
@@ -210,7 +213,7 @@ META_END
     new_value = assign_cval() : 3
     my_value = add_cval_c(new_value, new_value)
 ^b1 {type = QL}:
-    vec<m> = run_subroutine(vec<my_value>) : subrt1
+    tuple<m> = run_subroutine(tuple<my_value>) : subrt1
 ^b2 {type = CL}:
     return_result(m)
 
@@ -237,7 +240,7 @@ SUBROUTINE subrt1
         AddCValueOp("my_value", "new_value", "new_value"),
     ]
     b1_instructions = [
-        RunSubroutineOp(IqoalaVector(["m"]), IqoalaVector(["my_value"]), "subrt1")
+        RunSubroutineOp(IqoalaTuple(["m"]), IqoalaTuple(["my_value"]), "subrt1")
     ]
     b2_instructions = [ReturnResultOp("m")]
     b0 = BasicBlock("b0", BasicBlockType.CL, b0_instructions)

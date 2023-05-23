@@ -142,14 +142,45 @@ class QoalaRequest:
         return self.serialize()
 
 
+@dataclass(eq=True, frozen=True)
+class RrReturnVector:
+    name: str
+    size: Union[int, Template]
+
+    def __str__(self) -> str:
+        return f"{self.name}<{self.size}>"
+
+
 @dataclass
 class RequestRoutine:
     name: str
     request: QoalaRequest
 
-    # host var names
-    # TODO: move this to Host side (RR does not need to know this!)
-    return_vars: List[str]
+    return_vars: List[Union[str, RrReturnVector]]
 
     callback_type: CallbackType
     callback: Optional[str]  # Local Routine name
+
+    def instantiate(self, values: Dict[str, Any]) -> None:
+        for i in range(len(self.return_vars)):
+            ret_var = self.return_vars[i]
+            if isinstance(ret_var, RrReturnVector):
+                if isinstance(ret_var.size, Template):
+                    size = values[ret_var.size.name]
+                    print(f"instantiating ret_var {ret_var.name} with size {size}")
+                    self.return_vars[i] = RrReturnVector(ret_var.name, size)
+        self.request.instantiate(values)
+
+    def get_return_size(self, prog_input: Optional[Dict[str, int]] = None) -> int:
+        size = 0
+        for v in self.return_vars:
+            if isinstance(v, RrReturnVector):
+                if isinstance(v.size, int):
+                    size += v.size
+                else:
+                    # Size is a template. It should be in the Program Input.
+                    assert prog_input is not None
+                    size += prog_input[v.size.name]
+            else:
+                size += 1
+        return size

@@ -63,7 +63,7 @@ META_END
 ^b0 {type = CL}:
     x = assign_cval() : 3
 ^b1 {type = QL}:
-    vec<y> = run_subroutine(vec<x>) : add_one
+    tuple<y> = run_subroutine(tuple<x>) : add_one
 
 SUBROUTINE add_one
     params: x

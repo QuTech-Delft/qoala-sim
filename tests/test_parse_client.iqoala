@@ -9,13 +9,13 @@ META_END
   csocket = assign_cval() : 0
 
 ^b1 {type = QL}:
-  run_subroutine(vec<>) : create_epr_0
+  run_subroutine(tuple<>) : create_epr_0
 ^b2 {type = QL}:
-  vec<p2> = run_subroutine(vec<theta2>) : post_epr_0
+  tuple<p2> = run_subroutine(tuple<theta2>) : post_epr_0
 ^b3 {type = QL}:
-  run_subroutine(vec<>) : create_epr_1
+  run_subroutine(tuple<>) : create_epr_1
 ^b4 {type = QL}:
-  vec<p1> = run_subroutine(vec<theta1>) : post_epr_1
+  tuple<p1> = run_subroutine(tuple<theta1>) : post_epr_1
 
 ^b5 {type = CL}:
   x = mult_const(p1) : 16
@@ -59,7 +59,6 @@ SUBROUTINE post_epr_0
     rot_z Q0 {theta2} 4
     h Q0
     meas Q0 M0
-    qfree Q0
   NETQASM_END
 
 SUBROUTINE create_epr_1
@@ -85,7 +84,6 @@ SUBROUTINE post_epr_1
     rot_z Q0 {theta1} 4
     h Q0
     meas Q0 M1
-    qfree Q0
   NETQASM_END
 
 REQUEST req1
