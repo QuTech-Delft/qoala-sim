@@ -161,12 +161,26 @@ class RequestRoutine:
     callback_type: CallbackType
     callback: Optional[str]  # Local Routine name
 
-    def get_return_size(self) -> int:
+    def instantiate(self, values: Dict[str, Any]) -> None:
+        for i in range(len(self.return_vars)):
+            ret_var = self.return_vars[i]
+            if isinstance(ret_var, RrReturnVector):
+                if isinstance(ret_var.size, Template):
+                    size = values[ret_var.size.name]
+                    print(f"instantiating ret_var {ret_var.name} with size {size}")
+                    self.return_vars[i] = RrReturnVector(ret_var.name, size)
+        self.request.instantiate(values)
+
+    def get_return_size(self, prog_input: Optional[Dict[str, int]] = None) -> int:
         size = 0
         for v in self.return_vars:
             if isinstance(v, RrReturnVector):
-                assert isinstance(v.size, int)
-                size += v.size
+                if isinstance(v.size, int):
+                    size += v.size
+                else:
+                    # Size is a template. It should be in the Program Input.
+                    assert prog_input is not None
+                    size += prog_input[v.size.name]
             else:
                 size += 1
         return size

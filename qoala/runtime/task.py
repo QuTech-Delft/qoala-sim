@@ -6,6 +6,7 @@ from enum import Enum, auto
 from typing import Dict, List, Optional, Set, Tuple
 
 from netqasm.lang.instr import core
+from netqasm.lang.operand import Template
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.lang.hostlang import (
@@ -737,9 +738,10 @@ class TaskGraphBuilder:
         ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
         first_task_id: int = 0,
+        prog_input: Optional[Dict[str, int]] = None,
     ) -> TaskGraph:
         return QoalaGraphFromProgramBuilder(first_task_id).build(
-            program, pid, ehi, network_ehi
+            program, pid, ehi, network_ehi, prog_input
         )
 
     @classmethod
@@ -751,9 +753,10 @@ class TaskGraphBuilder:
         network_ehi: Optional[EhiNetworkInfo] = None,
         remote_id: Optional[int] = None,
         first_task_id: int = 0,
+        prog_input: Optional[Dict[str, int]] = None,
     ) -> TaskGraph:
         return BlockGraphFromProgramBuilder(first_task_id).build(
-            program, pid, ehi, network_ehi, remote_id
+            program, pid, ehi, network_ehi, remote_id, prog_input
         )
 
 
@@ -815,6 +818,7 @@ class BlockGraphFromProgramBuilder:
         ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
         remote_id: Optional[int] = None,
+        prog_input: Optional[Dict[str, int]] = None,
     ) -> TaskGraph:
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
@@ -856,7 +860,11 @@ class BlockGraphFromProgramBuilder:
                     # TODO: refactor!!
                     epr_time = list(network_ehi.links.values())[0].duration
                     req_routine = program.request_routines[instr.req_routine]
-                    duration = epr_time * req_routine.request.num_pairs
+                    num_pairs = req_routine.request.num_pairs
+                    if isinstance(num_pairs, Template):
+                        assert prog_input is not None
+                        num_pairs = prog_input[num_pairs.name]
+                    duration = epr_time * num_pairs
                 else:
                     duration = None
 
@@ -897,6 +905,7 @@ class QoalaGraphFromProgramBuilder:
         pid: int,
         ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
+        prog_input: Optional[Dict[str, int]] = None,
     ) -> TaskGraph:
         prev_block_task_id: Optional[int] = None
         for block in program.blocks:
@@ -988,7 +997,7 @@ class QoalaGraphFromProgramBuilder:
                 prev_block_task_id = postcall_id
             elif block.typ == BasicBlockType.QC:
                 precall_id, postcall_id = self._build_from_qc_task_routine_split(
-                    program, block, pid, ehi, network_ehi
+                    program, block, pid, ehi, network_ehi, prog_input
                 )
                 # Tasks for this block should come after task for previous block
                 # (Assuming linear program!)
@@ -1010,6 +1019,7 @@ class QoalaGraphFromProgramBuilder:
         pid: int,
         ehi: Optional[EhiNodeInfo] = None,
         network_ehi: Optional[EhiNetworkInfo] = None,
+        prog_input: Optional[Dict[str, int]] = None,
     ) -> Tuple[int, int]:
         """Returns (precall_id, post_call_id)"""
         assert len(block.instructions) == 1
@@ -1030,7 +1040,11 @@ class QoalaGraphFromProgramBuilder:
 
         if network_ehi is not None:
             pair_duration = list(network_ehi.links.values())[0].duration
-            multi_duration = pair_duration * req_routine.request.num_pairs
+            num_pairs = req_routine.request.num_pairs
+            if isinstance(num_pairs, Template):
+                assert prog_input is not None
+                num_pairs = prog_input[num_pairs.name]
+            multi_duration = pair_duration * num_pairs
         else:
             pair_duration = None
             multi_duration = None
@@ -1075,7 +1089,13 @@ class QoalaGraphFromProgramBuilder:
 
         else:
             assert req_routine.callback_type == CallbackType.SEQUENTIAL
-            for i in range(req_routine.request.num_pairs):
+
+            num_pairs = req_routine.request.num_pairs
+            if isinstance(num_pairs, Template):
+                assert prog_input is not None
+                num_pairs = prog_input[num_pairs.name]
+
+            for i in range(num_pairs):
                 rr_pair_id = self.unique_id()
                 rr_pair_task = SinglePairTask(
                     rr_pair_id, pid, i, shared_ptr, pair_duration

@@ -34,7 +34,6 @@ from qoala.lang.request import (
     RequestRoutine,
     RequestVirtIdMapping,
     RrReturnVector,
-    VirtIdMappingType,
 )
 from qoala.lang.routine import LocalRoutine, LrReturnVector, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory

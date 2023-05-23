@@ -144,7 +144,11 @@ class IqoalaInstrParser:
             vec_split = var_str.split("<")
             vec_name = vec_split[0]
             vec_size_str = vec_split[1][:-1]  # strip last ">"
-            vec_size = int(vec_size_str)
+            vec_size: Union[str, int]
+            try:
+                vec_size = int(vec_size_str)
+            except ValueError:
+                vec_size = vec_size_str
             return hl.IqoalaVector(vec_name, vec_size)
         else:
             return var_str
@@ -410,7 +414,7 @@ class RequestRoutineParser:
         return [v.strip() for v in values]
 
     def _parse_request_line_with_vecs(
-        self, key: str, line: str
+        self, key: str, line: str, allow_template: bool = False
     ) -> List[Union[str, RrReturnVector]]:
         split = line.split(":")
         assert len(split) >= 1
@@ -430,7 +434,16 @@ class RequestRoutineParser:
                 vec_split = v.split("<")
                 vec_name = vec_split[0]
                 vec_size_str = vec_split[1][:-1]  # strip last ">"
-                vec_size = int(vec_size_str)
+                vec_size: Union[int, Template]
+                if (
+                    allow_template
+                    and vec_size_str.startswith("{")
+                    and vec_size_str.endswith("}")
+                ):
+                    vec_size_str = vec_size_str.strip("{}").strip()
+                    vec_size = Template(vec_size_str)
+                else:
+                    vec_size = int(vec_size_str)
                 values.append(RrReturnVector(vec_name, vec_size))
             else:
                 values.append(v)
@@ -511,7 +524,7 @@ class RequestRoutineParser:
         callback = self._parse_optional_str_value("callback", self._read_line())
 
         return_vars = self._parse_request_line_with_vecs(
-            "return_vars", self._read_line()
+            "return_vars", self._read_line(), allow_template=True
         )
         assert all(" " not in v for v in return_vars if isinstance(v, str))
 

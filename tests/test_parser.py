@@ -206,6 +206,18 @@ my_vec<3> = run_request(tuple<>) : req1
     )
 
 
+def test_parse_vector_with_var():
+    text = """
+my_vec<N> = run_request(tuple<>) : req1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 1
+    assert instructions[0] == RunRequestOp(
+        result=IqoalaVector("my_vec", "N"), values=IqoalaTuple([]), routine="req1"
+    )
+
+
 def test_parse_block_header():
     text = "^b0 {type = CL}:"
 
@@ -551,6 +563,46 @@ REQUEST req1
         request=QoalaRequest(
             name="req1",
             remote_id=Template("client_id"),
+            epr_socket_id=0,
+            num_pairs=3,
+            virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
+            timeout=1000,
+            fidelity=0.65,
+            typ=EprType.MEASURE_DIRECTLY,
+            role=EprRole.RECEIVE,
+        ),
+    )
+
+
+def test_parse_request_with_vector_template():
+    text = """
+REQUEST req1
+  callback_type: wait_all
+  callback: 
+  return_vars: outcomes<{N}>
+  remote_id: 0
+  epr_socket_id: 0
+  num_pairs: 3
+  virt_ids: custom 1, 2, 3
+  timeout: 1000
+  fidelity: 0.65
+  typ: measure_directly
+  role: receive
+    """
+
+    parsed = RequestRoutineParser(text).parse()
+    assert len(parsed) == 1
+    assert "req1" in parsed
+    routine = parsed["req1"]
+
+    assert routine == RequestRoutine(
+        name="req1",
+        return_vars=[RrReturnVector("outcomes", Template("N"))],
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+        request=QoalaRequest(
+            name="req1",
+            remote_id=0,
             epr_socket_id=0,
             num_pairs=3,
             virt_ids=RequestVirtIdMapping.from_str("custom 1, 2, 3"),
@@ -1137,6 +1189,8 @@ if __name__ == "__main__":
     test_parse_tuple_2_elements_and_return()
     test_parse_tuple_2_elements_and_return_2_elements()
     test_parse_vector()
+    test_parse_vector_2()
+    test_parse_vector_with_var()
     test_parse_block_header()
     test_parse_block()
     test_get_block_texts()
@@ -1149,6 +1203,7 @@ if __name__ == "__main__":
     test_parse_request()
     test_parse_request_2()
     test_parse_request_with_template()
+    test_parse_request_with_vector_template()
     test_parse_multiple_request()
     test_parse_invalid_request()
     test_parse_program()

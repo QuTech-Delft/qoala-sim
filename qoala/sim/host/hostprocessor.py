@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Generator, List, Union
+from typing import Dict, Generator, List, Optional, Union
 
 from netqasm.lang.operand import Template
 
@@ -275,9 +275,10 @@ class HostProcessor:
         # The filled-in value is then part of a `RunningRequestRoutine`. However, it is
         # not accessible by this code here.
         # For now we use the following 'hack' where we peek in the ProgramInputs:
+        prog_input = process.prog_instance.inputs.values
         if isinstance(routine.request.num_pairs, Template):
             template_name = routine.request.num_pairs.name
-            num_pairs = process.prog_instance.inputs.values[template_name]
+            num_pairs = prog_input[template_name]
         else:
             num_pairs = routine.request.num_pairs
 
@@ -311,12 +312,12 @@ class HostProcessor:
                 total_return_size += cb_results_len
 
         # Allocate result memory for RR itself.
-        routine_return_size = routine.get_return_size()
+        routine_return_size = routine.get_return_size(prog_input)
         result_addr = shared_mem.allocate_rr_out(routine_return_size)
         total_return_size += routine_return_size
 
         # Check that host variables match the RR total result in length
-        result_vars_len = self._calculate_result_size(instr.results)
+        result_vars_len = self._calculate_result_size(instr.results, prog_input)
         assert result_vars_len == total_return_size
 
         return RrCallTuple(
@@ -329,17 +330,18 @@ class HostProcessor:
         shared_mem = process.prog_memory.shared_mem
         routine = process.get_request_routine(rrcall.routine_name)
 
-        # Read the RR results from shared memory.
-        rr_result = shared_mem.read_rr_out(
-            rrcall.result_addr, routine.get_return_size()
-        )
-
         # Bit of a hack; see prepare_rr_call comments.
+        prog_input = process.prog_instance.inputs.values
         if isinstance(routine.request.num_pairs, Template):
             template_name = routine.request.num_pairs.name
-            num_pairs = process.prog_instance.inputs.values[template_name]
+            num_pairs = prog_input[template_name]
         else:
             num_pairs = routine.request.num_pairs
+
+        # Read the RR results from shared memory.
+        rr_result = shared_mem.read_rr_out(
+            rrcall.result_addr, routine.get_return_size(prog_input)
+        )
 
         # Read the callback results from shared memory.
         cb_results: List[int] = []
@@ -364,7 +366,7 @@ class HostProcessor:
         # At this point, `all_results` contains all the results of both the RR itself
         # as well as from all the callbacks, in order.
 
-        result_vars_len = self._calculate_result_size(instr.results)
+        result_vars_len = self._calculate_result_size(instr.results, prog_input)
         assert len(all_results) == result_vars_len
 
         # Collect the host variables to which to copy these results.
@@ -382,13 +384,19 @@ class HostProcessor:
             raise RuntimeError
 
     def _calculate_result_size(
-        self, results: Union[List[str], hostlang.IqoalaTuple, hostlang.IqoalaVector]
+        self,
+        results: Union[List[str], hostlang.IqoalaTuple, hostlang.IqoalaVector],
+        prog_input: Optional[Dict[str, int]] = None,
     ) -> int:
         if isinstance(results, list):
             return len(results)
         elif isinstance(results, hostlang.IqoalaTuple):
             return len(results.values)
         elif isinstance(results, hostlang.IqoalaVector):
-            return results.size
+            if isinstance(results.size, int):
+                return results.size
+            else:  # Size is a variable. Get its value from the Program Inputs.
+                assert prog_input is not None
+                return prog_input[results.size]
         else:
             raise RuntimeError

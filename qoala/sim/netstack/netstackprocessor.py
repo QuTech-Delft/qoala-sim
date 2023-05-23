@@ -326,7 +326,7 @@ class NetstackProcessor:
         """Instantiates and activates routine."""
         routine = process.get_request_routine(rrcall.routine_name)
         instance = deepcopy(routine)
-        instance.request.instantiate(args)
+        instance.instantiate(args)
 
         running_routine = RunningRequestRoutine(
             instance,

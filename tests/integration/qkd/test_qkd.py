@@ -94,7 +94,7 @@ def run_qkd(
     alice_program = load_program(alice_file)
     if num_pairs is not None:
         alice_inputs = [
-            ProgramInput({"bob_id": bob_id, "num_pairs": num_pairs})
+            ProgramInput({"bob_id": bob_id, "N": num_pairs})
             for _ in range(num_iterations)
         ]
     else:
@@ -110,7 +110,7 @@ def run_qkd(
     bob_program = load_program(bob_file)
     if num_pairs is not None:
         bob_inputs = [
-            ProgramInput({"alice_id": alice_id, "num_pairs": num_pairs})
+            ProgramInput({"alice_id": alice_id, "N": num_pairs})
             for _ in range(num_iterations)
         ]
     else:
@@ -253,6 +253,30 @@ def test_qkd_md_100pairs():
     for alice, bob in zip(alice_outcomes, bob_outcomes):
         print(f"alice: {alice['outcomes']}")
         print(f"bob: {bob['outcomes']}")
+        assert alice["outcomes"] == bob["outcomes"]
+
+
+def test_qkd_md_npairs():
+    ns.sim_reset()
+
+    num_iterations = 1
+    alice_file = "qkd_md_npairs_alice.iqoala"
+    bob_file = "qkd_md_npairs_bob.iqoala"
+
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=1000)
+
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        print(f"alice: {alice['outcomes']}")
+        print(f"bob  : {bob['outcomes']}")
         assert alice["outcomes"] == bob["outcomes"]
 
 
@@ -436,42 +460,42 @@ def test_qkd_ck_callback_2pairs_task_split():
         assert alice["m1"] == bob["m1"]
 
 
-# TODO: implement #38 to make this work.
-# def test_qkd_ck_callback_npairs():
-#     ns.sim_reset()
+def test_qkd_ck_callback_npairs():
+    ns.sim_reset()
 
-#     num_iterations = 1
-#     alice_file = "qkd_ck_callback_npairs_alice.iqoala"
-#     bob_file = "qkd_ck_callback_npairs_bob.iqoala"
+    num_iterations = 1
+    alice_file = "qkd_ck_callback_npairs_alice.iqoala"
+    bob_file = "qkd_ck_callback_npairs_bob.iqoala"
 
-#     qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=1)
-#     alice_results = qkd_result.alice_result.results
-#     bob_results = qkd_result.bob_result.results
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=10)
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
 
-#     assert len(alice_results) == num_iterations
-#     assert len(bob_results) == num_iterations
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
 
-#     alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-#     bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
 
-#     for alice, bob in zip(alice_outcomes, bob_outcomes):
-#         assert alice["m0"] == bob["m0"]
-#         assert alice["m1"] == bob["m1"]
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        print(f"alice: {alice['outcomes']}")
+        print(f"bob  : {bob['outcomes']}")
+        assert alice["outcomes"] == bob["outcomes"]
 
 
 if __name__ == "__main__":
-    # test_qkd_md_1pair()
-    # test_qkd_md_1pair_task_split()
-    # test_qkd_md_2pairs()
-    # test_qkd_md_2pairs_task_split()
+    test_qkd_md_1pair()
+    test_qkd_md_1pair_task_split()
+    test_qkd_md_2pairs()
+    test_qkd_md_2pairs_task_split()
     test_qkd_md_100pairs()
-    # test_qkd_ck_1pair()
-    # test_qkd_ck_1pair_task_split()
-    # test_qkd_ck_2pairs()
-    # test_qkd_ck_2pairs_task_split()
-    # test_qkd_ck_callback_1pair()
-    # test_qkd_ck_callback_1pair_task_split()
-    # test_qkd_ck_callback_2pairs()
-    # test_qkd_ck_callback_2pairs_task_split()
-    # TODO: implement #38 to make this work.
-    # test_qkd_ck_callback_npairs()
+    test_qkd_md_npairs()
+    test_qkd_ck_1pair()
+    test_qkd_ck_1pair_task_split()
+    test_qkd_ck_2pairs()
+    test_qkd_ck_2pairs_task_split()
+    test_qkd_ck_callback_1pair()
+    test_qkd_ck_callback_1pair_task_split()
+    test_qkd_ck_callback_2pairs()
+    test_qkd_ck_callback_2pairs_task_split()
+    test_qkd_ck_callback_npairs()

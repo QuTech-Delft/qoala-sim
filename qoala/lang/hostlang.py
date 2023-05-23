@@ -45,7 +45,7 @@ class IqoalaTuple:
 class IqoalaVector:
     # TODO: create single IqoalaVar class that IqoalaVector, IqoalaTuple,
     # and IqoalaSingleton derive from
-    def __init__(self, name: str, size: int) -> None:
+    def __init__(self, name: str, size: Union[int, str]) -> None:
         self._name = name
         self._size = size
 
@@ -54,7 +54,7 @@ class IqoalaVector:
         return self._name
 
     @property
-    def size(self) -> int:
+    def size(self) -> Union[int, str]:
         return self._size
 
     def __str__(self) -> str:
@@ -300,7 +300,10 @@ class RunRequestOp(ClassicalIqoalaOp):
     TYP = IqoalaInstructionType.CL
 
     def __init__(
-        self, result: Optional[IqoalaTuple], values: IqoalaTuple, routine: str
+        self,
+        result: Optional[Union[IqoalaTuple, IqoalaVector]],
+        values: IqoalaTuple,
+        routine: str,
     ) -> None:
         super().__init__(results=result, arguments=[values], attributes=[routine])
 
