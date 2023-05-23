@@ -47,9 +47,9 @@ SUBROUTINE bsm_corrections
     load C1 @input[C14]
     set Q0 0
     set R0 0
-    beq C0 R0 8
+    beq C0 R0 2
     rot_z Q0 16 4
-    beq C1 R0 10
+    beq C1 R0 2
     rot_x Q0 16 4
     set R15 0
   NETQASM_END

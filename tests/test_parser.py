@@ -10,6 +10,7 @@ from qoala.lang.hostlang import (
     BasicBlockType,
     IqoalaTuple,
     IqoalaVector,
+    RunRequestOp,
     RunSubroutineOp,
 )
 from qoala.lang.parse import (
@@ -29,6 +30,7 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
+    RrReturnVector,
 )
 from qoala.lang.routine import LrReturnVector, RoutineMetadata
 from qoala.util.tests import text_equal
@@ -189,6 +191,18 @@ my_vec<3> = run_subroutine(tuple<>) : subrt1
     assert len(instructions) == 1
     assert instructions[0] == RunSubroutineOp(
         result=IqoalaVector("my_vec", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+
+
+def test_parse_vector_2():
+    text = """
+my_vec<3> = run_request(tuple<>) : req1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 1
+    assert instructions[0] == RunRequestOp(
+        result=IqoalaVector("my_vec", 3), values=IqoalaTuple([]), routine="req1"
     )
 
 
@@ -473,7 +487,7 @@ def test_parse_request_2():
 REQUEST req1
   callback_type: sequential
   callback: subrt1
-  return_vars: 
+  return_vars: outcomes<3>
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
@@ -491,7 +505,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[],
+        return_vars=[RrReturnVector("outcomes", 3)],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=QoalaRequest(

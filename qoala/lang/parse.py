@@ -15,6 +15,7 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
+    RrReturnVector,
 )
 from qoala.lang.routine import LrReturnVector, RoutineMetadata
 
@@ -408,6 +409,33 @@ class RequestRoutineParser:
         values = split[1].split(",")
         return [v.strip() for v in values]
 
+    def _parse_request_line_with_vecs(
+        self, key: str, line: str
+    ) -> List[Union[str, RrReturnVector]]:
+        split = line.split(":")
+        assert len(split) >= 1
+        assert split[0] == key
+        if len(split) == 1:
+            return []
+        assert len(split) == 2
+        if len(split[1]) == 0:
+            return []
+        values_str = split[1].split(",")
+        values_str = [v.strip() for v in values_str]
+        values: List[Union[str, RrReturnVector]] = []
+        for v in values_str:
+            if "<" in v:
+                if not v.endswith(">"):
+                    raise QoalaParseError
+                vec_split = v.split("<")
+                vec_name = vec_split[0]
+                vec_size_str = vec_split[1][:-1]  # strip last ">"
+                vec_size = int(vec_size_str)
+                values.append(RrReturnVector(vec_name, vec_size))
+            else:
+                values.append(v)
+        return values
+
     def _parse_single_int_value(
         self, key: str, line: str, allow_template: bool = False
     ) -> Union[int, Template]:
@@ -482,7 +510,10 @@ class RequestRoutineParser:
 
         callback = self._parse_optional_str_value("callback", self._read_line())
 
-        return_vars = self._parse_request_line("return_vars", self._read_line())
+        return_vars = self._parse_request_line_with_vecs(
+            "return_vars", self._read_line()
+        )
+        assert all(" " not in v for v in return_vars if isinstance(v, str))
 
         remote_id = self._parse_single_int_value(
             "remote_id", self._read_line(), allow_template=True

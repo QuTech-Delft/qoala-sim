@@ -232,6 +232,30 @@ def test_qkd_md_2pairs_task_split():
         assert alice["m1"] == bob["m1"]
 
 
+def test_qkd_md_100pairs():
+    ns.sim_reset()
+
+    num_iterations = 10
+    alice_file = "qkd_md_100pairs_alice.iqoala"
+    bob_file = "qkd_md_100pairs_bob.iqoala"
+
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+
+    alice_results = qkd_result.alice_result.results
+    bob_results = qkd_result.bob_result.results
+
+    assert len(alice_results) == num_iterations
+    assert len(bob_results) == num_iterations
+
+    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
+    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    for alice, bob in zip(alice_outcomes, bob_outcomes):
+        print(f"alice: {alice['outcomes']}")
+        print(f"bob: {bob['outcomes']}")
+        assert alice["outcomes"] == bob["outcomes"]
+
+
 def test_qkd_ck_1pair():
     ns.sim_reset()
 
@@ -436,17 +460,18 @@ def test_qkd_ck_callback_2pairs_task_split():
 
 
 if __name__ == "__main__":
-    test_qkd_md_1pair()
-    test_qkd_md_1pair_task_split()
-    test_qkd_md_2pairs()
-    test_qkd_md_2pairs_task_split()
-    test_qkd_ck_1pair()
-    test_qkd_ck_1pair_task_split()
-    test_qkd_ck_2pairs()
-    test_qkd_ck_2pairs_task_split()
-    test_qkd_ck_callback_1pair()
-    test_qkd_ck_callback_1pair_task_split()
-    test_qkd_ck_callback_2pairs()
-    test_qkd_ck_callback_2pairs_task_split()
+    # test_qkd_md_1pair()
+    # test_qkd_md_1pair_task_split()
+    # test_qkd_md_2pairs()
+    # test_qkd_md_2pairs_task_split()
+    test_qkd_md_100pairs()
+    # test_qkd_ck_1pair()
+    # test_qkd_ck_1pair_task_split()
+    # test_qkd_ck_2pairs()
+    # test_qkd_ck_2pairs_task_split()
+    # test_qkd_ck_callback_1pair()
+    # test_qkd_ck_callback_1pair_task_split()
+    # test_qkd_ck_callback_2pairs()
+    # test_qkd_ck_callback_2pairs_task_split()
     # TODO: implement #38 to make this work.
     # test_qkd_ck_callback_npairs()

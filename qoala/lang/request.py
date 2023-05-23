@@ -142,14 +142,31 @@ class QoalaRequest:
         return self.serialize()
 
 
+@dataclass(eq=True, frozen=True)
+class RrReturnVector:
+    name: str
+    size: Union[int, Template]
+
+    def __str__(self) -> str:
+        return f"{self.name}<{self.size}>"
+
+
 @dataclass
 class RequestRoutine:
     name: str
     request: QoalaRequest
 
-    # host var names
-    # TODO: move this to Host side (RR does not need to know this!)
-    return_vars: List[str]
+    return_vars: List[Union[str, RrReturnVector]]
 
     callback_type: CallbackType
     callback: Optional[str]  # Local Routine name
+
+    def get_return_size(self) -> int:
+        size = 0
+        for v in self.return_vars:
+            if isinstance(v, RrReturnVector):
+                assert isinstance(v.size, int)
+                size += v.size
+            else:
+                size += 1
+        return size

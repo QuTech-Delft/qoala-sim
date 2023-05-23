@@ -309,7 +309,7 @@ class RunRequestOp(ClassicalIqoalaOp):
         cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
     ):
         if result is not None:
-            assert isinstance(result, IqoalaTuple)
+            assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
         assert len(args) == 1
         assert isinstance(args[0], IqoalaTuple)
         assert isinstance(attr, str)
