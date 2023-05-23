@@ -539,6 +539,36 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         )
 
     @classmethod
+    def perfect_nv(
+        cls, num_qubits: int, comm_duration: int, mem_duration: int, two_duration: int
+    ) -> TopologyConfig:
+        comm_instructions = [
+            "INSTR_INIT",
+            "INSTR_ROT_X",
+            "INSTR_ROT_Y",
+            "INSTR_MEASURE",
+            "INSTR_MEASURE_INSTANT",
+        ]
+        mem_instructions = [
+            "INSTR_INIT",
+            "INSTR_ROT_X",
+            "INSTR_ROT_Y",
+            "INSTR_ROT_Z",
+            "INSTR_MEASURE",
+            "INSTR_MEASURE_INSTANT",
+        ]
+        two_instructions = ["INSTR_CXDIR"]
+        return cls.perfect_config_star(
+            num_qubits=num_qubits,
+            comm_instructions=comm_instructions,
+            comm_duration=comm_duration,
+            mem_instructions=mem_instructions,
+            mem_duration=mem_duration,
+            two_instructions=two_instructions,
+            two_duration=two_duration,
+        )
+
+    @classmethod
     def from_dict(cls, dict: Any) -> TopologyConfig:
         raw_qubits = dict["qubits"]
         qubits = [QubitIdConfig.from_dict(d) for d in raw_qubits]
