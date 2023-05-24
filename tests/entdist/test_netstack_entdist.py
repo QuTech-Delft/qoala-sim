@@ -15,7 +15,7 @@ from qoala.lang.request import (
     RequestVirtIdMapping,
 )
 from qoala.lang.routine import LocalRoutine
-from qoala.runtime.environment import LocalEnvironment, NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
@@ -38,11 +38,11 @@ class MockNetstackInterface(NetstackInterface):
     def __init__(
         self,
         comp: NetstackComponent,
-        local_env: LocalEnvironment,
+        static_network_info: StaticNetworkInfo,
         qdevice: QDevice,
         requests: List[EntDistRequest],
     ) -> None:
-        super().__init__(comp, local_env, qdevice, None)
+        super().__init__(comp, static_network_info, qdevice, None)
         self._requests = requests
 
 
@@ -87,14 +87,16 @@ def setup_components() -> Tuple[
 ]:
     alice, bob = create_alice_bob_qdevices(num_qubits=3)
 
-    env = NetworkInfo.with_nodes(
+    env = StaticNetworkInfo.with_nodes(
         {alice.node.ID: alice.node.name, bob.node.ID: bob.node.name}
     )
     alice_comp = NetstackComponent(alice.node, env)
     bob_comp = NetstackComponent(bob.node, env)
     entdist_comp = EntDistComponent(env)
 
-    entdist = EntDist(nodes=[alice.node, bob.node], network_info=env, comp=entdist_comp)
+    entdist = EntDist(
+        nodes=[alice.node, bob.node], static_network_info=env, comp=entdist_comp
+    )
 
     alice_comp.entdist_out_port.connect(entdist_comp.node_in_port("alice"))
     alice_comp.entdist_in_port.connect(entdist_comp.node_out_port("alice"))
@@ -119,7 +121,7 @@ def test_single_pair_only_netstack_interface():
             self.send_entdist_msg(Message(self._requests[0]))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
-    env: NetworkInfo = entdist._network_info
+    env: StaticNetworkInfo = entdist._static_network_info
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
@@ -127,14 +129,9 @@ def test_single_pair_only_netstack_interface():
     request_bob = create_request(bob_id, alice_id)
 
     alice_intf = AliceNetstackInterface(
-        alice_comp,
-        LocalEnvironment(env, alice_id),
-        alice_qdevice,
-        requests=[request_alice],
+        alice_comp, env, alice_qdevice, requests=[request_alice]
     )
-    bob_intf = BobNetstackInterface(
-        bob_comp, LocalEnvironment(env, bob_id), bob_qdevice, requests=[request_bob]
-    )
+    bob_intf = BobNetstackInterface(bob_comp, env, bob_qdevice, requests=[request_bob])
 
     alice_intf.start()
     bob_intf.start()
@@ -160,7 +157,7 @@ def test_multiple_pairs_only_netstack_interface():
                 self.send_entdist_msg(Message(request))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
-    env: NetworkInfo = entdist._network_info
+    env: StaticNetworkInfo = entdist._static_network_info
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
@@ -176,14 +173,9 @@ def test_multiple_pairs_only_netstack_interface():
     ]
 
     alice_intf = AliceNetstackInterface(
-        alice_comp,
-        LocalEnvironment(env, alice_id),
-        alice_qdevice,
-        requests=requests_alice,
+        alice_comp, env, alice_qdevice, requests=requests_alice
     )
-    bob_intf = BobNetstackInterface(
-        bob_comp, LocalEnvironment(env, bob_id), bob_qdevice, requests=requests_bob
-    )
+    bob_intf = BobNetstackInterface(bob_comp, env, bob_qdevice, requests=requests_bob)
 
     alice_intf.start()
     bob_intf.start()
@@ -208,7 +200,7 @@ def setup_components_full_netstack(
         num_qubits=num_qubits, alice_id=alice_id, bob_id=bob_id
     )
 
-    env = NetworkInfo.with_nodes(
+    env = StaticNetworkInfo.with_nodes(
         {
             alice_qdevice.node.ID: alice_qdevice.node.name,
             bob_qdevice.node.ID: bob_qdevice.node.name,
@@ -220,7 +212,7 @@ def setup_components_full_netstack(
 
     entdist = EntDist(
         nodes=[alice_qdevice.node, bob_qdevice.node],
-        network_info=env,
+        static_network_info=env,
         comp=entdist_comp,
     )
 
@@ -234,14 +226,14 @@ def setup_components_full_netstack(
 
     alice_netstack = alice_netstack_cls(
         comp=alice_comp,
-        local_env=LocalEnvironment(env, alice_qdevice.node.ID),
+        static_network_info=env,
         memmgr=MemoryManager("alice", alice_qdevice),
         qdevice=alice_qdevice,
         latencies=NetstackLatencies.all_zero(),
     )
     bob_netstack = bob_netstack_cls(
         comp=bob_comp,
-        local_env=LocalEnvironment(env, bob_qdevice.node.ID),
+        static_network_info=env,
         memmgr=MemoryManager("bob", bob_qdevice),
         qdevice=bob_qdevice,
         latencies=NetstackLatencies.all_zero(),

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Generator
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import LocalEnvironment
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.events import (
@@ -34,7 +34,7 @@ class HostInterface(ComponentProtocol):
     def __init__(
         self,
         comp: HostComponent,
-        local_env: LocalEnvironment,
+        static_network_info: StaticNetworkInfo,
     ) -> None:
         """Host protocol constructor.
 
@@ -44,7 +44,7 @@ class HostInterface(ComponentProtocol):
         super().__init__(name=name, comp=comp)
         self._comp = comp
 
-        self._local_env = local_env
+        self._static_network_info = static_network_info
 
         self.add_listener(
             "qnos",
@@ -54,7 +54,9 @@ class HostInterface(ComponentProtocol):
             "netstack",
             PortListener(self._comp.netstack_in_port, SIGNAL_NSTK_HOST_MSG),
         )
-        for peer in self._local_env.get_all_other_node_names():
+        for peer in self._static_network_info.get_nodes().values():
+            if peer == self._comp.node_name:
+                continue
             self.add_listener(
                 f"peer_{peer}",
                 PortListener(

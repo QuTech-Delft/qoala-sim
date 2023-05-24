@@ -6,14 +6,16 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import LocalEnvironment, NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.netstack import NetstackComponent, NetstackInterface
 
 
 class MockNetstackInterface(NetstackInterface):
-    def __init__(self, comp: NetstackComponent, local_env: LocalEnvironment) -> None:
-        super().__init__(comp, local_env, None, None)
+    def __init__(
+        self, comp: NetstackComponent, static_network_info: StaticNetworkInfo
+    ) -> None:
+        super().__init__(comp, static_network_info, None, None)
 
 
 def create_netstackcomp(num_other_nodes: int) -> NetstackComponent:
@@ -21,7 +23,7 @@ def create_netstackcomp(num_other_nodes: int) -> NetstackComponent:
 
     nodes = {id: f"node_{id}" for id in range(1, num_other_nodes + 1)}
     nodes[0] = "alice"
-    env = NetworkInfo.with_nodes(nodes)
+    env = StaticNetworkInfo.with_nodes(nodes)
 
     return NetstackComponent(node, env)
 
@@ -90,7 +92,7 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
+    env = StaticNetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = NetstackComponent(alice, env)
     bob_comp = NetstackComponent(bob, env)
@@ -107,8 +109,8 @@ def test_connection():
             msg = yield from self.receive_peer_msg("alice")
             assert msg.content == "hello"
 
-    alice_intf = AliceNetstackInterface(alice_comp, LocalEnvironment(env, alice.ID))
-    bob_intf = BobNetstackInterface(bob_comp, LocalEnvironment(env, bob.ID))
+    alice_intf = AliceNetstackInterface(alice_comp, env)
+    bob_intf = BobNetstackInterface(bob_comp, env)
 
     alice_intf.start()
     bob_intf.start()
@@ -122,7 +124,7 @@ def test_three_way_connection():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = NetworkInfo.with_nodes(
+    env = StaticNetworkInfo.with_nodes(
         {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
     )
 
@@ -152,11 +154,9 @@ def test_three_way_connection():
             msg = yield from self.receive_peer_msg("alice")
             assert msg.content == "hello charlie"
 
-    alice_intf = AliceNetstackInterface(alice_comp, LocalEnvironment(env, alice.ID))
-    bob_intf = BobNetstackInterface(bob_comp, LocalEnvironment(env, bob.ID))
-    charlie_intf = CharlieNetstackInterface(
-        charlie_comp, LocalEnvironment(env, charlie.ID)
-    )
+    alice_intf = AliceNetstackInterface(alice_comp, env)
+    bob_intf = BobNetstackInterface(bob_comp, env)
+    charlie_intf = CharlieNetstackInterface(charlie_comp, env)
 
     alice_intf.start()
     bob_intf.start()

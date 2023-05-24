@@ -6,7 +6,7 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import LocalEnvironment, NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.host.hostinterface import HostInterface
@@ -17,7 +17,7 @@ def create_hostcomp(num_other_nodes: int) -> HostComponent:
 
     nodes = {id: f"node_{id}" for id in range(1, num_other_nodes + 1)}
     nodes[0] = "alice"
-    env = NetworkInfo.with_nodes(nodes)
+    env = StaticNetworkInfo.with_nodes(nodes)
 
     return HostComponent(node, env)
 
@@ -74,7 +74,7 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = NetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
+    env = StaticNetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
     alice_comp = HostComponent(alice, env)
     bob_comp = HostComponent(bob, env)
@@ -91,8 +91,8 @@ def test_connection():
             msg = yield from self.receive_peer_msg("alice")
             print(f"{self.name}: received msg with content: {msg.content}")
 
-    alice_intf = AliceHostInterface(alice_comp, LocalEnvironment(env, alice.ID))
-    bob_intf = BobHostInterface(bob_comp, LocalEnvironment(env, bob.ID))
+    alice_intf = AliceHostInterface(alice_comp, env)
+    bob_intf = BobHostInterface(bob_comp, env)
 
     alice_intf.start()
     bob_intf.start()
@@ -106,7 +106,7 @@ def test_three_way_connection():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = NetworkInfo.with_nodes(
+    env = StaticNetworkInfo.with_nodes(
         {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
     )
 
@@ -136,9 +136,9 @@ def test_three_way_connection():
             msg = yield from self.receive_peer_msg("alice")
             print(f"{self.name}: received msg with content: {msg.content}")
 
-    alice_intf = AliceHostInterface(alice_comp, LocalEnvironment(env, alice.ID))
-    bob_intf = BobHostInterface(bob_comp, LocalEnvironment(env, bob.ID))
-    charlie_intf = CharlieHostInterface(charlie_comp, LocalEnvironment(env, charlie.ID))
+    alice_intf = AliceHostInterface(alice_comp, env)
+    bob_intf = BobHostInterface(bob_comp, env)
+    charlie_intf = CharlieHostInterface(charlie_comp, env)
 
     alice_intf.start()
     bob_intf.start()

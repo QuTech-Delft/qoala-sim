@@ -8,7 +8,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.build import build_network
 
 
@@ -24,7 +24,9 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
 def test_perfect_links():
     server_id = 0
     client_id = 1
-    network_info = NetworkInfo.with_nodes({server_id: "server", client_id: "client"})
+    network_info = StaticNetworkInfo.with_nodes(
+        {server_id: "server", client_id: "client"}
+    )
 
     num_qubits = 1
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
@@ -44,7 +46,9 @@ def test_perfect_links():
 def test_depolarise_links():
     server_id = 0
     client_id = 1
-    network_info = NetworkInfo.with_nodes({server_id: "server", client_id: "client"})
+    network_info = StaticNetworkInfo.with_nodes(
+        {server_id: "server", client_id: "client"}
+    )
 
     num_qubits = 1
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)

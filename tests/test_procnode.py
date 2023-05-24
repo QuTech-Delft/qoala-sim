@@ -31,7 +31,7 @@ from qoala.lang.request import (
     RequestVirtIdMapping,
 )
 from qoala.lang.routine import RoutineMetadata
-from qoala.runtime.environment import LocalEnvironment, NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -80,12 +80,10 @@ class SignalEvent:
 class MockNetstackInterface(NetstackInterface):
     def __init__(
         self,
-        local_env: LocalEnvironment,
         qdevice: QDevice,
         memmgr: MemoryManager,
     ) -> None:
         self._qdevice = qdevice
-        self._local_env = local_env
         self._memmgr = memmgr
 
     def send_qnos_msg(self, msg: Message) -> None:
@@ -220,14 +218,14 @@ def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
 
 def create_network_info(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
-) -> NetworkInfo:
+) -> StaticNetworkInfo:
     nodes = {i: name for i, name in enumerate(names)}
-    return NetworkInfo.with_nodes(nodes)
+    return StaticNetworkInfo.with_nodes(nodes)
 
 
 def create_procnode(
     name: str,
-    env: NetworkInfo,
+    env: StaticNetworkInfo,
     num_qubits: int,
     topology: LhiTopology,
     latencies: LhiLatencies,
@@ -240,7 +238,7 @@ def create_procnode(
     node_id = env.get_node_id(name)
     procnode = procnode_cls(
         name=name,
-        network_info=env,
+        static_network_info=env,
         qprocessor=alice_qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
@@ -295,7 +293,6 @@ def test_initialize():
     ntf = GenericToVanillaInterface()
 
     network_info = create_network_info(num_qubits)
-    local_env = LocalEnvironment(network_info, network_info.get_node_id("alice"))
     procnode = create_procnode(
         "alice", network_info, num_qubits, topology, latencies, ntf
     )
@@ -304,7 +301,7 @@ def test_initialize():
     procnode.host.interface = MockHostInterface()
 
     procnode.netstack.interface = MockNetstackInterface(
-        local_env, procnode.qdevice, procnode.memmgr
+        procnode.qdevice, procnode.memmgr
     )
 
     host_processor = procnode.host.processor
@@ -776,7 +773,7 @@ def test_epr():
     alice_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("alice"))
     bob_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("bob"))
     bob_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("bob"))
-    entdist = EntDist(nodes=nodes, network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, static_network_info=network_info, comp=entdistcomp)
     link_info = LhiLinkInfo.perfect(1000)
     entdist.add_sampler(alice_procnode.node.ID, bob_procnode.node.ID, link_info)
 
@@ -915,7 +912,7 @@ REQUEST req1
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, static_network_info=network_info, comp=entdistcomp)
     link_info = LhiLinkInfo.perfect(1000)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 

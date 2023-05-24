@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.procnodecomp import ProcNodeComponent
 
 
 def create_procnodecomp(num_other_nodes: int) -> ProcNodeComponent:
     nodes = {id: f"node_{id}" for id in range(1, num_other_nodes + 1)}
     nodes[0] = "alice"
-    env = NetworkInfo.with_nodes(nodes)
+    env = StaticNetworkInfo.with_nodes(nodes)
 
-    return ProcNodeComponent(name="alice", qprocessor=None, network_info=env)
+    return ProcNodeComponent(name="alice", qprocessor=None, static_network_info=env)
 
 
 def test_no_other_nodes():

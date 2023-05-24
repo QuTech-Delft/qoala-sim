@@ -15,14 +15,14 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
 
 
-def create_network_info(names: List[str]) -> NetworkInfo:
-    env = NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
+def create_network_info(names: List[str]) -> StaticNetworkInfo:
+    env = StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
     env.set_global_schedule([0, 1, 2])
     env.set_timeslot_len(1e6)
     return env

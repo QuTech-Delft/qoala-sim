@@ -40,7 +40,7 @@ from qoala.runtime.config import (  # type: ignore
     ProcNodeConfig,
     ProcNodeNetworkConfig,
 )
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import (
     INSTR_MEASURE_INSTANT,
     LhiLatencies,
@@ -249,7 +249,7 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 
 
 def build_procnode(
-    cfg: ProcNodeConfig, network_info: NetworkInfo, network_ehi: EhiNetworkInfo
+    cfg: ProcNodeConfig, network_info: StaticNetworkInfo, network_ehi: EhiNetworkInfo
 ) -> ProcNode:
     # TODO: Refactor ad-hoc way of old NV config
     # TODO: Refactor how ntf interface is configured!
@@ -269,7 +269,7 @@ def build_procnode(
         tem = TaskExecutionMode[cfg.tem.upper()]
     procnode = ProcNode(
         cfg.node_name,
-        network_info=network_info,
+        static_network_info=network_info,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
@@ -339,7 +339,7 @@ def build_ll_protocol(
 
 def build_network(
     config: ProcNodeNetworkConfig,
-    network_info: NetworkInfo,
+    network_info: StaticNetworkInfo,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
@@ -356,7 +356,9 @@ def build_network(
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
     entdistcomp = EntDistComponent(network_info)
-    entdist = EntDist(nodes=ns_nodes, network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(
+        nodes=ns_nodes, static_network_info=network_info, comp=entdistcomp
+    )
 
     for link_between_nodes in config.links:
         link = LhiLinkInfo.from_config(link_between_nodes.link_config)
@@ -379,7 +381,7 @@ def build_procnode_from_lhi(
     name: str,
     topology: LhiTopology,
     latencies: LhiLatencies,
-    network_info: NetworkInfo,
+    network_info: StaticNetworkInfo,
     network_lhi: LhiNetworkInfo,
 ) -> ProcNode:
     qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
@@ -387,7 +389,7 @@ def build_procnode_from_lhi(
     return ProcNode(
         name=name,
         node_id=id,
-        network_info=network_info,
+        static_network_info=network_info,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
@@ -398,7 +400,7 @@ def build_procnode_from_lhi(
 
 def build_network_from_lhi(
     procnode_infos: List[LhiProcNodeInfo],
-    network_info: NetworkInfo,
+    network_info: StaticNetworkInfo,
     network_lhi: LhiNetworkInfo,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
@@ -411,7 +413,9 @@ def build_network_from_lhi(
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
     entdistcomp = EntDistComponent(network_info)
-    entdist = EntDist(nodes=ns_nodes, network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(
+        nodes=ns_nodes, static_network_info=network_info, comp=entdistcomp
+    )
 
     for ([n1, n2], link_info) in network_lhi.links.items():
         entdist.add_sampler(n1, n2, link_info)

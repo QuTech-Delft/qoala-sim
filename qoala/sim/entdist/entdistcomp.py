@@ -4,11 +4,11 @@ from typing import Dict
 
 from netsquid.components.component import Component, Port
 
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 
 
 class EntDistComponent(Component):
-    def __init__(self, network_info: NetworkInfo) -> None:
+    def __init__(self, network_info: StaticNetworkInfo) -> None:
         super().__init__("global_entanglement_distributor")
 
         self._node_in_ports: Dict[str, str] = {}  # node name -> port name

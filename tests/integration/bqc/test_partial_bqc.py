@@ -14,7 +14,7 @@ from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -67,14 +67,14 @@ def create_process(
     return process
 
 
-def create_network_info(names: List[str]) -> NetworkInfo:
-    return NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
+def create_network_info(names: List[str]) -> StaticNetworkInfo:
+    return StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
 
 
 def create_procnode(
     part: str,
     name: str,
-    env: NetworkInfo,
+    env: StaticNetworkInfo,
     num_qubits: int,
     network_ehi: EhiNetworkInfo,
     procnode_cls: Type[ProcNode] = ProcNode,
@@ -88,7 +88,7 @@ def create_procnode(
     procnode = procnode_cls(
         part=part,
         name=name,
-        network_info=env,
+        static_network_info=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=LhiLatencies(qnos_instr_time=1000),
@@ -106,7 +106,7 @@ class BqcProcNode(ProcNode):
     def __init__(
         self,
         name: str,
-        network_info: NetworkInfo,
+        static_network_info: StaticNetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
@@ -118,7 +118,7 @@ class BqcProcNode(ProcNode):
     ) -> None:
         super().__init__(
             name=name,
-            network_info=network_info,
+            static_network_info=static_network_info,
             qprocessor=qprocessor,
             qdevice_topology=qdevice_topology,
             latencies=latencies,
@@ -347,7 +347,7 @@ def run_bqc(
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, static_network_info=network_info, comp=entdistcomp)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 
     server_procnode.start()

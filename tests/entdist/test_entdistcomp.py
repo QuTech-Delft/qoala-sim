@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 
 
 def create_entdistcomp(num_nodes: int) -> EntDistComponent:
     nodes = {id: f"node_{id}" for id in range(num_nodes)}
-    env = NetworkInfo.with_nodes(nodes)
+    env = StaticNetworkInfo.with_nodes(nodes)
 
     return EntDistComponent(env)
 

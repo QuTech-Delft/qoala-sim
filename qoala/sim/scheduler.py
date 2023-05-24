@@ -9,7 +9,7 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
-from qoala.runtime.environment import LocalEnvironment
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
     BatchInfo,
@@ -44,7 +44,7 @@ class NodeScheduler(Protocol):
         qnos: Qnos,
         netstack: Netstack,
         memmgr: MemoryManager,
-        local_env: LocalEnvironment,
+        static_network_info: StaticNetworkInfo,
         local_ehi: EhiNodeInfo,
         network_ehi: EhiNetworkInfo,
         tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
@@ -61,7 +61,7 @@ class NodeScheduler(Protocol):
         self._qnos = qnos
         self._netstack = netstack
         self._memmgr = memmgr
-        self._local_env = local_env
+        self._static_network_info = static_network_info
         self._local_ehi = local_ehi
         self._network_ehi = network_ehi
         self._tem = tem
@@ -119,7 +119,7 @@ class NodeScheduler(Protocol):
     def submit_batch(self, batch_info: BatchInfo) -> None:
         prog_instances: List[ProgramInstance] = []
 
-        network_info = self._local_env.get_network_info()
+        network_info = self._static_network_info
 
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
@@ -181,7 +181,7 @@ class NodeScheduler(Protocol):
 
         epr_sockets: Dict[int, EprSocket] = {}
         for i, remote_name in meta.epr_sockets.items():
-            network_info = self._local_env.get_network_info()
+            network_info = self._static_network_info
             remote_id = network_info.get_node_id(remote_name)
             # TODO: check for already existing epr sockets
             # TODO: fidelity

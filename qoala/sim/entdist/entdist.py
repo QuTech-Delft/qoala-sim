@@ -16,7 +16,7 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import NetworkInfo
+from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -61,16 +61,19 @@ class DelayedSampler:
 
 class EntDist(Protocol):
     def __init__(
-        self, nodes: List[Node], network_info: NetworkInfo, comp: EntDistComponent
+        self,
+        nodes: List[Node],
+        static_network_info: StaticNetworkInfo,
+        comp: EntDistComponent,
     ) -> None:
         super().__init__(name=f"{comp.name}_protocol")
 
         # References to objects.
-        self._network_info = network_info
+        self._static_network_info = static_network_info
         self._comp = comp
 
         # Owned objects.
-        self._interface = EntDistInterface(comp, network_info)
+        self._interface = EntDistInterface(comp, static_network_info)
 
         # Node ID -> Node
         self._nodes: Dict[int, Node] = {node.ID: node for node in nodes}

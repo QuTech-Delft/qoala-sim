@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.ehi import EhiLinkInfo
-from qoala.runtime.program import ProgramInstance
 
 
-class NetworkInfo:
+class StaticNetworkInfo:
     """Static network info: node IDs. EPR links are managed by EhiNetworkInfo."""
 
     def __init__(self, nodes: Dict[int, str]) -> None:
@@ -17,8 +16,8 @@ class NetworkInfo:
         self._timeslot_len: Optional[int] = None
 
     @classmethod
-    def with_nodes(cls, nodes: Dict[int, str]) -> NetworkInfo:
-        return NetworkInfo(nodes)
+    def with_nodes(cls, nodes: Dict[int, str]) -> StaticNetworkInfo:
+        return StaticNetworkInfo(nodes)
 
     def get_nodes(self) -> Dict[int, str]:
         return self._nodes
@@ -60,41 +59,3 @@ class NetworkInfo:
     def get_timeslot_len(self) -> int:
         assert self._timeslot_len is not None
         return self._timeslot_len
-
-
-class LocalEnvironment:
-    def __init__(
-        self,
-        network_info: NetworkInfo,
-        node_id: int,
-    ) -> None:
-        self._network_info: NetworkInfo = network_info
-
-        # node ID of self
-        self._node_id: int = node_id
-
-        self._programs: List[ProgramInstance] = []
-        self._csockets: List[str] = []
-        self._epr_sockets: List[str] = []
-
-    def get_network_info(self) -> NetworkInfo:
-        return self._network_info
-
-    def get_node_id(self) -> int:
-        return self._node_id
-
-    def register_program(self, program: ProgramInstance) -> None:
-        self._programs.append(program)
-
-    def open_epr_socket(self) -> None:
-        pass
-
-    def get_all_node_names(self) -> List[str]:
-        return self.get_network_info().get_all_node_names()
-
-    def get_all_other_node_names(self) -> List[str]:
-        return [
-            name
-            for id, name in self.get_network_info().get_nodes().items()
-            if id != self._node_id
-        ]
