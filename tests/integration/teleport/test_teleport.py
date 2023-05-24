@@ -37,6 +37,15 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     )
 
 
+def create_procnode_cfg_nv(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
+    return ProcNodeConfig(
+        node_name=name,
+        node_id=id,
+        topology=TopologyConfig.perfect_nv_default_params(num_qubits),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
+    )
+
+
 def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:

@@ -796,7 +796,9 @@ class TaskDurationEstimator:
                 if max_duration != -1:
                     duration += max_duration
                 else:
-                    raise RuntimeError
+                    raise RuntimeError(
+                        f"Gate {type(instr)} not found in EHI. Cannot calculate duration of containing block."
+                    )
         return duration
 
 

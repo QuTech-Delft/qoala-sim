@@ -10,7 +10,6 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
-    GenericQDeviceConfig,
     LatenciesConfig,
     LinkBetweenNodesConfig,
     LinkConfig,
@@ -76,9 +75,6 @@ def get_client_config(id: int) -> ProcNodeConfig:
 
 
 def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
-    config_file = relative_to_cwd("node_config.yaml")
-    qdevice_cfg = GenericQDeviceConfig.from_file(config_file)
-    qdevice_cfg.num_qubits = num_qubits
     return ProcNodeConfig(
         node_name="server",
         node_id=id,

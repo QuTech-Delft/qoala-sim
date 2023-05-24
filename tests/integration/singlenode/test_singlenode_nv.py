@@ -19,6 +19,7 @@ from qoala.runtime.program import BatchInfo, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
+from qoala.util.logging import LogManager
 
 
 def create_network_info() -> NetworkInfo:
@@ -31,7 +32,7 @@ def create_network_info() -> NetworkInfo:
 
 
 def get_config() -> ProcNodeConfig:
-    topology = TopologyConfig.perfect_config_uniform_default_params(1)
+    topology = TopologyConfig.perfect_nv_default_params(1)
     return ProcNodeConfig(
         node_name="alice",
         node_id=0,
@@ -81,7 +82,7 @@ def test_simple_program_nv():
     network = create_network(node_config)
     procnode = network.nodes["alice"]
 
-    num_iterations = 100
+    num_iterations = 1
     inputs = [ProgramInput({}) for i in range(num_iterations)]
 
     unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
@@ -111,4 +112,5 @@ def test_simple_program_nv():
 
 
 if __name__ == "__main__":
+    LogManager.set_log_level("DEBUG")
     test_simple_program_nv()

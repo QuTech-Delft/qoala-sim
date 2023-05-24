@@ -45,6 +45,39 @@ from qoala.runtime.lhi import (
 )
 from qoala.util.math import fidelity_to_prob_max_mixed
 
+NV_COM_GATES = [
+    "INSTR_INIT",
+    "INSTR_ROT_X",
+    "INSTR_ROT_Y",
+    "INSTR_MEASURE",
+    "INSTR_MEASURE_INSTANT",
+]
+
+NV_MEM_GATES = [
+    "INSTR_INIT",
+    "INSTR_ROT_X",
+    "INSTR_ROT_Y",
+    "INSTR_ROT_Z",
+    "INSTR_MEASURE",
+    "INSTR_MEASURE_INSTANT",
+]
+
+NV_TWO_GATES = ["INSTR_CXDIR"]
+
+NV_DEFAULT_COM_GATE_DURATION = 1e5
+NV_DEFAULT_MEM_GATE_DURATION = 1e6
+NV_DEFAULT_TWO_GATE_DURATION = 2e6
+
+GENERIC_DEFAULT_ONE_GATE_DURATION = 5e3
+GENERIC_DEFAULT_TWO_GATE_DURATION = 200e3
+
+# NV_LAB_COMM_T1 = 1e6
+# NV_LAB_COMM_T2 = 1e6
+# NV_LAB_MEM_T1 = 1e6
+# NV_LAB_MEM_T2 = 1e6
+
+# NV_LAB_COMM_INIT_DURATION = 1e3
+
 
 class BaseModel(PydanticBaseModel):
     class Config:
@@ -140,6 +173,14 @@ class QubitConfig(LhiQubitConfigInterface, BaseModel):
             is_communication=is_communication,
             noise_config_cls="T1T2NoiseModel",
             noise_config=QubitT1T2Config(T1=0, T2=0),
+        )
+
+    @classmethod
+    def t1t2_config(cls, is_communication: bool, T1: int, T2: int) -> QubitConfig:
+        return QubitConfig(
+            is_communication=is_communication,
+            noise_config_cls="T1T2NoiseModel",
+            noise_config=QubitT1T2Config(T1=T1, T2=T2),
         )
 
     @classmethod
@@ -469,9 +510,9 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
                 "INSTR_MEASURE",
                 "INSTR_MEASURE_INSTANT",
             ],
-            single_duration=5e3,
+            single_duration=GENERIC_DEFAULT_ONE_GATE_DURATION,
             two_instructions=["INSTR_CNOT", "INSTR_CZ"],
-            two_duration=200e3,
+            two_duration=GENERIC_DEFAULT_TWO_GATE_DURATION,
         )
 
     @classmethod
@@ -539,34 +580,50 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         )
 
     @classmethod
-    def perfect_nv(
-        cls, num_qubits: int, comm_duration: int, mem_duration: int, two_duration: int
-    ) -> TopologyConfig:
-        comm_instructions = [
-            "INSTR_INIT",
-            "INSTR_ROT_X",
-            "INSTR_ROT_Y",
-            "INSTR_MEASURE",
-            "INSTR_MEASURE_INSTANT",
-        ]
-        mem_instructions = [
-            "INSTR_INIT",
-            "INSTR_ROT_X",
-            "INSTR_ROT_Y",
-            "INSTR_ROT_Z",
-            "INSTR_MEASURE",
-            "INSTR_MEASURE_INSTANT",
-        ]
-        two_instructions = ["INSTR_CXDIR"]
+    def perfect_nv_default_params(cls, num_qubits: int) -> TopologyConfig:
         return cls.perfect_config_star(
             num_qubits=num_qubits,
-            comm_instructions=comm_instructions,
-            comm_duration=comm_duration,
-            mem_instructions=mem_instructions,
-            mem_duration=mem_duration,
-            two_instructions=two_instructions,
-            two_duration=two_duration,
+            comm_instructions=NV_COM_GATES,
+            comm_duration=NV_DEFAULT_COM_GATE_DURATION,
+            mem_instructions=NV_MEM_GATES,
+            mem_duration=NV_DEFAULT_MEM_GATE_DURATION,
+            two_instructions=NV_TWO_GATES,
+            two_duration=NV_DEFAULT_TWO_GATE_DURATION,
         )
+
+    # @classmethod
+    # def nv_lab_setup(cls, num_qubits: int) -> TopologyConfig:
+    #     # comm qubit
+    #     qubits = [
+    #         QubitIdConfig(
+    #             qubit_id=0,
+    #             qubit_config=QubitConfig.t1t2_config(
+    #                 is_communication=True, T1=NV_LAB_COMM_T1, T2=NV_LAB_COMM_T2
+    #             ),
+    #         )
+    #     ]
+    #     # mem qubits
+    #     qubits += [
+    #         QubitIdConfig(
+    #             qubit_id=i,
+    #             qubit_config=QubitConfig.t1t2_config(
+    #                 is_communication=False, T1=NV_LAB_MEM_T1, T2=NV_LAB_MEM_T2
+    #             ),
+    #         )
+    #         for i in range(1, num_qubits)
+    #     ]
+    #     comm_gates: List[SingleGateConfig] = []
+    #     comm_gates += [
+    #         SingleGateConfig(
+    #             qubit_id=0,
+    #             gate_configs=[
+    #                 GateConfig.perfect_config(
+    #                     name=name, duration=NV_LAB_COMM_INIT_DURATION
+    #                 )
+    #                 for name in comm_instructions
+    #             ],
+    #         )
+    #     ]
 
     @classmethod
     def from_dict(cls, dict: Any) -> TopologyConfig:
@@ -599,40 +656,6 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         for cfg in self.multi_gates:
             infos[MultiQubit(cfg.qubit_ids)] = cfg.gate_configs
         return infos
-
-
-class GenericQDeviceConfig(BaseModel):
-    # total number of qubits
-    num_qubits: int = 2
-    # number of communication qubits
-    num_comm_qubits: int = 2
-
-    # coherence times (same for each qubit)
-    T1: int = 10_000_000_000
-    T2: int = 1_000_000_000
-
-    # gate execution times
-    init_time: int = 10_000
-    single_qubit_gate_time: int = 1_000
-    two_qubit_gate_time: int = 100_000
-    measure_time: int = 10_000
-
-    # noise model
-    single_qubit_gate_depolar_prob: float = 0.0
-    two_qubit_gate_depolar_prob: float = 0.01
-
-    @classmethod
-    def from_file(cls, path: str) -> GenericQDeviceConfig:
-        return _from_file(path, GenericQDeviceConfig)  # type: ignore
-
-    @classmethod
-    def perfect_config(cls, num_qubits: int) -> GenericQDeviceConfig:
-        cfg = GenericQDeviceConfig(num_qubits=num_qubits, num_comm_qubits=num_qubits)
-        cfg.T1 = 0
-        cfg.T2 = 0
-        cfg.single_qubit_gate_depolar_prob = 0.0
-        cfg.two_qubit_gate_depolar_prob = 0.0
-        return cfg
 
 
 class NVQDeviceConfig(BaseModel):

@@ -26,7 +26,7 @@ SUBROUTINE subrt0
   NETQASM_START
     set Q0 0
     init Q0
-    x Q0
+    rot_x Q0 16 4
   NETQASM_END
 
 SUBROUTINE subrt1

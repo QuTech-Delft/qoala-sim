@@ -31,7 +31,6 @@ from qoala.lang.request import (
     RequestVirtIdMapping,
 )
 from qoala.lang.routine import RoutineMetadata
-from qoala.runtime.config import GenericQDeviceConfig
 from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
@@ -43,7 +42,7 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
-from qoala.sim.build import build_generic_qprocessor
+from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.events import MSG_REQUEST_DELIVERED
@@ -215,8 +214,8 @@ def create_process(
 
 
 def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits=num_qubits)
-    return build_generic_qprocessor(name=f"{name}_processor", cfg=cfg)
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=num_qubits)
+    return build_qprocessor_from_topology(name=f"{name}_processor", topology=topology)
 
 
 def create_network_info(

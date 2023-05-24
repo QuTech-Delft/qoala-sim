@@ -40,7 +40,6 @@ from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import (  # type: ignore
     DepolariseOldLinkConfig,
-    GenericQDeviceConfig,
     HeraldedOldLinkConfig,
     LinkConfig,
     NVQDeviceConfig,
@@ -123,67 +122,6 @@ def build_qprocessor_from_topology(
         mem_noise_models=mem_noise_models,
         phys_instructions=phys_instructions,
     )
-
-
-def build_generic_qprocessor(name: str, cfg: GenericQDeviceConfig) -> QuantumProcessor:
-    phys_instructions = []
-
-    single_qubit_gate_noise = DepolarNoiseModel(
-        depolar_rate=cfg.single_qubit_gate_depolar_prob, time_independent=True
-    )
-
-    two_qubit_gate_noise = DepolarNoiseModel(
-        depolar_rate=cfg.two_qubit_gate_depolar_prob, time_independent=True
-    )
-
-    phys_instructions.append(
-        PhysicalInstruction(
-            INSTR_INIT,
-            duration=cfg.init_time,
-        )
-    )
-
-    for instr in [
-        INSTR_ROT_X,
-        INSTR_ROT_Y,
-        INSTR_ROT_Z,
-        INSTR_X,
-        INSTR_Y,
-        INSTR_Z,
-        INSTR_H,
-    ]:
-        phys_instructions.append(
-            PhysicalInstruction(
-                instr,
-                quantum_noise_model=single_qubit_gate_noise,
-                duration=cfg.single_qubit_gate_time,
-            )
-        )
-
-    for instr in [INSTR_CNOT, INSTR_CZ]:
-        phys_instructions.append(
-            PhysicalInstruction(
-                instr,
-                quantum_noise_model=two_qubit_gate_noise,
-                duration=cfg.two_qubit_gate_time,
-            )
-        )
-
-    phys_instr_measure = PhysicalInstruction(
-        INSTR_MEASURE,
-        duration=cfg.measure_time,
-    )
-    phys_instructions.append(phys_instr_measure)
-
-    electron_qubit_noise = T1T2NoiseModel(T1=cfg.T1, T2=cfg.T2)
-    mem_noise_models = [electron_qubit_noise] * cfg.num_qubits
-    qmem = QuantumProcessor(
-        name=name,
-        num_positions=cfg.num_qubits,
-        mem_noise_models=mem_noise_models,
-        phys_instructions=phys_instructions,
-    )
-    return qmem
 
 
 def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
