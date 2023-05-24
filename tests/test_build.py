@@ -290,7 +290,6 @@ def test_build_network_from_lhi():
 if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
-    test_build_generic_perfect()
     test_build_nv_perfect()
     test_build_procnode()
     test_build_network()
