@@ -197,4 +197,4 @@ class LhiConverter:
         for ([n1, n2], link_info) in info.links.items():
             ehi_link = cls.link_info_to_ehi(link_info)
             links[(n1, n2)] = ehi_link
-        return EhiNetworkInfo(links)
+        return EhiNetworkInfo(info.nodes, links)

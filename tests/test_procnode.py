@@ -42,6 +42,7 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
+from qoala.sim import network
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -223,9 +224,17 @@ def create_network_info(
     return StaticNetworkInfo.with_nodes(nodes)
 
 
+def create_network_ehi(
+    num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
+) -> StaticNetworkInfo:
+    nodes = {i: name for i, name in enumerate(names)}
+    return EhiNetworkInfo(nodes, links={})
+
+
 def create_procnode(
     name: str,
     env: StaticNetworkInfo,
+    network_ehi: EhiNetworkInfo,
     num_qubits: int,
     topology: LhiTopology,
     latencies: LhiLatencies,
@@ -235,7 +244,7 @@ def create_procnode(
 ) -> ProcNode:
     alice_qprocessor = create_qprocessor(name, num_qubits)
 
-    node_id = env.get_node_id(name)
+    node_id = network_ehi.get_node_id(name)
     procnode = procnode_cls(
         name=name,
         static_network_info=env,
@@ -243,7 +252,7 @@ def create_procnode(
         qdevice_topology=topology,
         latencies=latencies,
         ntf_interface=ntf_interface,
-        network_ehi=EhiNetworkInfo({}),
+        network_ehi=network_ehi,
         node_id=node_id,
         asynchronous=asynchronous,
     )
@@ -293,8 +302,9 @@ def test_initialize():
     ntf = GenericToVanillaInterface()
 
     network_info = create_network_info(num_qubits)
+    network_ehi = create_network_ehi(num_qubits)
     procnode = create_procnode(
-        "alice", network_info, num_qubits, topology, latencies, ntf
+        "alice", network_info, network_ehi, num_qubits, topology, latencies, ntf
     )
     procnode.qdevice = MockQDevice(topology)
 
@@ -379,8 +389,16 @@ def test_2():
     ntf = GenericToVanillaInterface()
 
     network_info = create_network_info(num_qubits)
+    network_ehi = create_network_ehi(num_qubits)
     procnode = create_procnode(
-        "alice", network_info, num_qubits, topology, latencies, ntf, asynchronous=True
+        "alice",
+        network_info,
+        network_ehi,
+        num_qubits,
+        topology,
+        latencies,
+        ntf,
+        asynchronous=True,
     )
     procnode.qdevice = MockQDevice(topology)
 
@@ -443,6 +461,7 @@ def test_classical_comm():
     ntf = GenericToVanillaInterface()
 
     network_info = create_network_info(num_qubits)
+    network_ehi = create_network_ehi(num_qubits)
 
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -452,6 +471,7 @@ def test_classical_comm():
     alice_procnode = create_procnode(
         "alice",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -461,6 +481,7 @@ def test_classical_comm():
     bob_procnode = create_procnode(
         "bob",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -529,6 +550,7 @@ def test_classical_comm_three_nodes():
     ntf = GenericToVanillaInterface()
 
     network_info = create_network_info(num_qubits)
+    network_ehi = create_network_ehi(num_qubits)
 
     class SenderProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -544,6 +566,7 @@ def test_classical_comm_three_nodes():
     alice_procnode = create_procnode(
         "alice",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -553,6 +576,7 @@ def test_classical_comm_three_nodes():
     bob_procnode = create_procnode(
         "bob",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -562,6 +586,7 @@ def test_classical_comm_three_nodes():
     charlie_procnode = create_procnode(
         "charlie",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -656,8 +681,9 @@ def test_epr():
     ntf = GenericToVanillaInterface()
 
     network_info = create_network_info(num_qubits)
-    alice_id = network_info.get_node_id("alice")
-    bob_id = network_info.get_node_id("bob")
+    network_ehi = create_network_ehi(num_qubits)
+    alice_id = network_ehi.get_node_id("alice")
+    bob_id = network_ehi.get_node_id("bob")
 
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -668,6 +694,7 @@ def test_epr():
     alice_procnode = create_procnode(
         "alice",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -677,6 +704,7 @@ def test_epr():
     bob_procnode = create_procnode(
         "bob",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -831,8 +859,9 @@ REQUEST req1
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
     network_info = create_network_info(num_qubits, names=["client", "server"])
-    server_id = network_info.get_node_id("server")
-    client_id = network_info.get_node_id("client")
+    network_ehi = create_network_ehi(num_qubits, names=["client", "server"])
+    server_id = network_ehi.get_node_id("server")
+    client_id = network_ehi.get_node_id("client")
 
     class TestProcNode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -844,6 +873,7 @@ REQUEST req1
     server_procnode = create_procnode(
         "server",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,
@@ -889,6 +919,7 @@ REQUEST req1
     client_procnode = create_procnode(
         "client",
         network_info,
+        network_ehi,
         num_qubits,
         topology,
         latencies,

@@ -117,7 +117,10 @@ def test_network_to_ehi():
         cycle_time=10, prob_max_mixed=0.2, prob_success=0.5, state_delay=2000
     )
     perfect_link = LhiLinkInfo.perfect(1000)
-    lhi_network = LhiNetworkInfo(links={(0, 1): depolar_link, (1, 3): perfect_link})
+    nodes = {0: "node0", 1: "node1"}
+    lhi_network = LhiNetworkInfo(
+        nodes=nodes, links={(0, 1): depolar_link, (1, 3): perfect_link}
+    )
 
     ehi_network = LhiConverter.network_to_ehi(lhi_network)
     expected_duration_0_1 = (10 / 0.5) + 2000

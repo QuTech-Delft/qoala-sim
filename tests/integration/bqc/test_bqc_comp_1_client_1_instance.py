@@ -23,8 +23,6 @@ from qoala.sim.build import build_network
 
 def create_network_info(names: List[str]) -> StaticNetworkInfo:
     env = StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-    env.set_global_schedule([0, 1, 2])
-    env.set_timeslot_len(1e6)
     return env
 
 

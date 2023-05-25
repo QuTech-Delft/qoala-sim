@@ -27,8 +27,6 @@ from qoala.util.math import fidelity_to_prob_max_mixed
 
 def create_network_info(names: List[str]) -> StaticNetworkInfo:
     env = StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-    env.set_global_schedule([0, 1, 2])
-    env.set_timeslot_len(1e6)
     return env
 
 

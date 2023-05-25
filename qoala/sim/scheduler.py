@@ -119,15 +119,13 @@ class NodeScheduler(Protocol):
     def submit_batch(self, batch_info: BatchInfo) -> None:
         prog_instances: List[ProgramInstance] = []
 
-        network_info = self._static_network_info
-
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
             # TODO: allow multiple remote nodes in single program??
             remote_names = list(batch_info.program.meta.csockets.values())
             if len(remote_names) > 0:
                 remote_name = list(batch_info.program.meta.csockets.values())[0]
-                remote_id = network_info.get_node_id(remote_name)
+                remote_id = self._network_ehi.get_node_id(remote_name)
             else:
                 remote_id = None
             if self._tem == TaskExecutionMode.BLOCK:
@@ -181,8 +179,7 @@ class NodeScheduler(Protocol):
 
         epr_sockets: Dict[int, EprSocket] = {}
         for i, remote_name in meta.epr_sockets.items():
-            network_info = self._static_network_info
-            remote_id = network_info.get_node_id(remote_name)
+            remote_id = self._network_ehi.get_node_id(remote_name)
             # TODO: check for already existing epr sockets
             # TODO: fidelity
             epr_sockets[i] = EprSocket(i, remote_id, 1.0)

@@ -23,10 +23,6 @@ from qoala.sim.network import ProcNodeNetwork
 
 def create_network_info() -> StaticNetworkInfo:
     env = StaticNetworkInfo.with_nodes({0: "alice"})
-
-    env.set_global_schedule([0])
-    env.set_timeslot_len(1e6)
-
     return env
 
 

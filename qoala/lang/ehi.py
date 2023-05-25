@@ -292,23 +292,38 @@ class UnitModule:
 
 @dataclass
 class EhiNetworkInfo:
+    nodes: Dict[int, str]  # node ID -> node name
+
     # (node A ID, node B ID) -> link info
     # for a pair (a, b) there exists no separate (b, a) info (it is the same)
     links: Dict[Tuple[int, int], EhiLinkInfo]
 
+    # TODO: Network Schedule info.
+
     @classmethod
-    def fully_connected(cls, node_ids: List[int], info: EhiLinkInfo) -> EhiNetworkInfo:
+    def fully_connected(
+        cls, nodes: Dict[int, str], info: EhiLinkInfo
+    ) -> EhiNetworkInfo:
         links: Dict[Tuple[int, int], EhiLinkInfo] = {}
-        for n1, n2 in itertools.combinations(node_ids, 2):
+        for n1, n2 in itertools.combinations(nodes.keys(), 2):
             links[(n1, n2)] = info
-        return EhiNetworkInfo(links)
+        return EhiNetworkInfo(nodes, links)
 
     @classmethod
     def perfect_fully_connected(
-        cls, node_ids: List[int], duration: float
+        cls, nodes: Dict[int, str], duration: float
     ) -> EhiNetworkInfo:
         link = EhiLinkInfo(duration=duration, fidelity=1.0)
-        return cls.fully_connected(node_ids, link)
+        return cls.fully_connected(nodes, link)
+
+    def get_node_id(self, name: str) -> int:
+        for id, node_name in self.nodes.items():
+            if node_name == name:
+                return id
+        raise ValueError
+
+    def get_all_node_names(self) -> List[str]:
+        return list(self.nodes.values())
 
     def get_link(self, node_id1: int, node_id2: int) -> EhiLinkInfo:
         try:

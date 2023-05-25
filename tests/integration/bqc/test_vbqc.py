@@ -22,15 +22,11 @@ from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 
 
-def create_network_info(
-    num_clients: int, global_schedule: List[int], timeslot_len: int
-) -> StaticNetworkInfo:
+def create_network_info(num_clients: int) -> StaticNetworkInfo:
     nodes = {i: f"client_{i}" for i in range(1, num_clients + 1)}
     nodes[0] = "server"
     env = StaticNetworkInfo.with_nodes(nodes)
 
-    env.set_global_schedule(global_schedule)
-    env.set_timeslot_len(timeslot_len)
     return env
 
 
@@ -81,12 +77,10 @@ def create_network(
     server_cfg: ProcNodeConfig,
     client_configs: List[ProcNodeConfig],
     num_clients: int,
-    global_schedule: List[int],
-    timeslot_len: int,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
-    network_info = create_network_info(num_clients, global_schedule, timeslot_len)
+    network_info = create_network_info(num_clients)
     node_cfgs = [server_cfg] + client_configs
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=node_cfgs, link_duration=1000
@@ -163,8 +157,6 @@ def run_bqc(
     num_iterations: List[int],
     deadlines: List[int],
     num_clients: int,
-    global_schedule: List[int],
-    timeslot_len: int,
     tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
@@ -177,9 +169,7 @@ def run_bqc(
     for cfg in client_configs:
         cfg.tem = tem.name
 
-    network = create_network(
-        server_config, client_configs, num_clients, global_schedule, timeslot_len
-    )
+    network = create_network(server_config, client_configs, num_clients)
 
     server_procnode = network.nodes["server"]
 
@@ -264,8 +254,6 @@ def check_computation(
     num_iterations,
     deadlines,
     num_clients,
-    global_schedule: List[int],
-    timeslot_len: int,
     tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
@@ -279,8 +267,6 @@ def check_computation(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
         tem=tem,
     )
 
@@ -305,8 +291,6 @@ def compute_succ_prob_computation(
     num_clients: int,
     num_iterations: List[int],
     deadlines: List[int],
-    global_schedule: List[int],
-    timeslot_len: int,
     tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
@@ -322,8 +306,6 @@ def compute_succ_prob_computation(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
         tem=tem,
     )
 
@@ -338,8 +320,6 @@ def check_trap(
     num_iterations,
     deadlines,
     num_clients,
-    global_schedule: List[int],
-    timeslot_len: int,
     tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
@@ -353,8 +333,6 @@ def check_trap(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
         tem=tem,
     )
 
@@ -393,8 +371,6 @@ def compute_succ_prob_trap(
     num_clients: int,
     num_iterations: List[int],
     deadlines: List[int],
-    global_schedule: List[int],
-    timeslot_len: int,
     tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
@@ -409,8 +385,6 @@ def compute_succ_prob_trap(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
         tem=tem,
     )
 
@@ -420,8 +394,6 @@ def bqc_computation(num_clients: int, num_iterations: int, tem: TaskExecutionMod
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
         deadlines=[1e9] * num_clients,
-        global_schedule=[i for i in range(num_clients)],
-        timeslot_len=1e6,
         tem=tem,
     )
     print(f"success probabilities: {succ_probs}")
@@ -433,8 +405,6 @@ def bqc_trap(num_clients: int, num_iterations: int, tem: TaskExecutionMode):
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
         deadlines=[1e9] * num_clients,
-        global_schedule=[i for i in range(num_clients)],
-        timeslot_len=1e6,
         tem=tem,
     )
     print(f"success probabilities: {succ_probs}")

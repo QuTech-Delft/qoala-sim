@@ -67,10 +67,6 @@ def create_process(
     return process
 
 
-def create_network_info(names: List[str]) -> StaticNetworkInfo:
-    return StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-
-
 def create_procnode(
     part: str,
     name: str,
@@ -277,13 +273,14 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    network_info = create_network_info(names=["client", "server"])
+    nodes = {0: "client", 1: "server"}
+    network_info = StaticNetworkInfo.with_nodes(nodes)
     server_id = network_info.get_node_id("server")
     client_id = network_info.get_node_id("client")
 
     link_info = LhiLinkInfo.perfect(1000)
     ehi_link = LhiConverter.link_info_to_ehi(link_info)
-    network_ehi = EhiNetworkInfo.fully_connected([server_id, client_id], ehi_link)
+    network_ehi = EhiNetworkInfo.fully_connected(nodes, ehi_link)
 
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:

@@ -160,8 +160,9 @@ def test_build_procnode():
     cfg = ProcNodeConfig(
         node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
     )
-    network_info = StaticNetworkInfo.with_nodes({42: "the_node", 43: "other_node"})
-    network_ehi = EhiNetworkInfo.perfect_fully_connected([42, 43], duration=1000)
+    nodes = {42: "the_node", 43: "other_node"}
+    network_info = StaticNetworkInfo.with_nodes(nodes)
+    network_ehi = EhiNetworkInfo.perfect_fully_connected(nodes, duration=1000)
 
     procnode = build_procnode(cfg, network_info, network_ehi)
 
@@ -267,9 +268,10 @@ def test_build_network_from_lhi():
         name="alice", id=42, topology=topology, latencies=latencies
     )
     bob_lhi = LhiProcNodeInfo(name="bob", id=43, topology=topology, latencies=latencies)
-    network_info = StaticNetworkInfo.with_nodes({42: "alice", 43: "bob"})
+    nodes = {42: "alice", 43: "bob"}
+    network_info = StaticNetworkInfo.with_nodes(nodes)
 
-    network_lhi = LhiNetworkInfo.perfect_fully_connected([42, 43], 100_000)
+    network_lhi = LhiNetworkInfo.perfect_fully_connected(nodes, 100_000)
     network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
 
     assert len(network.nodes) == 2

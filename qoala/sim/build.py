@@ -349,7 +349,8 @@ def build_network(
         ehi_link = LhiConverter.link_info_to_ehi(lhi_link)
         ids = (link_between_nodes.node_id1, link_between_nodes.node_id2)
         ehi_links[ids] = ehi_link
-    network_ehi = EhiNetworkInfo(ehi_links)
+    nodes = {cfg.node_id: cfg.node_name for cfg in config.nodes}
+    network_ehi = EhiNetworkInfo(nodes, ehi_links)
 
     for cfg in config.nodes:
         procnodes[cfg.node_name] = build_procnode(cfg, network_info, network_ehi)
