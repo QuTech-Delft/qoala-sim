@@ -14,7 +14,6 @@ from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
@@ -70,7 +69,6 @@ def create_process(
 def create_procnode(
     part: str,
     name: str,
-    env: StaticNetworkInfo,
     num_qubits: int,
     network_ehi: EhiNetworkInfo,
     procnode_cls: Type[ProcNode] = ProcNode,
@@ -80,11 +78,10 @@ def create_procnode(
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
     qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
 
-    node_id = env.get_node_id(name)
+    node_id = network_ehi.get_node_id(name)
     procnode = procnode_cls(
         part=part,
         name=name,
-        static_network_info=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=LhiLatencies(qnos_instr_time=1000),
@@ -102,7 +99,6 @@ class BqcProcNode(ProcNode):
     def __init__(
         self,
         name: str,
-        static_network_info: StaticNetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
@@ -114,7 +110,6 @@ class BqcProcNode(ProcNode):
     ) -> None:
         super().__init__(
             name=name,
-            static_network_info=static_network_info,
             qprocessor=qprocessor,
             qdevice_topology=qdevice_topology,
             latencies=latencies,
@@ -274,13 +269,12 @@ def run_bqc(
 
     num_qubits = 3
     nodes = {0: "client", 1: "server"}
-    network_info = StaticNetworkInfo.with_nodes(nodes)
-    server_id = network_info.get_node_id("server")
-    client_id = network_info.get_node_id("client")
 
     link_info = LhiLinkInfo.perfect(1000)
     ehi_link = LhiConverter.link_info_to_ehi(link_info)
     network_ehi = EhiNetworkInfo.fully_connected(nodes, ehi_link)
+    server_id = network_ehi.get_node_id("server")
+    client_id = network_ehi.get_node_id("client")
 
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:
@@ -290,7 +284,6 @@ def run_bqc(
     server_procnode = create_procnode(
         part,
         "server",
-        network_info,
         num_qubits,
         network_ehi,
         ServerProcNode,
@@ -314,7 +307,6 @@ def run_bqc(
     client_procnode = create_procnode(
         part,
         "client",
-        network_info,
         num_qubits,
         network_ehi,
         ClientProcNode,

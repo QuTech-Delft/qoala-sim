@@ -8,7 +8,6 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.build import build_network
 
 
@@ -24,9 +23,6 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
 def test_perfect_links():
     server_id = 0
     client_id = 1
-    network_info = StaticNetworkInfo.with_nodes(
-        {server_id: "server", client_id: "client"}
-    )
 
     num_qubits = 1
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
@@ -35,7 +31,7 @@ def test_perfect_links():
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg, network_info)
+    network = build_network(network_cfg)
 
     server = network.nodes["server"]
     link_info = server.network_ehi.get_link(server_id, client_id)
@@ -46,9 +42,6 @@ def test_perfect_links():
 def test_depolarise_links():
     server_id = 0
     client_id = 1
-    network_info = StaticNetworkInfo.with_nodes(
-        {server_id: "server", client_id: "client"}
-    )
 
     num_qubits = 1
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
@@ -62,7 +55,7 @@ def test_depolarise_links():
     network_cfg = ProcNodeNetworkConfig(
         nodes=[server_node_cfg, client_node_cfg], links=[link_between_cfg]
     )
-    network = build_network(network_cfg, network_info)
+    network = build_network(network_cfg)
 
     server = network.nodes["server"]
     link_info = server.network_ehi.get_link(server_id, client_id)

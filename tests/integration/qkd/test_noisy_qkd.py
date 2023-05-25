@@ -18,16 +18,10 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
 from qoala.util.math import fidelity_to_prob_max_mixed
-
-
-def create_network_info(names: List[str]) -> StaticNetworkInfo:
-    env = StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-    return env
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -77,9 +71,8 @@ def run_qkd(
     ns.sim_reset()
 
     num_qubits = 3
-    network_info = create_network_info(names=["alice", "bob"])
-    alice_id = network_info.get_node_id("alice")
-    bob_id = network_info.get_node_id("bob")
+    alice_id = 0
+    bob_id = 1
 
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
@@ -91,7 +84,7 @@ def run_qkd(
     network_cfg = ProcNodeNetworkConfig(
         nodes=[alice_node_cfg, bob_node_cfg], links=[link_between_cfg]
     )
-    network = build_network(network_cfg, network_info)
+    network = build_network(network_cfg)
     alice_procnode = network.nodes["alice"]
     bob_procnode = network.nodes["bob"]
 

@@ -5,7 +5,6 @@ from typing import Generator
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.events import (
@@ -147,7 +146,7 @@ class NetstackInterface(ComponentProtocol):
         return self._memmgr
 
     def remote_id_to_peer_name(self, remote_id: int) -> str:
-        return self._static_network_info.get_nodes()[remote_id]
+        return self._ehi_network.nodes[remote_id]
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)

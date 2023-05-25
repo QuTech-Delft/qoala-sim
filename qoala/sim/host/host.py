@@ -3,7 +3,6 @@ from __future__ import annotations
 from netsquid.protocols import Protocol
 
 from qoala.lang.ehi import EhiNetworkInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
@@ -46,10 +45,6 @@ class Host(Protocol):
     @property
     def processor(self) -> HostProcessor:
         return self._processor
-
-    @property
-    def static_network_info(self) -> StaticNetworkInfo:
-        return self._static_network_info
 
     def start(self) -> None:
         assert self._interface is not None

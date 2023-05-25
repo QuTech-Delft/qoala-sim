@@ -9,7 +9,6 @@ from qoala.lang.ehi import EhiNodeInfo, UnitModule
 from qoala.lang.hostlang import BasicBlockType
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import (
     LhiLatencies,
     LhiLinkInfo,
@@ -101,9 +100,8 @@ def setup_network() -> ProcNodeNetwork:
     )
     nodes = {0: "alice", 1: "bob"}
     network_lhi = LhiNetworkInfo.fully_connected(nodes, link_info)
-    network_info = StaticNetworkInfo.with_nodes(nodes)
     bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
-    return build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
+    return build_network_from_lhi([alice_lhi, bob_lhi], network_lhi)
 
 
 def instantiate(

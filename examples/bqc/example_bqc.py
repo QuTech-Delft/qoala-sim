@@ -17,7 +17,6 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
@@ -26,14 +25,6 @@ from qoala.sim.network import ProcNodeNetwork
 INSTR_LATENCY = 1e5
 CC_LATENCY = 1e6
 QC_EXPECTATION = 30e6
-
-
-def create_network_info(num_clients: int) -> StaticNetworkInfo:
-    nodes = {i: f"client_{i}" for i in range(1, num_clients + 1)}
-    nodes[0] = "server"
-    env = StaticNetworkInfo.with_nodes(nodes)
-
-    return env
 
 
 def topology_config(num_qubits: int) -> TopologyConfig:
@@ -90,8 +81,6 @@ def create_network(
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
-    network_info = create_network_info(num_clients)
-
     node_cfgs = [server_cfg] + client_configs
 
     link_config = LinkConfig.from_file(relative_to_cwd("link_config.yaml"))
@@ -103,7 +92,7 @@ def create_network(
     ]
 
     network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=links)
-    return build_network(network_cfg, network_info)
+    return build_network(network_cfg)
 
 
 @dataclass

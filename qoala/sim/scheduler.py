@@ -9,7 +9,6 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
     BatchInfo,
@@ -44,7 +43,6 @@ class NodeScheduler(Protocol):
         qnos: Qnos,
         netstack: Netstack,
         memmgr: MemoryManager,
-        static_network_info: StaticNetworkInfo,
         local_ehi: EhiNodeInfo,
         network_ehi: EhiNetworkInfo,
         tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
@@ -61,7 +59,6 @@ class NodeScheduler(Protocol):
         self._qnos = qnos
         self._netstack = netstack
         self._memmgr = memmgr
-        self._static_network_info = static_network_info
         self._local_ehi = local_ehi
         self._network_ehi = network_ehi
         self._tem = tem

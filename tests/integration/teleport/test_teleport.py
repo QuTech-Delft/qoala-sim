@@ -15,15 +15,9 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
-
-
-def create_network_info(names: List[str]) -> StaticNetworkInfo:
-    env = StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-    return env
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -76,9 +70,8 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     ns.sim_reset()
 
     num_qubits = 3
-    network_info = create_network_info(names=["bob", "alice"])
-    alice_id = network_info.get_node_id("alice")
-    bob_id = network_info.get_node_id("bob")
+    alice_id = 1
+    bob_id = 0
 
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
@@ -86,7 +79,7 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg, network_info)
+    network = build_network(network_cfg)
     alice_procnode = network.nodes["alice"]
     bob_procnode = network.nodes["bob"]
 

@@ -6,7 +6,6 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies

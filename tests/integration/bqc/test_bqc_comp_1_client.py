@@ -15,15 +15,9 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
 from qoala.sim.build import build_network
-
-
-def create_network_info(names: List[str]) -> StaticNetworkInfo:
-    env = StaticNetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-    return env
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -74,9 +68,8 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    network_info = create_network_info(names=["client", "server"])
-    server_id = network_info.get_node_id("server")
-    client_id = network_info.get_node_id("client")
+    client_id = 0
+    server_id = 1
 
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
     server_node_cfg.tem = tem.name
@@ -86,7 +79,7 @@ def run_bqc(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg, network_info)
+    network = build_network(network_cfg)
     server_procnode = network.nodes["server"]
     client_procnode = network.nodes["client"]
 

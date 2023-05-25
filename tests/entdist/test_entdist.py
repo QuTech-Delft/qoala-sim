@@ -14,7 +14,6 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from qoala.lang.ehi import EhiNetworkInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import (

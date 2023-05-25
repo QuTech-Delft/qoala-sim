@@ -6,7 +6,6 @@ from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
 from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
@@ -29,7 +28,6 @@ class ProcNode(Protocol):
     def __init__(
         self,
         name: str,
-        static_network_info: StaticNetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
@@ -62,7 +60,6 @@ class ProcNode(Protocol):
         else:
             self._node = ProcNodeComponent(name, qprocessor, network_ehi, node_id)
 
-        self._static_network_info = static_network_info
         self._network_ehi = network_ehi
         self._ntf_interface = ntf_interface
         self._asynchronous = asynchronous
@@ -115,7 +112,6 @@ class ProcNode(Protocol):
                 self._qnos,
                 self._netstack,
                 self._memmgr,
-                self._static_network_info,
                 self._local_ehi,
                 self._network_ehi,
                 self._tem,

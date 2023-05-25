@@ -7,7 +7,6 @@ from netsquid.nodes import Node
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
 from qoala.sim.netstack.netstackcomp import NetstackComponent

@@ -5,7 +5,6 @@ from typing import Generator
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.events import (

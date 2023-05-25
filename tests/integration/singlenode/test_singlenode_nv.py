@@ -14,17 +14,11 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.program import BatchInfo, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network
 from qoala.sim.network import ProcNodeNetwork
 from qoala.util.logging import LogManager
-
-
-def create_network_info() -> StaticNetworkInfo:
-    env = StaticNetworkInfo.with_nodes({0: "alice"})
-    return env
 
 
 def get_config() -> ProcNodeConfig:
@@ -40,10 +34,8 @@ def get_config() -> ProcNodeConfig:
 def create_network(
     node_cfg: ProcNodeConfig,
 ) -> ProcNodeNetwork:
-    network_info = create_network_info()
-
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
-    return build_network(network_cfg, network_info)
+    return build_network(network_cfg)
 
 
 def load_program(name: str) -> QoalaProgram:

@@ -22,7 +22,6 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
@@ -161,10 +160,9 @@ def test_build_procnode():
         node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
     )
     nodes = {42: "the_node", 43: "other_node"}
-    network_info = StaticNetworkInfo.with_nodes(nodes)
     network_ehi = EhiNetworkInfo.perfect_fully_connected(nodes, duration=1000)
 
-    procnode = build_procnode(cfg, network_info, network_ehi)
+    procnode = build_procnode(cfg, network_ehi)
 
     assert procnode.node.name == "the_node"
     procnode.host_comp.peer_in_port("other_node")  # should not raise error
@@ -197,12 +195,11 @@ def test_build_network():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    network_info = StaticNetworkInfo.with_nodes({42: "alice", 43: "bob"})
 
     link_cfg = LinkConfig.perfect_config(state_delay=1000)
     link_ab = LinkBetweenNodesConfig(node_id1=42, node_id2=43, link_config=link_cfg)
     cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[link_ab])
-    network = build_network(cfg, network_info)
+    network = build_network(cfg)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -243,12 +240,10 @@ def test_build_network_perfect_links():
     cfg_bob = ProcNodeConfig(
         node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
     )
-    network_info = StaticNetworkInfo.with_nodes({42: "alice", 43: "bob"})
-
     cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[cfg_alice, cfg_bob], link_duration=500
     )
-    network = build_network(cfg, network_info)
+    network = build_network(cfg)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -269,10 +264,9 @@ def test_build_network_from_lhi():
     )
     bob_lhi = LhiProcNodeInfo(name="bob", id=43, topology=topology, latencies=latencies)
     nodes = {42: "alice", 43: "bob"}
-    network_info = StaticNetworkInfo.with_nodes(nodes)
 
     network_lhi = LhiNetworkInfo.perfect_fully_connected(nodes, 100_000)
-    network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
+    network = build_network_from_lhi([alice_lhi, bob_lhi], network_lhi)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes

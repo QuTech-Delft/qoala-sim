@@ -40,7 +40,6 @@ from qoala.runtime.config import (  # type: ignore
     ProcNodeConfig,
     ProcNodeNetworkConfig,
 )
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import (
     INSTR_MEASURE_INSTANT,
     LhiLatencies,
@@ -248,9 +247,7 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     return qmem
 
 
-def build_procnode(
-    cfg: ProcNodeConfig, network_info: StaticNetworkInfo, network_ehi: EhiNetworkInfo
-) -> ProcNode:
+def build_procnode(cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo) -> ProcNode:
     # TODO: Refactor ad-hoc way of old NV config
     # TODO: Refactor how ntf interface is configured!
     ntf_interface: NativeToFlavourInterface
@@ -269,7 +266,6 @@ def build_procnode(
         tem = TaskExecutionMode[cfg.tem.upper()]
     procnode = ProcNode(
         cfg.node_name,
-        static_network_info=network_info,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
@@ -337,10 +333,7 @@ def build_ll_protocol(
     )
 
 
-def build_network(
-    config: ProcNodeNetworkConfig,
-    network_info: StaticNetworkInfo,
-) -> ProcNodeNetwork:
+def build_network(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
     ehi_links: Dict[Tuple[int, int], EhiLinkInfo] = {}
@@ -353,7 +346,7 @@ def build_network(
     network_ehi = EhiNetworkInfo(nodes, ehi_links)
 
     for cfg in config.nodes:
-        procnodes[cfg.node_name] = build_procnode(cfg, network_info, network_ehi)
+        procnodes[cfg.node_name] = build_procnode(cfg, network_ehi)
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
     entdistcomp = EntDistComponent(network_ehi)
@@ -380,7 +373,6 @@ def build_procnode_from_lhi(
     name: str,
     topology: LhiTopology,
     latencies: LhiLatencies,
-    network_info: StaticNetworkInfo,
     network_lhi: LhiNetworkInfo,
 ) -> ProcNode:
     qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
@@ -388,7 +380,6 @@ def build_procnode_from_lhi(
     return ProcNode(
         name=name,
         node_id=id,
-        static_network_info=network_info,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
@@ -399,14 +390,13 @@ def build_procnode_from_lhi(
 
 def build_network_from_lhi(
     procnode_infos: List[LhiProcNodeInfo],
-    network_info: StaticNetworkInfo,
     network_lhi: LhiNetworkInfo,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
     for info in procnode_infos:
         procnode = build_procnode_from_lhi(
-            info.id, info.name, info.topology, info.latencies, network_info, network_lhi
+            info.id, info.name, info.topology, info.latencies, network_lhi
         )
         procnodes[info.name] = procnode
 
