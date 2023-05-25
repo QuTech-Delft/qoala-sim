@@ -5,6 +5,7 @@ from typing import Generator
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackcomp import NetstackComponent
@@ -19,7 +20,7 @@ class Netstack(Protocol):
     def __init__(
         self,
         comp: NetstackComponent,
-        static_network_info: StaticNetworkInfo,
+        ehi_network: EhiNetworkInfo,
         memmgr: MemoryManager,
         qdevice: QDevice,
         latencies: NetstackLatencies,
@@ -34,10 +35,10 @@ class Netstack(Protocol):
 
         # References to objects.
         self._comp = comp
-        self._static_network_info = static_network_info
+        self._ehi_network = ehi_network
 
         # Owned objects.
-        self._interface = NetstackInterface(comp, static_network_info, qdevice, memmgr)
+        self._interface = NetstackInterface(comp, ehi_network, qdevice, memmgr)
         self._processor = NetstackProcessor(self._interface, latencies)
 
     def run(self) -> Generator[EventExpression, None, None]:

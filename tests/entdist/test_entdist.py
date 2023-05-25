@@ -13,6 +13,7 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
@@ -62,9 +63,9 @@ def create_joint_request(
 
 
 def create_entdist(nodes: List[Node]) -> EntDist:
-    env = StaticNetworkInfo.with_nodes({node.ID: node.name for node in nodes})
-    comp = EntDistComponent(env)
-    return EntDist(nodes=nodes, static_network_info=env, comp=comp)
+    ehi_network = EhiNetworkInfo.only_nodes({node.ID: node.name for node in nodes})
+    comp = EntDistComponent(ehi_network)
+    return EntDist(nodes=nodes, ehi_network=ehi_network, comp=comp)
 
 
 def test_add_sampler():

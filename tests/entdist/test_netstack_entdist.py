@@ -4,7 +4,7 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import EhiBuilder, UnitModule
+from qoala.lang.ehi import EhiBuilder, EhiNetworkInfo, UnitModule
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
@@ -15,7 +15,6 @@ from qoala.lang.request import (
     RequestVirtIdMapping,
 )
 from qoala.lang.routine import LocalRoutine
-from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
@@ -38,11 +37,11 @@ class MockNetstackInterface(NetstackInterface):
     def __init__(
         self,
         comp: NetstackComponent,
-        static_network_info: StaticNetworkInfo,
+        ehi_network: EhiNetworkInfo,
         qdevice: QDevice,
         requests: List[EntDistRequest],
     ) -> None:
-        super().__init__(comp, static_network_info, qdevice, None)
+        super().__init__(comp, ehi_network, qdevice, None)
         self._requests = requests
 
 
@@ -87,15 +86,15 @@ def setup_components() -> Tuple[
 ]:
     alice, bob = create_alice_bob_qdevices(num_qubits=3)
 
-    env = StaticNetworkInfo.with_nodes(
+    ehi_network = EhiNetworkInfo.only_nodes(
         {alice.node.ID: alice.node.name, bob.node.ID: bob.node.name}
     )
-    alice_comp = NetstackComponent(alice.node, env)
-    bob_comp = NetstackComponent(bob.node, env)
-    entdist_comp = EntDistComponent(env)
+    alice_comp = NetstackComponent(alice.node, ehi_network)
+    bob_comp = NetstackComponent(bob.node, ehi_network)
+    entdist_comp = EntDistComponent(ehi_network)
 
     entdist = EntDist(
-        nodes=[alice.node, bob.node], static_network_info=env, comp=entdist_comp
+        nodes=[alice.node, bob.node], ehi_network=ehi_network, comp=entdist_comp
     )
 
     alice_comp.entdist_out_port.connect(entdist_comp.node_in_port("alice"))
@@ -121,7 +120,7 @@ def test_single_pair_only_netstack_interface():
             self.send_entdist_msg(Message(self._requests[0]))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
-    env: StaticNetworkInfo = entdist._static_network_info
+    ehi_network: EhiNetworkInfo = entdist._ehi_network
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
@@ -129,9 +128,11 @@ def test_single_pair_only_netstack_interface():
     request_bob = create_request(bob_id, alice_id)
 
     alice_intf = AliceNetstackInterface(
-        alice_comp, env, alice_qdevice, requests=[request_alice]
+        alice_comp, ehi_network, alice_qdevice, requests=[request_alice]
     )
-    bob_intf = BobNetstackInterface(bob_comp, env, bob_qdevice, requests=[request_bob])
+    bob_intf = BobNetstackInterface(
+        bob_comp, ehi_network, bob_qdevice, requests=[request_bob]
+    )
 
     alice_intf.start()
     bob_intf.start()
@@ -157,7 +158,7 @@ def test_multiple_pairs_only_netstack_interface():
                 self.send_entdist_msg(Message(request))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
-    env: StaticNetworkInfo = entdist._static_network_info
+    ehi_network: EhiNetworkInfo = entdist._ehi_network
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
@@ -173,9 +174,11 @@ def test_multiple_pairs_only_netstack_interface():
     ]
 
     alice_intf = AliceNetstackInterface(
-        alice_comp, env, alice_qdevice, requests=requests_alice
+        alice_comp, ehi_network, alice_qdevice, requests=requests_alice
     )
-    bob_intf = BobNetstackInterface(bob_comp, env, bob_qdevice, requests=requests_bob)
+    bob_intf = BobNetstackInterface(
+        bob_comp, ehi_network, bob_qdevice, requests=requests_bob
+    )
 
     alice_intf.start()
     bob_intf.start()
@@ -200,19 +203,19 @@ def setup_components_full_netstack(
         num_qubits=num_qubits, alice_id=alice_id, bob_id=bob_id
     )
 
-    env = StaticNetworkInfo.with_nodes(
+    ehi_network = EhiNetworkInfo.only_nodes(
         {
             alice_qdevice.node.ID: alice_qdevice.node.name,
             bob_qdevice.node.ID: bob_qdevice.node.name,
         }
     )
-    alice_comp = NetstackComponent(alice_qdevice.node, env)
-    bob_comp = NetstackComponent(bob_qdevice.node, env)
-    entdist_comp = EntDistComponent(env)
+    alice_comp = NetstackComponent(alice_qdevice.node, ehi_network)
+    bob_comp = NetstackComponent(bob_qdevice.node, ehi_network)
+    entdist_comp = EntDistComponent(ehi_network)
 
     entdist = EntDist(
         nodes=[alice_qdevice.node, bob_qdevice.node],
-        static_network_info=env,
+        ehi_network=ehi_network,
         comp=entdist_comp,
     )
 
@@ -226,14 +229,14 @@ def setup_components_full_netstack(
 
     alice_netstack = alice_netstack_cls(
         comp=alice_comp,
-        static_network_info=env,
+        ehi_network=ehi_network,
         memmgr=MemoryManager("alice", alice_qdevice),
         qdevice=alice_qdevice,
         latencies=NetstackLatencies.all_zero(),
     )
     bob_netstack = bob_netstack_cls(
         comp=bob_comp,
-        static_network_info=env,
+        ehi_network=ehi_network,
         memmgr=MemoryManager("bob", bob_qdevice),
         qdevice=bob_qdevice,
         latencies=NetstackLatencies.all_zero(),

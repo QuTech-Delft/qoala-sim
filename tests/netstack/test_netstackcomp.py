@@ -6,16 +6,15 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.netstack import NetstackComponent, NetstackInterface
 
 
 class MockNetstackInterface(NetstackInterface):
-    def __init__(
-        self, comp: NetstackComponent, static_network_info: StaticNetworkInfo
-    ) -> None:
-        super().__init__(comp, static_network_info, None, None)
+    def __init__(self, comp: NetstackComponent, ehi_network: EhiNetworkInfo) -> None:
+        super().__init__(comp, ehi_network, None, None)
 
 
 def create_netstackcomp(num_other_nodes: int) -> NetstackComponent:
@@ -23,9 +22,9 @@ def create_netstackcomp(num_other_nodes: int) -> NetstackComponent:
 
     nodes = {id: f"node_{id}" for id in range(1, num_other_nodes + 1)}
     nodes[0] = "alice"
-    env = StaticNetworkInfo.with_nodes(nodes)
+    ehi_network = EhiNetworkInfo.only_nodes(nodes)
 
-    return NetstackComponent(node, env)
+    return NetstackComponent(node, ehi_network)
 
 
 def test_no_other_nodes():
@@ -92,10 +91,10 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = StaticNetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
+    ehi_network = EhiNetworkInfo.only_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
-    alice_comp = NetstackComponent(alice, env)
-    bob_comp = NetstackComponent(bob, env)
+    alice_comp = NetstackComponent(alice, ehi_network)
+    bob_comp = NetstackComponent(bob, ehi_network)
 
     alice_comp.peer_out_port("bob").connect(bob_comp.peer_in_port("alice"))
     alice_comp.peer_in_port("bob").connect(bob_comp.peer_out_port("alice"))
@@ -109,8 +108,8 @@ def test_connection():
             msg = yield from self.receive_peer_msg("alice")
             assert msg.content == "hello"
 
-    alice_intf = AliceNetstackInterface(alice_comp, env)
-    bob_intf = BobNetstackInterface(bob_comp, env)
+    alice_intf = AliceNetstackInterface(alice_comp, ehi_network)
+    bob_intf = BobNetstackInterface(bob_comp, ehi_network)
 
     alice_intf.start()
     bob_intf.start()
@@ -124,13 +123,13 @@ def test_three_way_connection():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = StaticNetworkInfo.with_nodes(
+    ehi_network = EhiNetworkInfo.only_nodes(
         {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
     )
 
-    alice_comp = NetstackComponent(alice, env)
-    bob_comp = NetstackComponent(bob, env)
-    charlie_comp = NetstackComponent(charlie, env)
+    alice_comp = NetstackComponent(alice, ehi_network)
+    bob_comp = NetstackComponent(bob, ehi_network)
+    charlie_comp = NetstackComponent(charlie, ehi_network)
 
     alice_comp.peer_out_port("bob").connect(bob_comp.peer_in_port("alice"))
     alice_comp.peer_in_port("bob").connect(bob_comp.peer_out_port("alice"))
@@ -154,9 +153,9 @@ def test_three_way_connection():
             msg = yield from self.receive_peer_msg("alice")
             assert msg.content == "hello charlie"
 
-    alice_intf = AliceNetstackInterface(alice_comp, env)
-    bob_intf = BobNetstackInterface(bob_comp, env)
-    charlie_intf = CharlieNetstackInterface(charlie_comp, env)
+    alice_intf = AliceNetstackInterface(alice_comp, ehi_network)
+    bob_intf = BobNetstackInterface(bob_comp, ehi_network)
+    charlie_intf = CharlieNetstackInterface(charlie_comp, ehi_network)
 
     alice_intf.start()
     bob_intf.start()

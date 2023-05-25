@@ -6,7 +6,7 @@ from netsquid.components import QuantumProcessor
 from netsquid.components.component import Port
 from netsquid.nodes import Node
 
-from qoala.runtime.environment import StaticNetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.sim.host.hostcomp import HostComponent
 from qoala.sim.netstack import NetstackComponent
 from qoala.sim.qnos import QnosComponent
@@ -36,7 +36,7 @@ class ProcNodeComponent(Node):
         self,
         name: str,
         qprocessor: QuantumProcessor,
-        static_network_info: StaticNetworkInfo,
+        ehi_network: EhiNetworkInfo,
         node_id: Optional[int] = None,
     ) -> None:
         """ProcNodeComponent constructor. Typically created indirectly through
@@ -47,10 +47,10 @@ class ProcNodeComponent(Node):
         qnos_comp = QnosComponent(self)
         self.add_subcomponent(qnos_comp, "qnos")
 
-        host_comp = HostComponent(self, static_network_info)
+        host_comp = HostComponent(self, ehi_network)
         self.add_subcomponent(host_comp, "host")
 
-        netstack_comp = NetstackComponent(self, static_network_info)
+        netstack_comp = NetstackComponent(self, ehi_network)
         self.add_subcomponent(netstack_comp, "netstack")
 
         self.host_comp.ports["qnos_out"].connect(self.qnos_comp.ports["host_in"])
@@ -67,7 +67,7 @@ class ProcNodeComponent(Node):
         self.netstack_comp.entdist_out_port.forward_output(self.entdist_out_port)
         self.entdist_in_port.forward_input(self.netstack_comp.entdist_in_port)
 
-        for other_node in static_network_info.get_nodes().values():
+        for other_node in ehi_network.nodes.values():
             if other_node == self.name:
                 continue
 
@@ -86,7 +86,7 @@ class ProcNodeComponent(Node):
         self.add_ports(self._host_peer_in_ports.values())
         self.add_ports(self._host_peer_out_ports.values())
 
-        for other_node in static_network_info.get_nodes().values():
+        for other_node in ehi_network.nodes.values():
             if other_node == self.name:
                 continue
             self.netstack_comp.peer_out_port(other_node).forward_output(

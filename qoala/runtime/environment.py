@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
-
-from qoala.lang.ehi import EhiLinkInfo
+from typing import Dict, List
 
 
 class StaticNetworkInfo:

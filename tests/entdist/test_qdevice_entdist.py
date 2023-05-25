@@ -4,6 +4,7 @@ from typing import List, Tuple
 import netsquid as ns
 from netsquid.nodes import Node
 
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
@@ -26,12 +27,12 @@ def create_n_qdevices(n: int, num_qubits: int = 1) -> List[QDevice]:
 
 
 def create_entdist(qdevices: List[QDevice]) -> EntDist:
-    env = StaticNetworkInfo.with_nodes(
+    ehi_network = EhiNetworkInfo.only_nodes(
         {qdevice.node.ID: qdevice.node.name for qdevice in qdevices}
     )
-    comp = EntDistComponent(env)
+    comp = EntDistComponent(ehi_network)
     entdist = EntDist(
-        nodes=[qdevice.node for qdevice in qdevices], static_network_info=env, comp=comp
+        nodes=[qdevice.node for qdevice in qdevices], ehi_network=ehi_network, comp=comp
     )
 
     link_info = LhiLinkInfo.perfect(1000)

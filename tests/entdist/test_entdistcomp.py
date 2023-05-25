@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from qoala.runtime.environment import StaticNetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 
 
 def create_entdistcomp(num_nodes: int) -> EntDistComponent:
     nodes = {id: f"node_{id}" for id in range(num_nodes)}
-    env = StaticNetworkInfo.with_nodes(nodes)
+    ehi_network = EhiNetworkInfo.only_nodes(nodes)
 
-    return EntDistComponent(env)
+    return EntDistComponent(ehi_network)
 
 
 def test_one_node():

@@ -356,10 +356,8 @@ def build_network(
         procnodes[cfg.node_name] = build_procnode(cfg, network_info, network_ehi)
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
-    entdistcomp = EntDistComponent(network_info)
-    entdist = EntDist(
-        nodes=ns_nodes, static_network_info=network_info, comp=entdistcomp
-    )
+    entdistcomp = EntDistComponent(network_ehi)
+    entdist = EntDist(nodes=ns_nodes, ehi_network=network_ehi, comp=entdistcomp)
 
     for link_between_nodes in config.links:
         link = LhiLinkInfo.from_config(link_between_nodes.link_config)
@@ -413,10 +411,9 @@ def build_network_from_lhi(
         procnodes[info.name] = procnode
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
-    entdistcomp = EntDistComponent(network_info)
-    entdist = EntDist(
-        nodes=ns_nodes, static_network_info=network_info, comp=entdistcomp
-    )
+    network_ehi = LhiConverter.network_to_ehi(network_lhi)
+    entdistcomp = EntDistComponent(network_ehi)
+    entdist = EntDist(nodes=ns_nodes, ehi_network=network_ehi, comp=entdistcomp)
 
     for ([n1, n2], link_info) in network_lhi.links.items():
         entdist.add_sampler(n1, n2, link_info)

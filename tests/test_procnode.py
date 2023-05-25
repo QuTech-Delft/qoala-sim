@@ -42,7 +42,6 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
-from qoala.sim import network
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -226,7 +225,7 @@ def create_network_info(
 
 def create_network_ehi(
     num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
-) -> StaticNetworkInfo:
+) -> EhiNetworkInfo:
     nodes = {i: name for i, name in enumerate(names)}
     return EhiNetworkInfo(nodes, links={})
 
@@ -796,12 +795,12 @@ def test_epr():
     alice_procnode.connect_to(bob_procnode)
 
     nodes = [alice_procnode.node, bob_procnode.node]
-    entdistcomp = EntDistComponent(network_info)
+    entdistcomp = EntDistComponent(network_ehi)
     alice_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("alice"))
     alice_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("alice"))
     bob_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("bob"))
     bob_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("bob"))
-    entdist = EntDist(nodes=nodes, static_network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, ehi_network=network_ehi, comp=entdistcomp)
     link_info = LhiLinkInfo.perfect(1000)
     entdist.add_sampler(alice_procnode.node.ID, bob_procnode.node.ID, link_info)
 
@@ -938,12 +937,12 @@ REQUEST req1
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(network_info)
+    entdistcomp = EntDistComponent(network_ehi)
     client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, static_network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, ehi_network=network_ehi, comp=entdistcomp)
     link_info = LhiLinkInfo.perfect(1000)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 

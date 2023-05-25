@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional, Type
+from typing import Any, Dict, Generator, Optional, Type
 
 import netsquid as ns
 from netsquid.components import QuantumProcessor
@@ -339,12 +339,12 @@ def run_bqc(
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(network_info)
+    entdistcomp = EntDistComponent(network_ehi)
     client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, static_network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, ehi_network=network_ehi, comp=entdistcomp)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 
     server_procnode.start()

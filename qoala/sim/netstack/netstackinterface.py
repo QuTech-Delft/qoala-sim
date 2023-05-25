@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Generator
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.environment import StaticNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
@@ -37,7 +38,7 @@ class NetstackInterface(ComponentProtocol):
     def __init__(
         self,
         comp: NetstackComponent,
-        static_network_info: StaticNetworkInfo,
+        ehi_network: EhiNetworkInfo,
         qdevice: QDevice,
         memmgr: MemoryManager,
     ) -> None:
@@ -50,7 +51,7 @@ class NetstackInterface(ComponentProtocol):
         super().__init__(name=f"{comp.name}_protocol", comp=comp)
         self._comp = comp
         self._qdevice = qdevice
-        self._static_network_info = static_network_info
+        self._ehi_network = ehi_network
         self._memmgr = memmgr
 
         self.add_listener(
@@ -73,7 +74,7 @@ class NetstackInterface(ComponentProtocol):
             PortListener(self._comp.entdist_in_port, SIGNAL_ENTD_NSTK_MSG),
         )
 
-        for peer in self._static_network_info.get_nodes().values():
+        for peer in self._ehi_network.nodes.values():
             if peer == self._comp.node_name:
                 continue
             self.add_listener(

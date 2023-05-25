@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from netsquid.protocols import Protocol
 
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostcomp import HostComponent
@@ -15,7 +16,7 @@ class Host(Protocol):
     def __init__(
         self,
         comp: HostComponent,
-        static_network_info: StaticNetworkInfo,
+        ehi_network: EhiNetworkInfo,
         latencies: HostLatencies,
         asynchronous: bool = False,
     ) -> None:
@@ -27,10 +28,10 @@ class Host(Protocol):
 
         # References to objects.
         self._comp = comp
-        self._static_network_info = static_network_info
+        self._ehi_network = ehi_network
 
         # Owned objects.
-        self._interface = HostInterface(comp, static_network_info)
+        self._interface = HostInterface(comp, ehi_network)
         self._processor = HostProcessor(self._interface, latencies, asynchronous)
 
     @property

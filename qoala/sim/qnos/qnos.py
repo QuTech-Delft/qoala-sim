@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from netsquid.protocols import Protocol
 
-from qoala.runtime.environment import StaticNetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     NativeToFlavourInterface,
@@ -21,7 +21,7 @@ class Qnos(Protocol):
     def __init__(
         self,
         comp: QnosComponent,
-        static_network_info: StaticNetworkInfo,
+        ehi_network: EhiNetworkInfo,
         memmgr: MemoryManager,
         qdevice: QDevice,
         latencies: QnosLatencies,
@@ -37,7 +37,7 @@ class Qnos(Protocol):
 
         # References to objects.
         self._comp = comp
-        self._static_network_info = static_network_info
+        self._ehi_network = ehi_network
 
         # Owned objects.
         self._interface = QnosInterface(comp, qdevice, memmgr)

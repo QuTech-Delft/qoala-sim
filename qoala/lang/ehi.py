@@ -301,6 +301,10 @@ class EhiNetworkInfo:
     # TODO: Network Schedule info.
 
     @classmethod
+    def only_nodes(cls, nodes: Dict[int, str]) -> EhiNetworkInfo:
+        return EhiNetworkInfo(nodes, {})
+
+    @classmethod
     def fully_connected(
         cls, nodes: Dict[int, str], info: EhiLinkInfo
     ) -> EhiNetworkInfo:

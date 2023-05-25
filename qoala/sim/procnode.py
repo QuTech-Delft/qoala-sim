@@ -60,9 +60,7 @@ class ProcNode(Protocol):
         if node:
             self._node = node
         else:
-            self._node = ProcNodeComponent(
-                name, qprocessor, static_network_info, node_id
-            )
+            self._node = ProcNodeComponent(name, qprocessor, network_ehi, node_id)
 
         self._static_network_info = static_network_info
         self._network_ehi = network_ehi
@@ -88,14 +86,14 @@ class ProcNode(Protocol):
 
         self._host = Host(
             self.host_comp,
-            self._static_network_info,
+            self.network_ehi,
             host_latencies,
             self._asynchronous,
         )
         self._memmgr = MemoryManager(self.node.name, self._qdevice, self._local_ehi)
         self._qnos = Qnos(
             self.qnos_comp,
-            self._static_network_info,
+            self.network_ehi,
             self._memmgr,
             self._qdevice,
             qnos_latencies,
@@ -104,7 +102,7 @@ class ProcNode(Protocol):
         )
         self._netstack = Netstack(
             self.netstack_comp,
-            self._static_network_info,
+            self.network_ehi,
             self._memmgr,
             self._qdevice,
             netstack_latencies,

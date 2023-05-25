@@ -6,6 +6,7 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.environment import StaticNetworkInfo
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
@@ -14,10 +15,8 @@ from qoala.sim.netstack.netstackinterface import NetstackInterface
 
 
 class MockNetstackInterface(NetstackInterface):
-    def __init__(
-        self, comp: NetstackComponent, static_network_info: StaticNetworkInfo
-    ) -> None:
-        super().__init__(comp, static_network_info, None, None)
+    def __init__(self, comp: NetstackComponent, ehi_network: EhiNetworkInfo) -> None:
+        super().__init__(comp, ehi_network, None, None)
 
 
 def test_connection():
@@ -25,11 +24,11 @@ def test_connection():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = StaticNetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
+    ehi_network = EhiNetworkInfo.only_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
-    alice_comp = NetstackComponent(alice, env)
-    bob_comp = NetstackComponent(bob, env)
-    entdist_comp = EntDistComponent(env)
+    alice_comp = NetstackComponent(alice, ehi_network)
+    bob_comp = NetstackComponent(bob, ehi_network)
+    entdist_comp = EntDistComponent(ehi_network)
 
     # Connect both nodes to the Entdist.
     alice_comp.entdist_out_port.connect(entdist_comp.node_in_port("alice"))
@@ -46,8 +45,8 @@ def test_connection():
             self.send_entdist_msg("hello this is Bob")
 
     class TestEntDistInterface(EntDistInterface):
-        def __init__(self, comp: EntDistComponent, env: StaticNetworkInfo) -> None:
-            super().__init__(comp, env)
+        def __init__(self, comp: EntDistComponent, ehi_network: EhiNetworkInfo) -> None:
+            super().__init__(comp, ehi_network)
             self.msg_alice = None
             self.msg_bob = None
 
@@ -55,9 +54,9 @@ def test_connection():
             self.msg_alice = yield from self.receive_node_msg("alice")
             self.msg_bob = yield from self.receive_node_msg("bob")
 
-    alice_intf = AliceNetstackInterface(alice_comp, env)
-    bob_intf = BobNetstackInterface(bob_comp, env)
-    entdist_intf = TestEntDistInterface(entdist_comp, env)
+    alice_intf = AliceNetstackInterface(alice_comp, ehi_network)
+    bob_intf = BobNetstackInterface(bob_comp, ehi_network)
+    entdist_intf = TestEntDistInterface(entdist_comp, ehi_network)
 
     alice_intf.start()
     bob_intf.start()
@@ -74,11 +73,11 @@ def test_wait_for_any_node():
 
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
-    env = StaticNetworkInfo.with_nodes({alice.ID: alice.name, bob.ID: bob.name})
+    ehi_network = EhiNetworkInfo.only_nodes({alice.ID: alice.name, bob.ID: bob.name})
 
-    alice_comp = NetstackComponent(alice, env)
-    bob_comp = NetstackComponent(bob, env)
-    entdist_comp = EntDistComponent(env)
+    alice_comp = NetstackComponent(alice, ehi_network)
+    bob_comp = NetstackComponent(bob, ehi_network)
+    entdist_comp = EntDistComponent(ehi_network)
 
     # Connect both nodes to the Entdist.
     alice_comp.entdist_out_port.connect(entdist_comp.node_in_port("alice"))
@@ -99,8 +98,8 @@ def test_wait_for_any_node():
             self.send_entdist_msg("hello again from Bob")
 
     class TestEntDistInterface(EntDistInterface):
-        def __init__(self, comp: EntDistComponent, env: StaticNetworkInfo) -> None:
-            super().__init__(comp, env)
+        def __init__(self, comp: EntDistComponent, ehi_network: EhiNetworkInfo) -> None:
+            super().__init__(comp, ehi_network)
             self.messages: List[str] = []
 
         def run(self) -> Generator[EventExpression, None, None]:
@@ -109,9 +108,9 @@ def test_wait_for_any_node():
             self.messages.append((yield from self.receive_msg()))
             self.messages.append((yield from self.receive_msg()))
 
-    alice_intf = AliceNetstackInterface(alice_comp, env)
-    bob_intf = BobNetstackInterface(bob_comp, env)
-    entdist_intf = TestEntDistInterface(entdist_comp, env)
+    alice_intf = AliceNetstackInterface(alice_comp, ehi_network)
+    bob_intf = BobNetstackInterface(bob_comp, ehi_network)
+    entdist_intf = TestEntDistInterface(entdist_comp, ehi_network)
 
     alice_intf.start()
     bob_intf.start()
@@ -133,14 +132,14 @@ def test_wait_for_any_node_2():
     alice = Node(name="alice", ID=0)
     bob = Node(name="bob", ID=1)
     charlie = Node(name="charlie", ID=2)
-    env = StaticNetworkInfo.with_nodes(
+    ehi_network = EhiNetworkInfo.only_nodes(
         {alice.ID: alice.name, bob.ID: bob.name, charlie.ID: charlie.name}
     )
 
-    alice_comp = NetstackComponent(alice, env)
-    bob_comp = NetstackComponent(bob, env)
-    charlie_comp = NetstackComponent(charlie, env)
-    entdist_comp = EntDistComponent(env)
+    alice_comp = NetstackComponent(alice, ehi_network)
+    bob_comp = NetstackComponent(bob, ehi_network)
+    charlie_comp = NetstackComponent(charlie, ehi_network)
+    entdist_comp = EntDistComponent(ehi_network)
 
     # Connect all nodes to the Entdist.
     alice_comp.entdist_out_port.connect(entdist_comp.node_in_port("alice"))
@@ -171,18 +170,18 @@ def test_wait_for_any_node_2():
             self.send_entdist_msg("hello again from Charlie at time 1800")
 
     class TestEntDistInterface(EntDistInterface):
-        def __init__(self, comp: EntDistComponent, env: StaticNetworkInfo) -> None:
-            super().__init__(comp, env)
+        def __init__(self, comp: EntDistComponent, ehi_network: EhiNetworkInfo) -> None:
+            super().__init__(comp, ehi_network)
             self.messages: List[str] = []
 
         def run(self) -> Generator[EventExpression, None, None]:
             for _ in range(6):
                 self.messages.append((yield from self.receive_msg()))
 
-    alice_intf = AliceNetstackInterface(alice_comp, env)
-    bob_intf = BobNetstackInterface(bob_comp, env)
-    charlie_intf = CharlieNetstackInterface(charlie_comp, env)
-    entdist_intf = TestEntDistInterface(entdist_comp, env)
+    alice_intf = AliceNetstackInterface(alice_comp, ehi_network)
+    bob_intf = BobNetstackInterface(bob_comp, ehi_network)
+    charlie_intf = CharlieNetstackInterface(charlie_comp, ehi_network)
+    entdist_intf = TestEntDistInterface(entdist_comp, ehi_network)
 
     alice_intf.start()
     bob_intf.start()
