@@ -27,12 +27,9 @@ from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.config import NVQDeviceConfig
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
-from qoala.runtime.lhi_to_ehi import (
-    GenericToVanillaInterface,
-    LhiConverter,
-    NvToNvInterface,
-)
+from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.ntf import GenericNtf, NvNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.runtime.task import TaskGraph
@@ -265,7 +262,7 @@ def setup_components_generic(
     num_qubits: int, latencies: QnosLatencies = QnosLatencies.all_zero()
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = perfect_uniform_qdevice(num_qubits)
-    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericToVanillaInterface())
+    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)
@@ -278,7 +275,7 @@ def setup_components_nv_star(
     num_qubits: int, latencies: QnosLatencies = QnosLatencies.all_zero()
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = perfect_nv_star_qdevice(num_qubits)
-    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=NvToNvInterface())
+    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=NvNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)

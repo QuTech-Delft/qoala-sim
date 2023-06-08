@@ -16,6 +16,7 @@ from qoala.runtime.lhi import (
     LhiProcNodeInfo,
     LhiTopologyBuilder,
 )
+from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.task import BlockTask, TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network_from_lhi
@@ -101,7 +102,8 @@ def setup_network() -> ProcNodeNetwork:
     nodes = {0: "alice", 1: "bob"}
     network_lhi = LhiNetworkInfo.fully_connected(nodes, link_info)
     bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
-    return build_network_from_lhi([alice_lhi, bob_lhi], network_lhi)
+    ntfs = [GenericNtf(), GenericNtf()]
+    return build_network_from_lhi([alice_lhi, bob_lhi], ntfs, network_lhi)
 
 
 def instantiate(

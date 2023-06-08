@@ -26,6 +26,7 @@ from qoala.runtime.lhi import (
     LhiQubitInfo,
     LhiTopology,
 )
+from qoala.runtime.ntf import NtfInterface
 from qoala.util.math import prob_max_mixed_to_fidelity
 
 
@@ -53,7 +54,8 @@ class LhiConverter:
 
     @classmethod
     def gate_info_to_ehi(cls, info: LhiGateInfo, ntf: NtfInterface) -> EhiGateInfo:
-        instr = ntf.map(info.instruction)
+        # TODO: deal with mapping to multiple gates
+        instr = ntf.native_to_netqasm(info.instruction)[0]  # (!)
         duration = info.duration
         decoherence = cls.error_model_to_rate(info.error_model, info.error_model_kwargs)
         return EhiGateInfo(

@@ -32,13 +32,10 @@ from qoala.lang.request import (
 )
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import (
-    GenericToVanillaInterface,
-    LhiConverter,
-    NtfInterface,
-)
+from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
+from qoala.runtime.ntf import GenericNtf, NtfInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
@@ -288,7 +285,7 @@ def test_initialize():
     num_qubits = 3
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
+    ntf = GenericNtf()
 
     network_ehi = create_network_ehi(num_qubits)
     procnode = create_procnode(
@@ -374,7 +371,7 @@ def test_2():
     num_qubits = 3
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
+    ntf = GenericNtf()
 
     network_ehi = create_network_ehi(num_qubits)
     procnode = create_procnode(
@@ -444,7 +441,7 @@ def test_classical_comm():
 
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
+    ntf = GenericNtf()
 
     network_ehi = create_network_ehi(num_qubits)
 
@@ -530,7 +527,7 @@ def test_classical_comm_three_nodes():
 
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
+    ntf = GenericNtf()
 
     network_ehi = create_network_ehi(num_qubits)
 
@@ -657,7 +654,7 @@ def test_epr():
 
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
+    ntf = GenericNtf()
 
     network_ehi = create_network_ehi(num_qubits)
     alice_id = network_ehi.get_node_id("alice")
@@ -831,7 +828,7 @@ REQUEST req1
     num_qubits = 3
     topology = generic_topology(num_qubits)
     latencies = LhiLatencies.all_zero()
-    ntf = GenericToVanillaInterface()
+    ntf = GenericNtf()
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
     network_ehi = create_network_ehi(num_qubits, names=["client", "server"])

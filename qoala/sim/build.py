@@ -50,12 +50,8 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
 )
 from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
-from qoala.runtime.lhi_to_ehi import (
-    GenericToVanillaInterface,
-    LhiConverter,
-    NtfInterface,
-    NvToNvInterface,
-)
+from qoala.runtime.lhi_to_ehi import LhiConverter
+from qoala.runtime.ntf import NtfInterface
 from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -249,14 +245,13 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 
 def build_procnode(cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo) -> ProcNode:
     # TODO: Refactor ad-hoc way of old NV config
-    # TODO: Refactor how ntf interface is configured!
-    ntf_interface: NtfInterface
     if cfg.topology is not None:
         topology = LhiTopologyBuilder.from_config(cfg.topology)
-        ntf_interface = GenericToVanillaInterface()
     if cfg.nv_config is not None:
         topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg.nv_config)
-        ntf_interface = NvToNvInterface()
+
+    ntf_interface_cls = cfg.ntf.to_ntf_interface()
+    ntf_interface = ntf_interface_cls()
 
     qprocessor = build_qprocessor_from_topology(name=cfg.node_name, topology=topology)
     latencies = LhiLatencies.from_config(cfg.latencies)
@@ -374,6 +369,7 @@ def build_procnode_from_lhi(
     topology: LhiTopology,
     latencies: LhiLatencies,
     network_lhi: LhiNetworkInfo,
+    ntf: NtfInterface,
 ) -> ProcNode:
     qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
     network_ehi = LhiConverter.network_to_ehi(network_lhi)
@@ -383,20 +379,22 @@ def build_procnode_from_lhi(
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=latencies,
-        ntf_interface=GenericToVanillaInterface(),
+        ntf_interface=ntf,
         network_ehi=network_ehi,
     )
 
 
 def build_network_from_lhi(
     procnode_infos: List[LhiProcNodeInfo],
+    ntfs: List[NtfInterface],
     network_lhi: LhiNetworkInfo,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
-    for info in procnode_infos:
+    # TODO: refactor two separate lists (infos and ntfs)
+    for info, ntf in zip(procnode_infos, ntfs):
         procnode = build_procnode_from_lhi(
-            info.id, info.name, info.topology, info.latencies, network_lhi
+            info.id, info.name, info.topology, info.latencies, network_lhi, ntf
         )
         procnodes[info.name] = procnode
 

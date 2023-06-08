@@ -19,7 +19,8 @@ from qoala.runtime.lhi import (
     LhiNetworkInfo,
     LhiTopologyBuilder,
 )
-from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
+from qoala.runtime.lhi_to_ehi import LhiConverter
+from qoala.runtime.ntf import NvNtf
 from qoala.util.math import prob_max_mixed_to_fidelity
 
 
@@ -44,7 +45,7 @@ def test_topology_to_ehi():
         host_peer_latency=4,
     )
 
-    interface = NvToNvInterface()
+    interface = NvNtf()
     ehi = LhiConverter.to_ehi(topology, interface, latencies)
 
     assert ehi.qubit_infos == {

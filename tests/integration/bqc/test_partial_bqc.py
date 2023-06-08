@@ -15,12 +15,9 @@ from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import (
-    GenericToVanillaInterface,
-    LhiConverter,
-    NtfInterface,
-)
+from qoala.runtime.lhi_to_ehi import LhiConverter, NtfInterface
 from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
@@ -85,7 +82,7 @@ def create_procnode(
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=LhiLatencies(qnos_instr_time=1000),
-        ntf_interface=GenericToVanillaInterface(),
+        ntf_interface=GenericNtf(),
         network_ehi=network_ehi,
         node_id=node_id,
         asynchronous=asynchronous,

@@ -43,6 +43,12 @@ from qoala.runtime.lhi import (
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
+from qoala.runtime.ntf import (
+    GenericNtf,
+    NtfInterface,
+    NtfInterfaceConfigInterface,
+    NvNtf,
+)
 from qoala.util.math import fidelity_to_prob_max_mixed
 
 NV_COM_GATES = [
@@ -99,6 +105,12 @@ class QubitConfigRegistry(ABC):
 class GateConfigRegistry(ABC):
     @abstractclassmethod
     def map(cls) -> Dict[str, GateNoiseConfigInterface]:
+        raise NotImplementedError
+
+
+class NtfInterfaceRegistry(ABC):
+    @abstractclassmethod
+    def map(cls) -> Dict[str, NtfInterface]:
         raise NotImplementedError
 
 
@@ -397,6 +409,17 @@ class DefaultGateConfigRegistry(GateConfigRegistry):
         return cls._MAP
 
 
+class DefaultNtfRegistry(NtfInterfaceRegistry):
+    _MAP = {
+        "GenericNtf": GenericNtf,
+        "NvNtf": NvNtf,
+    }
+
+    @classmethod
+    def map(cls) -> Dict[str, NtfInterface]:
+        return cls._MAP
+
+
 # Config classes directly used by Topology config.
 
 
@@ -658,6 +681,51 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         return infos
 
 
+# TODO: actually use this class (currently ProcNodeConfig just uses a string for ntf)
+class NtfConfig(NtfInterfaceConfigInterface, BaseModel):
+    ntf_interface_cls: str
+    ntf_interface: Type[NtfInterface]
+
+    @classmethod
+    def from_file(
+        cls, path: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+    ) -> NtfConfig:
+        return cls.from_dict(_read_dict(path), registry)
+
+    @classmethod
+    def from_cls_name(
+        cls, name: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+    ) -> NtfConfig:
+        # Try to get the type of the ntf interface class.
+        typ: Optional[NtfInterface] = None
+        if registry is not None:
+            try:
+                for reg in registry:
+                    if name in reg.map():
+                        typ = reg.map()[name]
+                        break
+            except KeyError:
+                pass
+        # If not found in custom registries, try default registry.
+        if typ is None:
+            try:
+                typ = DefaultNtfRegistry.map()[name]
+            except KeyError:
+                raise RuntimeError("invalid NTF interface type")
+
+        return NtfConfig(ntf_interface_cls=name, ntf_interface=typ)
+
+    @classmethod
+    def from_dict(
+        cls, dict: Any, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+    ) -> NtfConfig:
+        raw_typ = dict["ntf_interface_cls"]
+        return cls.from_cls_name(raw_typ, registry)
+
+    def to_ntf_interface(self) -> Type[NtfInterface]:
+        return self.ntf_interface
+
+
 class NVQDeviceConfig(BaseModel):
     # number of qubits per NV
     num_qubits: int = 2
@@ -767,6 +835,7 @@ class ProcNodeConfig(BaseModel):
     topology: Optional[TopologyConfig] = None
     latencies: LatenciesConfig
     nv_config: Optional[NVQDeviceConfig] = None  # TODO: remove!
+    ntf: NtfConfig
     tem: Optional[str] = None
 
     @classmethod
@@ -779,8 +848,13 @@ class ProcNodeConfig(BaseModel):
         node_id = dict["node_id"]
         topology = TopologyConfig.from_dict(dict["topology"])
         latencies = LatenciesConfig.from_dict(dict["latencies"])
+        ntf = NtfConfig.from_dict(dict["ntf"])
         return ProcNodeConfig(
-            node_name=node_name, node_id=node_id, topology=topology, latencies=latencies
+            node_name=node_name,
+            node_id=node_id,
+            topology=topology,
+            latencies=latencies,
+            ntf=ntf,
         )
 
 

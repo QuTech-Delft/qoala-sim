@@ -7,9 +7,10 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.request import EprRole, EprType, QoalaRequest, RequestVirtIdMapping
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
+from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
+from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
 from qoala.sim.entdist.entdist import EntDistRequest
@@ -117,7 +118,7 @@ def create_simple_request(
 def test_allocate_for_pair():
     topology = generic_topology(5)
     qdevice = MockQDevice(topology)
-    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
 
@@ -153,7 +154,7 @@ def test_allocate_for_pair():
 def test_create_entdist_request():
     topology = generic_topology(5)
     qdevice = MockQDevice(topology)
-    ehi = LhiConverter.to_ehi(topology, ntf=GenericToVanillaInterface())
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     memmgr = MemoryManager("alice", qdevice)
 

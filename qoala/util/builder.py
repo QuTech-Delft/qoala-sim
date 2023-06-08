@@ -3,7 +3,8 @@ from typing import Optional
 from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
+from qoala.runtime.lhi_to_ehi import LhiConverter
+from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
@@ -21,7 +22,7 @@ class ObjectBuilder:
             qprocessor=qprocessor,
             qdevice_topology=topology,
             latencies=LhiLatencies.all_zero(),
-            ntf_interface=GenericToVanillaInterface(),
+            ntf_interface=GenericNtf(),
             network_ehi=network_ehi,
         )
 
@@ -30,7 +31,7 @@ class ObjectBuilder:
         cls, program: QoalaProgram, pid: int = 0, inputs: Optional[ProgramInput] = None
     ) -> ProgramInstance:
         topology = LhiTopologyBuilder.perfect_uniform_default_gates(1)
-        ehi = LhiConverter.to_ehi(topology, GenericToVanillaInterface())
+        ehi = LhiConverter.to_ehi(topology, GenericNtf())
         unit_module = UnitModule.from_full_ehi(ehi)
 
         if inputs is None:

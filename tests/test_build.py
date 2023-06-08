@@ -17,6 +17,7 @@ from qoala.runtime.config import (
     LatenciesConfig,
     LinkBetweenNodesConfig,
     LinkConfig,
+    NtfConfig,
     NVQDeviceConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -31,6 +32,7 @@ from qoala.runtime.lhi import (
     LhiTopology,
     LhiTopologyBuilder,
 )
+from qoala.runtime.ntf import GenericNtf
 from qoala.sim.build import (
     build_network,
     build_network_from_lhi,
@@ -157,7 +159,11 @@ def test_build_procnode():
         host_peer_latency=5,
     )
     cfg = ProcNodeConfig(
-        node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
+        node_name="the_node",
+        node_id=42,
+        topology=top_cfg,
+        latencies=latencies,
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
     nodes = {42: "the_node", 43: "other_node"}
     network_ehi = EhiNetworkInfo.perfect_fully_connected(nodes, duration=1000)
@@ -190,10 +196,18 @@ def test_build_procnode():
 def test_build_network():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     cfg_alice = ProcNodeConfig(
-        node_name="alice", node_id=42, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="alice",
+        node_id=42,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
     cfg_bob = ProcNodeConfig(
-        node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="bob",
+        node_id=43,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
 
     link_cfg = LinkConfig.perfect_config(state_delay=1000)
@@ -235,10 +249,18 @@ def test_build_network():
 def test_build_network_perfect_links():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     cfg_alice = ProcNodeConfig(
-        node_name="alice", node_id=42, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="alice",
+        node_id=42,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
     cfg_bob = ProcNodeConfig(
-        node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="bob",
+        node_id=43,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
     cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[cfg_alice, cfg_bob], link_duration=500
@@ -257,16 +279,27 @@ def test_build_network_perfect_links():
 def test_build_network_from_lhi():
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
     latencies = LhiLatencies(
-        host_instr_time=500, qnos_instr_time=1000, host_peer_latency=20_000
+        host_instr_time=500,
+        qnos_instr_time=1000,
+        host_peer_latency=20_000,
     )
     alice_lhi = LhiProcNodeInfo(
-        name="alice", id=42, topology=topology, latencies=latencies
+        name="alice",
+        id=42,
+        topology=topology,
+        latencies=latencies,
     )
-    bob_lhi = LhiProcNodeInfo(name="bob", id=43, topology=topology, latencies=latencies)
+    bob_lhi = LhiProcNodeInfo(
+        name="bob",
+        id=43,
+        topology=topology,
+        latencies=latencies,
+    )
     nodes = {42: "alice", 43: "bob"}
 
     network_lhi = LhiNetworkInfo.perfect_fully_connected(nodes, 100_000)
-    network = build_network_from_lhi([alice_lhi, bob_lhi], network_lhi)
+    ntfs = [GenericNtf(), GenericNtf()]
+    network = build_network_from_lhi([alice_lhi, bob_lhi], ntfs, network_lhi)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes

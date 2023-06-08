@@ -32,3 +32,5 @@ topology:
   <<: *topology
 latencies:
   host_peer_latency: 2_000_000
+ntf:
+  ntf_interface_cls: NvNtf

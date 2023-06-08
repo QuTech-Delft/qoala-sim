@@ -27,8 +27,9 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import GenericToVanillaInterface, LhiConverter
+from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.runtime.task import TaskGraph
@@ -83,7 +84,7 @@ def uniform_qdevice_noisy_qubits(num_qubits: int) -> QDevice:
 
 def setup_noisy_components(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = uniform_qdevice_noisy_qubits(num_qubits)
-    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericToVanillaInterface())
+    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)

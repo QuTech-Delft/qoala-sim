@@ -34,6 +34,7 @@ from qoala.runtime.config import (
     LinkBetweenNodesConfig,
     LinkConfig,
     MultiGateConfig,
+    NtfConfig,
     PerfectSamplerConfig,
     ProcNodeConfig,
     QubitConfig,
@@ -44,6 +45,7 @@ from qoala.runtime.config import (
     SingleGateConfig,
     TopologyConfig,
 )
+from qoala.runtime.ntf import GenericNtf, NtfInterface, NvNtf
 from qoala.util.math import fidelity_to_prob_max_mixed
 
 
@@ -157,6 +159,19 @@ def test_gate_config_file():
         "depolar_rate": 0.2,
         "time_independent": True,
     }
+
+
+def test_ntf_config():
+    ntf_config = NtfConfig(ntf_interface_cls="GenericNtf", ntf_interface=GenericNtf)
+    assert ntf_config.to_ntf_interface() == GenericNtf
+
+
+def test_ntf_config_file():
+    cfg_1 = NtfConfig.from_file(relative_path("configs/ntf_1.yaml"))
+    assert cfg_1.to_ntf_interface() == GenericNtf
+
+    cfg_2 = NtfConfig.from_file(relative_path("configs/ntf_2.yaml"))
+    assert cfg_2.to_ntf_interface() == NvNtf
 
 
 def test_topology_config():
@@ -671,6 +686,7 @@ def test_procnode_config_file():
     assert cfg.latencies.host_instr_time == 500
     assert cfg.latencies.qnos_instr_time == 2000
     assert cfg.latencies.host_peer_latency == 2e6
+    assert cfg.ntf.to_ntf_interface() == GenericNtf
 
 
 def test_procnode_config_file_default_values():
@@ -682,6 +698,8 @@ def test_procnode_config_file_default_values():
 
     # explicitly given by cfg file
     assert cfg.latencies.host_peer_latency == 2e6
+
+    assert cfg.ntf.to_ntf_interface() == NvNtf
 
 
 def test_perfect_sampler_config():
@@ -807,6 +825,8 @@ if __name__ == "__main__":
     test_gate_config()
     test_gate_config_perfect()
     test_gate_config_file()
+    test_ntf_config()
+    test_ntf_config_file()
     test_topology_config()
     test_topology_config_perfect_uniform()
     test_topology_config_file()
