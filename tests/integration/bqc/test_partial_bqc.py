@@ -18,7 +18,7 @@ from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopolog
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
-    NativeToFlavourInterface,
+    NtfInterface,
 )
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
@@ -102,7 +102,7 @@ class BqcProcNode(ProcNode):
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
-        ntf_interface: NativeToFlavourInterface,
+        ntf_interface: NtfInterface,
         network_ehi: EhiNetworkInfo,
         node_id: Optional[int] = None,
         asynchronous: bool = False,

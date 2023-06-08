@@ -7,7 +7,7 @@ from netsquid.protocols import Protocol
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
-from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
+from qoala.runtime.lhi_to_ehi import LhiConverter, NtfInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.host.host import Host
@@ -31,7 +31,7 @@ class ProcNode(Protocol):
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
-        ntf_interface: NativeToFlavourInterface,
+        ntf_interface: NtfInterface,
         network_ehi: EhiNetworkInfo,
         node: Optional[ProcNodeComponent] = None,
         node_id: Optional[int] = None,

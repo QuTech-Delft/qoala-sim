@@ -53,7 +53,7 @@ from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
-    NativeToFlavourInterface,
+    NtfInterface,
     NvToNvInterface,
 )
 from qoala.runtime.task import TaskExecutionMode
@@ -250,7 +250,7 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
 def build_procnode(cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo) -> ProcNode:
     # TODO: Refactor ad-hoc way of old NV config
     # TODO: Refactor how ntf interface is configured!
-    ntf_interface: NativeToFlavourInterface
+    ntf_interface: NtfInterface
     if cfg.topology is not None:
         topology = LhiTopologyBuilder.from_config(cfg.topology)
         ntf_interface = GenericToVanillaInterface()

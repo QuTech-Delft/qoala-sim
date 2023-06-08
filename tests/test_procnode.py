@@ -35,7 +35,7 @@ from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopolog
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
     LhiConverter,
-    NativeToFlavourInterface,
+    NtfInterface,
 )
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
@@ -228,7 +228,7 @@ def create_procnode(
     num_qubits: int,
     topology: LhiTopology,
     latencies: LhiLatencies,
-    ntf_interface: NativeToFlavourInterface,
+    ntf_interface: NtfInterface,
     procnode_cls: Type[ProcNode] = ProcNode,
     asynchronous: bool = False,
 ) -> ProcNode:

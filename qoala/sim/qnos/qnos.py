@@ -5,7 +5,7 @@ from netsquid.protocols import Protocol
 from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.lhi_to_ehi import (
     GenericToVanillaInterface,
-    NativeToFlavourInterface,
+    NtfInterface,
     NvToNvInterface,
 )
 from qoala.sim.memmgr import MemoryManager
@@ -25,7 +25,7 @@ class Qnos(Protocol):
         memmgr: MemoryManager,
         qdevice: QDevice,
         latencies: QnosLatencies,
-        ntf_interface: NativeToFlavourInterface,
+        ntf_interface: NtfInterface,
         asynchronous: bool = False,
     ) -> None:
         """Qnos protocol constructor.
@@ -47,7 +47,7 @@ class Qnos(Protocol):
         self.create_processor(ntf_interface, latencies)
 
     def create_processor(
-        self, ntf_interface: NativeToFlavourInterface, latencies: QnosLatencies
+        self, ntf_interface: NtfInterface, latencies: QnosLatencies
     ) -> None:
         # TODO: rethink the way NTF interfaces are used
         if isinstance(ntf_interface, GenericToVanillaInterface):
