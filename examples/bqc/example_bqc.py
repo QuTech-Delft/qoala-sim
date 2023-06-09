@@ -19,7 +19,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network
+from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 
 INSTR_LATENCY = 1e5
@@ -92,7 +92,7 @@ def create_network(
     ]
 
     network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=links)
-    return build_network(network_cfg)
+    return build_network_from_config(network_cfg)
 
 
 @dataclass

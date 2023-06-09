@@ -98,6 +98,7 @@ class NvNtf(NtfInterface):
         INSTR_CXDIR: [nv.ControlledRotXInstruction],
         INSTR_CYDIR: [nv.ControlledRotYInstruction],
         INSTR_MEASURE: [core.MeasInstruction],
+        INSTR_MEASURE_INSTANT: [core.MeasInstruction],
     }
 
     _NQ_NS_MAP: Dict[Type[NetQASMInstruction], List[Type[NetQASMInstruction]]] = {
@@ -108,6 +109,7 @@ class NvNtf(NtfInterface):
         nv.ControlledRotXInstruction: [INSTR_CXDIR],
         nv.ControlledRotYInstruction: [INSTR_CYDIR],
         core.MeasInstruction: [INSTR_MEASURE],
+        core.MeasInstruction: [INSTR_MEASURE_INSTANT],
     }
 
     def flavour(self) -> Type[Flavour]:

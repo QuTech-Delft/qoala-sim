@@ -34,10 +34,10 @@ from qoala.runtime.lhi import (
 )
 from qoala.runtime.ntf import GenericNtf
 from qoala.sim.build import (
-    build_network,
+    build_network_from_config,
     build_network_from_lhi,
     build_nv_qprocessor,
-    build_procnode,
+    build_procnode_from_config,
     build_qprocessor_from_topology,
 )
 
@@ -151,7 +151,7 @@ def test_build_nv_perfect():
     assert proc.get_instruction_duration(INSTR_CXDIR, [0, 1]) == cfg.ec_controlled_dir_x
 
 
-def test_build_procnode():
+def test_build_procnode_from_config():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     latencies = LatenciesConfig(
         host_instr_time=17,
@@ -168,7 +168,7 @@ def test_build_procnode():
     nodes = {42: "the_node", 43: "other_node"}
     network_ehi = EhiNetworkInfo.perfect_fully_connected(nodes, duration=1000)
 
-    procnode = build_procnode(cfg, network_ehi)
+    procnode = build_procnode_from_config(cfg, network_ehi)
 
     assert procnode.node.name == "the_node"
     procnode.host_comp.peer_in_port("other_node")  # should not raise error
@@ -193,7 +193,7 @@ def test_build_procnode():
     assert procnode.network_ehi.get_link(42, 43) == EhiLinkInfo(1000, 1.0)
 
 
-def test_build_network():
+def test_build_network_from_config():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     cfg_alice = ProcNodeConfig(
         node_name="alice",
@@ -213,7 +213,7 @@ def test_build_network():
     link_cfg = LinkConfig.perfect_config(state_delay=1000)
     link_ab = LinkBetweenNodesConfig(node_id1=42, node_id2=43, link_config=link_cfg)
     cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[link_ab])
-    network = build_network(cfg)
+    network = build_network_from_config(cfg)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -265,7 +265,7 @@ def test_build_network_perfect_links():
     cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[cfg_alice, cfg_bob], link_duration=500
     )
-    network = build_network(cfg)
+    network = build_network_from_config(cfg)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -320,7 +320,7 @@ if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
     test_build_nv_perfect()
-    test_build_procnode()
-    test_build_network()
+    test_build_procnode_from_config()
+    test_build_network_from_config()
     test_build_network_perfect_links()
     test_build_network_from_lhi()

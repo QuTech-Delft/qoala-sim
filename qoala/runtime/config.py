@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 import yaml
 from netsquid.components.instructions import (
     INSTR_CNOT,
-    INSTR_CROT_X,
-    INSTR_CROT_Y,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
     INSTR_CZ,
     INSTR_H,
     INSTR_INIT,
@@ -68,7 +68,7 @@ NV_MEM_GATES = [
     "INSTR_MEASURE_INSTANT",
 ]
 
-NV_TWO_GATES = ["INSTR_CXDIR"]
+NV_TWO_GATES = ["INSTR_CXDIR", "INSTR_CYDIR"]
 
 NV_DEFAULT_COM_GATE_DURATION = 1e5
 NV_DEFAULT_MEM_GATE_DURATION = 1e6
@@ -378,8 +378,8 @@ class DefaultInstrConfigRegistry(InstrConfigRegistry):
         "INSTR_ROT_Z": INSTR_ROT_Z,
         "INSTR_CNOT": INSTR_CNOT,
         "INSTR_CZ": INSTR_CZ,
-        "INSTR_CROT_X": INSTR_CROT_X,
-        "INSTR_CROT_Y": INSTR_CROT_Y,
+        "INSTR_CXDIR": INSTR_CXDIR,
+        "INSTR_CYDIR": INSTR_CYDIR,
         "INSTR_MEASURE": INSTR_MEASURE,
         "INSTR_MEASURE_INSTANT": INSTR_MEASURE_INSTANT,
     }

@@ -11,13 +11,14 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
-from qoala.sim.build import build_network
+from qoala.sim.build import build_network_from_config
 from qoala.util.logging import LogManager
 
 
@@ -29,6 +30,7 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=100_000, qnos_instr_time=1000
         ),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
 
 
@@ -77,7 +79,7 @@ def run_pingpong(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=500_000
     )
-    network = build_network(network_cfg)
+    network = build_network_from_config(network_cfg)
     alice_procnode = network.nodes["alice"]
     bob_procnode = network.nodes["bob"]
 

@@ -10,7 +10,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.ntf import GenericNtf
-from qoala.sim.build import build_network
+from qoala.sim.build import build_network_from_config
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -34,7 +34,7 @@ def test_perfect_links():
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg)
+    network = build_network_from_config(network_cfg)
 
     server = network.nodes["server"]
     link_info = server.network_ehi.get_link(server_id, client_id)
@@ -58,7 +58,7 @@ def test_depolarise_links():
     network_cfg = ProcNodeNetworkConfig(
         nodes=[server_node_cfg, client_node_cfg], links=[link_between_cfg]
     )
-    network = build_network(network_cfg)
+    network = build_network_from_config(network_cfg)
 
     server = network.nodes["server"]
     link_info = server.network_ehi.get_link(server_id, client_id)

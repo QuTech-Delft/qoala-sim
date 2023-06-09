@@ -11,13 +11,14 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network
+from qoala.sim.build import build_network_from_config
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -26,6 +27,7 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
 
 
@@ -35,6 +37,7 @@ def create_procnode_cfg_nv(name: str, id: int, num_qubits: int) -> ProcNodeConfi
         node_id=id,
         topology=TopologyConfig.perfect_nv_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
+        ntf=NtfConfig.from_cls_name("NvNtf"),
     )
 
 
@@ -79,7 +82,7 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg)
+    network = build_network_from_config(network_cfg)
     alice_procnode = network.nodes["alice"]
     bob_procnode = network.nodes["bob"]
 

@@ -14,13 +14,14 @@ from qoala.runtime.config import (
     LatenciesConfig,
     LinkBetweenNodesConfig,
     LinkConfig,
+    NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network
+from qoala.sim.build import build_network_from_config
 from qoala.util.math import fidelity_to_prob_max_mixed
 
 
@@ -30,6 +31,7 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
 
 
@@ -84,7 +86,7 @@ def run_qkd(
     network_cfg = ProcNodeNetworkConfig(
         nodes=[alice_node_cfg, bob_node_cfg], links=[link_between_cfg]
     )
-    network = build_network(network_cfg)
+    network = build_network_from_config(network_cfg)
     alice_procnode = network.nodes["alice"]
     bob_procnode = network.nodes["bob"]
 

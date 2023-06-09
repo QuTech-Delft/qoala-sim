@@ -18,7 +18,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network
+from qoala.sim.build import build_network_from_config
 from qoala.util.logging import LogManager
 
 
@@ -75,7 +75,7 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=500_000
     )
-    network = build_network(network_cfg)
+    network = build_network_from_config(network_cfg)
     alice_procnode = network.nodes["alice"]
     bob_procnode = network.nodes["bob"]
 

@@ -243,7 +243,9 @@ def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
     return qmem
 
 
-def build_procnode(cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo) -> ProcNode:
+def build_procnode_from_config(
+    cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo
+) -> ProcNode:
     # TODO: Refactor ad-hoc way of old NV config
     if cfg.topology is not None:
         topology = LhiTopologyBuilder.from_config(cfg.topology)
@@ -328,7 +330,7 @@ def build_ll_protocol(
     )
 
 
-def build_network(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
+def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
     ehi_links: Dict[Tuple[int, int], EhiLinkInfo] = {}
@@ -341,7 +343,7 @@ def build_network(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
     network_ehi = EhiNetworkInfo(nodes, ehi_links)
 
     for cfg in config.nodes:
-        procnodes[cfg.node_name] = build_procnode(cfg, network_ehi)
+        procnodes[cfg.node_name] = build_procnode_from_config(cfg, network_ehi)
 
     ns_nodes = [procnode.node for procnode in procnodes.values()]
     entdistcomp = EntDistComponent(network_ehi)

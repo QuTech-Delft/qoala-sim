@@ -10,13 +10,14 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network
+from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 
 
@@ -27,6 +28,7 @@ def get_config() -> ProcNodeConfig:
         node_id=0,
         topology=topology,
         latencies=LatenciesConfig(qnos_instr_time=1000),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
 
 
@@ -34,7 +36,7 @@ def create_network(
     node_cfg: ProcNodeConfig,
 ) -> ProcNodeNetwork:
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
-    return build_network(network_cfg)
+    return build_network_from_config(network_cfg)
 
 
 def load_program(name: str) -> QoalaProgram:
