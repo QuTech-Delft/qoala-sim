@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import QoalaProgram
@@ -55,3 +55,4 @@ class ProgramBatch:
 class BatchResult:
     batch_id: int
     results: List[ProgramResult]
+    timestamps: List[Tuple[float, float]]  # start, end

@@ -51,7 +51,9 @@ def test_depolarise_links():
     client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
 
     link_fidelity = 0.8
-    link_cfg = LinkConfig.depolarise_config(fidelity=link_fidelity, state_delay=1000)
+    link_cfg = LinkConfig.simple_depolarise_config(
+        fidelity=link_fidelity, state_delay=1000
+    )
     link_between_cfg = LinkBetweenNodesConfig(
         node_id1=server_id, node_id2=client_id, link_config=link_cfg
     )

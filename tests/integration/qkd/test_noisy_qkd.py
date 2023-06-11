@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from audioop import avg
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -20,18 +21,21 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network_from_config
-from qoala.util.math import fidelity_to_prob_max_mixed
+from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
+from qoala.util.logging import LogManager
+from qoala.util.runner import run_application
 
 
-def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
+def create_procnode_cfg(
+    name: str, id: int, num_qubits: int, tem: TaskExecutionMode
+) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
+        tem=tem.name,
     )
 
 
@@ -65,75 +69,51 @@ class QkdResult:
 
 def run_qkd(
     num_iterations: int,
-    link_fidelity: float,
     alice_file: str,
     bob_file: str,
+    prob_max_mixed: float,
+    attempt_success_prob: float,
+    attempt_duration: float,
+    state_delay: float,
     num_pairs: Optional[int] = None,
+    tem: TaskExecutionMode = TaskExecutionMode.QOALA,
 ):
-    ns.sim_reset()
-
     num_qubits = 3
     alice_id = 0
     bob_id = 1
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, tem)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, tem)
 
-    link_cfg = LinkConfig.depolarise_config(fidelity=link_fidelity, state_delay=1000)
+    link_cfg = LinkConfig.depolarise_config(
+        prob_max_mixed, attempt_success_prob, attempt_duration, state_delay
+    )
     link_between_cfg = LinkBetweenNodesConfig(
         node_id1=alice_id, node_id2=bob_id, link_config=link_cfg
     )
     network_cfg = ProcNodeNetworkConfig(
         nodes=[alice_node_cfg, bob_node_cfg], links=[link_between_cfg]
     )
-    network = build_network_from_config(network_cfg)
-    alice_procnode = network.nodes["alice"]
-    bob_procnode = network.nodes["bob"]
 
     alice_program = load_program(alice_file)
-    if num_pairs is not None:
-        alice_inputs = [
-            ProgramInput({"bob_id": bob_id, "num_pairs": num_pairs})
-            for _ in range(num_iterations)
-        ]
-    else:
-        alice_inputs = [ProgramInput({"bob_id": bob_id}) for _ in range(num_iterations)]
-
-    alice_unit_module = UnitModule.from_full_ehi(alice_procnode.memmgr.get_ehi())
-    alice_batch = create_batch(
-        alice_program, alice_unit_module, alice_inputs, num_iterations
-    )
-    alice_procnode.submit_batch(alice_batch)
-    alice_procnode.initialize_processes()
-    alice_tasks = alice_procnode.scheduler.get_tasks_to_schedule()
-    alice_merged = TaskGraphBuilder.merge_linear(alice_tasks)
-    alice_procnode.scheduler.upload_task_graph(alice_merged)
-
     bob_program = load_program(bob_file)
+
     if num_pairs is not None:
-        bob_inputs = [
-            ProgramInput({"alice_id": alice_id, "num_pairs": num_pairs})
-            for _ in range(num_iterations)
-        ]
+        alice_input = ProgramInput({"bob_id": bob_id, "N": num_pairs})
+        bob_input = ProgramInput({"alice_id": alice_id, "N": num_pairs})
     else:
-        bob_inputs = [
-            ProgramInput({"alice_id": alice_id}) for _ in range(num_iterations)
-        ]
+        alice_input = ProgramInput({"bob_id": bob_id})
+        bob_input = ProgramInput({"alice_id": alice_id})
 
-    bob_unit_module = UnitModule.from_full_ehi(bob_procnode.memmgr.get_ehi())
-    bob_batch = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
-    bob_procnode.submit_batch(bob_batch)
-    bob_procnode.initialize_processes()
-    bob_tasks = bob_procnode.scheduler.get_tasks_to_schedule()
-    bob_merged = TaskGraphBuilder.merge_linear(bob_tasks)
-    bob_procnode.scheduler.upload_task_graph(bob_merged)
+    app_result = run_application(
+        num_iterations=num_iterations,
+        programs={"alice": alice_program, "bob": bob_program},
+        program_inputs={"alice": alice_input, "bob": bob_input},
+        network_cfg=network_cfg,
+    )
 
-    network.start()
-    ns.sim_run()
-
-    # only one batch (ID = 0), so get value at index 0
-    alice_result = alice_procnode.scheduler.get_batch_results()[0]
-    bob_result = bob_procnode.scheduler.get_batch_results()[0]
+    alice_result = app_result.batch_results["alice"]
+    bob_result = app_result.batch_results["bob"]
 
     return QkdResult(alice_result, bob_result)
 
@@ -141,37 +121,111 @@ def run_qkd(
 def test_qkd_md_1pair():
     ns.sim_reset()
 
+    # LogManager.set_log_level("INFO")
+
     num_iterations = 1000
 
-    link_fidelity = 0.7
+    alice_file = "qkd_1pair_MD_alice.iqoala"
+    bob_file = "qkd_1pair_MD_bob.iqoala"
 
-    alice_file = "qkd_md_1pair_alice.iqoala"
-    bob_file = "qkd_md_1pair_bob.iqoala"
-
-    qkd_result = run_qkd(num_iterations, link_fidelity, alice_file, bob_file)
-    alice_results = qkd_result.alice_result.results
-    bob_results = qkd_result.bob_result.results
-
-    assert len(alice_results) == num_iterations
-    assert len(bob_results) == num_iterations
-
-    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+    qkd_result = run_qkd(
+        num_iterations,
+        alice_file,
+        bob_file,
+        prob_max_mixed=0.4,
+        attempt_success_prob=0.001,
+        attempt_duration=1000,
+        state_delay=0.0,
+    )
+    assert len(qkd_result.alice_result.results) == num_iterations
+    assert len(qkd_result.bob_result.results) == num_iterations
 
     count_equal_outcomes = 0
-    for alice, bob in zip(alice_outcomes, bob_outcomes):
-        if alice["m0"] == bob["m0"]:
+    durations = []
+    for i in range(num_iterations):
+        alice_result = qkd_result.alice_result.results[i].values
+        bob_result = qkd_result.bob_result.results[i].values
+        if alice_result["m0"] == bob_result["m0"]:
             count_equal_outcomes += 1
 
-    # We used a link fidelity of 0.7 for a depolarising sampler.
-    # This results in a produced state of 0.4 * <maximally mixed> + 0.6 * Phi+.
-    assert fidelity_to_prob_max_mixed(0.7) == pytest.approx(0.4)
+        alice_start, alice_end = qkd_result.alice_result.timestamps[i]
+        bob_start, bob_end = qkd_result.alice_result.timestamps[i]
+        duration = max(alice_end, bob_end) - min(alice_start, bob_start)
+        durations.append(duration)
+
+    avg_duration = sum(durations) / len(durations)
+
+    # We used a link that produced the state 0.4 * <maximally mixed> + 0.6 * Phi+.
     # Hence we expect the ratio of pairs with equal outcomes to be
     # 0.5 * 0.4                     +    1.0 * 0.6                   = 0.8
     # (mixed state -> 50% success)       (Phi+ -> 100% success)
     assert (count_equal_outcomes / num_iterations) <= 0.85
     assert (count_equal_outcomes / num_iterations) >= 0.75
 
+    # On average, 1000 attempts were needed per EPR pair, which took 1000 ns each.
+    # The number of attempts hence follows a geometric distribution.
+    # The number of attempts, averaged over all 1000 iterations, should be within
+    # the range (918, 1081) with probability 0.99.
+    print(avg_duration)
+    assert avg_duration > 918 * 1000
+    assert avg_duration < 1081 * 1000
+
+
+def test_qkd_md_npairs():
+    ns.sim_reset()
+
+    # LogManager.set_log_level("INFO")
+
+    num_iterations = 1
+
+    alice_file = "qkd_npairs_MD_alice.iqoala"
+    bob_file = "qkd_npairs_MD_bob.iqoala"
+
+    qkd_result = run_qkd(
+        num_iterations,
+        alice_file,
+        bob_file,
+        prob_max_mixed=0.4,
+        attempt_success_prob=0.001,
+        attempt_duration=1000,
+        state_delay=0.0,
+        num_pairs=1000,
+    )
+    assert len(qkd_result.alice_result.results) == num_iterations
+    assert len(qkd_result.bob_result.results) == num_iterations
+
+    count_equal_outcomes = 0
+    durations = []
+    for i in range(num_iterations):
+        alice_outcomes = qkd_result.alice_result.results[i].values["outcomes"]
+        bob_outcomes = qkd_result.bob_result.results[i].values["outcomes"]
+        for alice, bob in zip(alice_outcomes, bob_outcomes):
+            if alice == bob:
+                count_equal_outcomes += 1
+
+        alice_start, alice_end = qkd_result.alice_result.timestamps[i]
+        bob_start, bob_end = qkd_result.alice_result.timestamps[i]
+        duration = max(alice_end, bob_end) - min(alice_start, bob_start)
+        durations.append(duration)
+
+    avg_duration = sum(durations) / len(durations)
+
+    # We used a link that produced the state 0.4 * <maximally mixed> + 0.6 * Phi+.
+    # Hence we expect the ratio of pairs with equal outcomes to be
+    # 0.5 * 0.4                     +    1.0 * 0.6                   = 0.8
+    # (mixed state -> 50% success)       (Phi+ -> 100% success)
+    assert (count_equal_outcomes / (num_iterations * 1000)) <= 0.85
+    assert (count_equal_outcomes / (num_iterations * 1000)) >= 0.75
+
+    # On average, 1000 attempts were needed per EPR pair, which took 1000 ns each.
+    # The number of attempts hence follows a geometric distribution.
+    # The number of attempts, averaged over all 1000 pairs per program,
+    # should be within the range (918, 1081) with probability 0.99.
+    print(avg_duration)
+    assert avg_duration > 918 * 1000 * 1000
+    assert avg_duration < 1081 * 1000 * 1000
+
 
 if __name__ == "__main__":
     test_qkd_md_1pair()
+    test_qkd_md_npairs()

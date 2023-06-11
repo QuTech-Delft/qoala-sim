@@ -99,7 +99,7 @@ def test_qubit_config_file():
     assert cfg.to_error_model_kwargs() == {"T1": 1e6, "T2": 3e6}
 
 
-def test_gate_depolarise_config():
+def test_gate_simple_depolarise_config():
     cfg = GateDepolariseConfig(duration=4e3, depolarise_prob=0.2)
 
     assert cfg.duration == 4e3
@@ -764,7 +764,7 @@ def test_link_config_perfect():
 
 
 def test_link_config_depolarise():
-    cfg = LinkConfig.depolarise_config(fidelity=0.8, state_delay=200)
+    cfg = LinkConfig.simple_depolarise_config(fidelity=0.8, state_delay=200)
 
     assert cfg.to_state_delay() == 200
     assert cfg.to_sampler_factory() == DepolariseWithFailureStateSamplerFactory
@@ -820,7 +820,7 @@ if __name__ == "__main__":
     test_qubit_config()
     test_qubit_config_perfect()
     test_qubit_config_file()
-    test_gate_depolarise_config()
+    test_gate_simple_depolarise_config()
     test_gate_depolarise_config_file()
     test_gate_config()
     test_gate_config_perfect()

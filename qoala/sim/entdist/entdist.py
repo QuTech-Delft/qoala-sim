@@ -151,6 +151,8 @@ class EntDist(Protocol):
         sample = self.sample_state(timed_sampler.sampler)
         epr = self.create_epr_pair_with_state(sample.state)
 
+        self._logger.info(f"sample duration: {sample.duration}")
+        self._logger.info(f"total duration: {timed_sampler.delay}")
         total_delay = sample.duration + timed_sampler.delay
 
         node1_mem = self._nodes[node1_id].qmemory

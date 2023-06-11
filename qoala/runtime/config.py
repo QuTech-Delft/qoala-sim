@@ -996,10 +996,31 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
         )
 
     @classmethod
-    def depolarise_config(cls, fidelity: float, state_delay: float) -> LinkConfig:
+    def simple_depolarise_config(
+        cls, fidelity: float, state_delay: float
+    ) -> LinkConfig:
         prob_max_mixed = fidelity_to_prob_max_mixed(fidelity)
         sampler_config = DepolariseSamplerConfig(
             cycle_time=0, prob_max_mixed=prob_max_mixed, prob_success=1
+        )
+        return LinkConfig(
+            state_delay=state_delay,
+            sampler_config_cls="DepolariseSamplerConfig",
+            sampler_config=sampler_config,
+        )
+
+    @classmethod
+    def depolarise_config(
+        cls,
+        prob_max_mixed: float,
+        attempt_success_prob: float,
+        attempt_duration: float,
+        state_delay: float,
+    ) -> LinkConfig:
+        sampler_config = DepolariseSamplerConfig(
+            cycle_time=attempt_duration,
+            prob_max_mixed=prob_max_mixed,
+            prob_success=attempt_success_prob,
         )
         return LinkConfig(
             state_delay=state_delay,
