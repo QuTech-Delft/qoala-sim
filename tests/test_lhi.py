@@ -21,12 +21,7 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import (
-    LatenciesConfig,
-    LinkConfig,
-    NVQDeviceConfig,
-    TopologyConfig,
-)
+from qoala.runtime.config import LatenciesConfig, LinkConfig, NvParams, TopologyConfig
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
@@ -36,7 +31,7 @@ from qoala.runtime.lhi import (
     LhiTopology,
     LhiTopologyBuilder,
 )
-from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
+from qoala.util.math import fidelity_to_prob_max_mixed
 
 
 def relative_path(path: str) -> str:
@@ -148,8 +143,11 @@ def test_topology_from_config_2():
 
 
 def test_topology_from_nv_config():
-    cfg = NVQDeviceConfig.perfect_config(num_qubits=2)
-    topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg)
+    params = NvParams()
+    params.comm_gate_duration = 500
+    params.comm_gate_fidelity = 0.85
+    cfg = TopologyConfig.from_nv_params(2, params)
+    topology = LhiTopologyBuilder.from_config(cfg)
 
     assert topology.qubit_infos[0].is_communication
     assert not topology.qubit_infos[1].is_communication
@@ -157,7 +155,7 @@ def test_topology_from_nv_config():
     q0_gates = [info.instruction for info in topology.single_gate_infos[0]]
     assert all(
         instr in q0_gates
-        for instr in [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z, INSTR_INIT, INSTR_MEASURE]
+        for instr in [INSTR_ROT_X, INSTR_ROT_Y, INSTR_INIT, INSTR_MEASURE]
     )
 
     q1_gates = [info.instruction for info in topology.single_gate_infos[1]]
@@ -171,9 +169,12 @@ def test_topology_from_nv_config():
     ]
     assert all(instr in q01_gates for instr in [INSTR_CXDIR, INSTR_CYDIR])
 
-    assert topology.find_single_gate(0, INSTR_ROT_X).duration == cfg.electron_rot_x
+    expected_duration = params.comm_gate_duration
+    expected_depolar_rate = fidelity_to_prob_max_mixed(1, params.comm_gate_fidelity)
+    assert topology.find_single_gate(0, INSTR_ROT_X).duration == expected_duration
     assert topology.find_single_gate(0, INSTR_ROT_X).error_model_kwargs == {
-        "depolar_rate": 0
+        "depolar_rate": expected_depolar_rate,
+        "time_independent": True,
     }
 
 

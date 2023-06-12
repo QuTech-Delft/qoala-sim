@@ -24,9 +24,8 @@ from netsquid.qubits import ketstates
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
-from qoala.runtime.config import NVQDeviceConfig
+from qoala.runtime.config import NvParams, TopologyConfig
 from qoala.runtime.lhi import LhiTopologyBuilder
-from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.ntf import GenericNtf, NvNtf
@@ -74,8 +73,8 @@ def perfect_uniform_qdevice(num_qubits: int) -> QDevice:
 
 
 def perfect_nv_star_qdevice(num_qubits: int) -> QDevice:
-    cfg = NVQDeviceConfig.perfect_config(num_qubits)
-    topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg)
+    cfg = TopologyConfig.from_nv_params(num_qubits, NvParams())
+    topology = LhiTopologyBuilder.from_config(cfg)
     processor = build_qprocessor_from_topology(name="processor", topology=topology)
     node = Node(name="alice", qmemory=processor)
     return QDevice(node=node, topology=topology)

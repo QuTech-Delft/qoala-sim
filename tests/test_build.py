@@ -18,7 +18,7 @@ from qoala.runtime.config import (
     LinkBetweenNodesConfig,
     LinkConfig,
     NtfConfig,
-    NVQDeviceConfig,
+    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -36,7 +36,6 @@ from qoala.runtime.ntf import GenericNtf
 from qoala.sim.build import (
     build_network_from_config,
     build_network_from_lhi,
-    build_nv_qprocessor,
     build_procnode_from_config,
     build_qprocessor_from_topology,
 )
@@ -130,25 +129,34 @@ def test_build_perfect_topology():
 
 def test_build_nv_perfect():
     num_qubits = 2
-    cfg = NVQDeviceConfig.perfect_config(num_qubits)
-    proc: QuantumProcessor = build_nv_qprocessor(name="alice", cfg=cfg)
+    parms = NvParams()
+    parms.comm_init_duration = 500
+    parms.comm_meas_duration = 1200
+    parms.comm_gate_duration = 100
+    parms.mem_init_duration = 35000
+    parms.mem_meas_duration = 80000
+    parms.mem_gate_duration = 25000
+    parms.two_gate_duration = 100_000
+    cfg = TopologyConfig.from_nv_params(num_qubits, parms)
+    topology = LhiTopologyBuilder.from_config(cfg)
+    proc: QuantumProcessor = build_qprocessor_from_topology("alice", topology)
     assert proc.num_positions == num_qubits
 
-    assert proc.get_instruction_duration(INSTR_INIT, [0]) == cfg.electron_init
-    assert proc.get_instruction_duration(INSTR_MEASURE, [0]) == cfg.measure
-    assert proc.get_instruction_duration(INSTR_ROT_X, [0]) == cfg.electron_rot_x
+    assert proc.get_instruction_duration(INSTR_INIT, [0]) == parms.comm_init_duration
+    assert proc.get_instruction_duration(INSTR_MEASURE, [0]) == parms.comm_meas_duration
+    assert proc.get_instruction_duration(INSTR_ROT_X, [0]) == parms.comm_gate_duration
 
     for i in range(1, num_qubits):
-        assert proc.get_instruction_duration(INSTR_INIT, [i]) == cfg.carbon_init
-        assert proc.get_instruction_duration(INSTR_ROT_X, [i]) == cfg.carbon_rot_x
-        with pytest.raises(MissingInstructionError):
-            assert proc.get_instruction_duration(INSTR_MEASURE, [i])
+        assert proc.get_instruction_duration(INSTR_INIT, [i]) == parms.mem_init_duration
+        assert (
+            proc.get_instruction_duration(INSTR_ROT_X, [i]) == parms.mem_gate_duration
+        )
 
     with pytest.raises(MissingInstructionError):
         proc.get_instruction_duration(INSTR_CNOT, [0, 1])
         proc.get_instruction_duration(INSTR_CXDIR, [1, 0])
 
-    assert proc.get_instruction_duration(INSTR_CXDIR, [0, 1]) == cfg.ec_controlled_dir_x
+    assert proc.get_instruction_duration(INSTR_CXDIR, [0, 1]) == parms.two_gate_duration
 
 
 def test_build_procnode_from_config():

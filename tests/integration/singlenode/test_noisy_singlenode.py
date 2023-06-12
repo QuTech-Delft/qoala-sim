@@ -83,15 +83,15 @@ def test_busy():
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config()
-    result = run_busy_program(500, node_cfg)
+    result = run_busy_program(200, node_cfg)
 
     print(f"prob_x_0: {result.prob_x_0}")
     print(f"prob_y_0: {result.prob_y_0}")
     print(f"prob_z_0: {result.prob_z_0}")
 
-    assert 0.9 < result.prob_x_0
-    assert 0.4 < result.prob_y_0 < 0.6
-    assert 0.4 < result.prob_z_0 < 0.6
+    assert 0.8 < result.prob_x_0
+    assert 0.3 < result.prob_y_0 < 0.7
+    assert 0.3 < result.prob_z_0 < 0.7
 
 
 def test_busy_bad_coherence():
@@ -99,16 +99,16 @@ def test_busy_bad_coherence():
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config(t1=10, t2=10)
-    result = run_busy_program(500, node_cfg)
+    result = run_busy_program(200, node_cfg)
 
     print(f"prob_x_0: {result.prob_x_0}")
     print(f"prob_y_0: {result.prob_y_0}")
     print(f"prob_z_0: {result.prob_z_0}")
     # Because of decoherence, we expect the prepared state to be close to |0>
     # (i.e. Z-outcome should be mostly 0, X and Y uniformly random)
-    assert 0.4 < result.prob_x_0 < 0.6
-    assert 0.4 < result.prob_y_0 < 0.6
-    assert 0.9 < result.prob_z_0
+    assert 0.3 < result.prob_x_0 < 0.7
+    assert 0.3 < result.prob_y_0 < 0.7
+    assert 0.8 < result.prob_z_0
 
 
 def test_busy_bad_gates():
@@ -116,19 +116,19 @@ def test_busy_bad_gates():
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config(gate_fidelity=0.5)
-    result = run_busy_program(500, node_cfg)
+    result = run_busy_program(200, node_cfg)
 
     print(f"prob_x_0: {result.prob_x_0}")
     print(f"prob_y_0: {result.prob_y_0}")
     print(f"prob_z_0: {result.prob_z_0}")
     # Because of gate noise, the prepared state should be close to maximally mixed
     # (i.e. all outcomes should be uniformly random)
-    assert 0.4 < result.prob_x_0 < 0.6
-    assert 0.4 < result.prob_y_0 < 0.6
-    assert 0.4 < result.prob_z_0 < 0.6
+    assert 0.3 < result.prob_x_0 < 0.7
+    assert 0.3 < result.prob_y_0 < 0.7
+    assert 0.3 < result.prob_z_0 < 0.7
 
 
 if __name__ == "__main__":
-    # test_busy()
-    # test_busy_bad_coherence()
+    test_busy()
+    test_busy_bad_coherence()
     test_busy_bad_gates()

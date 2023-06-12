@@ -1,45 +1,13 @@
 import itertools
 from typing import Dict, List, Tuple
 
-import numpy as np
-from netsquid.components.instructions import (
-    INSTR_CXDIR,
-    INSTR_CYDIR,
-    INSTR_INIT,
-    INSTR_MEASURE,
-    INSTR_ROT_X,
-    INSTR_ROT_Y,
-    INSTR_ROT_Z,
-)
-from netsquid.components.models.qerrormodels import (
-    DepolarNoiseModel,
-    QuantumErrorModel,
-    T1T2NoiseModel,
-)
+from netsquid.components.models.qerrormodels import QuantumErrorModel
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
-from netsquid.qubits.operators import Operator
-from netsquid_magic.link_layer import (
-    MagicLinkLayerProtocolWithSignaling,
-    SingleClickTranslationUnit,
-)
-from netsquid_magic.magic_distributor import (
-    DepolariseWithFailureMagicDistributor,
-    DoubleClickMagicDistributor,
-    PerfectStateMagicDistributor,
-)
-from netsquid_physlayer.heralded_connection import MiddleHeraldedConnection
 
 from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
 
 # Ignore type since whole 'config' module is ignored by mypy
-from qoala.runtime.config import (  # type: ignore
-    DepolariseOldLinkConfig,
-    HeraldedOldLinkConfig,
-    LinkConfig,
-    NVQDeviceConfig,
-    ProcNodeConfig,
-    ProcNodeNetworkConfig,
-)
+from qoala.runtime.config import ProcNodeConfig, ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.lhi import (
     INSTR_MEASURE_INSTANT,
     LhiLatencies,
@@ -49,7 +17,6 @@ from qoala.runtime.lhi import (
     LhiTopology,
     LhiTopologyBuilder,
 )
-from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
 from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.ntf import NtfInterface
 from qoala.runtime.task import TaskExecutionMode
@@ -57,7 +24,6 @@ from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
-from qoala.util.math import fidelity_to_prob_max_mixed
 
 
 def build_qprocessor_from_topology(
@@ -113,144 +79,10 @@ def build_qprocessor_from_topology(
     )
 
 
-def build_nv_qprocessor(name: str, cfg: NVQDeviceConfig) -> QuantumProcessor:
-    # noise models for single- and multi-qubit operations
-    electron_init_noise = DepolarNoiseModel(
-        depolar_rate=cfg.electron_init_depolar_prob, time_independent=True
-    )
-
-    electron_single_qubit_noise = DepolarNoiseModel(
-        depolar_rate=cfg.electron_single_qubit_depolar_prob, time_independent=True
-    )
-
-    carbon_init_noise = DepolarNoiseModel(
-        depolar_rate=cfg.carbon_init_depolar_prob, time_independent=True
-    )
-
-    carbon_z_rot_noise = DepolarNoiseModel(
-        depolar_rate=cfg.carbon_z_rot_depolar_prob, time_independent=True
-    )
-
-    ec_noise = DepolarNoiseModel(
-        depolar_rate=cfg.ec_gate_depolar_prob, time_independent=True
-    )
-
-    electron_qubit_noise = T1T2NoiseModel(T1=cfg.electron_T1, T2=cfg.electron_T2)
-
-    carbon_qubit_noise = T1T2NoiseModel(T1=cfg.carbon_T1, T2=cfg.carbon_T2)
-
-    # defining gates and their gate times
-
-    phys_instructions = []
-
-    electron_position = 0
-    carbon_positions = [pos + 1 for pos in range(cfg.num_qubits - 1)]
-
-    phys_instructions.append(
-        PhysicalInstruction(
-            INSTR_INIT,
-            topology=carbon_positions,
-            quantum_noise_model=carbon_init_noise,
-            duration=cfg.carbon_init,
-        )
-    )
-
-    for instr, dur in zip(
-        [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z],
-        [cfg.carbon_rot_x, cfg.carbon_rot_y, cfg.carbon_rot_z],
-    ):
-        phys_instructions.append(
-            PhysicalInstruction(
-                instr,
-                topology=carbon_positions,
-                quantum_noise_model=carbon_z_rot_noise,
-                duration=dur,
-            )
-        )
-
-    phys_instructions.append(
-        PhysicalInstruction(
-            INSTR_INIT,
-            topology=[electron_position],
-            quantum_noise_model=electron_init_noise,
-            duration=cfg.electron_init,
-        )
-    )
-
-    for instr, dur in zip(
-        [INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z],
-        [cfg.electron_rot_x, cfg.electron_rot_y, cfg.electron_rot_z],
-    ):
-        phys_instructions.append(
-            PhysicalInstruction(
-                instr,
-                topology=[electron_position],
-                quantum_noise_model=electron_single_qubit_noise,
-                duration=dur,
-            )
-        )
-
-    electron_carbon_topologies = [
-        (electron_position, carbon_pos) for carbon_pos in carbon_positions
-    ]
-    phys_instructions.append(
-        PhysicalInstruction(
-            INSTR_CXDIR,
-            topology=electron_carbon_topologies,
-            quantum_noise_model=ec_noise,
-            duration=cfg.ec_controlled_dir_x,
-        )
-    )
-
-    phys_instructions.append(
-        PhysicalInstruction(
-            INSTR_CYDIR,
-            topology=electron_carbon_topologies,
-            quantum_noise_model=ec_noise,
-            duration=cfg.ec_controlled_dir_y,
-        )
-    )
-
-    M0 = Operator(
-        "M0", np.diag([np.sqrt(1 - cfg.prob_error_0), np.sqrt(cfg.prob_error_1)])
-    )
-    M1 = Operator(
-        "M1", np.diag([np.sqrt(cfg.prob_error_0), np.sqrt(1 - cfg.prob_error_1)])
-    )
-
-    # hack to set imperfect measurements
-    INSTR_MEASURE._meas_operators = [M0, M1]
-
-    phys_instr_measure = PhysicalInstruction(
-        INSTR_MEASURE,
-        topology=[electron_position],
-        quantum_noise_model=None,
-        duration=cfg.measure,
-    )
-
-    phys_instructions.append(phys_instr_measure)
-
-    # add qubits
-    mem_noise_models = [electron_qubit_noise] + [carbon_qubit_noise] * len(
-        carbon_positions
-    )
-    qmem = QuantumProcessor(
-        name=name,
-        num_positions=cfg.num_qubits,
-        mem_noise_models=mem_noise_models,
-        phys_instructions=phys_instructions,
-    )
-    return qmem
-
-
 def build_procnode_from_config(
     cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo
 ) -> ProcNode:
-    # TODO: Refactor ad-hoc way of old NV config
-    if cfg.topology is not None:
-        topology = LhiTopologyBuilder.from_config(cfg.topology)
-    if cfg.nv_config is not None:
-        topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg.nv_config)
+    topology = LhiTopologyBuilder.from_config(cfg.topology)
 
     ntf_interface_cls = cfg.ntf.to_ntf_interface()
     ntf_interface = ntf_interface_cls()
@@ -279,55 +111,6 @@ def build_procnode_from_config(
         cfg.latencies.host_peer_latency
     )
     return procnode
-
-
-def build_ll_protocol(
-    config: LinkConfig, proc_node1: ProcNode, proc_node2: ProcNode
-) -> MagicLinkLayerProtocolWithSignaling:
-    if config.typ == "perfect":
-        link_dist = PerfectStateMagicDistributor(
-            nodes=[proc_node1.node, proc_node2.node], state_delay=0
-        )
-    elif config.typ == "depolarise":
-        link_cfg = config.cfg
-        if not isinstance(link_cfg, DepolariseOldLinkConfig):
-            link_cfg = DepolariseOldLinkConfig(**config.cfg)
-        prob_max_mixed = fidelity_to_prob_max_mixed(2, link_cfg.fidelity)
-        link_dist = DepolariseWithFailureMagicDistributor(
-            nodes=[proc_node1.node, proc_node2.node],
-            prob_max_mixed=prob_max_mixed,
-            prob_success=link_cfg.prob_success,
-            t_cycle=link_cfg.t_cycle,
-        )
-    # TODO: decide whether this is still wanted/needed
-    # elif config.typ == "nv":
-    #     link_cfg = config.cfg
-    #     if not isinstance(link_cfg, NVLinkConfig):
-    #         link_cfg = NVLinkConfig(**config.cfg)
-    #     link_dist = NVSingleClickMagicDistributor(
-    #         nodes=[proc_node1.node, proc_node2.node],
-    #         length_A=link_cfg.length_A,
-    #         length_B=link_cfg.length_B,
-    #         full_cycle=link_cfg.full_cycle,
-    #         cycle_time=link_cfg.cycle_time,
-    #         alpha=link_cfg.alpha,
-    #     )
-    elif config.typ == "heralded":
-        link_cfg = config.cfg
-        if not isinstance(link_cfg, HeraldedOldLinkConfig):
-            link_cfg = HeraldedOldLinkConfig(**config.cfg)
-        connection = MiddleHeraldedConnection(name="heralded_conn", **link_cfg.dict())
-        link_dist = DoubleClickMagicDistributor(
-            [proc_node1.node, proc_node2.node], connection
-        )
-    else:
-        raise ValueError
-
-    return MagicLinkLayerProtocolWithSignaling(
-        nodes=[proc_node1.node, proc_node2.node],
-        magic_distributor=link_dist,
-        translation_unit=SingleClickTranslationUnit(),
-    )
 
 
 def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
