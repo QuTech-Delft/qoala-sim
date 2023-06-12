@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractclassmethod, abstractmethod
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 import yaml
 from netsquid.components.instructions import (
     INSTR_CNOT,
-    INSTR_CROT_X,
-    INSTR_CROT_Y,
+    INSTR_CXDIR,
+    INSTR_CYDIR,
     INSTR_CZ,
     INSTR_H,
     INSTR_INIT,
@@ -43,7 +44,61 @@ from qoala.runtime.lhi import (
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
+from qoala.runtime.ntf import (
+    GenericNtf,
+    NtfInterface,
+    NtfInterfaceConfigInterface,
+    NvNtf,
+)
 from qoala.util.math import fidelity_to_prob_max_mixed
+
+GENERIC_GATES = [
+    "INSTR_INIT",
+    "INSTR_ROT_X",
+    "INSTR_ROT_Y",
+    "INSTR_ROT_Z",
+    "INSTR_X",
+    "INSTR_Y",
+    "INSTR_Z",
+    "INSTR_H",
+    "INSTR_MEASURE",
+    "INSTR_MEASURE_INSTANT",
+]
+
+GENERIC_TWO_GATES = ["INSTR_CNOT", "INSTR_CZ"]
+
+NV_COM_GATES = [
+    "INSTR_INIT",
+    "INSTR_ROT_X",
+    "INSTR_ROT_Y",
+    "INSTR_MEASURE",
+    "INSTR_MEASURE_INSTANT",
+]
+
+NV_MEM_GATES = [
+    "INSTR_INIT",
+    "INSTR_ROT_X",
+    "INSTR_ROT_Y",
+    "INSTR_ROT_Z",
+    "INSTR_MEASURE",
+    "INSTR_MEASURE_INSTANT",
+]
+
+NV_TWO_GATES = ["INSTR_CXDIR", "INSTR_CYDIR"]
+
+NV_DEFAULT_COM_GATE_DURATION = 1e5
+NV_DEFAULT_MEM_GATE_DURATION = 1e6
+NV_DEFAULT_TWO_GATE_DURATION = 2e6
+
+GENERIC_DEFAULT_ONE_GATE_DURATION = 5e3
+GENERIC_DEFAULT_TWO_GATE_DURATION = 200e3
+
+# NV_LAB_COMM_T1 = 1e6
+# NV_LAB_COMM_T2 = 1e6
+# NV_LAB_MEM_T1 = 1e6
+# NV_LAB_MEM_T2 = 1e6
+
+# NV_LAB_COMM_INIT_DURATION = 1e3
 
 
 class BaseModel(PydanticBaseModel):
@@ -66,6 +121,12 @@ class QubitConfigRegistry(ABC):
 class GateConfigRegistry(ABC):
     @abstractclassmethod
     def map(cls) -> Dict[str, GateNoiseConfigInterface]:
+        raise NotImplementedError
+
+
+class NtfInterfaceRegistry(ABC):
+    @abstractclassmethod
+    def map(cls) -> Dict[str, NtfInterface]:
         raise NotImplementedError
 
 
@@ -140,6 +201,14 @@ class QubitConfig(LhiQubitConfigInterface, BaseModel):
             is_communication=is_communication,
             noise_config_cls="T1T2NoiseModel",
             noise_config=QubitT1T2Config(T1=0, T2=0),
+        )
+
+    @classmethod
+    def t1t2_config(cls, is_communication: bool, T1: int, T2: int) -> QubitConfig:
+        return QubitConfig(
+            is_communication=is_communication,
+            noise_config_cls="T1T2NoiseModel",
+            noise_config=QubitT1T2Config(T1=T1, T2=T2),
         )
 
     @classmethod
@@ -245,6 +314,32 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         )
 
     @classmethod
+    def with_depolar_prob(
+        cls, name: str, duration: int, depolar_prob: float
+    ) -> GateConfig:
+        return GateConfig(
+            name=name,
+            noise_config_cls="GateDepolariseConfig",
+            noise_config=GateDepolariseConfig(
+                duration=duration, depolarise_prob=depolar_prob
+            ),
+        )
+
+    @classmethod
+    def with_single_gate_fidelity(
+        cls, name: str, duration: int, fidelity: float
+    ) -> GateConfig:
+        depolar_prob = fidelity_to_prob_max_mixed(num_qubits=1, fid=fidelity)
+        return cls.with_depolar_prob(name, duration, depolar_prob)
+
+    @classmethod
+    def with_two_gate_fidelity(
+        cls, name: str, duration: int, fidelity: float
+    ) -> GateConfig:
+        depolar_prob = fidelity_to_prob_max_mixed(num_qubits=2, fid=fidelity)
+        return cls.with_depolar_prob(name, duration, depolar_prob)
+
+    @classmethod
     def from_dict(
         cls,
         dict: Any,
@@ -325,8 +420,8 @@ class DefaultInstrConfigRegistry(InstrConfigRegistry):
         "INSTR_ROT_Z": INSTR_ROT_Z,
         "INSTR_CNOT": INSTR_CNOT,
         "INSTR_CZ": INSTR_CZ,
-        "INSTR_CROT_X": INSTR_CROT_X,
-        "INSTR_CROT_Y": INSTR_CROT_Y,
+        "INSTR_CXDIR": INSTR_CXDIR,
+        "INSTR_CYDIR": INSTR_CYDIR,
         "INSTR_MEASURE": INSTR_MEASURE,
         "INSTR_MEASURE_INSTANT": INSTR_MEASURE_INSTANT,
     }
@@ -353,6 +448,17 @@ class DefaultGateConfigRegistry(GateConfigRegistry):
 
     @classmethod
     def map(cls) -> Dict[str, GateNoiseConfigInterface]:
+        return cls._MAP
+
+
+class DefaultNtfRegistry(NtfInterfaceRegistry):
+    _MAP = {
+        "GenericNtf": GenericNtf,
+        "NvNtf": NvNtf,
+    }
+
+    @classmethod
+    def map(cls) -> Dict[str, NtfInterface]:
         return cls._MAP
 
 
@@ -408,9 +514,11 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         return cls.from_dict(_read_dict(path))
 
     @classmethod
-    def perfect_config_uniform(
+    def uniform_t1t2_qubits_perfect_gates(
         cls,
         num_qubits: int,
+        t1: int,
+        t2: int,
         single_instructions: List[str],
         single_duration: int,
         two_instructions: List[str],
@@ -419,7 +527,9 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         qubits = [
             QubitIdConfig(
                 qubit_id=i,
-                qubit_config=QubitConfig.perfect_config(is_communication=True),
+                qubit_config=QubitConfig.t1t2_config(
+                    is_communication=True, T1=t1, T2=t2
+                ),
             )
             for i in range(num_qubits)
         ]
@@ -454,9 +564,42 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         )
 
     @classmethod
+    def perfect_config_uniform(
+        cls,
+        num_qubits: int,
+        single_instructions: List[str],
+        single_duration: int,
+        two_instructions: List[str],
+        two_duration: int,
+    ) -> TopologyConfig:
+        return cls.uniform_t1t2_qubits_perfect_gates(
+            num_qubits=num_qubits,
+            t1=0,
+            t2=0,
+            single_instructions=single_instructions,
+            single_duration=single_duration,
+            two_instructions=two_instructions,
+            two_duration=two_duration,
+        )
+
+    @classmethod
     def perfect_config_uniform_default_params(cls, num_qubits: int) -> TopologyConfig:
         return cls.perfect_config_uniform(
             num_qubits=num_qubits,
+            single_instructions=GENERIC_GATES,
+            single_duration=GENERIC_DEFAULT_ONE_GATE_DURATION,
+            two_instructions=GENERIC_TWO_GATES,
+            two_duration=GENERIC_DEFAULT_TWO_GATE_DURATION,
+        )
+
+    @classmethod
+    def uniform_t1t2_qubits_perfect_gates_default_params(
+        cls, num_qubits: int, t1: int, t2: int
+    ) -> TopologyConfig:
+        return cls.uniform_t1t2_qubits_perfect_gates(
+            num_qubits=num_qubits,
+            t1=t1,
+            t2=t2,
             single_instructions=[
                 "INSTR_INIT",
                 "INSTR_ROT_X",
@@ -469,10 +612,30 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
                 "INSTR_MEASURE",
                 "INSTR_MEASURE_INSTANT",
             ],
-            single_duration=5e3,
+            single_duration=GENERIC_DEFAULT_ONE_GATE_DURATION,
             two_instructions=["INSTR_CNOT", "INSTR_CZ"],
-            two_duration=200e3,
+            two_duration=GENERIC_DEFAULT_TWO_GATE_DURATION,
         )
+
+    @classmethod
+    def config_star(
+        cls,
+        num_qubits: int,
+        comm_t1: int,
+        comm_t2: int,
+        mem_t1: int,
+        mem_t2: int,
+        comm_init_fidelity: float,
+        comm_meas_fidelity: float,
+        comm_gate_fidelity: float,
+        comm_instructions: List[str],
+        comm_duration: int,
+        mem_instructions: List[str],
+        mem_duration: int,
+        two_instructions: List[str],
+        two_duration: int,
+    ) -> TopologyConfig:
+        pass
 
     @classmethod
     def perfect_config_star(
@@ -539,6 +702,84 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         )
 
     @classmethod
+    def perfect_nv_default_params(cls, num_qubits: int) -> TopologyConfig:
+        return cls.perfect_config_star(
+            num_qubits=num_qubits,
+            comm_instructions=NV_COM_GATES,
+            comm_duration=NV_DEFAULT_COM_GATE_DURATION,
+            mem_instructions=NV_MEM_GATES,
+            mem_duration=NV_DEFAULT_MEM_GATE_DURATION,
+            two_instructions=NV_TWO_GATES,
+            two_duration=NV_DEFAULT_TWO_GATE_DURATION,
+        )
+
+    @classmethod
+    def from_nv_params(cls, num_qubits: int, params: NvParams) -> TopologyConfig:
+        return (
+            TopologyConfigBuilder()
+            .star_topology()
+            .num_qubits(num_qubits)
+            .default_nv_gates()
+            .comm_t1(params.comm_t1)
+            .comm_t2(params.comm_t2)
+            .mem_t1(params.mem_t1)
+            .mem_t2(params.mem_t2)
+            .all_comm_gates_fidelity(params.comm_gate_fidelity)
+            .all_comm_gates_duration(params.comm_gate_duration)
+            .comm_gate_fidelity("INSTR_INIT", params.comm_init_fidelity)
+            .comm_gate_duration("INSTR_INIT", params.comm_init_duration)
+            .comm_gate_fidelity("INSTR_MEASURE", params.comm_meas_fidelity)
+            .comm_gate_duration("INSTR_MEASURE", params.comm_meas_duration)
+            .comm_gate_fidelity("INSTR_MEASURE_INSTANT", params.comm_meas_fidelity)
+            .comm_gate_duration("INSTR_MEASURE_INSTANT", params.comm_meas_duration)
+            .all_mem_gates_fidelity(params.mem_gate_fidelity)
+            .all_mem_gates_duration(params.mem_gate_duration)
+            .mem_gate_fidelity("INSTR_INIT", params.mem_init_fidelity)
+            .mem_gate_duration("INSTR_INIT", params.mem_init_duration)
+            .mem_gate_fidelity("INSTR_MEASURE", params.mem_meas_fidelity)
+            .mem_gate_duration("INSTR_MEASURE", params.mem_meas_duration)
+            .mem_gate_fidelity("INSTR_MEASURE_INSTANT", params.mem_meas_fidelity)
+            .mem_gate_duration("INSTR_MEASURE_INSTANT", params.mem_meas_duration)
+            .all_two_gates_fidelity(params.two_gate_fidelity)
+            .all_two_gates_duration(params.two_gate_duration)
+            .build()
+        )
+
+    # @classmethod
+    # def nv_lab_setup(cls, num_qubits: int) -> TopologyConfig:
+    #     # comm qubit
+    #     qubits = [
+    #         QubitIdConfig(
+    #             qubit_id=0,
+    #             qubit_config=QubitConfig.t1t2_config(
+    #                 is_communication=True, T1=NV_LAB_COMM_T1, T2=NV_LAB_COMM_T2
+    #             ),
+    #         )
+    #     ]
+    #     # mem qubits
+    #     qubits += [
+    #         QubitIdConfig(
+    #             qubit_id=i,
+    #             qubit_config=QubitConfig.t1t2_config(
+    #                 is_communication=False, T1=NV_LAB_MEM_T1, T2=NV_LAB_MEM_T2
+    #             ),
+    #         )
+    #         for i in range(1, num_qubits)
+    #     ]
+    #     comm_gates: List[SingleGateConfig] = []
+    #     comm_gates += [
+    #         SingleGateConfig(
+    #             qubit_id=0,
+    #             gate_configs=[
+    #                 GateConfig.perfect_config(
+    #                     name=name, duration=NV_LAB_COMM_INIT_DURATION
+    #                 )
+    #                 for name in comm_instructions
+    #             ],
+    #         )
+    #     ]
+
+    @classmethod
     def from_dict(cls, dict: Any) -> TopologyConfig:
         raw_qubits = dict["qubits"]
         qubits = [QubitIdConfig.from_dict(d) for d in raw_qubits]
@@ -571,104 +812,394 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         return infos
 
 
-class GenericQDeviceConfig(BaseModel):
-    # total number of qubits
-    num_qubits: int = 2
-    # number of communication qubits
-    num_comm_qubits: int = 2
+class TopologyConfigBuilder:
+    def __init__(self) -> None:
+        self._num_qubits: Optional[int] = None
+        self._uniform: Optional[bool] = None
+        self._comm_t1: Optional[int] = None
+        self._comm_t2: Optional[int] = None
+        self._mem_t1: Optional[int] = None
+        self._mem_t2: Optional[int] = None
+        self._comm_single_gates: Optional[List[str]] = None
+        self._comm_single_gate_durations: Optional[Dict[str, int]] = None
+        self._comm_single_gate_fidelities: Optional[Dict[str, float]] = None
+        self._mem_single_gates: Optional[List[str]] = None
+        self._mem_single_gate_durations: Optional[Dict[str, int]] = None
+        self._mem_single_gate_fidelities: Optional[Dict[str, float]] = None
+        self._two_gates: Optional[List[str]] = None
+        self._two_gate_durations: Optional[Dict[str, int]] = None
+        self._two_gate_fidelities: Optional[Dict[str, float]] = None
 
-    # coherence times (same for each qubit)
-    T1: int = 10_000_000_000
-    T2: int = 1_000_000_000
+    def _build_qubits(self) -> List[QubitIdConfig]:
+        if self._uniform:
+            qubits = [
+                QubitIdConfig(
+                    qubit_id=i,
+                    qubit_config=QubitConfig.t1t2_config(
+                        is_communication=True, T1=self._comm_t1, T2=self._comm_t2
+                    ),
+                )
+                for i in range(self._num_qubits)
+            ]
+        else:
+            # comm qubit
+            qubits = [
+                QubitIdConfig(
+                    qubit_id=0,
+                    qubit_config=QubitConfig.t1t2_config(
+                        is_communication=True, T1=self._comm_t1, T2=self._comm_t2
+                    ),
+                )
+            ]
+            # mem qubits
+            qubits += [
+                QubitIdConfig(
+                    qubit_id=i,
+                    qubit_config=QubitConfig.t1t2_config(
+                        is_communication=False, T1=self._mem_t1, T2=self._mem_t2
+                    ),
+                )
+                for i in range(1, self._num_qubits)
+            ]
+        return qubits
 
-    # gate execution times
-    init_time: int = 10_000
-    single_qubit_gate_time: int = 1_000
-    two_qubit_gate_time: int = 100_000
-    measure_time: int = 10_000
+    def _build_single_gates(self) -> List[SingleGateConfig]:
+        single_gates: List[SingleGateConfig] = []
 
-    # noise model
-    single_qubit_gate_depolar_prob: float = 0.0
-    two_qubit_gate_depolar_prob: float = 0.01
+        if self._uniform:
+            for i in range(self._num_qubits):
+                gate_cfgs: List[GateConfig] = []
+                for gate in self._comm_single_gates:
+                    dur = self._comm_single_gate_durations[gate]
+                    fid = self._comm_single_gate_fidelities[gate]
+                    gate_cfgs.append(
+                        GateConfig.with_single_gate_fidelity(gate, dur, fid)
+                    )
+                single_gates.append(
+                    SingleGateConfig(qubit_id=i, gate_configs=gate_cfgs)
+                )
+        else:
+            gate_cfgs: List[GateConfig] = []
+            for gate in self._comm_single_gates:
+                dur = self._comm_single_gate_durations[gate]
+                fid = self._comm_single_gate_fidelities[gate]
+                gate_cfgs.append(GateConfig.with_single_gate_fidelity(gate, dur, fid))
+            single_gates.append(SingleGateConfig(qubit_id=0, gate_configs=gate_cfgs))
+            for i in range(1, self._num_qubits):
+                gate_cfgs: List[GateConfig] = []
+                for gate in self._mem_single_gates:
+                    dur = self._mem_single_gate_durations[gate]
+                    fid = self._mem_single_gate_fidelities[gate]
+                    gate_cfgs.append(
+                        GateConfig.with_single_gate_fidelity(gate, dur, fid)
+                    )
+                single_gates.append(
+                    SingleGateConfig(qubit_id=i, gate_configs=gate_cfgs)
+                )
+
+        return single_gates
+
+    def _build_multi_gates(self) -> List[MultiGateConfig]:
+        multi_gates: List[MultiGateConfig] = []
+
+        if self._uniform:
+            for i in range(self._num_qubits):
+                for j in range(self._num_qubits):
+                    if i == j:
+                        continue
+                    gate_cfgs: List[GateConfig] = []
+                    for gate in self._two_gates:
+                        dur = self._two_gate_durations[gate]
+                        fid = self._two_gate_fidelities[gate]
+                        gate_cfgs.append(
+                            GateConfig.with_two_gate_fidelity(gate, dur, fid)
+                        )
+                    cfg = MultiGateConfig(qubit_ids=[i, j], gate_configs=gate_cfgs)
+                    multi_gates.append(cfg)
+        else:
+            for i in range(1, self._num_qubits):
+                gate_cfgs: List[GateConfig] = []
+                for gate in self._two_gates:
+                    dur = self._two_gate_durations[gate]
+                    fid = self._two_gate_fidelities[gate]
+                    gate_cfgs.append(GateConfig.with_two_gate_fidelity(gate, dur, fid))
+                cfg = MultiGateConfig(qubit_ids=[0, i], gate_configs=gate_cfgs)
+                multi_gates.append(cfg)
+
+        return multi_gates
+
+    def build(self) -> TopologyConfig:
+        assert self._num_qubits is not None
+        assert self._uniform is not None
+        assert self._comm_t1 is not None
+        assert self._comm_t2 is not None
+        assert self._mem_t1 is not None
+        assert self._mem_t2 is not None
+        assert self._comm_single_gates is not None
+        assert self._comm_single_gate_durations is not None
+        assert self._comm_single_gate_fidelities is not None
+        assert self._mem_single_gates is not None
+        assert self._mem_single_gate_durations is not None
+        assert self._mem_single_gate_fidelities is not None
+        assert self._two_gates is not None
+        assert self._two_gate_durations is not None
+        assert self._two_gate_fidelities is not None
+
+        qubits = self._build_qubits()
+        single_gates = self._build_single_gates()
+        multi_gates = self._build_multi_gates()
+
+        return TopologyConfig(
+            qubits=qubits, single_gates=single_gates, multi_gates=multi_gates
+        )
+
+    def num_qubits(self, num: int) -> TopologyConfigBuilder:
+        self._num_qubits = num
+        return self
+
+    def uniform_topology(self) -> TopologyConfigBuilder:
+        self._uniform = True
+        return self
+
+    def star_topology(self) -> TopologyConfigBuilder:
+        self._uniform = False
+        return self
+
+    def qubit_t1(self, t1: int) -> TopologyConfigBuilder:
+        self._comm_t1 = t1
+        self._mem_t1 = t1
+        return self
+
+    def qubit_t2(self, t2: int) -> TopologyConfigBuilder:
+        self._comm_t2 = t2
+        self._mem_t2 = t2
+        return self
+
+    def comm_t1(self, t1: int) -> TopologyConfigBuilder:
+        self._comm_t1 = t1
+        return self
+
+    def comm_t2(self, t2: int) -> TopologyConfigBuilder:
+        self._comm_t2 = t2
+        return self
+
+    def mem_t1(self, t1: int) -> TopologyConfigBuilder:
+        self._mem_t1 = t1
+        return self
+
+    def mem_t2(self, t2: int) -> TopologyConfigBuilder:
+        self._mem_t2 = t2
+        return self
+
+    def no_decoherence(self) -> TopologyConfigBuilder:
+        self._comm_t1 = 0
+        self._comm_t2 = 0
+        self._mem_t1 = 0
+        self._mem_t2 = 0
+        return self
+
+    def default_generic_gates(self) -> TopologyConfigBuilder:
+        self._comm_single_gates = GENERIC_GATES
+        self._mem_single_gates = GENERIC_GATES
+        self._two_gates = GENERIC_TWO_GATES
+        return self
+
+    def default_nv_gates(self) -> TopologyConfigBuilder:
+        self._comm_single_gates = NV_COM_GATES
+        self._mem_single_gates = NV_MEM_GATES
+        self._two_gates = NV_TWO_GATES
+        return self
+
+    def zero_gate_durations(self) -> TopologyConfigBuilder:
+        if self._comm_single_gate_durations is None:
+            self._comm_single_gate_durations = {}
+        if self._mem_single_gate_durations is None:
+            self._mem_single_gate_durations = {}
+        if self._two_gate_durations is None:
+            self._two_gate_durations = {}
+
+        for gate in self._comm_single_gates:
+            self._comm_single_gate_durations[gate] = 0
+        for gate in self._mem_single_gates:
+            self._mem_single_gate_durations[gate] = 0
+        for gate in self._two_gates:
+            self._two_gate_durations[gate] = 0
+        return self
+
+    def perfect_gate_fidelities(self) -> TopologyConfigBuilder:
+        if self._comm_single_gate_fidelities is None:
+            self._comm_single_gate_fidelities = {}
+        if self._mem_single_gate_fidelities is None:
+            self._mem_single_gate_fidelities = {}
+        if self._two_gate_fidelities is None:
+            self._two_gate_fidelities = {}
+
+        for gate in self._comm_single_gates:
+            self._comm_single_gate_fidelities[gate] = 1
+        for gate in self._mem_single_gates:
+            self._mem_single_gate_fidelities[gate] = 1
+        for gate in self._two_gates:
+            self._two_gate_fidelities[gate] = 1
+        return self
+
+    def all_comm_gates_fidelity(self, fidelity: float) -> TopologyConfigBuilder:
+        if self._comm_single_gate_fidelities is None:
+            self._comm_single_gate_fidelities = {}
+        for gate in self._comm_single_gates:
+            self._comm_single_gate_fidelities[gate] = fidelity
+        return self
+
+    def comm_gate_fidelity(self, gate: str, fidelity: float) -> TopologyConfigBuilder:
+        if self._comm_single_gate_fidelities is None:
+            self._comm_single_gate_fidelities = {}
+        self._comm_single_gate_fidelities[gate] = fidelity
+        return self
+
+    def all_comm_gates_duration(self, duration: int) -> TopologyConfigBuilder:
+        if self._comm_single_gate_durations is None:
+            self._comm_single_gate_durations = {}
+        for gate in self._comm_single_gates:
+            self._comm_single_gate_durations[gate] = duration
+        return self
+
+    def comm_gate_duration(self, gate: str, duration: int) -> TopologyConfigBuilder:
+        if self._comm_single_gate_durations is None:
+            self._comm_single_gate_durations = {}
+        self._comm_single_gate_durations[gate] = duration
+        return self
+
+    def all_mem_gates_fidelity(self, fidelity: float) -> TopologyConfigBuilder:
+        if self._mem_single_gate_fidelities is None:
+            self._mem_single_gate_fidelities = {}
+        for gate in self._mem_single_gates:
+            self._mem_single_gate_fidelities[gate] = fidelity
+        return self
+
+    def mem_gate_fidelity(self, gate: str, fidelity: float) -> TopologyConfigBuilder:
+        if self._mem_single_gate_fidelities is None:
+            self._mem_single_gate_fidelities = {}
+        self._mem_single_gate_fidelities[gate] = fidelity
+        return self
+
+    def all_mem_gates_duration(self, duration: int) -> TopologyConfigBuilder:
+        if self._mem_single_gate_durations is None:
+            self._mem_single_gate_durations = {}
+        for gate in self._mem_single_gates:
+            self._mem_single_gate_durations[gate] = duration
+        return self
+
+    def mem_gate_duration(self, gate: str, duration: int) -> TopologyConfigBuilder:
+        if self._mem_single_gate_durations is None:
+            self._mem_single_gate_durations = {}
+        self._mem_single_gate_durations[gate] = duration
+        return self
+
+    def all_two_gates_fidelity(self, fidelity: float) -> TopologyConfigBuilder:
+        if self._two_gate_fidelities is None:
+            self._two_gate_fidelities = {}
+        for gate in self._two_gates:
+            self._two_gate_fidelities[gate] = fidelity
+        return self
+
+    def two_gate_fidelity(self, gate: str, fidelity: float) -> TopologyConfigBuilder:
+        if self._two_gate_fidelities is None:
+            self._two_gate_fidelities = {}
+        self._two_gate_fidelities[gate] = fidelity
+        return self
+
+    def all_two_gates_duration(self, duration: int) -> TopologyConfigBuilder:
+        if self._two_gate_durations is None:
+            self._two_gate_durations = {}
+        for gate in self._two_gates:
+            self._two_gate_durations[gate] = duration
+        return self
+
+    def two_gate_duration(self, gate: str, duration: int) -> TopologyConfigBuilder:
+        if self._two_gate_durations is None:
+            self._two_gate_durations = {}
+        self._two_gate_durations[gate] = duration
+        return self
+
+
+# TODO: actually use this class (currently ProcNodeConfig just uses a string for ntf)
+class NtfConfig(NtfInterfaceConfigInterface, BaseModel):
+    ntf_interface_cls: str
+    ntf_interface: Type[NtfInterface]
 
     @classmethod
-    def from_file(cls, path: str) -> GenericQDeviceConfig:
-        return _from_file(path, GenericQDeviceConfig)  # type: ignore
+    def from_file(
+        cls, path: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+    ) -> NtfConfig:
+        return cls.from_dict(_read_dict(path), registry)
 
     @classmethod
-    def perfect_config(cls, num_qubits: int) -> GenericQDeviceConfig:
-        cfg = GenericQDeviceConfig(num_qubits=num_qubits, num_comm_qubits=num_qubits)
-        cfg.T1 = 0
-        cfg.T2 = 0
-        cfg.single_qubit_gate_depolar_prob = 0.0
-        cfg.two_qubit_gate_depolar_prob = 0.0
-        return cfg
+    def from_cls_name(
+        cls, name: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+    ) -> NtfConfig:
+        # Try to get the type of the ntf interface class.
+        typ: Optional[NtfInterface] = None
+        if registry is not None:
+            try:
+                for reg in registry:
+                    if name in reg.map():
+                        typ = reg.map()[name]
+                        break
+            except KeyError:
+                pass
+        # If not found in custom registries, try default registry.
+        if typ is None:
+            try:
+                typ = DefaultNtfRegistry.map()[name]
+            except KeyError:
+                raise RuntimeError("invalid NTF interface type")
 
-
-class NVQDeviceConfig(BaseModel):
-    # number of qubits per NV
-    num_qubits: int = 2
-
-    # initialization error of the electron spin
-    electron_init_depolar_prob: float = 0.05
-
-    # error of the single-qubit gate
-    electron_single_qubit_depolar_prob: float = 0.0
-
-    # measurement errors (prob_error_X is the probability that outcome X is flipped to 1 - X)
-    prob_error_0: float = 0.05
-    prob_error_1: float = 0.005
-
-    # initialization error of the carbon nuclear spin
-    carbon_init_depolar_prob: float = 0.05
-
-    # error of the Z-rotation gate on the carbon nuclear spin
-    carbon_z_rot_depolar_prob: float = 0.001
-
-    # error of the native NV two-qubit gate
-    ec_gate_depolar_prob: float = 0.008
-
-    # coherence times
-    electron_T1: int = 1_000_000_000
-    electron_T2: int = 300_000_000
-    carbon_T1: int = 150_000_000_000
-    carbon_T2: int = 1_500_000_000
-
-    # gate execution times
-    carbon_init: int = 310_000
-    carbon_rot_x: int = 500_000
-    carbon_rot_y: int = 500_000
-    carbon_rot_z: int = 500_000
-    electron_init: int = 2_000
-    electron_rot_x: int = 5_000
-    electron_rot_y: int = 5_000
-    electron_rot_z: int = 5_000
-    ec_controlled_dir_x: int = 500_000
-    ec_controlled_dir_y: int = 500_000
-    measure: int = 3_700
+        return NtfConfig(ntf_interface_cls=name, ntf_interface=typ)
 
     @classmethod
-    def from_file(cls, path: str) -> NVQDeviceConfig:
-        return _from_file(path, NVQDeviceConfig)  # type: ignore
+    def from_dict(
+        cls, dict: Any, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+    ) -> NtfConfig:
+        raw_typ = dict["ntf_interface_cls"]
+        return cls.from_cls_name(raw_typ, registry)
 
-    @classmethod
-    def perfect_config(cls, num_qubits: int) -> NVQDeviceConfig:
-        # get default config
-        cfg = NVQDeviceConfig(num_qubits=num_qubits)
+    def to_ntf_interface(self) -> Type[NtfInterface]:
+        return self.ntf_interface
 
-        # set all error params to 0
-        cfg.electron_init_depolar_prob = 0
-        cfg.electron_single_qubit_depolar_prob = 0
-        cfg.prob_error_0 = 0
-        cfg.prob_error_1 = 0
-        cfg.carbon_init_depolar_prob = 0
-        cfg.carbon_z_rot_depolar_prob = 0
-        cfg.ec_gate_depolar_prob = 0
-        cfg.electron_T1 = 0
-        cfg.electron_T2 = 0
-        cfg.carbon_T1 = 0
-        cfg.carbon_T2 = 0
-        return cfg
+
+@dataclass
+class NvParams:
+    # Communication qubit coherence
+    comm_t1: float = 0.0
+    comm_t2: float = 0.0
+
+    # Communication qubit gate noise
+    comm_init_fidelity: float = 1.0
+    comm_meas_fidelity: float = 1.0
+    comm_gate_fidelity: float = 1.0
+
+    # Communication qubit gate duration
+    comm_init_duration: float = 0.0
+    comm_meas_duration: float = 0.0
+    comm_gate_duration: float = 0.0
+
+    # Memory qubit coherence
+    mem_t1: float = 0.0
+    mem_t2: float = 0.0
+
+    # Memory qubit gate noise
+    mem_init_fidelity: float = 1.0
+    mem_meas_fidelity: float = 1.0
+    mem_gate_fidelity: float = 1.0
+
+    # Memory qubit gate duration
+    mem_init_duration: float = 0.0
+    mem_meas_duration: float = 0.0
+    mem_gate_duration: float = 0.0
+
+    # Two-qubit gate noise
+    two_gate_fidelity: float = 1.0
+    # Two qubit gate duration
+    two_gate_duration: float = 0.0
 
 
 class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
@@ -710,10 +1241,9 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
 class ProcNodeConfig(BaseModel):
     node_name: str
     node_id: int
-    # TODO: Refactor ad-hoc way of old NV config!
-    topology: Optional[TopologyConfig] = None
+    topology: TopologyConfig
     latencies: LatenciesConfig
-    nv_config: Optional[NVQDeviceConfig] = None  # TODO: remove!
+    ntf: NtfConfig
     tem: Optional[str] = None
 
     @classmethod
@@ -726,69 +1256,13 @@ class ProcNodeConfig(BaseModel):
         node_id = dict["node_id"]
         topology = TopologyConfig.from_dict(dict["topology"])
         latencies = LatenciesConfig.from_dict(dict["latencies"])
+        ntf = NtfConfig.from_dict(dict["ntf"])
         return ProcNodeConfig(
-            node_name=node_name, node_id=node_id, topology=topology, latencies=latencies
-        )
-
-
-class DepolariseOldLinkConfig(BaseModel):
-    fidelity: float
-    prob_success: float
-    t_cycle: float
-
-    @classmethod
-    def from_file(cls, path: str) -> DepolariseOldLinkConfig:
-        return _from_file(path, DepolariseOldLinkConfig)  # type: ignore
-
-
-class NVOldLinkConfig(BaseModel):
-    length_A: float
-    length_B: float
-    full_cycle: float
-    cycle_time: float
-    alpha: float
-
-    @classmethod
-    def from_file(cls, path: str) -> NVOldLinkConfig:
-        return _from_file(path, NVOldLinkConfig)  # type: ignore
-
-
-class HeraldedOldLinkConfig(BaseModel):
-    length: float
-    p_loss_init: float = 0
-    p_loss_length: float = 0.25
-    speed_of_light: float = 200_000
-    dark_count_probability: float = 0
-    detector_efficiency: float = 1.0
-    visibility: float = 1.0
-    num_resolving: bool = False
-
-    @classmethod
-    def from_file(cls, path: str) -> HeraldedOldLinkConfig:
-        return _from_file(path, HeraldedOldLinkConfig)  # type: ignore
-
-
-class OldLinkConfig(BaseModel):
-    node1: str
-    node2: str
-    typ: str
-    cfg: Any
-    host_host_latency: float = 0.0
-    qnos_qnos_latency: float = 0.0
-
-    @classmethod
-    def from_file(cls, path: str) -> OldLinkConfig:
-        return _from_file(path, OldLinkConfig)  # type: ignore
-
-    @classmethod
-    def perfect_config(cls, node1: str, node2: str) -> OldLinkConfig:
-        return OldLinkConfig(
-            node1=node1,
-            node2=node2,
-            typ="perfect",
-            cfg=None,
-            host_host_latency=0.0,
-            qnos_qnos_latency=0.0,
+            node_name=node_name,
+            node_id=node_id,
+            topology=topology,
+            latencies=latencies,
+            ntf=ntf,
         )
 
 
@@ -869,10 +1343,31 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
         )
 
     @classmethod
-    def depolarise_config(cls, fidelity: float, state_delay: float) -> LinkConfig:
-        prob_max_mixed = fidelity_to_prob_max_mixed(fidelity)
+    def simple_depolarise_config(
+        cls, fidelity: float, state_delay: float
+    ) -> LinkConfig:
+        prob_max_mixed = fidelity_to_prob_max_mixed(2, fidelity)
         sampler_config = DepolariseSamplerConfig(
             cycle_time=0, prob_max_mixed=prob_max_mixed, prob_success=1
+        )
+        return LinkConfig(
+            state_delay=state_delay,
+            sampler_config_cls="DepolariseSamplerConfig",
+            sampler_config=sampler_config,
+        )
+
+    @classmethod
+    def depolarise_config(
+        cls,
+        prob_max_mixed: float,
+        attempt_success_prob: float,
+        attempt_duration: float,
+        state_delay: float,
+    ) -> LinkConfig:
+        sampler_config = DepolariseSamplerConfig(
+            cycle_time=attempt_duration,
+            prob_max_mixed=prob_max_mixed,
+            prob_success=attempt_success_prob,
         )
         return LinkConfig(
             state_delay=state_delay,

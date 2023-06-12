@@ -34,6 +34,8 @@ from qoala.runtime.config import (
     LinkBetweenNodesConfig,
     LinkConfig,
     MultiGateConfig,
+    NtfConfig,
+    NvParams,
     PerfectSamplerConfig,
     ProcNodeConfig,
     QubitConfig,
@@ -43,7 +45,9 @@ from qoala.runtime.config import (
     QubitT1T2Config,
     SingleGateConfig,
     TopologyConfig,
+    TopologyConfigBuilder,
 )
+from qoala.runtime.ntf import GenericNtf, NvNtf
 from qoala.util.math import fidelity_to_prob_max_mixed
 
 
@@ -97,7 +101,7 @@ def test_qubit_config_file():
     assert cfg.to_error_model_kwargs() == {"T1": 1e6, "T2": 3e6}
 
 
-def test_gate_depolarise_config():
+def test_gate_simple_depolarise_config():
     cfg = GateDepolariseConfig(duration=4e3, depolarise_prob=0.2)
 
     assert cfg.duration == 4e3
@@ -157,6 +161,19 @@ def test_gate_config_file():
         "depolar_rate": 0.2,
         "time_independent": True,
     }
+
+
+def test_ntf_config():
+    ntf_config = NtfConfig(ntf_interface_cls="GenericNtf", ntf_interface=GenericNtf)
+    assert ntf_config.to_ntf_interface() == GenericNtf
+
+
+def test_ntf_config_file():
+    cfg_1 = NtfConfig.from_file(relative_path("configs/ntf_1.yaml"))
+    assert cfg_1.to_ntf_interface() == GenericNtf
+
+    cfg_2 = NtfConfig.from_file(relative_path("configs/ntf_2.yaml"))
+    assert cfg_2.to_ntf_interface() == NvNtf
 
 
 def test_topology_config():
@@ -547,6 +564,49 @@ def test_topology_config_file_reuse_gate_def():
     assert cfg.get_single_gate_configs()[1][0].to_instruction() == INSTR_X
 
 
+def test_topology_builder():
+    topology = (
+        TopologyConfigBuilder()
+        .uniform_topology()
+        .num_qubits(2)
+        .no_decoherence()
+        .default_generic_gates()
+        .zero_gate_durations()
+        .perfect_gate_fidelities()
+        .comm_gate_fidelity("INSTR_X", 0.95)
+        .build()
+    )
+    for single_gate_cfg in topology.single_gates:
+        for gate_cfg in single_gate_cfg.gate_configs:
+            if gate_cfg.name == "INSTR_X":
+                expected = fidelity_to_prob_max_mixed(1, 0.95)
+                assert gate_cfg.to_error_model_kwargs()["depolar_rate"] == expected
+
+
+def test_topology_from_nv_params():
+    params = NvParams()
+    params.mem_t2 = 123
+    params.comm_init_fidelity = 0.85
+    params.two_gate_duration = 500_000
+
+    cfg = TopologyConfig.from_nv_params(2, params)
+
+    # Check T2 of mem qubit
+    mem_qubit_cfg = cfg.qubits[1].qubit_config
+    assert mem_qubit_cfg.noise_config.to_error_model_kwargs()["T2"] == 123
+
+    # Check init fidelity on comm qubit (id 0)
+    for gate_cfg in cfg.single_gates[0].gate_configs:
+        if gate_cfg.name == "INSTR_INIT":
+            assert gate_cfg.noise_config.to_error_model_kwargs()[
+                "depolar_rate"
+            ] == fidelity_to_prob_max_mixed(1, 0.85)
+
+    # Check two-qubit gate duration
+    for gate_cfg in cfg.multi_gates[0].gate_configs:
+        assert gate_cfg.noise_config.to_duration() == 500_000
+
+
 def test_qubit_config_file_registry():
     class QubitT1T2T3Config(QubitT1T2Config):
         T3: int
@@ -671,6 +731,7 @@ def test_procnode_config_file():
     assert cfg.latencies.host_instr_time == 500
     assert cfg.latencies.qnos_instr_time == 2000
     assert cfg.latencies.host_peer_latency == 2e6
+    assert cfg.ntf.to_ntf_interface() == GenericNtf
 
 
 def test_procnode_config_file_default_values():
@@ -682,6 +743,8 @@ def test_procnode_config_file_default_values():
 
     # explicitly given by cfg file
     assert cfg.latencies.host_peer_latency == 2e6
+
+    assert cfg.ntf.to_ntf_interface() == NvNtf
 
 
 def test_perfect_sampler_config():
@@ -746,13 +809,13 @@ def test_link_config_perfect():
 
 
 def test_link_config_depolarise():
-    cfg = LinkConfig.depolarise_config(fidelity=0.8, state_delay=200)
+    cfg = LinkConfig.simple_depolarise_config(fidelity=0.8, state_delay=200)
 
     assert cfg.to_state_delay() == 200
     assert cfg.to_sampler_factory() == DepolariseWithFailureStateSamplerFactory
     assert cfg.to_sampler_kwargs() == {
         "cycle_time": 0,
-        "prob_max_mixed": fidelity_to_prob_max_mixed(0.8),
+        "prob_max_mixed": fidelity_to_prob_max_mixed(2, 0.8),
         "prob_success": 1,
     }
 
@@ -802,11 +865,13 @@ if __name__ == "__main__":
     test_qubit_config()
     test_qubit_config_perfect()
     test_qubit_config_file()
-    test_gate_depolarise_config()
+    test_gate_simple_depolarise_config()
     test_gate_depolarise_config_file()
     test_gate_config()
     test_gate_config_perfect()
     test_gate_config_file()
+    test_ntf_config()
+    test_ntf_config_file()
     test_topology_config()
     test_topology_config_perfect_uniform()
     test_topology_config_file()
@@ -816,6 +881,8 @@ if __name__ == "__main__":
     test_topology_config_multi_gate_perfect_uniform()
     test_topology_config_multi_gate_perfect_star()
     test_topology_config_file_reuse_gate_def()
+    test_topology_builder()
+    test_topology_from_nv_params()
     test_qubit_config_file_registry()
     test_gate_config_file_registry()
     test_custom_instruction()

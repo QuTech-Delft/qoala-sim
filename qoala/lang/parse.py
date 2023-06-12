@@ -31,6 +31,7 @@ LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
         hl.RunSubroutineOp,
         hl.RunRequestOp,
         hl.ReturnResultOp,
+        hl.BusyOp,
     ]
 }
 

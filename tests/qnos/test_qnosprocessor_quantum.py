@@ -24,15 +24,11 @@ from netsquid.qubits import ketstates
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.routine import LocalRoutine, RoutineMetadata
-from qoala.runtime.config import NVQDeviceConfig
+from qoala.runtime.config import NvParams, TopologyConfig
 from qoala.runtime.lhi import LhiTopologyBuilder
-from qoala.runtime.lhi_nv_compat import LhiTopologyBuilderForOldNV
-from qoala.runtime.lhi_to_ehi import (
-    GenericToVanillaInterface,
-    LhiConverter,
-    NvToNvInterface,
-)
+from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.ntf import GenericNtf, NvNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.runtime.task import TaskGraph
@@ -77,27 +73,8 @@ def perfect_uniform_qdevice(num_qubits: int) -> QDevice:
 
 
 def perfect_nv_star_qdevice(num_qubits: int) -> QDevice:
-    # topology = LhiTopologyBuilder.perfect_star(
-    #     num_qubits=num_qubits,
-    #     comm_instructions=[
-    #         INSTR_INIT,
-    #         INSTR_ROT_X,
-    #         INSTR_ROT_Y,
-    #         INSTR_MEASURE,
-    #     ],
-    #     comm_duration=5e3,
-    #     mem_instructions=[
-    #         INSTR_INIT,
-    #         INSTR_ROT_X,
-    #         INSTR_ROT_Y,
-    #         INSTR_ROT_Z,
-    #     ],
-    #     mem_duration=1e4,
-    #     two_instructions=[INSTR_CXDIR, INSTR_CYDIR],
-    #     two_duration=1e5,
-    # )
-    cfg = NVQDeviceConfig.perfect_config(num_qubits)
-    topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg)
+    cfg = TopologyConfig.from_nv_params(num_qubits, NvParams())
+    topology = LhiTopologyBuilder.from_config(cfg)
     processor = build_qprocessor_from_topology(name="processor", topology=topology)
     node = Node(name="alice", qmemory=processor)
     return QDevice(node=node, topology=topology)
@@ -265,7 +242,7 @@ def setup_components_generic(
     num_qubits: int, latencies: QnosLatencies = QnosLatencies.all_zero()
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = perfect_uniform_qdevice(num_qubits)
-    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericToVanillaInterface())
+    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)
@@ -278,7 +255,7 @@ def setup_components_nv_star(
     num_qubits: int, latencies: QnosLatencies = QnosLatencies.all_zero()
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = perfect_nv_star_qdevice(num_qubits)
-    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=NvToNvInterface())
+    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=NvNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     qnos_comp = QnosComponent(node=qdevice._node)
     memmgr = MemoryManager(qdevice._node.name, qdevice)

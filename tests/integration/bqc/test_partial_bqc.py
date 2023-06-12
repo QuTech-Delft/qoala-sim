@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional, Type
+from typing import Any, Dict, Generator, Optional, Type
 
 import netsquid as ns
 from netsquid.components import QuantumProcessor
@@ -14,14 +14,10 @@ from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiLinkInfo, LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import (
-    GenericToVanillaInterface,
-    LhiConverter,
-    NativeToFlavourInterface,
-)
+from qoala.runtime.lhi_to_ehi import LhiConverter, NtfInterface
 from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
@@ -67,14 +63,9 @@ def create_process(
     return process
 
 
-def create_network_info(names: List[str]) -> NetworkInfo:
-    return NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-
-
 def create_procnode(
     part: str,
     name: str,
-    env: NetworkInfo,
     num_qubits: int,
     network_ehi: EhiNetworkInfo,
     procnode_cls: Type[ProcNode] = ProcNode,
@@ -84,15 +75,14 @@ def create_procnode(
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits)
     qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
 
-    node_id = env.get_node_id(name)
+    node_id = network_ehi.get_node_id(name)
     procnode = procnode_cls(
         part=part,
         name=name,
-        network_info=env,
         qprocessor=qprocessor,
         qdevice_topology=topology,
         latencies=LhiLatencies(qnos_instr_time=1000),
-        ntf_interface=GenericToVanillaInterface(),
+        ntf_interface=GenericNtf(),
         network_ehi=network_ehi,
         node_id=node_id,
         asynchronous=asynchronous,
@@ -106,11 +96,10 @@ class BqcProcNode(ProcNode):
     def __init__(
         self,
         name: str,
-        network_info: NetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
-        ntf_interface: NativeToFlavourInterface,
+        ntf_interface: NtfInterface,
         network_ehi: EhiNetworkInfo,
         node_id: Optional[int] = None,
         asynchronous: bool = False,
@@ -118,7 +107,6 @@ class BqcProcNode(ProcNode):
     ) -> None:
         super().__init__(
             name=name,
-            network_info=network_info,
             qprocessor=qprocessor,
             qdevice_topology=qdevice_topology,
             latencies=latencies,
@@ -277,13 +265,13 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    network_info = create_network_info(names=["client", "server"])
-    server_id = network_info.get_node_id("server")
-    client_id = network_info.get_node_id("client")
+    nodes = {0: "client", 1: "server"}
 
     link_info = LhiLinkInfo.perfect(1000)
     ehi_link = LhiConverter.link_info_to_ehi(link_info)
-    network_ehi = EhiNetworkInfo.fully_connected([server_id, client_id], ehi_link)
+    network_ehi = EhiNetworkInfo.fully_connected(nodes, ehi_link)
+    server_id = network_ehi.get_node_id("server")
+    client_id = network_ehi.get_node_id("client")
 
     path = os.path.join(os.path.dirname(__file__), "bqc_server.iqoala")
     with open(path) as file:
@@ -293,7 +281,6 @@ def run_bqc(
     server_procnode = create_procnode(
         part,
         "server",
-        network_info,
         num_qubits,
         network_ehi,
         ServerProcNode,
@@ -317,7 +304,6 @@ def run_bqc(
     client_procnode = create_procnode(
         part,
         "client",
-        network_info,
         num_qubits,
         network_ehi,
         ClientProcNode,
@@ -342,12 +328,12 @@ def run_bqc(
     client_procnode.connect_to(server_procnode)
 
     nodes = [client_procnode.node, server_procnode.node]
-    entdistcomp = EntDistComponent(network_info)
+    entdistcomp = EntDistComponent(network_ehi)
     client_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("client"))
     client_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("client"))
     server_procnode.node.entdist_out_port.connect(entdistcomp.node_in_port("server"))
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
-    entdist = EntDist(nodes=nodes, network_info=network_info, comp=entdistcomp)
+    entdist = EntDist(nodes=nodes, ehi_network=network_ehi, comp=entdistcomp)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
 
     server_procnode.start()

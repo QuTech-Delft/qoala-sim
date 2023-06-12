@@ -1,25 +1,5 @@
-import abc
 from typing import Any, Dict, Optional, Tuple, Type
 
-from netqasm.lang.instr import core, nv, vanilla
-from netqasm.lang.instr.base import NetQASMInstruction
-from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
-from netsquid.components.instructions import (
-    INSTR_CNOT,
-    INSTR_CXDIR,
-    INSTR_CYDIR,
-    INSTR_CZ,
-    INSTR_H,
-    INSTR_INIT,
-    INSTR_MEASURE,
-    INSTR_ROT_X,
-    INSTR_ROT_Y,
-    INSTR_ROT_Z,
-    INSTR_X,
-    INSTR_Y,
-    INSTR_Z,
-)
-from netsquid.components.instructions import Instruction as NetSquidInstruction
 from netsquid.components.models.qerrormodels import (
     DepolarNoiseModel,
     QuantumErrorModel,
@@ -39,7 +19,6 @@ from qoala.lang.ehi import (
     EhiQubitInfo,
 )
 from qoala.runtime.lhi import (
-    INSTR_MEASURE_INSTANT,
     LhiGateInfo,
     LhiLatencies,
     LhiLinkInfo,
@@ -47,64 +26,8 @@ from qoala.runtime.lhi import (
     LhiQubitInfo,
     LhiTopology,
 )
+from qoala.runtime.ntf import NtfInterface
 from qoala.util.math import prob_max_mixed_to_fidelity
-
-
-class NativeToFlavourInterface(abc.ABC):
-    @abc.abstractmethod
-    def flavour(self) -> Type[Flavour]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def map(self, ns_instr: Type[NetSquidInstruction]) -> Type[NetQASMInstruction]:
-        """Responsiblity of implementor that return instructions are of the
-        flavour returned by flavour()."""
-        raise NotImplementedError
-
-
-class GenericToVanillaInterface(NativeToFlavourInterface):
-    _MAP: Dict[Type[NetSquidInstruction], Type[NetQASMInstruction]] = {
-        INSTR_INIT: core.InitInstruction,
-        INSTR_X: vanilla.GateXInstruction,
-        INSTR_Y: vanilla.GateYInstruction,
-        INSTR_Z: vanilla.GateZInstruction,
-        INSTR_H: vanilla.GateHInstruction,
-        INSTR_ROT_X: vanilla.RotXInstruction,
-        INSTR_ROT_Y: vanilla.RotYInstruction,
-        INSTR_ROT_Z: vanilla.RotZInstruction,
-        INSTR_CNOT: vanilla.CnotInstruction,
-        INSTR_CZ: vanilla.CphaseInstruction,
-        INSTR_MEASURE: core.MeasInstruction,
-        INSTR_MEASURE_INSTANT: core.MeasInstruction,
-    }
-
-    def flavour(self) -> Type[Flavour]:
-        return VanillaFlavour  # type: ignore
-
-    def map(self, ns_instr: Type[NetSquidInstruction]) -> Type[NetQASMInstruction]:
-        """Responsiblity of implementor that return instructions are of the
-        flavour returned by flavour()."""
-        return self._MAP[ns_instr]
-
-
-class NvToNvInterface(NativeToFlavourInterface):
-    _MAP: Dict[Type[NetSquidInstruction], Type[NetQASMInstruction]] = {
-        INSTR_INIT: core.InitInstruction,
-        INSTR_ROT_X: nv.RotXInstruction,
-        INSTR_ROT_Y: nv.RotYInstruction,
-        INSTR_ROT_Z: nv.RotZInstruction,
-        INSTR_CXDIR: nv.ControlledRotXInstruction,
-        INSTR_CYDIR: nv.ControlledRotYInstruction,
-        INSTR_MEASURE: core.MeasInstruction,
-    }
-
-    def flavour(self) -> Type[Flavour]:
-        return NVFlavour  # type: ignore
-
-    def map(self, ns_instr: Type[NetSquidInstruction]) -> Type[NetQASMInstruction]:
-        """Responsiblity of implementor that return instructions are of the
-        flavour returned by flavour()."""
-        return self._MAP[ns_instr]
 
 
 class LhiConverter:
@@ -130,10 +53,9 @@ class LhiConverter:
         )
 
     @classmethod
-    def gate_info_to_ehi(
-        cls, info: LhiGateInfo, ntf: NativeToFlavourInterface
-    ) -> EhiGateInfo:
-        instr = ntf.map(info.instruction)
+    def gate_info_to_ehi(cls, info: LhiGateInfo, ntf: NtfInterface) -> EhiGateInfo:
+        # TODO: deal with mapping to multiple gates
+        instr = ntf.native_to_netqasm(info.instruction)[0]  # (!)
         duration = info.duration
         decoherence = cls.error_model_to_rate(info.error_model, info.error_model_kwargs)
         return EhiGateInfo(
@@ -144,7 +66,7 @@ class LhiConverter:
     def to_ehi(
         cls,
         topology: LhiTopology,
-        ntf: NativeToFlavourInterface,
+        ntf: NtfInterface,
         latencies: Optional[LhiLatencies] = None,
     ) -> EhiNodeInfo:
         if latencies is None:
@@ -186,7 +108,9 @@ class LhiConverter:
                 info.sampler_kwargs["cycle_time"] / info.sampler_kwargs["prob_success"]
             )
             duration = expected_gen_duration + info.state_delay
-            fidelity = prob_max_mixed_to_fidelity(info.sampler_kwargs["prob_max_mixed"])
+            fidelity = prob_max_mixed_to_fidelity(
+                2, info.sampler_kwargs["prob_max_mixed"]
+            )
             return EhiLinkInfo(duration=duration, fidelity=fidelity)
         else:
             raise NotImplementedError
@@ -197,4 +121,4 @@ class LhiConverter:
         for ([n1, n2], link_info) in info.links.items():
             ehi_link = cls.link_info_to_ehi(link_info)
             links[(n1, n2)] = ehi_link
-        return EhiNetworkInfo(links)
+        return EhiNetworkInfo(info.nodes, links)

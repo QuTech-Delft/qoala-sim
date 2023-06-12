@@ -9,7 +9,6 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
-from qoala.runtime.environment import LocalEnvironment
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
     BatchInfo,
@@ -44,7 +43,6 @@ class NodeScheduler(Protocol):
         qnos: Qnos,
         netstack: Netstack,
         memmgr: MemoryManager,
-        local_env: LocalEnvironment,
         local_ehi: EhiNodeInfo,
         network_ehi: EhiNetworkInfo,
         tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
@@ -61,7 +59,6 @@ class NodeScheduler(Protocol):
         self._qnos = qnos
         self._netstack = netstack
         self._memmgr = memmgr
-        self._local_env = local_env
         self._local_ehi = local_ehi
         self._network_ehi = network_ehi
         self._tem = tem
@@ -74,6 +71,8 @@ class NodeScheduler(Protocol):
 
         self._task_counter = 0
         self._task_graph: Optional[TaskGraph] = None
+        self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
+        self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
 
         scheduler_memory = SharedSchedulerMemory()
         cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
@@ -119,15 +118,13 @@ class NodeScheduler(Protocol):
     def submit_batch(self, batch_info: BatchInfo) -> None:
         prog_instances: List[ProgramInstance] = []
 
-        network_info = self._local_env.get_network_info()
-
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
             # TODO: allow multiple remote nodes in single program??
             remote_names = list(batch_info.program.meta.csockets.values())
             if len(remote_names) > 0:
                 remote_name = list(batch_info.program.meta.csockets.values())[0]
-                remote_id = network_info.get_node_id(remote_name)
+                remote_id = self._network_ehi.get_node_id(remote_name)
             else:
                 remote_id = None
             if self._tem == TaskExecutionMode.BLOCK:
@@ -181,8 +178,7 @@ class NodeScheduler(Protocol):
 
         epr_sockets: Dict[int, EprSocket] = {}
         for i, remote_name in meta.epr_sockets.items():
-            network_info = self._local_env.get_network_info()
-            remote_id = network_info.get_node_id(remote_name)
+            remote_id = self._network_ehi.get_node_id(remote_name)
             # TODO: check for already existing epr sockets
             # TODO: fidelity
             epr_sockets[i] = EprSocket(i, remote_id, 1.0)
@@ -208,10 +204,16 @@ class NodeScheduler(Protocol):
     def collect_batch_results(self) -> None:
         for batch_id, batch in self._batches.items():
             results: List[ProgramResult] = []
+            timestamps: List[Tuple[float, float]] = []
             for prog_instance in batch.instances:
                 process = self.memmgr.get_process(prog_instance.pid)
                 results.append(process.result)
-            self._batch_results[batch_id] = BatchResult(batch_id, results)
+                cpu_start, cpu_end = self.cpu_scheduler.get_timestamps(process.pid)
+                qpu_start, qpu_end = self.qpu_scheduler.get_timestamps(process.pid)
+                start = min(cpu_start, qpu_start)
+                end = max(cpu_end, qpu_end)
+                timestamps.append((start, end))
+            self._batch_results[batch_id] = BatchResult(batch_id, results, timestamps)
 
     def get_batch_results(self) -> Dict[int, BatchResult]:
         self.collect_batch_results()
@@ -286,6 +288,9 @@ class ProcessorScheduler(Protocol):
         self._task_graph: Optional[TaskGraph] = None
         self._finished_tasks: List[int] = []
 
+        self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
+        self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
+
     @property
     def driver(self) -> Driver:
         return self._driver
@@ -298,6 +303,18 @@ class ProcessorScheduler(Protocol):
 
     def set_other_scheduler(self, other: ProcessorScheduler) -> None:
         self._other_scheduler = other
+
+    def record_start_timestamp(self, pid: int, time: float) -> None:
+        # Only write start time for first encountered task.
+        if pid not in self._prog_start_timestamps:
+            self._prog_start_timestamps[pid] = time
+
+    def record_end_timestamp(self, pid: int, time: float) -> None:
+        # Overwrite end time for every task. Automatically the last timestamp remains.
+        self._prog_end_timestamps[pid] = time
+
+    def get_timestamps(self, pid: int) -> Tuple[float, float]:
+        return self._prog_start_timestamps[pid], self._prog_end_timestamps[pid]
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
@@ -382,8 +399,11 @@ class EdfScheduler(ProcessorScheduler):
         before = ns.sim_time()
 
         self._logger.info(f"executing task {task}")
+        self.record_start_timestamp(task.pid, before)
         yield from self._driver.handle_task(task)
-        duration = ns.sim_time() - before
+        after = ns.sim_time()
+        self.record_end_timestamp(task.pid, after)
+        duration = after - before
         self._task_graph.decrease_deadlines(duration)
         self._task_graph.remove_task(task_id)
 

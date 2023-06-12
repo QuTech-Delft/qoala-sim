@@ -283,10 +283,6 @@ class QnosProcessor:
         value = qnos_mem.get_reg_value(instr.reg)
         if value is None:
             raise RuntimeError(f"value in register {instr.reg} is not defined")
-        self._logger.debug(
-            f"Storing value {value} from register {instr.reg} "
-            f"to array entry {instr.entry}"
-        )
         addr = instr.entry.address.address
         # Only allow NetQASM 2.0 input/output addresses
         assert isinstance(addr, str)
@@ -294,6 +290,10 @@ class QnosProcessor:
         entry = instr.entry.index
         assert isinstance(entry, Register)
         index = qnos_mem.get_reg_value(entry)
+        self._logger.debug(
+            f"Storing value {value} from register {instr.reg} "
+            f"to array entry {instr.entry} (index {entry} = {index})"
+        )
 
         # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
@@ -640,9 +640,10 @@ class NVProcessor(QnosProcessor):
     def _interpret_init(
         self, pid: int, instr: core.InitInstruction
     ) -> Generator[EventExpression, None, None]:
+        memmgr = self._interface.memmgr
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.reg)
-        phys_id = self._interface.memmgr.phys_id_for(pid, virt_id)
+        phys_id = memmgr.phys_id_for(pid, virt_id)
         if phys_id is None:
             raise NotAllocatedError
         self._logger.debug(
@@ -650,6 +651,12 @@ class NVProcessor(QnosProcessor):
             f"{virt_id} (physical ID: {phys_id})"
         )
         commands = [QDeviceCommand(INSTR_INIT, [phys_id])]
+        if phys_id != 0 and memmgr.virt_id_for(pid, 0) is not None:
+            self._logger.info(
+                f"Initialization of virt qubit {virt_id} (phys ID {phys_id}) will "
+                "trash the existing state of phys qubit 0."
+            )
+            commands.append(QDeviceCommand(INSTR_INIT, [0]))
         yield from self.qdevice.execute_commands(commands)
         return None
 
@@ -719,8 +726,6 @@ class NVProcessor(QnosProcessor):
             f"placing the outcome in register {instr.creg}"
         )
 
-        memmgr = self._interface.memmgr
-
         if phys_id == 0:
             # Measuring a comm qubit. This can be done immediately.
             outcome = yield from self._measure_electron()
@@ -729,51 +734,12 @@ class NVProcessor(QnosProcessor):
         # else:
 
         # We want to measure a mem qubit.
-        # Move it to the comm qubit first.
-        # Check if comm qubit is already used by this process:
-        if memmgr.phys_id_for(pid, 0) is not None:
-            # Comm qubit is already allocated. Try to move it to a free mem qubit.
-            # mem_virt_id = memmgr.get_unmapped_non_comm_qubit(pid)
-            # memmgr.allocate(pid, mem_virt_id)
-            # mem_phys_id = memmgr.phys_id_for(pid, mem_virt_id)
-            # assert mem_phys_id is not None
+        # Move its state to the comm qubit.
+        yield from self._move_carbon_to_electron_for_measure(phys_id)
 
-            # Move (temporarily) state from comm qubit to mem qubit.
-            # yield from self._move_electron_to_carbon(mem_phys_id)
-
-            # Move state from qubit-to-measure to comm qubit.
-            yield from self._move_carbon_to_electron_for_measure(phys_id)
-            # memmgr.free(pid, virt_id)
-            # self._interface.signal_memory_freed()
-
-            # Measure comm qubit (containing state of qubit-to-measure).
-            outcome = yield from self._measure_electron()
-            qnos_mem.set_reg_value(instr.creg, outcome)
-
-            # Move temporarily-moved state back to comm qubit.
-            # yield from self._move_carbon_to_electron(mem_phys_id)
-
-            # Free mem qubit that was temporarily used.
-            # memmgr.free(pid, mem_virt_id)
-            # self._interface.signal_memory_freed()
-        else:  # comm qubit not in use.
-            # Allocate comm qubit.
-            # memmgr.allocate(pid, 0)
-
-            # Move state-to-measure to comm qubit.
-            yield from self._move_carbon_to_electron_for_measure(phys_id)
-
-            # Free qubit that contained state-to-measure.
-            # memmgr.free(pid, virt_id)
-            # self._interface.signal_memory_freed()
-
-            # Measure comm qubit.
-            outcome = yield from self._measure_electron()
-            qnos_mem.set_reg_value(instr.creg, outcome)
-
-            # Free comm qubit.
-            # memmgr.free(pid, 0)
-            # self._interface.signal_memory_freed()
+        # Measure comm qubit (containing state of qubit to measure).
+        outcome = yield from self._measure_electron()
+        qnos_mem.set_reg_value(instr.creg, outcome)
         return None
 
     def _interpret_single_rotation_instr(

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Generator
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import LocalEnvironment
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.events import (
@@ -37,7 +37,7 @@ class NetstackInterface(ComponentProtocol):
     def __init__(
         self,
         comp: NetstackComponent,
-        local_env: LocalEnvironment,
+        ehi_network: EhiNetworkInfo,
         qdevice: QDevice,
         memmgr: MemoryManager,
     ) -> None:
@@ -50,7 +50,7 @@ class NetstackInterface(ComponentProtocol):
         super().__init__(name=f"{comp.name}_protocol", comp=comp)
         self._comp = comp
         self._qdevice = qdevice
-        self._local_env = local_env
+        self._ehi_network = ehi_network
         self._memmgr = memmgr
 
         self.add_listener(
@@ -73,7 +73,9 @@ class NetstackInterface(ComponentProtocol):
             PortListener(self._comp.entdist_in_port, SIGNAL_ENTD_NSTK_MSG),
         )
 
-        for peer in self._local_env.get_all_other_node_names():
+        for peer in self._ehi_network.nodes.values():
+            if peer == self._comp.node_name:
+                continue
             self.add_listener(
                 f"peer_{peer}",
                 PortListener(
@@ -144,7 +146,7 @@ class NetstackInterface(ComponentProtocol):
         return self._memmgr
 
     def remote_id_to_peer_name(self, remote_id: int) -> str:
-        return self._local_env.get_network_info().get_nodes()[remote_id]
+        return self._ehi_network.nodes[remote_id]
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)

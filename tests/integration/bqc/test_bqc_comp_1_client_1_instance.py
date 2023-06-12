@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import netsquid as ns
 
@@ -11,21 +11,14 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.task import TaskExecutionMode, TaskGraph, TaskGraphBuilder
-from qoala.sim.build import build_network
-
-
-def create_network_info(names: List[str]) -> NetworkInfo:
-    env = NetworkInfo.with_nodes({i: name for i, name in enumerate(names)})
-    env.set_global_schedule([0, 1, 2])
-    env.set_timeslot_len(1e6)
-    return env
+from qoala.sim.build import build_network_from_config
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -36,6 +29,7 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=1_000_000, qnos_instr_time=1000
         ),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
 
 
@@ -82,9 +76,8 @@ def run_bqc(
     ns.sim_reset()
 
     num_qubits = 3
-    network_info = create_network_info(names=["client", "server"])
-    server_id = network_info.get_node_id("server")
-    client_id = network_info.get_node_id("client")
+    client_id = 0
+    server_id = 1
 
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
     server_node_cfg.tem = tem.name
@@ -94,7 +87,7 @@ def run_bqc(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
     )
-    network = build_network(network_cfg, network_info)
+    network = build_network_from_config(network_cfg)
     server_procnode = network.nodes["server"]
     client_procnode = network.nodes["client"]
 

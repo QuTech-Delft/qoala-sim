@@ -10,35 +10,22 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
-    GenericQDeviceConfig,
     LatenciesConfig,
     LinkBetweenNodesConfig,
     LinkConfig,
+    NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network
+from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
+from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 
 INSTR_LATENCY = 1e5
 CC_LATENCY = 1e6
 QC_EXPECTATION = 30e6
-
-
-def create_network_info(
-    num_clients: int, global_schedule: List[int], timeslot_len: int
-) -> NetworkInfo:
-    nodes = {i: f"client_{i}" for i in range(1, num_clients + 1)}
-    nodes[0] = "server"
-    env = NetworkInfo.with_nodes(nodes)
-
-    env.set_global_schedule(global_schedule)
-    env.set_timeslot_len(timeslot_len)
-    return env
 
 
 def topology_config(num_qubits: int) -> TopologyConfig:
@@ -72,13 +59,12 @@ def get_client_config(id: int) -> ProcNodeConfig:
             host_peer_latency=CC_LATENCY,
             qnos_instr_time=INSTR_LATENCY,
         ),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
+        tem=TaskExecutionMode.QOALA.name,
     )
 
 
 def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
-    config_file = relative_to_cwd("node_config.yaml")
-    qdevice_cfg = GenericQDeviceConfig.from_file(config_file)
-    qdevice_cfg.num_qubits = num_qubits
     return ProcNodeConfig(
         node_name="server",
         node_id=id,
@@ -88,6 +74,8 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
             host_peer_latency=CC_LATENCY,
             qnos_instr_time=INSTR_LATENCY,
         ),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
+        tem=TaskExecutionMode.QOALA.name,
     )
 
 
@@ -95,12 +83,8 @@ def create_network(
     server_cfg: ProcNodeConfig,
     client_configs: List[ProcNodeConfig],
     num_clients: int,
-    global_schedule: List[int],
-    timeslot_len: int,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
-
-    network_info = create_network_info(num_clients, global_schedule, timeslot_len)
 
     node_cfgs = [server_cfg] + client_configs
 
@@ -113,7 +97,7 @@ def create_network(
     ]
 
     network_cfg = ProcNodeNetworkConfig(nodes=node_cfgs, links=links)
-    return build_network(network_cfg, network_info)
+    return build_network_from_config(network_cfg)
 
 
 @dataclass
@@ -189,17 +173,13 @@ def run_bqc(
     num_iterations: List[int],
     deadlines: List[int],
     num_clients: int,
-    global_schedule: List[int],
-    timeslot_len: int,
 ):
     # server needs to have 2 qubits per client
     server_num_qubits = num_clients * 2
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
 
-    network = create_network(
-        server_config, client_configs, num_clients, global_schedule, timeslot_len
-    )
+    network = create_network(server_config, client_configs, num_clients)
 
     server_procnode = network.nodes["server"]
 
@@ -284,8 +264,6 @@ def check(
     num_iterations,
     deadlines,
     num_clients,
-    global_schedule: List[int],
-    timeslot_len: int,
 ):
     ns.sim_reset()
 
@@ -299,8 +277,6 @@ def check(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
     )
 
     batch_success_probabilities: List[float] = []
@@ -332,8 +308,6 @@ def compute_succ_prob(
     num_clients: int,
     num_iterations: List[int],
     deadlines: List[int],
-    global_schedule: List[int],
-    timeslot_len: int,
 ):
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
@@ -348,8 +322,6 @@ def compute_succ_prob(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        global_schedule=global_schedule,
-        timeslot_len=timeslot_len,
     )
 
 
@@ -360,8 +332,6 @@ def test_bqc():
         num_clients=num_clients,
         num_iterations=[30] * num_clients,
         deadlines=[1e8] * num_clients,
-        global_schedule=[i for i in range(num_clients)],
-        timeslot_len=50e6,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")

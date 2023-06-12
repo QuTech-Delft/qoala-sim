@@ -14,16 +14,15 @@ from netsquid.components.qprocessor import MissingInstructionError, QuantumProce
 
 from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
 from qoala.runtime.config import (
-    GenericQDeviceConfig,
     LatenciesConfig,
     LinkBetweenNodesConfig,
     LinkConfig,
-    NVQDeviceConfig,
+    NtfConfig,
+    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkInfo
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
@@ -33,12 +32,11 @@ from qoala.runtime.lhi import (
     LhiTopology,
     LhiTopologyBuilder,
 )
+from qoala.runtime.ntf import GenericNtf
 from qoala.sim.build import (
-    build_generic_qprocessor,
-    build_network,
+    build_network_from_config,
     build_network_from_lhi,
-    build_nv_qprocessor,
-    build_procnode,
+    build_procnode_from_config,
     build_qprocessor_from_topology,
 )
 
@@ -129,50 +127,39 @@ def test_build_perfect_topology():
     assert proc.get_instruction_duration(INSTR_CNOT, [0, 1]) == 100e3
 
 
-def test_build_generic_perfect():
-    num_qubits = 2
-    cfg = GenericQDeviceConfig.perfect_config(num_qubits)
-    proc: QuantumProcessor = build_generic_qprocessor(name="alice", cfg=cfg)
-    assert proc.num_positions == num_qubits
-
-    for i in range(num_qubits):
-        assert proc.get_instruction_duration(INSTR_INIT, [i]) == cfg.init_time
-        assert proc.get_instruction_duration(INSTR_MEASURE, [i]) == cfg.measure_time
-        assert proc.get_instruction_duration(INSTR_X, [i]) == cfg.single_qubit_gate_time
-        assert (
-            proc.get_instruction_duration(INSTR_ROT_X, [i])
-            == cfg.single_qubit_gate_time
-        )
-
-    assert proc.get_instruction_duration(INSTR_CNOT, [0, 1]) == cfg.two_qubit_gate_time
-
-    # TODO: check topology??!
-
-
 def test_build_nv_perfect():
     num_qubits = 2
-    cfg = NVQDeviceConfig.perfect_config(num_qubits)
-    proc: QuantumProcessor = build_nv_qprocessor(name="alice", cfg=cfg)
+    parms = NvParams()
+    parms.comm_init_duration = 500
+    parms.comm_meas_duration = 1200
+    parms.comm_gate_duration = 100
+    parms.mem_init_duration = 35000
+    parms.mem_meas_duration = 80000
+    parms.mem_gate_duration = 25000
+    parms.two_gate_duration = 100_000
+    cfg = TopologyConfig.from_nv_params(num_qubits, parms)
+    topology = LhiTopologyBuilder.from_config(cfg)
+    proc: QuantumProcessor = build_qprocessor_from_topology("alice", topology)
     assert proc.num_positions == num_qubits
 
-    assert proc.get_instruction_duration(INSTR_INIT, [0]) == cfg.electron_init
-    assert proc.get_instruction_duration(INSTR_MEASURE, [0]) == cfg.measure
-    assert proc.get_instruction_duration(INSTR_ROT_X, [0]) == cfg.electron_rot_x
+    assert proc.get_instruction_duration(INSTR_INIT, [0]) == parms.comm_init_duration
+    assert proc.get_instruction_duration(INSTR_MEASURE, [0]) == parms.comm_meas_duration
+    assert proc.get_instruction_duration(INSTR_ROT_X, [0]) == parms.comm_gate_duration
 
     for i in range(1, num_qubits):
-        assert proc.get_instruction_duration(INSTR_INIT, [i]) == cfg.carbon_init
-        assert proc.get_instruction_duration(INSTR_ROT_X, [i]) == cfg.carbon_rot_x
-        with pytest.raises(MissingInstructionError):
-            assert proc.get_instruction_duration(INSTR_MEASURE, [i])
+        assert proc.get_instruction_duration(INSTR_INIT, [i]) == parms.mem_init_duration
+        assert (
+            proc.get_instruction_duration(INSTR_ROT_X, [i]) == parms.mem_gate_duration
+        )
 
     with pytest.raises(MissingInstructionError):
         proc.get_instruction_duration(INSTR_CNOT, [0, 1])
         proc.get_instruction_duration(INSTR_CXDIR, [1, 0])
 
-    assert proc.get_instruction_duration(INSTR_CXDIR, [0, 1]) == cfg.ec_controlled_dir_x
+    assert proc.get_instruction_duration(INSTR_CXDIR, [0, 1]) == parms.two_gate_duration
 
 
-def test_build_procnode():
+def test_build_procnode_from_config():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     latencies = LatenciesConfig(
         host_instr_time=17,
@@ -180,12 +167,16 @@ def test_build_procnode():
         host_peer_latency=5,
     )
     cfg = ProcNodeConfig(
-        node_name="the_node", node_id=42, topology=top_cfg, latencies=latencies
+        node_name="the_node",
+        node_id=42,
+        topology=top_cfg,
+        latencies=latencies,
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
-    network_info = NetworkInfo.with_nodes({42: "the_node", 43: "other_node"})
-    network_ehi = EhiNetworkInfo.perfect_fully_connected([42, 43], duration=1000)
+    nodes = {42: "the_node", 43: "other_node"}
+    network_ehi = EhiNetworkInfo.perfect_fully_connected(nodes, duration=1000)
 
-    procnode = build_procnode(cfg, network_info, network_ehi)
+    procnode = build_procnode_from_config(cfg, network_ehi)
 
     assert procnode.node.name == "the_node"
     procnode.host_comp.peer_in_port("other_node")  # should not raise error
@@ -210,20 +201,27 @@ def test_build_procnode():
     assert procnode.network_ehi.get_link(42, 43) == EhiLinkInfo(1000, 1.0)
 
 
-def test_build_network():
+def test_build_network_from_config():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     cfg_alice = ProcNodeConfig(
-        node_name="alice", node_id=42, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="alice",
+        node_id=42,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
     cfg_bob = ProcNodeConfig(
-        node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="bob",
+        node_id=43,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
-    network_info = NetworkInfo.with_nodes({42: "alice", 43: "bob"})
 
     link_cfg = LinkConfig.perfect_config(state_delay=1000)
     link_ab = LinkBetweenNodesConfig(node_id1=42, node_id2=43, link_config=link_cfg)
     cfg = ProcNodeNetworkConfig(nodes=[cfg_alice, cfg_bob], links=[link_ab])
-    network = build_network(cfg, network_info)
+    network = build_network_from_config(cfg)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -259,17 +257,23 @@ def test_build_network():
 def test_build_network_perfect_links():
     top_cfg = TopologyConfig.perfect_config_uniform_default_params(num_qubits=2)
     cfg_alice = ProcNodeConfig(
-        node_name="alice", node_id=42, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="alice",
+        node_id=42,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
     cfg_bob = ProcNodeConfig(
-        node_name="bob", node_id=43, topology=top_cfg, latencies=LatenciesConfig()
+        node_name="bob",
+        node_id=43,
+        topology=top_cfg,
+        latencies=LatenciesConfig(),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
-    network_info = NetworkInfo.with_nodes({42: "alice", 43: "bob"})
-
     cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[cfg_alice, cfg_bob], link_duration=500
     )
-    network = build_network(cfg, network_info)
+    network = build_network_from_config(cfg)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -283,16 +287,27 @@ def test_build_network_perfect_links():
 def test_build_network_from_lhi():
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
     latencies = LhiLatencies(
-        host_instr_time=500, qnos_instr_time=1000, host_peer_latency=20_000
+        host_instr_time=500,
+        qnos_instr_time=1000,
+        host_peer_latency=20_000,
     )
     alice_lhi = LhiProcNodeInfo(
-        name="alice", id=42, topology=topology, latencies=latencies
+        name="alice",
+        id=42,
+        topology=topology,
+        latencies=latencies,
     )
-    bob_lhi = LhiProcNodeInfo(name="bob", id=43, topology=topology, latencies=latencies)
-    network_info = NetworkInfo.with_nodes({42: "alice", 43: "bob"})
+    bob_lhi = LhiProcNodeInfo(
+        name="bob",
+        id=43,
+        topology=topology,
+        latencies=latencies,
+    )
+    nodes = {42: "alice", 43: "bob"}
 
-    network_lhi = LhiNetworkInfo.perfect_fully_connected([42, 43], 100_000)
-    network = build_network_from_lhi([alice_lhi, bob_lhi], network_info, network_lhi)
+    network_lhi = LhiNetworkInfo.perfect_fully_connected(nodes, 100_000)
+    ntfs = [GenericNtf(), GenericNtf()]
+    network = build_network_from_lhi([alice_lhi, bob_lhi], ntfs, network_lhi)
 
     assert len(network.nodes) == 2
     assert "alice" in network.nodes
@@ -312,9 +327,8 @@ def test_build_network_from_lhi():
 if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
-    test_build_generic_perfect()
     test_build_nv_perfect()
-    test_build_procnode()
-    test_build_network()
+    test_build_procnode_from_config()
+    test_build_network_from_config()
     test_build_network_perfect_links()
     test_build_network_from_lhi()

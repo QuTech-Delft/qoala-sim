@@ -81,6 +81,11 @@ class HostProcessor:
             self._logger.debug(f"writing {value} to {loc}")
             yield from self._interface.wait(second_half)
             host_mem.write(loc, value)
+        elif isinstance(instr, hostlang.BusyOp):
+            value = instr.attributes[0]
+            assert isinstance(value, int)
+            self._logger.debug(f"busy for {value} ns")
+            yield from self._interface.wait(value)
         elif isinstance(instr, hostlang.SendCMsgOp):
             assert isinstance(instr.arguments[0], str)
             assert isinstance(instr.arguments[1], str)

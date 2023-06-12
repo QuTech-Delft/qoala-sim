@@ -15,11 +15,11 @@ META_END
     run_request(tuple<>) : epr_gen_1
 
 ^b3 {type = QL}:
-    tuple<m1; m2> = run_subroutine(tuple<>) : bsm
+    tuple<m0; m1> = run_subroutine(tuple<>) : bsm
 
 ^b4 {type = CL}:
+    send_cmsg(csocket, m0)
     send_cmsg(csocket, m1)
-    send_cmsg(csocket, m2)
 
 ^b5 {type = QC}:
     run_request(tuple<>) : epr_gen_2
@@ -54,7 +54,7 @@ SUBROUTINE prepare_qubit
 
 SUBROUTINE bsm
     params: 
-    returns: m1, m2
+    returns: m0, m1
     uses: 0, 1
     keeps:
     request: 
@@ -72,12 +72,12 @@ SUBROUTINE bsm
     rot_x Q0 16 4
     rot_x Q1 24 4
     rot_y Q1 24 4
-    rot_y Q0 8 4
-    rot_x Q0 16 4
+    rot_y Q1 8 4
+    rot_x Q1 16 4
     meas Q0 M0
     meas Q1 M1
-    store M0 @output[1]
-    store M1 @output[0]
+    store M0 @output[0]
+    store M1 @output[1]
   NETQASM_END
 
 SUBROUTINE bsm_corrections
@@ -94,9 +94,11 @@ SUBROUTINE bsm_corrections
     set Q0 0
     set R0 0
     beq C0 R0 2
-    rot_z Q0 16 4
-    beq C1 R0 2
     rot_x Q0 16 4
+    beq C1 R0 4
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    rot_y Q0 24 4
     set R15 0
   NETQASM_END
 

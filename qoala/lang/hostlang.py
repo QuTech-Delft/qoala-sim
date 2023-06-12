@@ -170,6 +170,23 @@ class AssignCValueOp(ClassicalIqoalaOp):
         return cls(result, attr)
 
 
+class BusyOp(ClassicalIqoalaOp):
+    OP_NAME = "busy"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(self, value: IqoalaValue) -> None:
+        super().__init__(attributes=[value])
+
+    @classmethod
+    def from_generic_args(
+        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+    ):
+        assert result is None
+        assert len(args) == 0
+        assert attr is not None
+        return cls(attr)
+
+
 class SendCMsgOp(ClassicalIqoalaOp):
     OP_NAME = "send_cmsg"
     TYP = IqoalaInstructionType.CC

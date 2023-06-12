@@ -37,3 +37,5 @@ topology:
   <<: *topology
 latencies:
   <<: *latencies
+ntf:
+  ntf_interface_cls: GenericNtf

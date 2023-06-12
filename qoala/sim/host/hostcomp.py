@@ -5,7 +5,7 @@ from typing import Dict
 from netsquid.components.component import Component, Port
 from netsquid.nodes import Node
 
-from qoala.runtime.environment import NetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo
 
 
 class HostComponent(Component):
@@ -17,13 +17,14 @@ class HostComponent(Component):
     of a Host is modeled in the `Host` class, which is a subclass of `Protocol`.
     """
 
-    def __init__(self, node: Node, network_info: NetworkInfo) -> None:
+    def __init__(self, node: Node, ehi_network: EhiNetworkInfo) -> None:
         super().__init__(f"{node.name}_host")
+        self._node = node
 
         self._peer_in_ports: Dict[str, str] = {}  # peer name -> port name
         self._peer_out_ports: Dict[str, str] = {}  # peer name -> port name
 
-        for other_node in network_info.get_nodes().values():
+        for other_node in ehi_network.nodes.values():
             if other_node == node.name:
                 continue
             port_in_name = f"peer_{other_node}_in"
@@ -36,6 +37,14 @@ class HostComponent(Component):
 
         self.add_ports(["qnos_in", "qnos_out"])
         self.add_ports(["nstk_in", "nstk_out"])
+
+    @property
+    def node_name(self) -> str:
+        return self._node.name  # type: ignore
+
+    @property
+    def node_id(self) -> int:
+        return self._node.ID  # type: ignore
 
     @property
     def qnos_in_port(self) -> Port:

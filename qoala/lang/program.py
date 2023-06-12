@@ -3,7 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from qoala.lang.hostlang import BasicBlock, ClassicalIqoalaOp
+from qoala.lang.hostlang import (
+    AssignCValueOp,
+    BasicBlock,
+    BasicBlockType,
+    ClassicalIqoalaOp,
+    IqoalaTuple,
+    IqoalaVector,
+    ReturnResultOp,
+    RunSubroutineOp,
+)
 from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 
@@ -116,4 +125,30 @@ class QoalaProgram:
             + self.serialize_host_code()
             + "\n"
             + self.serialize_subroutines()
+        )
+
+
+class QoalaProgramBuilder:
+    @classmethod
+    def single_routine(cls, routine: LocalRoutine, args: List[int]) -> QoalaProgram:
+        meta = ProgramMeta.empty("name")
+        prepare_args: List[ClassicalIqoalaOp] = []
+        arg_names = [f"arg_{i}" for i in range(len(args))]
+
+        for i in range(len(args)):
+            prepare_args.append(AssignCValueOp(arg_names[i], args[i]))
+
+        result_vec = IqoalaVector("result", routine.get_return_size())
+        args_tup = IqoalaTuple(arg_names)
+        call_instr = RunSubroutineOp(
+            result=result_vec, values=args_tup, subrt=routine.name
+        )
+        return_instr = ReturnResultOp("result")
+
+        instructions = prepare_args + [call_instr, return_instr]
+
+        block = BasicBlock("b0", typ=BasicBlockType.QL, instructions=instructions)
+
+        return QoalaProgram(
+            meta=meta, blocks=[block], local_routines={routine.name: routine}
         )

@@ -358,9 +358,8 @@ def test_find_gates():
 
 
 def test_network_ehi():
-    network_ehi = EhiNetworkInfo.perfect_fully_connected(
-        node_ids=[0, 1, 2], duration=1000
-    )
+    nodes = {0: "node0", 1: "node1", 2: "node2"}
+    network_ehi = EhiNetworkInfo.perfect_fully_connected(nodes=nodes, duration=1000)
 
     assert network_ehi.get_link(0, 1) == EhiLinkInfo(duration=1000, fidelity=1.0)
     assert network_ehi.get_link(0, 2) == EhiLinkInfo(duration=1000, fidelity=1.0)

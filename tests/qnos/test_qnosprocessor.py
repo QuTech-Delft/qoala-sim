@@ -12,9 +12,10 @@ from qoala.lang.parse import LocalRoutineParser
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.routine import RoutineMetadata
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
-from qoala.runtime.lhi_to_ehi import LhiConverter, NvToNvInterface
+from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
+from qoala.runtime.ntf import NvNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
 from qoala.runtime.task import TaskGraph
@@ -247,7 +248,7 @@ def setup_components(
     topology: LhiTopology, latencies: QnosLatencies = QnosLatencies.all_zero()
 ) -> Tuple[QnosProcessor, UnitModule]:
     qdevice = MockQDevice(topology)
-    ehi = LhiConverter.to_ehi(topology, ntf=NvToNvInterface())
+    ehi = LhiConverter.to_ehi(topology, ntf=NvNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
     interface = MockQnosInterface(qdevice)
     processor = QnosProcessor(interface, latencies)

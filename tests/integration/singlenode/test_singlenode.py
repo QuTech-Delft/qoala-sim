@@ -1,33 +1,20 @@
 from __future__ import annotations
 
 import os
-from typing import List
 
 import netsquid as ns
 
-from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.environment import NetworkInfo
-from qoala.runtime.program import BatchInfo, ProgramInput
-from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network
-from qoala.sim.network import ProcNodeNetwork
-
-
-def create_network_info() -> NetworkInfo:
-    env = NetworkInfo.with_nodes({0: "alice"})
-
-    env.set_global_schedule([0])
-    env.set_timeslot_len(1e6)
-
-    return env
+from qoala.runtime.program import ProgramInput
+from qoala.util.runner import run_application
 
 
 def get_config() -> ProcNodeConfig:
@@ -37,16 +24,8 @@ def get_config() -> ProcNodeConfig:
         node_id=0,
         topology=topology,
         latencies=LatenciesConfig(qnos_instr_time=1000),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
-
-
-def create_network(
-    node_cfg: ProcNodeConfig,
-) -> ProcNodeNetwork:
-    network_info = create_network_info()
-
-    network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
-    return build_network(network_cfg, network_info)
 
 
 def load_program(name: str) -> QoalaProgram:
@@ -58,133 +37,74 @@ def load_program(name: str) -> QoalaProgram:
     return program
 
 
-def create_batch(
-    program: QoalaProgram,
-    inputs: List[ProgramInput],
-    unit_module: UnitModule,
-    num_iterations: int,
-    deadline: int,
-) -> BatchInfo:
-    return BatchInfo(
-        program=program,
-        inputs=inputs,
-        unit_module=unit_module,
-        num_iterations=num_iterations,
-        deadline=deadline,
-    )
-
-
 def test_simple_program():
     ns.sim_reset()
 
-    node_config = get_config()
-    network = create_network(node_config)
-    procnode = network.nodes["alice"]
-
     num_iterations = 100
-    inputs = [ProgramInput({}) for i in range(num_iterations)]
 
-    unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
-
+    node_cfg = get_config()
+    network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("simple_program.iqoala")
-    batch_info = create_batch(
-        program=program,
-        inputs=inputs,
-        unit_module=unit_module,
+
+    app_results = run_application(
         num_iterations=num_iterations,
-        deadline=0,
+        programs={"alice": program},
+        program_inputs={"alice": ProgramInput.empty()},
+        network_cfg=network_cfg,
     )
 
-    procnode.submit_batch(batch_info)
-    procnode.initialize_processes()
-    tasks = procnode.scheduler.get_tasks_to_schedule()
-    merged = TaskGraphBuilder.merge_linear(tasks)
-    procnode.scheduler.upload_task_graph(merged)
-
-    network.start_all_nodes()
-    ns.sim_run()
-
-    all_results = procnode.scheduler.get_batch_results()
-    batch0_result = all_results[0]
-    results = [result.values["m"] for result in batch0_result.results]
-    print(results)
+    all_results = app_results.batch_results["alice"].results
+    outcomes = [result.values["m"] for result in all_results]
+    print(outcomes)
+    assert all(outcome == 1 for outcome in outcomes)
 
 
 def test_return_vector():
     ns.sim_reset()
 
-    node_config = get_config()
-    network = create_network(node_config)
-    procnode = network.nodes["alice"]
-
     num_iterations = 100
-    inputs = [ProgramInput({}) for i in range(num_iterations)]
 
-    unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
-
+    node_cfg = get_config()
+    network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("return_vector.iqoala")
-    batch_info = create_batch(
-        program=program,
-        inputs=inputs,
-        unit_module=unit_module,
+
+    app_results = run_application(
         num_iterations=num_iterations,
-        deadline=0,
+        programs={"alice": program},
+        program_inputs={"alice": ProgramInput.empty()},
+        network_cfg=network_cfg,
     )
 
-    procnode.submit_batch(batch_info)
-    procnode.initialize_processes()
-    tasks = procnode.scheduler.get_tasks_to_schedule()
-    merged = TaskGraphBuilder.merge_linear(tasks)
-    procnode.scheduler.upload_task_graph(merged)
-
-    network.start_all_nodes()
-    ns.sim_run()
-
-    all_results = procnode.scheduler.get_batch_results()
-    batch0_result = all_results[0]
-    results = [result.values["outcomes"] for result in batch0_result.results]
-    assert [r == [1, 1, 0] for r in results]
-    print(results)
+    all_results = app_results.batch_results["alice"].results
+    outcomes = [result.values["outcomes"] for result in all_results]
+    print(outcomes)
+    assert all(outcome == [1, 1, 0] for outcome in outcomes)
 
 
 def test_return_vector_loop():
     ns.sim_reset()
 
-    node_config = get_config()
-    network = create_network(node_config)
-    procnode = network.nodes["alice"]
-
     num_iterations = 1
-    inputs = [ProgramInput({}) for i in range(num_iterations)]
 
-    unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
-
+    node_cfg = get_config()
+    network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("return_vector_loop.iqoala")
-    batch_info = create_batch(
-        program=program,
-        inputs=inputs,
-        unit_module=unit_module,
+
+    app_results = run_application(
         num_iterations=num_iterations,
-        deadline=0,
+        programs={"alice": program},
+        program_inputs={"alice": ProgramInput.empty()},
+        network_cfg=network_cfg,
     )
 
-    procnode.submit_batch(batch_info)
-    procnode.initialize_processes()
-    tasks = procnode.scheduler.get_tasks_to_schedule()
-    merged = TaskGraphBuilder.merge_linear(tasks)
-    procnode.scheduler.upload_task_graph(merged)
-
-    network.start_all_nodes()
-    ns.sim_run()
-
-    all_results = procnode.scheduler.get_batch_results()
-    batch0_result = all_results[0]
-    results = [result.values["outcomes"] for result in batch0_result.results]
-    assert [r == [1, 1, 0] for r in results]
-    print(results)
+    all_results = app_results.batch_results["alice"].results
+    outcomes = [result.values["outcomes"] for result in all_results]
+    print(outcomes)
+    expected = [1] * 100
+    assert all(outcome == expected for outcome in outcomes)
 
 
 if __name__ == "__main__":
-    # test_simple_program()
-    # test_return_vector()
+    test_simple_program()
+    test_return_vector()
     test_return_vector_loop()

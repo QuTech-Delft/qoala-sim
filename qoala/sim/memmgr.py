@@ -145,7 +145,10 @@ class MemoryManager:
         return min(free_ids)
 
     def phys_id_for(self, pid: int, virt_id: int) -> Optional[int]:
-        phys_id = self._process_mappings[pid].mapping[virt_id]
+        virt_mapping = self._process_mappings[pid]
+        if virt_id not in virt_mapping.mapping:
+            raise RuntimeError(f"virt ID {virt_id} not in Unit Module")
+        phys_id = virt_mapping.mapping[virt_id]
         return phys_id
 
     def virt_id_for(self, pid: int, phys_id: int) -> Optional[int]:

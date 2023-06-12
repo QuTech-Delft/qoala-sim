@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Generator, List
 
 from pydynaa import EventExpression
-from qoala.runtime.environment import NetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -14,13 +14,13 @@ class EntDistInterface(ComponentProtocol):
     def __init__(
         self,
         comp: EntDistComponent,
-        network_info: NetworkInfo,
+        ehi_network: EhiNetworkInfo,
     ) -> None:
         super().__init__(name=f"{comp.name}_protocol", comp=comp)
         self._comp = comp
-        self._network_info = network_info
+        self._ehi_network = ehi_network
 
-        self._all_node_names: List[str] = self._network_info.get_all_node_names()
+        self._all_node_names: List[str] = self._ehi_network.get_all_node_names()
 
         for node in self._all_node_names:
             self.add_listener(
@@ -31,7 +31,7 @@ class EntDistInterface(ComponentProtocol):
             )
 
     def remote_id_to_peer_name(self, remote_id: int) -> str:
-        return self._network_info.get_nodes()[remote_id]
+        return self._ehi_network.nodes[remote_id]
 
     def send_node_msg(self, node: str, msg: Message) -> None:
         self._comp.node_out_port(node).tx_output(msg)

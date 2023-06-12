@@ -6,9 +6,8 @@ from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
-from qoala.runtime.environment import LocalEnvironment, NetworkInfo
 from qoala.runtime.lhi import LhiLatencies, LhiTopology
-from qoala.runtime.lhi_to_ehi import LhiConverter, NativeToFlavourInterface
+from qoala.runtime.lhi_to_ehi import LhiConverter, NtfInterface
 from qoala.runtime.program import BatchInfo, ProgramBatch
 from qoala.runtime.task import TaskExecutionMode
 from qoala.sim.host.host import Host
@@ -29,11 +28,10 @@ class ProcNode(Protocol):
     def __init__(
         self,
         name: str,
-        network_info: NetworkInfo,
         qprocessor: QuantumProcessor,
         qdevice_topology: LhiTopology,
         latencies: LhiLatencies,
-        ntf_interface: NativeToFlavourInterface,
+        ntf_interface: NtfInterface,
         network_ehi: EhiNetworkInfo,
         node: Optional[ProcNodeComponent] = None,
         node_id: Optional[int] = None,
@@ -60,11 +58,9 @@ class ProcNode(Protocol):
         if node:
             self._node = node
         else:
-            self._node = ProcNodeComponent(name, qprocessor, network_info, node_id)
+            self._node = ProcNodeComponent(name, qprocessor, network_ehi, node_id)
 
-        self._network_info = network_info
         self._network_ehi = network_ehi
-        self._local_env = LocalEnvironment(network_info, network_info.get_node_id(name))
         self._ntf_interface = ntf_interface
         self._asynchronous = asynchronous
         self._tem = tem
@@ -86,12 +82,15 @@ class ProcNode(Protocol):
         netstack_latencies = NetstackLatencies(0)
 
         self._host = Host(
-            self.host_comp, self._local_env, host_latencies, self._asynchronous
+            self.host_comp,
+            self.network_ehi,
+            host_latencies,
+            self._asynchronous,
         )
         self._memmgr = MemoryManager(self.node.name, self._qdevice, self._local_ehi)
         self._qnos = Qnos(
             self.qnos_comp,
-            self._local_env,
+            self.network_ehi,
             self._memmgr,
             self._qdevice,
             qnos_latencies,
@@ -100,7 +99,7 @@ class ProcNode(Protocol):
         )
         self._netstack = Netstack(
             self.netstack_comp,
-            self._local_env,
+            self.network_ehi,
             self._memmgr,
             self._qdevice,
             netstack_latencies,
@@ -113,7 +112,6 @@ class ProcNode(Protocol):
                 self._qnos,
                 self._netstack,
                 self._memmgr,
-                self._local_env,
                 self._local_ehi,
                 self._network_ehi,
                 self._tem,
