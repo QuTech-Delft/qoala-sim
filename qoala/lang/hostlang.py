@@ -369,15 +369,11 @@ class BasicBlockType(Enum):
 
 
 @dataclass
-class BasicBlockAnnotations:
-    deadline: int
-
-
-@dataclass
 class BasicBlock:
     name: str
     typ: BasicBlockType
     instructions: List[ClassicalIqoalaOp]
+    deadline: Optional[int] = 0
 
     def __str__(self) -> str:
         s = f"^{self.name} {{type = {self.typ.name}}}:\n"

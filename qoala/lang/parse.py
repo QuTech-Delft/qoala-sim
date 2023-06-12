@@ -240,28 +240,47 @@ class HostCodeParser:
 
         return block_texts
 
-    def _parse_block_header(self, line: str) -> Tuple[str, hl.BasicBlockType]:
-        # return (block name, block type)
+    def _parse_block_annotations(
+        self, annotations: str
+    ) -> Tuple[hl.BasicBlockType, Optional[int]]:
+        typ_index = annotations.find("type =")
+        assert typ_index >= 0
+        comma = annotations.find(",")
+        if comma == -1:  # no duration
+            raw_typ = annotations[typ_index + 7 :]
+            typ = hl.BasicBlockType[raw_typ.upper()]
+            duration = None
+        else:
+            raw_typ = annotations[typ_index + 7 : comma]
+            typ = hl.BasicBlockType[raw_typ.upper()]
+            duration_str = annotations[comma + 1 :].strip()
+            duration = int(duration_str[11:])
+        return typ, duration
+
+    def _parse_block_header(
+        self, line: str
+    ) -> Tuple[str, hl.BasicBlockType, Optional[int]]:
+        # return (block name, block type, block deadline)
         assert line.startswith("^")
         split_space = line.split(" ")
         assert len(split_space) > 0
         name = split_space[0][1:]  # trim '^' at start
-        typ_index = line.find("type =")
-        assert typ_index >= 0
-        typ_end_index = line.find("}")
-        assert typ_end_index >= 0
-        raw_typ = line[typ_index + 7 : typ_end_index]
-        typ = hl.BasicBlockType[raw_typ.upper()]
-        return name, typ
+        open_brace = line.find("{")
+        assert open_brace >= 0
+        close_brace = line.find("}")
+        assert close_brace >= 0
+        annotations_str = line[open_brace + 1 : close_brace]
+        typ, deadline = self._parse_block_annotations(annotations_str)
+        return name, typ, deadline
 
     def parse_block(self, text: str) -> hl.BasicBlock:
         lines = [line.strip() for line in text.split("\n")]
         lines = [line for line in lines if len(line) > 0]
-        name, typ = self._parse_block_header(lines[0])
+        name, typ, deadline = self._parse_block_header(lines[0])
         instr_lines = lines[1:]
         instrs = IqoalaInstrParser("\n".join(instr_lines)).parse()
 
-        return hl.BasicBlock(name, typ, instrs)
+        return hl.BasicBlock(name, typ, instrs, deadline)
 
     def parse(self) -> List[hl.BasicBlock]:
         block_texts = self.get_block_texts()

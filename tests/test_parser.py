@@ -233,9 +233,19 @@ my_vec<N> = run_request(tuple<>) : req1
 def test_parse_block_header():
     text = "^b0 {type = CL}:"
 
-    name, typ = HostCodeParser("")._parse_block_header(text)
+    name, typ, duration = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
+    assert duration is None
+
+
+def test_parse_block_header_with_deadline():
+    text = "^b0 {type = CL, deadline = 1000}:"
+
+    name, typ, duration = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert duration == 1000
 
 
 def test_parse_block():
@@ -273,7 +283,7 @@ def test_parse_multiple_blocks():
     x = assign_cval() : 1
     y = assign_cval() : 17
 
-^b1 {type = QL}:
+^b1 {type = QL, deadline = 2500}:
     run_subroutine(tuple<x>) : subrt1
     """
 
@@ -288,6 +298,7 @@ def test_parse_multiple_blocks():
 
     assert blocks[1].name == "b1"
     assert blocks[1].typ == BasicBlockType.QL
+    assert blocks[1].deadline == 2500
     assert len(blocks[1].instructions) == 1
     assert blocks[1].instructions[0] == RunSubroutineOp(
         result=None, values=IqoalaTuple(["x"]), subrt="subrt1"
@@ -1205,6 +1216,7 @@ if __name__ == "__main__":
     test_parse_vector_2()
     test_parse_vector_with_var()
     test_parse_block_header()
+    test_parse_block_header_with_deadline()
     test_parse_block()
     test_get_block_texts()
     test_parse_multiple_blocks()

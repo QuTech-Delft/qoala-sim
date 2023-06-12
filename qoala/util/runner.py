@@ -67,6 +67,12 @@ def run_application(
         merged = TaskGraphBuilder.merge(tasks)
         procnode.scheduler.upload_task_graph(merged)
 
+        for batch_id, batch in procnode.scheduler.get_batches().items():
+            task_graph = batch.instances[0].task_graph
+            num = len(batch.instances)
+            print(f"batch {batch_id}: {num} instances each with task graph:")
+            print(task_graph)
+
     network.start()
     ns.sim_run()
 
