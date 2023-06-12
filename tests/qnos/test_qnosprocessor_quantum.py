@@ -74,25 +74,6 @@ def perfect_uniform_qdevice(num_qubits: int) -> QDevice:
 
 
 def perfect_nv_star_qdevice(num_qubits: int) -> QDevice:
-    # topology = LhiTopologyBuilder.perfect_star(
-    #     num_qubits=num_qubits,
-    #     comm_instructions=[
-    #         INSTR_INIT,
-    #         INSTR_ROT_X,
-    #         INSTR_ROT_Y,
-    #         INSTR_MEASURE,
-    #     ],
-    #     comm_duration=5e3,
-    #     mem_instructions=[
-    #         INSTR_INIT,
-    #         INSTR_ROT_X,
-    #         INSTR_ROT_Y,
-    #         INSTR_ROT_Z,
-    #     ],
-    #     mem_duration=1e4,
-    #     two_instructions=[INSTR_CXDIR, INSTR_CYDIR],
-    #     two_duration=1e5,
-    # )
     cfg = NVQDeviceConfig.perfect_config(num_qubits)
     topology = LhiTopologyBuilderForOldNV.from_nv_config(cfg)
     processor = build_qprocessor_from_topology(name="processor", topology=topology)

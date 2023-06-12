@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractclassmethod, abstractmethod
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 import yaml
-from attr import dataclass
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
