@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import os
-from audioop import avg
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 import netsquid as ns
-import pytest
 
-from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
@@ -20,9 +17,8 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
-from qoala.util.logging import LogManager
+from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.runtime.task import TaskExecutionMode
 from qoala.util.runner import run_application
 
 
@@ -44,21 +40,6 @@ def load_program(path: str) -> QoalaProgram:
     with open(path) as file:
         text = file.read()
     return QoalaParser(text).parse()
-
-
-def create_batch(
-    program: QoalaProgram,
-    unit_module: UnitModule,
-    inputs: List[ProgramInput],
-    num_iterations: int,
-) -> BatchInfo:
-    return BatchInfo(
-        program=program,
-        unit_module=unit_module,
-        inputs=inputs,
-        num_iterations=num_iterations,
-        deadline=0,
-    )
 
 
 @dataclass

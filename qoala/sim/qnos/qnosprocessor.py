@@ -726,8 +726,6 @@ class NVProcessor(QnosProcessor):
             f"placing the outcome in register {instr.creg}"
         )
 
-        memmgr = self._interface.memmgr
-
         if phys_id == 0:
             # Measuring a comm qubit. This can be done immediately.
             outcome = yield from self._measure_electron()

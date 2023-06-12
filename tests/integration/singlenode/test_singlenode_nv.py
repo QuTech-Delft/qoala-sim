@@ -12,6 +12,7 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     NtfConfig,
+    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -20,11 +21,11 @@ from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
-from qoala.util.logging import LogManager
 
 
 def get_config() -> ProcNodeConfig:
-    topology = TopologyConfig.perfect_nv_default_params(5)
+    params = NvParams()
+    topology = TopologyConfig.from_nv_params(num_qubits=5, params=params)
     return ProcNodeConfig(
         node_name="alice",
         node_id=0,

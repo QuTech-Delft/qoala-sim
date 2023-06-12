@@ -108,7 +108,7 @@ def test_link_info_to_ehi_depolarise():
     ehi_info = LhiConverter.link_info_to_ehi(lhi_info)
 
     expected_duration = (cycle_time / prob_success) + state_delay
-    expected_fidelity = prob_max_mixed_to_fidelity(prob_max_mixed)
+    expected_fidelity = prob_max_mixed_to_fidelity(2, prob_max_mixed)
     assert ehi_info.duration == pytest.approx(expected_duration)
     assert ehi_info.fidelity == pytest.approx(expected_fidelity)
 
@@ -125,7 +125,7 @@ def test_network_to_ehi():
 
     ehi_network = LhiConverter.network_to_ehi(lhi_network)
     expected_duration_0_1 = (10 / 0.5) + 2000
-    expected_fidelty_0_1 = prob_max_mixed_to_fidelity(0.2)
+    expected_fidelty_0_1 = prob_max_mixed_to_fidelity(2, 0.2)
 
     ehi_link_0_1 = ehi_network.get_link(0, 1)
     assert ehi_link_0_1.duration == pytest.approx(expected_duration_0_1)

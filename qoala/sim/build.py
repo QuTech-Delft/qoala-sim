@@ -292,7 +292,7 @@ def build_ll_protocol(
         link_cfg = config.cfg
         if not isinstance(link_cfg, DepolariseOldLinkConfig):
             link_cfg = DepolariseOldLinkConfig(**config.cfg)
-        prob_max_mixed = fidelity_to_prob_max_mixed(link_cfg.fidelity)
+        prob_max_mixed = fidelity_to_prob_max_mixed(2, link_cfg.fidelity)
         link_dist = DepolariseWithFailureMagicDistributor(
             nodes=[proc_node1.node, proc_node2.node],
             prob_max_mixed=prob_max_mixed,

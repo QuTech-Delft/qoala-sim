@@ -108,7 +108,9 @@ class LhiConverter:
                 info.sampler_kwargs["cycle_time"] / info.sampler_kwargs["prob_success"]
             )
             duration = expected_gen_duration + info.state_delay
-            fidelity = prob_max_mixed_to_fidelity(info.sampler_kwargs["prob_max_mixed"])
+            fidelity = prob_max_mixed_to_fidelity(
+                2, info.sampler_kwargs["prob_max_mixed"]
+            )
             return EhiLinkInfo(duration=duration, fidelity=fidelity)
         else:
             raise NotImplementedError

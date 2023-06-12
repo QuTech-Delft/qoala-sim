@@ -2,25 +2,23 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 import netsquid as ns
 from netqasm.lang.instr.flavour import NVFlavour
 
-from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     NtfConfig,
-    NVQDeviceConfig,
+    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
-from qoala.sim.build import build_network_from_config
+from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.runtime.task import TaskExecutionMode
 from qoala.util.runner import run_application
 
 
@@ -30,7 +28,7 @@ def create_procnode_cfg(
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.perfect_nv_default_params(5),
+        topology=TopologyConfig.from_nv_params(num_qubits=5, params=NvParams()),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("NvNtf"),
         tem=tem.name,
@@ -42,21 +40,6 @@ def load_program(path: str) -> QoalaProgram:
     with open(path) as file:
         text = file.read()
     return QoalaParser(text, flavour=NVFlavour()).parse()
-
-
-def create_batch(
-    program: QoalaProgram,
-    unit_module: UnitModule,
-    inputs: List[ProgramInput],
-    num_iterations: int,
-) -> BatchInfo:
-    return BatchInfo(
-        program=program,
-        unit_module=unit_module,
-        inputs=inputs,
-        num_iterations=num_iterations,
-        deadline=0,
-    )
 
 
 @dataclass
@@ -311,7 +294,7 @@ def qkd_npairs_md(tem: TaskExecutionMode):
     alice_file = "qkd_npairs_MD_alice.iqoala"
     bob_file = "qkd_npairs_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=1000, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=100, tem=tem)
 
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results

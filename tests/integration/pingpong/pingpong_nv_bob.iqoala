@@ -8,17 +8,20 @@ META_END
 ^b0 {type = CL}:
     csocket = assign_cval() : 0
 
+^b05 {type = QL}:
+    run_subroutine(tuple<>) : init_mem_qubit
+
 ^b1 {type = QC}:
     run_request(tuple<>) : epr_gen_1
 
 ^b2 {type = CC}:
-    m1 = recv_cmsg(csocket)
+    m0 = recv_cmsg(csocket)
 
 ^b3 {type = CC}:
-    m2 = recv_cmsg(csocket)
+    m1 = recv_cmsg(csocket)
 
 ^b4 {type = QL}:
-    run_subroutine(tuple<m1; m2>) : bsm_corrections
+    run_subroutine(tuple<m0; m1>) : bsm_corrections
 
 ^b5 {type = QL}:
     run_subroutine(tuple<>) : move_qubit
@@ -34,8 +37,19 @@ META_END
     send_cmsg(csocket, p2)
 
 
+SUBROUTINE init_mem_qubit
+    params:
+    returns: 
+    uses: 0, 1
+    keeps: 1
+    request:
+  NETQASM_START
+    set Q1 1
+    init Q1
+  NETQASM_END
+
 SUBROUTINE bsm_corrections
-    params: m1, m2
+    params: m0, m1
     returns: 
     uses: 0
     keeps: 0
@@ -48,15 +62,17 @@ SUBROUTINE bsm_corrections
     set Q0 0
     set R0 0
     beq C0 R0 2
-    rot_z Q0 16 4
-    beq C1 R0 2
     rot_x Q0 16 4
+    beq C1 R0 4
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    rot_y Q0 24 4
     set R15 0
   NETQASM_END
 
 SUBROUTINE bsm
     params: 
-    returns: m1, m2
+    returns: m0, m1
     uses: 0, 1
     keeps:
     request: 
@@ -74,12 +90,12 @@ SUBROUTINE bsm
     rot_x Q0 16 4
     rot_x Q1 24 4
     rot_y Q1 24 4
-    rot_y Q0 8 4
-    rot_x Q0 16 4
+    rot_y Q1 8 4
+    rot_x Q1 16 4
     meas Q0 M0
     meas Q1 M1
-    store M0 @output[1]
-    store M1 @output[0]
+    store M0 @output[0]
+    store M1 @output[1]
   NETQASM_END
 
 SUBROUTINE move_qubit
@@ -91,7 +107,6 @@ SUBROUTINE move_qubit
   NETQASM_START
     set Q0 0
     set Q1 1
-    init Q1
     rot_y Q0 8 4
     crot_y Q0 Q1 24 4
     rot_x Q0 24 4

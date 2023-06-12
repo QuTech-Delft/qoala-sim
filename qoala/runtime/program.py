@@ -56,3 +56,7 @@ class BatchResult:
     batch_id: int
     results: List[ProgramResult]
     timestamps: List[Tuple[float, float]]  # start, end
+
+    @property
+    def durations(self) -> List[float]:
+        return [end - start for (start, end) in self.timestamps]

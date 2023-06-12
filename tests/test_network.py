@@ -9,7 +9,6 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.ntf import GenericNtf
 from qoala.sim.build import build_network_from_config
 
 

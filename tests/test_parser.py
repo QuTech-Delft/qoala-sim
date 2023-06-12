@@ -8,6 +8,7 @@ from netqasm.lang.subroutine import Subroutine
 from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
+    BusyOp,
     IqoalaTuple,
     IqoalaVector,
     RunRequestOp,
@@ -121,6 +122,17 @@ y = assign_cval() : 17
     assert len(instructions) == 2
     assert instructions[0] == AssignCValueOp(result="x", value=1)
     assert instructions[1] == AssignCValueOp(result="y", value=17)
+
+
+def test_parse_busy():
+    text = """
+busy() : 250
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+
+    assert len(instructions) == 1
+    assert instructions[0] == BusyOp(value=250)
 
 
 def test_parse_faulty_instr():
@@ -1183,6 +1195,7 @@ if __name__ == "__main__":
     test_parse_meta_multiple_remotes()
     test_parse_1_instr()
     test_parse_2_instr()
+    test_parse_busy()
     test_parse_faulty_instr()
     test_parse_tuple()
     test_parse_tuple_2_elements()

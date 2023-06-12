@@ -1,21 +1,15 @@
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import netsquid as ns
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.config import (
-    LatenciesConfig,
-    NtfConfig,
-    ProcNodeConfig,
-    ProcNodeNetworkConfig,
-    TopologyConfig,
-)
+from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 
 
@@ -53,6 +47,7 @@ def run_application(
     network_cfg: ProcNodeNetworkConfig,
 ):
     ns.sim_reset()
+    ns.set_qstate_formalism(ns.QFormalism.DM)
 
     network = build_network_from_config(network_cfg)
 

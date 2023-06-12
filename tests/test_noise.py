@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
+import pytest
 from netqasm.lang.parsing import parse_text_subroutine
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -44,7 +45,7 @@ from qoala.sim.qnos import (
     QnosLatencies,
     QnosProcessor,
 )
-from qoala.util.math import has_max_mixed_state, has_state
+from qoala.util.math import has_max_mixed_state, has_state, prob_max_mixed_to_fidelity
 from qoala.util.tests import netsquid_run, netsquid_wait
 
 
@@ -160,10 +161,8 @@ def test_depolarizing_decoherence():
 
     q = qubitapi.create_qubits(1)[0]
     qubitapi.assign_qstate(q, ketstates.s1)
-    print(ns.sim_time())
     assert has_state(q, ketstates.s1)
     ns.qubits.delay_depolarize(q, 1e6, delay=1e9)
-    print(ns.sim_time())
     assert has_max_mixed_state(q)
 
 
@@ -260,7 +259,6 @@ def test_depolarizing_decoherence_qprocessor_2():
     prog.apply(INSTR_I, [0])
     processor.execute_program(prog)
     ns.sim_run()
-    print(ns.sim_time())
     assert ns.sim_time() == 2e10 + 2e3
 
     # Just before executing the I instruction, the decoherence noise (over 1e10 ns)
@@ -350,9 +348,91 @@ def test_decoherence_in_subroutine():
     assert has_state(qubit, ketstates.s0)
 
 
+def test_gate_noise():
+    ns.sim_reset()
+    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
+
+    depolar_prob = 1
+
+    gate_noise = DepolarNoiseModel(depolar_rate=depolar_prob, time_independent=True)
+    phys_instructions = [
+        PhysicalInstruction(INSTR_INIT, duration=1e3),
+        PhysicalInstruction(INSTR_I, duration=1e6, quantum_noise_model=gate_noise),
+    ]
+    # mem_noise_models = [DepolarNoiseModel(1e10)]
+    processor = QuantumProcessor(
+        "processor",
+        num_positions=1,
+        # mem_noise_models=mem_noise_models,
+        phys_instructions=phys_instructions,
+    )
+    assert ns.sim_time() == 0
+    processor.execute_instruction(INSTR_INIT, [0])
+    ns.sim_run()
+    assert ns.sim_time() == 1e3
+    q = processor.peek([0])[0]
+    assert has_state(q, ketstates.s0)
+
+    netsquid_wait(1e10)
+    assert ns.sim_time() == 1e10 + 1e3
+    q = processor.peek([0])[0]
+    # No decoherence, so should still be |0>.
+    assert has_state(q, ketstates.s0)
+
+    processor.execute_instruction(INSTR_I, [0])
+    ns.sim_run()
+    assert ns.sim_time() == 1e10 + 1e3 + 1e6
+    q = processor.peek([0])[0]
+    # Gate should have applied noise.
+    assert has_max_mixed_state(q)
+
+    fidelity = qubitapi.fidelity(q, ketstates.s0, squared=True)
+    assert fidelity == pytest.approx(prob_max_mixed_to_fidelity(1, depolar_prob))
+
+
+def test_two_gate_noise():
+    ns.sim_reset()
+    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
+
+    depolar_prob = 1
+
+    gate_noise = DepolarNoiseModel(depolar_rate=depolar_prob, time_independent=True)
+    phys_instructions = [
+        PhysicalInstruction(INSTR_INIT, duration=1e3),
+        PhysicalInstruction(INSTR_CNOT, duration=1e6, quantum_noise_model=gate_noise),
+    ]
+    processor = QuantumProcessor(
+        "processor",
+        num_positions=2,
+        phys_instructions=phys_instructions,
+    )
+    assert ns.sim_time() == 0
+    processor.execute_instruction(INSTR_INIT, [0])
+    ns.sim_run()
+    processor.execute_instruction(INSTR_INIT, [1])
+    ns.sim_run()
+    assert ns.sim_time() == 2e3
+    q0 = processor.peek([0])[0]
+    q1 = processor.peek([1])[0]
+    assert has_state(q0, ketstates.s0)
+    assert has_state(q1, ketstates.s0)
+
+    processor.execute_instruction(INSTR_CNOT, [0, 1])
+    ns.sim_run()
+    assert ns.sim_time() == 2e3 + 1e6
+    q0 = processor.peek([0])[0]
+    q1 = processor.peek([1])[0]
+    print(qubitapi.reduced_dm([q0, q1]))
+    # Gate should have applied noise.
+    fidelity = qubitapi.fidelity([q0, q1], ketstates.b00, squared=True)
+    assert fidelity == pytest.approx(prob_max_mixed_to_fidelity(2, depolar_prob))
+
+
 if __name__ == "__main__":
-    test_depolarizing_decoherence()
-    test_depolarizing_decoherence_qprocessor()
-    test_depolarizing_decoherence_qprocessor_2()
-    test_t1t2_decoherence_qprocessor()
-    test_decoherence_in_subroutine()
+    # test_depolarizing_decoherence()
+    # test_depolarizing_decoherence_qprocessor()
+    # test_depolarizing_decoherence_qprocessor_2()
+    # test_t1t2_decoherence_qprocessor()
+    # test_decoherence_in_subroutine()
+    # test_gate_noise()
+    test_two_gate_noise()

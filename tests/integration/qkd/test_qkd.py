@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 import netsquid as ns
 
-from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
@@ -16,9 +15,8 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
-from qoala.sim.build import build_network_from_config
+from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.runtime.task import TaskExecutionMode
 from qoala.util.runner import run_application
 
 
@@ -40,21 +38,6 @@ def load_program(path: str) -> QoalaProgram:
     with open(path) as file:
         text = file.read()
     return QoalaParser(text).parse()
-
-
-def create_batch(
-    program: QoalaProgram,
-    unit_module: UnitModule,
-    inputs: List[ProgramInput],
-    num_iterations: int,
-) -> BatchInfo:
-    return BatchInfo(
-        program=program,
-        unit_module=unit_module,
-        inputs=inputs,
-        num_iterations=num_iterations,
-        deadline=0,
-    )
 
 
 @dataclass
@@ -309,7 +292,7 @@ def qkd_npairs_md(tem: TaskExecutionMode):
     alice_file = "qkd_npairs_MD_alice.iqoala"
     bob_file = "qkd_npairs_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=1000, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=100, tem=tem)
 
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -333,7 +316,7 @@ def qkd_npairs_ck_1qubit_cb(tem: TaskExecutionMode):
     alice_file = "qkd_npairs_CK_cb_alice.iqoala"
     bob_file = "qkd_npairs_CK_cb_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=1000, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=100, tem=tem)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -438,25 +421,25 @@ def test_qkd_npairs_ck_1qubit_cb_block_tasks():
 
 
 if __name__ == "__main__":
-    # test_qkd_1pair_md_qoala_tasks()
-    # test_qkd_1pair_md_block_tasks()
-    # test_qkd_1pair_ck_qoala_tasks()
-    # test_qkd_1pair_ck_block_tasks()
-    # test_qkd_1pair_ck_cb_qoala_tasks()
-    # test_qkd_1pair_ck_cb_block_tasks()
-    # test_qkd_2pairs_md_qoala_tasks()
-    # test_qkd_2pairs_md_block_tasks()
-    # test_qkd_2pairs_ck_1qubit_qoala_tasks()
-    # test_qkd_2pairs_ck_1qubit_block_tasks()
-    # test_qkd_2pairs_ck_1qubit_cb_qoala_tasks()
-    # test_qkd_2pairs_ck_1qubit_cb_block_tasks()
-    # test_qkd_2pairs_ck_2qubits_app_move_qoala_tasks()
-    # test_qkd_2pairs_ck_2qubits_app_move_block_tasks()
-    # test_qkd_2pairs_ck_2qubits_wait_all_qoala_tasks()
-    # test_qkd_2pairs_ck_2qubits_wait_all_block_tasks()
-    # test_qkd_100pairs_md_qoala_tasks()
-    # test_qkd_100pairs_md_block_tasks()
-    # test_qkd_npairs_md_qoala_tasks()
-    # test_qkd_npairs_md_block_tasks()
+    test_qkd_1pair_md_qoala_tasks()
+    test_qkd_1pair_md_block_tasks()
+    test_qkd_1pair_ck_qoala_tasks()
+    test_qkd_1pair_ck_block_tasks()
+    test_qkd_1pair_ck_cb_qoala_tasks()
+    test_qkd_1pair_ck_cb_block_tasks()
+    test_qkd_2pairs_md_qoala_tasks()
+    test_qkd_2pairs_md_block_tasks()
+    test_qkd_2pairs_ck_1qubit_qoala_tasks()
+    test_qkd_2pairs_ck_1qubit_block_tasks()
+    test_qkd_2pairs_ck_1qubit_cb_qoala_tasks()
+    test_qkd_2pairs_ck_1qubit_cb_block_tasks()
+    test_qkd_2pairs_ck_2qubits_app_move_qoala_tasks()
+    test_qkd_2pairs_ck_2qubits_app_move_block_tasks()
+    test_qkd_2pairs_ck_2qubits_wait_all_qoala_tasks()
+    test_qkd_2pairs_ck_2qubits_wait_all_block_tasks()
+    test_qkd_100pairs_md_qoala_tasks()
+    test_qkd_100pairs_md_block_tasks()
+    test_qkd_npairs_md_qoala_tasks()
+    test_qkd_npairs_md_block_tasks()
     test_qkd_npairs_ck_1qubit_cb_qoala_tasks()
-    # test_qkd_npairs_ck_1qubit_cb_block_tasks()
+    test_qkd_npairs_ck_1qubit_cb_block_tasks()
