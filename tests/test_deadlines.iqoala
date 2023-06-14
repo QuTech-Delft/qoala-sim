@@ -1,0 +1,13 @@
+META_START
+    name: alice
+    parameters:
+    csockets: 
+    epr_sockets:
+META_END
+
+^b0 {type = CL}:
+    x = assign_cval() : 3
+
+^b1 {type = CL, deadlines = [b0: 100]}:
+    y = assign_cval() : 3
+

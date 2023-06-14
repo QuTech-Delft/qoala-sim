@@ -26,9 +26,6 @@ class TaskGraphWriter:
     def draw(self, path: str) -> None:
         matplotlib.use("Agg")
         f = plt.figure()
-        k = 0.8
-        # pos = nx.spring_layout(self._nx_graph, k=k, iterations=500)
-        # pos = nx.spring_layout(self._nx_graph, k=0.1)
         pos = nx.planar_layout(self._nx_graph)
         labels = nx.get_node_attributes(self._nx_graph, "typ")
         nx.draw(

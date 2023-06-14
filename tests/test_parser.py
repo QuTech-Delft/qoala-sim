@@ -239,13 +239,13 @@ def test_parse_block_header():
     assert duration is None
 
 
-def test_parse_block_header_with_deadline():
-    text = "^b0 {type = CL, deadline = 1000}:"
+def test_parse_block_header_with_deadlines():
+    text = "^b0 {type = CL, deadlines = [b1: 1000]}:"
 
-    name, typ, duration = HostCodeParser("")._parse_block_header(text)
+    name, typ, deadline = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
-    assert duration == 1000
+    assert deadline == {"b1": 1000}
 
 
 def test_parse_block():
@@ -283,7 +283,7 @@ def test_parse_multiple_blocks():
     x = assign_cval() : 1
     y = assign_cval() : 17
 
-^b1 {type = QL, deadline = 2500}:
+^b1 {type = QL, deadlines = [b0: 2500]}:
     run_subroutine(tuple<x>) : subrt1
     """
 
@@ -298,7 +298,7 @@ def test_parse_multiple_blocks():
 
     assert blocks[1].name == "b1"
     assert blocks[1].typ == BasicBlockType.QL
-    assert blocks[1].deadline == 2500
+    assert blocks[1].deadlines == {"b0": 2500}
     assert len(blocks[1].instructions) == 1
     assert blocks[1].instructions[0] == RunSubroutineOp(
         result=None, values=IqoalaTuple(["x"]), subrt="subrt1"
@@ -1200,23 +1200,23 @@ def test_parse_file_2():
 
 
 if __name__ == "__main__":
-    test_parse_incomplete_meta()
-    test_parse_meta_no_end()
-    test_parse_meta()
-    test_parse_meta_multiple_remotes()
-    test_parse_1_instr()
-    test_parse_2_instr()
-    test_parse_busy()
-    test_parse_faulty_instr()
-    test_parse_tuple()
-    test_parse_tuple_2_elements()
-    test_parse_tuple_2_elements_and_return()
-    test_parse_tuple_2_elements_and_return_2_elements()
-    test_parse_vector()
-    test_parse_vector_2()
-    test_parse_vector_with_var()
-    test_parse_block_header()
-    test_parse_block_header_with_deadline()
+    # test_parse_incomplete_meta()
+    # test_parse_meta_no_end()
+    # test_parse_meta()
+    # test_parse_meta_multiple_remotes()
+    # test_parse_1_instr()
+    # test_parse_2_instr()
+    # test_parse_busy()
+    # test_parse_faulty_instr()
+    # test_parse_tuple()
+    # test_parse_tuple_2_elements()
+    # test_parse_tuple_2_elements_and_return()
+    # test_parse_tuple_2_elements_and_return_2_elements()
+    # test_parse_vector()
+    # test_parse_vector_2()
+    # test_parse_vector_with_var()
+    # test_parse_block_header()
+    test_parse_block_header_with_deadlines()
     test_parse_block()
     test_get_block_texts()
     test_parse_multiple_blocks()

@@ -2,7 +2,7 @@ import os
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.task import TaskGraph, TaskGraphBuilder
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.util.taskgraph import TaskGraphWriter
 
 

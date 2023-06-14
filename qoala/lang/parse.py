@@ -191,8 +191,6 @@ class IqoalaInstrParser:
 
         args = [self._parse_var(arg) for arg in raw_args]
 
-        # print(f"result = {result}, op = {op}, args = {args}, attr = {attr}")
-
         lhr_op = LHR_OP_NAMES[op].from_generic_args(result, args, attr)  # type: ignore
         return lhr_op
 
@@ -240,26 +238,38 @@ class HostCodeParser:
 
         return block_texts
 
+    def _parse_deadlines(self, text: str) -> Dict[str, int]:
+        open_bracket = text.find("[")
+        assert open_bracket >= 0
+        close_bracket = text.find("]")
+        assert close_bracket >= 0
+        items = text[open_bracket + 1 : close_bracket].split(",")
+        deadlines = {}
+        for item in items:
+            blk, dl = [i.strip() for i in item.split(":")]
+            deadlines[blk] = int(dl)
+        return deadlines
+
     def _parse_block_annotations(
         self, annotations: str
-    ) -> Tuple[hl.BasicBlockType, Optional[int]]:
+    ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]]]:
         typ_index = annotations.find("type =")
         assert typ_index >= 0
         comma = annotations.find(",")
-        if comma == -1:  # no duration
+        if comma == -1:  # no deadline
             raw_typ = annotations[typ_index + 7 :]
             typ = hl.BasicBlockType[raw_typ.upper()]
-            duration = None
+            deadlines = None
         else:
             raw_typ = annotations[typ_index + 7 : comma]
             typ = hl.BasicBlockType[raw_typ.upper()]
-            duration_str = annotations[comma + 1 :].strip()
-            duration = int(duration_str[11:])
-        return typ, duration
+            deadlines_str = annotations[comma + 1 :].strip()
+            deadlines = self._parse_deadlines(deadlines_str[12:])
+        return typ, deadlines
 
     def _parse_block_header(
         self, line: str
-    ) -> Tuple[str, hl.BasicBlockType, Optional[int]]:
+    ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]]]:
         # return (block name, block type, block deadline)
         assert line.startswith("^")
         split_space = line.split(" ")

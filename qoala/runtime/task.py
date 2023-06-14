@@ -44,6 +44,9 @@ class QoalaTask:
         self._pid = pid
         self._duration = duration
 
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}(pid={self.pid}, tid={self.task_id})"
+
     @property
     def task_id(self) -> int:
         return self._task_id
@@ -73,7 +76,11 @@ class QoalaTask:
 
 class HostLocalTask(QoalaTask):
     def __init__(
-        self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
+        self,
+        task_id: int,
+        pid: int,
+        block_name: str,
+        duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -895,6 +902,7 @@ class QoalaGraphFromProgramBuilder:
         self._first_task_id = first_task_id
         self._task_id_counter = first_task_id
         self._graph = TaskGraph()
+        self._block_to_task_map: Dict[str, int] = {}  # blk name -> task ID
 
     def unique_id(self) -> int:
         id = self._task_id_counter
@@ -920,12 +928,17 @@ class QoalaGraphFromProgramBuilder:
                 self._graph.add_tasks(
                     [HostLocalTask(task_id, pid, block.name, duration)]
                 )
+                self._block_to_task_map[block.name] = task_id
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     self._graph.get_tinfo(task_id).predecessors.append(
                         prev_block_task_id
                     )
+                if block.deadlines is not None:
+                    for blk, dl in block.deadlines.items():
+                        other_task = self._block_to_task_map[blk]
+                        self._graph.get_tinfo(task_id).rel_deadlines[other_task] = dl
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.CC:
                 assert len(block.instructions) == 1
@@ -939,6 +952,7 @@ class QoalaGraphFromProgramBuilder:
                 self._graph.add_tasks(
                     [HostEventTask(task_id, pid, block.name, duration)]
                 )
+                self._block_to_task_map[block.name] = task_id
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
@@ -982,6 +996,7 @@ class QoalaGraphFromProgramBuilder:
                     postcall_id, pid, block.name, shared_ptr, post_duration
                 )
                 self._graph.add_tasks([postcall_task])
+                self._block_to_task_map[block.name] = postcall_id
 
                 # LR task should come after precall task
                 self._graph.get_tinfo(lr_id).predecessors.append(precall_id)
@@ -1067,6 +1082,7 @@ class QoalaGraphFromProgramBuilder:
             postcall_id, pid, block.name, shared_ptr, post_duration
         )
         self._graph.add_tasks([postcall_task])
+        self._block_to_task_map[block.name] = postcall_id
 
         if req_routine.callback_type == CallbackType.WAIT_ALL:
             rr_id = self.unique_id()

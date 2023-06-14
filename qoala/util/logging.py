@@ -11,8 +11,10 @@ class SimTimeFilter(logging.Filter):
 
 
 class LogManager:
-    STACK_LOGGER = "ProcNode"
-    _LOGGER_HAS_BEEN_SETUP = False
+    STACK_LOGGER = "Stack"
+    _STACK_LOGGER_HAS_BEEN_SETUP = False
+    TASK_LOGGER = "Scheduler"
+    _TASK_LOGGER_HAS_BEEN_SETUP = False
 
     @classmethod
     def _setup_stack_logger(cls) -> None:
@@ -25,13 +27,37 @@ class LogManager:
         syslog.addFilter(SimTimeFilter())
         logger.addHandler(syslog)
         logger.propagate = False
-        cls._LOGGER_HAS_BEEN_SETUP = True
+        cls._STACK_LOGGER_HAS_BEEN_SETUP = True
+
+    @classmethod
+    def _setup_task_logger(cls) -> None:
+        logger = logging.getLogger(cls.TASK_LOGGER)
+        formatter = logging.Formatter(
+            "%(levelname)s:%(simtime)s ns:%(name)s:%(message)s"
+        )
+        syslog = logging.StreamHandler()
+        syslog.setFormatter(formatter)
+        syslog.addFilter(SimTimeFilter())
+        logger.addHandler(syslog)
+        logger.propagate = False
+        logger.setLevel(logging.CRITICAL + 1)
+        cls._TASK_LOGGER_HAS_BEEN_SETUP = True
 
     @classmethod
     def get_stack_logger(cls, sub_logger: Optional[str] = None) -> logging.Logger:
-        if not cls._LOGGER_HAS_BEEN_SETUP:
+        if not cls._STACK_LOGGER_HAS_BEEN_SETUP:
             cls._setup_stack_logger()
         logger = logging.getLogger(cls.STACK_LOGGER)
+        if sub_logger is None:
+            return logger
+        else:
+            return logger.getChild(sub_logger)
+
+    @classmethod
+    def get_task_logger(cls, sub_logger: Optional[str] = None) -> logging.Logger:
+        if not cls._TASK_LOGGER_HAS_BEEN_SETUP:
+            cls._setup_task_logger()
+        logger = logging.getLogger(cls.TASK_LOGGER)
         if sub_logger is None:
             return logger
         else:
@@ -55,3 +81,10 @@ class LogManager:
         fileHandler.setFormatter(formatter)
         fileHandler.addFilter(SimTimeFilter())
         cls.get_stack_logger().addHandler(fileHandler)
+
+    @classmethod
+    def enable_task_logger(cls, enable: bool) -> None:
+        if enable:
+            cls.get_task_logger().setLevel(logging.DEBUG)
+        else:
+            cls.get_task_logger().setLevel(logging.CRITICAL + 1)
