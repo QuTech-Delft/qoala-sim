@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from netqasm.lang.operand import Template
 
@@ -369,16 +369,16 @@ class BasicBlockType(Enum):
 
 
 @dataclass
-class BasicBlockAnnotations:
-    deadline: int
-
-
-@dataclass
 class BasicBlock:
     name: str
     typ: BasicBlockType
     instructions: List[ClassicalIqoalaOp]
+    deadlines: Optional[Dict[str, int]] = None
 
     def __str__(self) -> str:
-        s = f"^{self.name} {{type = {self.typ.name}}}:\n"
+        annotations = f"type = {self.typ.name}"
+        if self.deadlines is not None:
+            annotations += f", deadlines: {self.deadlines}"
+        annotations = "{" + annotations + "}"
+        s = f"^{self.name} {annotations}:\n"
         return s + "\n".join("    " + str(i) for i in self.instructions)

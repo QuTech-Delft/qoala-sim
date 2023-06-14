@@ -191,8 +191,6 @@ class IqoalaInstrParser:
 
         args = [self._parse_var(arg) for arg in raw_args]
 
-        # print(f"result = {result}, op = {op}, args = {args}, attr = {attr}")
-
         lhr_op = LHR_OP_NAMES[op].from_generic_args(result, args, attr)  # type: ignore
         return lhr_op
 
@@ -240,28 +238,59 @@ class HostCodeParser:
 
         return block_texts
 
-    def _parse_block_header(self, line: str) -> Tuple[str, hl.BasicBlockType]:
-        # return (block name, block type)
+    def _parse_deadlines(self, text: str) -> Dict[str, int]:
+        open_bracket = text.find("[")
+        assert open_bracket >= 0
+        close_bracket = text.find("]")
+        assert close_bracket >= 0
+        items = text[open_bracket + 1 : close_bracket].split(",")
+        deadlines = {}
+        for item in items:
+            blk, dl = [i.strip() for i in item.split(":")]
+            deadlines[blk] = int(dl)
+        return deadlines
+
+    def _parse_block_annotations(
+        self, annotations: str
+    ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]]]:
+        typ_index = annotations.find("type =")
+        assert typ_index >= 0
+        comma = annotations.find(",")
+        if comma == -1:  # no deadline
+            raw_typ = annotations[typ_index + 7 :]
+            typ = hl.BasicBlockType[raw_typ.upper()]
+            deadlines = None
+        else:
+            raw_typ = annotations[typ_index + 7 : comma]
+            typ = hl.BasicBlockType[raw_typ.upper()]
+            deadlines_str = annotations[comma + 1 :].strip()
+            deadlines = self._parse_deadlines(deadlines_str[12:])
+        return typ, deadlines
+
+    def _parse_block_header(
+        self, line: str
+    ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]]]:
+        # return (block name, block type, block deadline)
         assert line.startswith("^")
         split_space = line.split(" ")
         assert len(split_space) > 0
         name = split_space[0][1:]  # trim '^' at start
-        typ_index = line.find("type =")
-        assert typ_index >= 0
-        typ_end_index = line.find("}")
-        assert typ_end_index >= 0
-        raw_typ = line[typ_index + 7 : typ_end_index]
-        typ = hl.BasicBlockType[raw_typ.upper()]
-        return name, typ
+        open_brace = line.find("{")
+        assert open_brace >= 0
+        close_brace = line.find("}")
+        assert close_brace >= 0
+        annotations_str = line[open_brace + 1 : close_brace]
+        typ, deadline = self._parse_block_annotations(annotations_str)
+        return name, typ, deadline
 
     def parse_block(self, text: str) -> hl.BasicBlock:
         lines = [line.strip() for line in text.split("\n")]
         lines = [line for line in lines if len(line) > 0]
-        name, typ = self._parse_block_header(lines[0])
+        name, typ, deadline = self._parse_block_header(lines[0])
         instr_lines = lines[1:]
         instrs = IqoalaInstrParser("\n".join(instr_lines)).parse()
 
-        return hl.BasicBlock(name, typ, instrs)
+        return hl.BasicBlock(name, typ, instrs, deadline)
 
     def parse(self) -> List[hl.BasicBlock]:
         block_texts = self.get_block_texts()

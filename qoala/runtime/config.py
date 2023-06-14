@@ -1437,9 +1437,28 @@ class LinkBetweenNodesConfig(BaseModel):
         )
 
 
+class NetworkScheduleConfig(BaseModel):
+    bin_length: int
+    first_bin: int
+    bin_period: int
+
+    @classmethod
+    def from_file(cls, path: str) -> NetworkScheduleConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> NetworkScheduleConfig:
+        return NetworkScheduleConfig(
+            bin_length=dict["bin_length"],
+            first_bin=dict["first_bin"],
+            bin_period=dict["bin_period"],
+        )
+
+
 class ProcNodeNetworkConfig(BaseModel):
     nodes: List[ProcNodeConfig]
     links: List[LinkBetweenNodesConfig]
+    netschedule: Optional[NetworkScheduleConfig] = None
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeNetworkConfig:

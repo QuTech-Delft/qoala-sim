@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
+from math import ceil
 from typing import Dict, List, Optional, Tuple, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
 
 from qoala.lang.common import MultiQubit
+from qoala.runtime.config import NetworkScheduleConfig  # type: ignore
 
 
 @dataclass(eq=True, frozen=True)
@@ -291,6 +293,25 @@ class UnitModule:
 
 
 @dataclass
+class EhiNetworkSchedule:
+    bin_length: int
+    first_bin: int
+    bin_period: int
+
+    def next_bin(self, time: int) -> int:
+        offset = time - self.first_bin
+        next_bin_index = ceil(offset / self.bin_period)
+        next_bin_start = next_bin_index * self.bin_period
+        return next_bin_start + self.first_bin
+
+    @classmethod
+    def from_config(cls, config: NetworkScheduleConfig) -> EhiNetworkSchedule:
+        return EhiNetworkSchedule(
+            config.bin_length, config.first_bin, config.bin_period
+        )
+
+
+@dataclass
 class EhiNetworkInfo:
     nodes: Dict[int, str]  # node ID -> node name
 
@@ -298,7 +319,7 @@ class EhiNetworkInfo:
     # for a pair (a, b) there exists no separate (b, a) info (it is the same)
     links: Dict[Tuple[int, int], EhiLinkInfo]
 
-    # TODO: Network Schedule info.
+    network_schedule: Optional[EhiNetworkSchedule] = None
 
     @classmethod
     def only_nodes(cls, nodes: Dict[int, str]) -> EhiNetworkInfo:

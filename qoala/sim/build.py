@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 from netsquid.components.models.qerrormodels import QuantumErrorModel
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
 
-from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
+from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo, EhiNetworkSchedule
 
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import ProcNodeConfig, ProcNodeNetworkConfig  # type: ignore
@@ -123,7 +123,11 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         ids = (link_between_nodes.node_id1, link_between_nodes.node_id2)
         ehi_links[ids] = ehi_link
     nodes = {cfg.node_id: cfg.node_name for cfg in config.nodes}
-    network_ehi = EhiNetworkInfo(nodes, ehi_links)
+    if config.netschedule is not None:
+        netschedule = EhiNetworkSchedule.from_config(config.netschedule)
+        network_ehi = EhiNetworkInfo(nodes, ehi_links, netschedule)
+    else:
+        network_ehi = EhiNetworkInfo(nodes, ehi_links)
 
     for cfg in config.nodes:
         procnodes[cfg.node_name] = build_procnode_from_config(cfg, network_ehi)

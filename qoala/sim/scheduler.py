@@ -8,7 +8,7 @@ import netsquid as ns
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
+from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkSchedule, EhiNodeInfo
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
     BatchInfo,
@@ -18,7 +18,9 @@ from qoala.runtime.program import (
     ProgramResult,
 )
 from qoala.runtime.task import (
+    MultiPairTask,
     ProcessorType,
+    SinglePairTask,
     TaskExecutionMode,
     TaskGraph,
     TaskGraphBuilder,
@@ -75,8 +77,10 @@ class NodeScheduler(Protocol):
         self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
 
         scheduler_memory = SharedSchedulerMemory()
+        netschedule = network_ehi.network_schedule
+
         cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
-        self._cpu_scheduler = EdfScheduler(node_name, cpudriver)
+        self._cpu_scheduler = EdfScheduler(node_name, cpudriver, netschedule)
 
         qpudriver = QpuDriver(
             node_name,
@@ -86,7 +90,7 @@ class NodeScheduler(Protocol):
             netstack.processor,
             memmgr,
         )
-        self._qpu_scheduler = EdfScheduler(node_name, qpudriver)
+        self._qpu_scheduler = EdfScheduler(node_name, qpudriver, netschedule)
 
         self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
         self._qpu_scheduler.set_other_scheduler(self._cpu_scheduler)
@@ -275,13 +279,19 @@ class NodeScheduler(Protocol):
 
 
 class ProcessorScheduler(Protocol):
-    def __init__(self, name: str, driver: Driver) -> None:
+    def __init__(
+        self,
+        name: str,
+        driver: Driver,
+        network_schedule: Optional[EhiNetworkSchedule] = None,
+    ) -> None:
         super().__init__(name=name)
         self.add_signal(SIGNAL_TASK_COMPLETED)
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}_{driver.__class__.__name__}({name})"
         )
+        self._task_logger = LogManager.get_task_logger(name)
         self._driver = driver
         self._other_scheduler: Optional[ProcessorScheduler] = None
 
@@ -290,6 +300,8 @@ class ProcessorScheduler(Protocol):
 
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
         self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
+
+        self._network_schedule = network_schedule
 
     @property
     def driver(self) -> Driver:
@@ -329,8 +341,13 @@ class SchedulerStatus(Enum):
 
 
 class EdfScheduler(ProcessorScheduler):
-    def __init__(self, name: str, driver: Driver) -> None:
-        super().__init__(name=name, driver=driver)
+    def __init__(
+        self,
+        name: str,
+        driver: Driver,
+        network_schedule: Optional[EhiNetworkSchedule] = None,
+    ) -> None:
+        super().__init__(name=name, driver=driver, network_schedule=network_schedule)
 
     def next_task(self) -> Tuple[SchedulerStatus, Optional[int]]:
         if self._task_graph is None or len(self._task_graph.get_tasks()) == 0:
@@ -355,9 +372,7 @@ class EdfScheduler(ProcessorScheduler):
             self._logger.debug(f"Return task {to_return}")
             return SchedulerStatus.TASK_AVAILABLE, to_return
 
-    def wait_until_start_time(
-        self, start_time: float
-    ) -> Generator[EventExpression, None, None]:
+    def wait_until(self, start_time: float) -> Generator[EventExpression, None, None]:
         now = ns.sim_time()
         self._logger.debug(f"scheduled for {start_time}")
         delta = start_time - now
@@ -392,13 +407,24 @@ class EdfScheduler(ProcessorScheduler):
         self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
 
         if start_time is not None:
-            yield from self.wait_until_start_time(start_time)
+            yield from self.wait_until(start_time)
         if len(ext_pred) > 0:
             yield from self.wait_for_external_tasks(ext_pred)
+        if self._network_schedule is not None and (
+            isinstance(task, SinglePairTask) or isinstance(task, MultiPairTask)
+        ):
+            now = ns.sim_time()
+            next_timeslot = self._network_schedule.next_bin(now)
+            if next_timeslot > 0:
+                self._task_logger.info(
+                    f"waiting until next timeslot ({next_timeslot}, (now: {now}))"
+                )
+                yield from self.wait_until(next_timeslot)
 
         before = ns.sim_time()
 
         self._logger.info(f"executing task {task}")
+        self._task_logger.info(f"start  {task}")
         self.record_start_timestamp(task.pid, before)
         yield from self._driver.handle_task(task)
         after = ns.sim_time()
@@ -410,6 +436,7 @@ class EdfScheduler(ProcessorScheduler):
         self._finished_tasks.append(task.task_id)
         self.send_signal(SIGNAL_TASK_COMPLETED)
         self._logger.info(f"finished task {task}")
+        self._task_logger.info(f"finish {task}")
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:

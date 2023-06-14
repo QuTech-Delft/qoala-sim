@@ -11,6 +11,7 @@ from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
+from qoala.util.logging import LogManager
 
 
 @dataclass
@@ -66,6 +67,13 @@ def run_application(
         tasks = procnode.scheduler.get_tasks_to_schedule()
         merged = TaskGraphBuilder.merge(tasks)
         procnode.scheduler.upload_task_graph(merged)
+
+        logger = LogManager.get_stack_logger()
+        for batch_id, prog_batch in procnode.scheduler.get_batches().items():
+            task_graph = prog_batch.instances[0].task_graph
+            num = len(prog_batch.instances)
+            logger.info(f"batch {batch_id}: {num} instances each with task graph:")
+            logger.info(task_graph)
 
     network.start()
     ns.sim_run()

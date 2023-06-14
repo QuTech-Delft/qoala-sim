@@ -14,6 +14,7 @@ from qoala.runtime.lhi import (
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.task import (
     BlockTask,
+    HostLocalTask,
     MultiPairCallbackTask,
     MultiPairTask,
     PostCallTask,
@@ -229,8 +230,33 @@ def test_qoala_tasks_2_pairs_callback():
     assert task_graph == expected_graph
 
 
+def test_deadlines():
+    path = relative_path("test_deadlines.iqoala")
+    with open(path) as file:
+        text = file.read()
+    program = QoalaParser(text).parse()
+
+    pid = 3
+    task_graph = TaskGraphBuilder.from_file(program, pid)
+
+    expected_tasks = [
+        HostLocalTask(0, pid, "b0"),
+        HostLocalTask(1, pid, "b1"),
+    ]
+    expected_precedences = [(0, 1)]
+    expected_deadlines = [((0, 1), 100)]
+
+    expected_graph = TaskGraph()
+    expected_graph.add_tasks(expected_tasks)
+    expected_graph.add_precedences(expected_precedences)
+    expected_graph.add_rel_deadlines(expected_deadlines)
+
+    assert task_graph == expected_graph
+
+
 if __name__ == "__main__":
     test_block_tasks_from_program_1()
     test_block_tasks_from_program_2()
     test_qoala_tasks_1_pair_callback()
     test_qoala_tasks_2_pairs_callback()
+    test_deadlines()
