@@ -21,7 +21,6 @@ from qoala.runtime.task import (
     MultiPairTask,
     ProcessorType,
     SinglePairTask,
-    TaskExecutionMode,
     TaskGraph,
     TaskGraphBuilder,
 )
@@ -47,7 +46,6 @@ class NodeScheduler(Protocol):
         memmgr: MemoryManager,
         local_ehi: EhiNodeInfo,
         network_ehi: EhiNetworkInfo,
-        tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
@@ -63,7 +61,6 @@ class NodeScheduler(Protocol):
         self._memmgr = memmgr
         self._local_ehi = local_ehi
         self._network_ehi = network_ehi
-        self._tem = tem
 
         self._prog_instance_counter: int = 0
         self._batch_counter: int = 0
@@ -124,32 +121,14 @@ class NodeScheduler(Protocol):
 
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
-            # TODO: allow multiple remote nodes in single program??
-            remote_names = list(batch_info.program.meta.csockets.values())
-            if len(remote_names) > 0:
-                remote_name = list(batch_info.program.meta.csockets.values())[0]
-                remote_id = self._network_ehi.get_node_id(remote_name)
-            else:
-                remote_id = None
-            if self._tem == TaskExecutionMode.BLOCK:
-                tasks = TaskGraphBuilder.from_file_block_tasks(
-                    batch_info.program,
-                    pid,
-                    self._local_ehi,
-                    self._network_ehi,
-                    remote_id,
-                    first_task_id=self._task_counter,
-                    prog_input=batch_info.inputs[i].values,
-                )
-            else:
-                tasks = TaskGraphBuilder.from_file(
-                    batch_info.program,
-                    pid,
-                    self._local_ehi,
-                    self._network_ehi,
-                    first_task_id=self._task_counter,
-                    prog_input=batch_info.inputs[i].values,
-                )
+            tasks = TaskGraphBuilder.from_program(
+                batch_info.program,
+                pid,
+                self._local_ehi,
+                self._network_ehi,
+                first_task_id=self._task_counter,
+                prog_input=batch_info.inputs[i].values,
+            )
             self._task_counter += len(tasks.get_tasks())
 
             instance = ProgramInstance(
@@ -355,7 +334,9 @@ class EdfScheduler(ProcessorScheduler):
         tg = self._task_graph
         # Get all tasks without predecessors
         roots = tg.get_roots(ignore_external=True)
-        assert len(roots) >= 1
+        if len(roots) == 0:
+            # External predecessor
+            return SchedulerStatus.EXTERNAL_PREDECESSORS, None
 
         # Get all roots with deadlines
         roots_with_deadline = [r for r in roots if tg.get_tinfo(r).deadline]
@@ -443,5 +424,11 @@ class EdfScheduler(ProcessorScheduler):
             status, task_id = self.next_task()
             if status == SchedulerStatus.GRAPH_EMPTY:
                 break
-            assert task_id is not None
-            yield from self.handle_task(task_id)
+            elif status == SchedulerStatus.EXTERNAL_PREDECESSORS:
+                yield self.await_signal(
+                    sender=self._other_scheduler,
+                    signal_label=SIGNAL_TASK_COMPLETED,
+                )
+            else:
+                assert task_id is not None
+                yield from self.handle_task(task_id)

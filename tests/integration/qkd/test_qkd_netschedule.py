@@ -17,21 +17,17 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode
 from qoala.util.logging import LogManager
 from qoala.util.runner import run_application
 
 
-def create_procnode_cfg(
-    name: str, id: int, num_qubits: int, tem: TaskExecutionMode
-) -> ProcNodeConfig:
+def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
-        tem=tem.name,
     )
 
 
@@ -53,14 +49,13 @@ def run_qkd(
     alice_file: str,
     bob_file: str,
     num_pairs: Optional[int] = None,
-    tem: TaskExecutionMode = TaskExecutionMode.QOALA,
 ):
     num_qubits = 3
     alice_id = 0
     bob_id = 1
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, tem)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, tem)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
@@ -92,7 +87,7 @@ def run_qkd(
     return QkdResult(alice_result, bob_result)
 
 
-def qkd_1pair_md(tem: TaskExecutionMode):
+def qkd_1pair_md():
     ns.sim_reset()
     LogManager.enable_task_logger(True)
 
@@ -100,7 +95,7 @@ def qkd_1pair_md(tem: TaskExecutionMode):
     alice_file = "qkd_1pair_MD_alice.iqoala"
     bob_file = "qkd_1pair_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -114,14 +109,14 @@ def qkd_1pair_md(tem: TaskExecutionMode):
         assert alice["m0"] == bob["m0"]
 
 
-def qkd_1pair_ck(tem: TaskExecutionMode):
+def qkd_1pair_ck():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_1pair_CK_alice.iqoala"
     bob_file = "qkd_1pair_CK_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -135,14 +130,14 @@ def qkd_1pair_ck(tem: TaskExecutionMode):
         assert alice["m0"] == bob["m0"]
 
 
-def test_qkd_1pair_md_qoala_tasks():
-    qkd_1pair_md(tem=TaskExecutionMode.QOALA)
+def test_qkd_1pair_md():
+    qkd_1pair_md()
 
 
-def test_qkd_1pair_ck_qoala_tasks():
-    qkd_1pair_ck(tem=TaskExecutionMode.QOALA)
+def test_qkd_1pair_ck():
+    qkd_1pair_ck()
 
 
 if __name__ == "__main__":
-    test_qkd_1pair_md_qoala_tasks()
-    test_qkd_1pair_ck_qoala_tasks()
+    test_qkd_1pair_md()
+    test_qkd_1pair_ck()

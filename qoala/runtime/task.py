@@ -21,11 +21,6 @@ from qoala.lang.request import CallbackType
 from qoala.lang.routine import LocalRoutine
 
 
-class TaskExecutionMode(Enum):
-    BLOCK = 0
-    QOALA = auto()
-
-
 class ProcessorType(Enum):
     CPU = 0
     QPU = auto()
@@ -371,64 +366,6 @@ class MultiPairCallbackTask(QoalaTask):
         )
 
 
-class BlockTask(QoalaTask):
-    def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        block_name: str,
-        typ: BasicBlockType,
-        duration: Optional[float] = None,
-        max_time: Optional[float] = None,
-        remote_id: Optional[int] = None,
-    ) -> None:
-        if typ == BasicBlockType.CL or typ == BasicBlockType.CC:
-            processor_type = ProcessorType.CPU
-        else:
-            processor_type = ProcessorType.QPU
-        super().__init__(task_id=task_id, processor_type=processor_type, pid=pid)
-        self._block_name = block_name
-        self._typ = typ
-        self._duration = duration
-        self._max_time = max_time
-        self._remote_id = remote_id
-
-    @property
-    def block_name(self) -> str:
-        return self._block_name
-
-    @property
-    def typ(self) -> BasicBlockType:
-        return self._typ
-
-    @property
-    def duration(self) -> Optional[float]:
-        return self._duration
-
-    @property
-    def max_time(self) -> Optional[float]:
-        return self._max_time
-
-    @property
-    def remote_id(self) -> Optional[int]:
-        return self._remote_id
-
-    def __str__(self) -> str:
-        return f"{self.block_name} ({self.typ.name}), dur={self.duration}"
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BlockTask):
-            return NotImplemented
-        return (
-            super().__eq__(other)
-            and self.block_name == other.block_name
-            and self.typ == other.typ
-            and self.duration == other.duration
-            and self.max_time == other.max_time
-            and self.remote_id == other.remote_id
-        )
-
-
 @dataclass
 class TaskInfo:
     task: QoalaTask
@@ -738,7 +675,7 @@ class TaskGraphBuilder:
         return merged
 
     @classmethod
-    def from_file(
+    def from_program(
         cls,
         program: QoalaProgram,
         pid: int,
@@ -749,21 +686,6 @@ class TaskGraphBuilder:
     ) -> TaskGraph:
         return QoalaGraphFromProgramBuilder(first_task_id).build(
             program, pid, ehi, network_ehi, prog_input
-        )
-
-    @classmethod
-    def from_file_block_tasks(
-        cls,
-        program: QoalaProgram,
-        pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
-        network_ehi: Optional[EhiNetworkInfo] = None,
-        remote_id: Optional[int] = None,
-        first_task_id: int = 0,
-        prog_input: Optional[Dict[str, int]] = None,
-    ) -> TaskGraph:
-        return BlockGraphFromProgramBuilder(first_task_id).build(
-            program, pid, ehi, network_ehi, remote_id, prog_input
         )
 
 
@@ -807,94 +729,6 @@ class TaskDurationEstimator:
                         f"Gate {type(instr)} not found in EHI. Cannot calculate duration of containing block."
                     )
         return duration
-
-
-class BlockGraphFromProgramBuilder:
-    def __init__(self, first_task_id: int = 0) -> None:
-        self._first_task_id = first_task_id
-        self._task_id_counter = first_task_id
-        self._graph = TaskGraph()
-
-    def unique_id(self) -> int:
-        id = self._task_id_counter
-        self._task_id_counter += 1
-        return id
-
-    def build(
-        self,
-        program: QoalaProgram,
-        pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
-        network_ehi: Optional[EhiNetworkInfo] = None,
-        remote_id: Optional[int] = None,
-        prog_input: Optional[Dict[str, int]] = None,
-    ) -> TaskGraph:
-        for block in program.blocks:
-            if block.typ == BasicBlockType.CL:
-                if ehi is not None:
-                    duration = ehi.latencies.host_instr_time * len(block.instructions)
-                else:
-                    duration = None
-                task_id = self.unique_id()
-                cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.add_tasks([cputask])
-            elif block.typ == BasicBlockType.CC:
-                assert len(block.instructions) == 1
-                instr = block.instructions[0]
-                assert isinstance(instr, ReceiveCMsgOp)
-                if ehi is not None:
-                    duration = ehi.latencies.host_peer_latency
-                else:
-                    duration = None
-                task_id = self.unique_id()
-                cputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.add_tasks([cputask])
-            elif block.typ == BasicBlockType.QL:
-                assert len(block.instructions) == 1
-                instr = block.instructions[0]
-                assert isinstance(instr, RunSubroutineOp)
-                if ehi is not None:
-                    local_routine = program.local_routines[instr.subroutine]
-                    duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
-                else:
-                    duration = None
-                task_id = self.unique_id()
-                qputask = BlockTask(task_id, pid, block.name, block.typ, duration)
-                self._graph.add_tasks([qputask])
-            elif block.typ == BasicBlockType.QC:
-                assert len(block.instructions) == 1
-                instr = block.instructions[0]
-                assert isinstance(instr, RunRequestOp)
-                if network_ehi is not None:
-                    # TODO: refactor!!
-                    epr_time = list(network_ehi.links.values())[0].duration
-                    req_routine = program.request_routines[instr.req_routine]
-                    num_pairs = req_routine.request.num_pairs
-                    if isinstance(num_pairs, Template):
-                        assert prog_input is not None
-                        num_pairs = prog_input[num_pairs.name]
-                    duration = epr_time * num_pairs
-                else:
-                    duration = None
-
-                task_id = self.unique_id()
-                qputask = BlockTask(
-                    task_id, pid, block.name, block.typ, duration, remote_id=remote_id
-                )
-                self._graph.add_tasks([qputask])
-
-        # We assume a linear program, where the task graph is a 1-dimensional chain of
-        # block tasks. Hence we can trivially add a single dependency to each task.
-        # We also make use of the fact that all tasks have incrementing indices
-        # starting at first_task_id.
-        precedences = []
-        last_task_id = len(self._graph.get_tasks()) + self._first_task_id
-        for i in range(self._first_task_id + 1, last_task_id):
-            # task (block) i should come after task (block) i - 1
-            precedences.append((i - 1, i))
-        self._graph.add_precedences(precedences)
-        self._graph.update_successors()
-        return self._graph
 
 
 class QoalaGraphFromProgramBuilder:

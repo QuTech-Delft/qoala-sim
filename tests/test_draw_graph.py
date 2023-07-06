@@ -15,8 +15,8 @@ def load_program(path: str) -> QoalaProgram:
 
 def test1():
     program = load_program("test_callbacks_2_pairs.iqoala")
-    # graph = TaskGraphBuilder.from_file(program, 0)
-    graph = TaskGraphBuilder.from_file_block_tasks(program, 0)
+    # graph = TaskGraphBuilder.from_program(program, 0)
+    graph = TaskGraphBuilder.from_program(program, 0)
 
     TaskGraphWriter(graph).draw("graph2.png")
 

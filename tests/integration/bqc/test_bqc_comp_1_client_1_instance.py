@@ -17,7 +17,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.task import TaskExecutionMode, TaskGraph, TaskGraphBuilder
+from qoala.runtime.task import TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 
 
@@ -71,7 +71,6 @@ def run_bqc(
     beta,
     theta1,
     theta2,
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ) -> SimpleBqcResult:
     ns.sim_reset()
 
@@ -80,9 +79,7 @@ def run_bqc(
     server_id = 1
 
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
-    server_node_cfg.tem = tem.name
     client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
-    client_node_cfg.tem = tem.name
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
@@ -113,14 +110,14 @@ def run_bqc(
     )
     client_procnode.scheduler.submit_program_instance(client_instance)
 
-    tasks_server = TaskGraphBuilder.from_file_block_tasks(
+    tasks_server = TaskGraphBuilder.from_program(
         server_program,
         0,
         server_procnode.local_ehi,
         server_procnode.network_ehi,
         client_id,
     )
-    tasks_client = TaskGraphBuilder.from_file_block_tasks(
+    tasks_client = TaskGraphBuilder.from_program(
         client_program,
         0,
         client_procnode.local_ehi,
@@ -140,7 +137,7 @@ def run_bqc(
     return SimpleBqcResult(client_result, server_result)
 
 
-def check(alpha, beta, theta1, theta2, expected, num_iterations, tem):
+def check(alpha, beta, theta1, theta2, expected, num_iterations):
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome
@@ -150,28 +147,16 @@ def check(alpha, beta, theta1, theta2, expected, num_iterations, tem):
     ns.sim_reset()
 
     for _ in range(num_iterations):
-        bqc_result = run_bqc(
-            alpha=alpha, beta=beta, theta1=theta1, theta2=theta2, tem=tem
-        )
+        bqc_result = run_bqc(alpha=alpha, beta=beta, theta1=theta1, theta2=theta2)
         assert bqc_result.server_result["m2"] == expected
 
 
-def test_bqc_block_tasks():
-    tem = TaskExecutionMode.BLOCK
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
-
-
-def test_bqc_qoala_tasks():
-    tem = TaskExecutionMode.QOALA
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
+def test_bqc():
+    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10)
 
 
 if __name__ == "__main__":
-    test_bqc_block_tasks()
-    test_bqc_qoala_tasks()
+    test_bqc()

@@ -17,22 +17,20 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode
 from qoala.util.runner import run_application
 
 
-def create_procnode_cfg(
-    name: str, id: int, num_qubits: int, tem: TaskExecutionMode
-) -> ProcNodeConfig:
+def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.from_nv_params(num_qubits=5, params=NvParams()),
+        topology=TopologyConfig.from_nv_params(
+            num_qubits=num_qubits, params=NvParams()
+        ),
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=100_000, qnos_instr_time=1000
         ),
         ntf=NtfConfig.from_cls_name("NvNtf"),
-        tem=tem.name,
     )
 
 
@@ -49,17 +47,15 @@ class PingPongResult:
     bob_result: BatchResult
 
 
-def run_pingpong(
-    num_iterations: int, tem: TaskExecutionMode = TaskExecutionMode.BLOCK
-) -> PingPongResult:
+def run_pingpong(num_iterations: int) -> PingPongResult:
     ns.sim_reset()
 
     num_qubits = 3
     alice_id = 1
     bob_id = 0
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, tem)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, tem)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=500_000
@@ -84,12 +80,12 @@ def run_pingpong(
     return PingPongResult(alice_result, bob_result)
 
 
-def check_pingpong(num_iterations: int, tem: TaskExecutionMode):
+def check_pingpong(num_iterations: int):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("pingpong_nv.log")
 
     ns.sim_reset()
-    result = run_pingpong(num_iterations=num_iterations, tem=tem)
+    result = run_pingpong(num_iterations=num_iterations)
 
     program_results = result.alice_result.results
     outcomes = [result.values["outcome"] for result in program_results]
@@ -97,14 +93,9 @@ def check_pingpong(num_iterations: int, tem: TaskExecutionMode):
     assert all(outcome == 1 for outcome in outcomes)
 
 
-def test_pingpong_block_tasks():
-    check_pingpong(10, TaskExecutionMode.BLOCK)
-
-
-def test_pingpong_qoala_tasks():
-    check_pingpong(10, TaskExecutionMode.QOALA)
+def test_pingpong():
+    check_pingpong(10)
 
 
 if __name__ == "__main__":
-    test_pingpong_block_tasks()
-    test_pingpong_qoala_tasks()
+    test_pingpong()

@@ -18,7 +18,16 @@ from qoala.runtime.lhi import (
 )
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.task import BlockTask, TaskGraph, TaskGraphBuilder
+from qoala.runtime.task import (
+    HostEventTask,
+    HostLocalTask,
+    LocalRoutineTask,
+    MultiPairTask,
+    PostCallTask,
+    PreCallTask,
+    TaskGraph,
+    TaskGraphBuilder,
+)
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
@@ -136,8 +145,8 @@ def test_cpu_scheduler():
     procnode.scheduler.submit_program_instance(instance)
 
     tasks_with_start_times = [
-        (BlockTask(0, 0, "b0", CL), 0),
-        (BlockTask(1, 0, "b1", CL), 1000),
+        (HostLocalTask(0, 0, "b0"), 0),
+        (HostLocalTask(1, 0, "b1"), 1000),
     ]
     graph = TaskGraphBuilder.linear_tasks_with_start_times(tasks_with_start_times)
 
@@ -166,7 +175,7 @@ def test_cpu_scheduler_no_time():
 
     procnode.scheduler.submit_program_instance(instance)
 
-    tasks = [BlockTask(0, 0, "b0", CL), BlockTask(1, 0, "b1", CL)]
+    tasks = [HostLocalTask(0, 0, "b0"), HostLocalTask(1, 0, "b1")]
     graph = TaskGraphBuilder.linear_tasks(tasks)
 
     mem = SharedSchedulerMemory()
@@ -198,10 +207,10 @@ def test_cpu_scheduler_2_processes():
     procnode.scheduler.submit_program_instance(instance1)
 
     tasks_with_start_times = [
-        (BlockTask(0, pid0, "b0", CL), 0),
-        (BlockTask(1, pid1, "b0", CL), 500),
-        (BlockTask(2, pid0, "b1", CL), 1000),
-        (BlockTask(3, pid1, "b1", CL), 1500),
+        (HostLocalTask(0, pid0, "b0"), 0),
+        (HostLocalTask(1, pid1, "b0"), 500),
+        (HostLocalTask(2, pid0, "b1"), 1000),
+        (HostLocalTask(3, pid1, "b1"), 1500),
     ]
     graph = TaskGraphBuilder.linear_tasks_with_start_times(tasks_with_start_times)
 
@@ -238,25 +247,30 @@ def test_qpu_scheduler():
 
     procnode.scheduler.submit_program_instance(instance)
 
+    shared_ptr = 0
+
     cpu_tasks_with_start_times = [
-        (BlockTask(0, 0, "b0", CL), 0),
+        (HostLocalTask(0, 0, "b0"), 0),
+        (PreCallTask(1, 0, "b1", shared_ptr), 1000),
+        (PostCallTask(2, 0, "b1", shared_ptr), 5000),
     ]
     cpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(
         cpu_tasks_with_start_times
     )
     qpu_tasks_with_start_times = [
-        (BlockTask(1, 0, "b1", QL), 1000),
+        (LocalRoutineTask(3, 0, "b1", shared_ptr), 2000),
     ]
     qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(
         qpu_tasks_with_start_times
     )
+    qpu_graph.get_tinfo(3).ext_predecessors.append(1)
+    cpu_graph.get_tinfo(2).ext_predecessors.append(3)
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     cpu_scheduler = EdfScheduler("alice", cpu_driver)
     cpu_scheduler.upload_task_graph(cpu_graph)
 
-    mem = SharedSchedulerMemory()
     qpu_driver = QpuDriver(
         "alice",
         mem,
@@ -268,6 +282,10 @@ def test_qpu_scheduler():
     qpu_scheduler = EdfScheduler("alice", qpu_driver)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
+    cpu_scheduler.set_other_scheduler(qpu_scheduler)
+    qpu_scheduler.set_other_scheduler(cpu_scheduler)
+
+    LogManager.set_log_level("INFO")
     ns.sim_reset()
     cpu_scheduler.start()
     qpu_scheduler.start()
@@ -275,7 +293,7 @@ def test_qpu_scheduler():
 
     assert procnode.memmgr.get_process(pid).host_mem.read("y") == 4
 
-    assert ns.sim_time() == 1000
+    assert ns.sim_time() == 5000
 
 
 def test_qpu_scheduler_2_processes():
@@ -290,23 +308,34 @@ def test_qpu_scheduler_2_processes():
     procnode.scheduler.submit_program_instance(instance0)
     procnode.scheduler.submit_program_instance(instance1)
 
+    shared_ptr_pid0 = 0
+    shared_ptr_pid1 = 1
+
     cpu_tasks = [
-        (BlockTask(0, pid0, "b0", CL), 0),
-        (BlockTask(1, pid1, "b0", CL), 500),
+        (HostLocalTask(0, pid0, "b0", CL), 0),
+        (HostLocalTask(1, pid1, "b0", CL), 500),
+        (PreCallTask(2, pid0, "b1", shared_ptr_pid0), 1000),
+        (PreCallTask(3, pid1, "b1", shared_ptr_pid1), 1000),
+        (PostCallTask(4, pid0, "b1", shared_ptr_pid0), 1000),
+        (PostCallTask(5, pid1, "b1", shared_ptr_pid1), 1000),
     ]
     cpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(cpu_tasks)
     qpu_tasks = [
-        (BlockTask(0, pid0, "b1", QL), 500),
-        (BlockTask(1, pid1, "b1", QL), 1000),
+        (LocalRoutineTask(6, pid0, "b1", shared_ptr_pid0), 2000),
+        (LocalRoutineTask(7, pid1, "b1", shared_ptr_pid1), 2000),
     ]
     qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(qpu_tasks)
+
+    cpu_graph.get_tinfo(4).ext_predecessors.append(6)
+    cpu_graph.get_tinfo(5).ext_predecessors.append(7)
+    qpu_graph.get_tinfo(6).ext_predecessors.append(2)
+    qpu_graph.get_tinfo(7).ext_predecessors.append(3)
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     cpu_scheduler = EdfScheduler("alice", cpu_driver)
     cpu_scheduler.upload_task_graph(cpu_graph)
 
-    mem = SharedSchedulerMemory()
     qpu_driver = QpuDriver(
         "alice",
         mem,
@@ -318,6 +347,9 @@ def test_qpu_scheduler_2_processes():
     qpu_scheduler = EdfScheduler("alice", qpu_driver)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
+    cpu_scheduler.set_other_scheduler(qpu_scheduler)
+    qpu_scheduler.set_other_scheduler(cpu_scheduler)
+
     ns.sim_reset()
     cpu_scheduler.start()
     qpu_scheduler.start()
@@ -326,7 +358,7 @@ def test_qpu_scheduler_2_processes():
     assert procnode.memmgr.get_process(pid0).host_mem.read("y") == 4
     assert procnode.memmgr.get_process(pid1).host_mem.read("y") == 4
 
-    assert ns.sim_time() == 1000
+    assert ns.sim_time() == 2000
 
 
 def test_host_program():
@@ -342,8 +374,8 @@ def test_host_program():
     bob.scheduler.submit_program_instance(instance)
 
     tasks = [
-        BlockTask(0, pid, "blk_host0", CL),
-        BlockTask(1, pid, "blk_host1", CL),
+        HostLocalTask(0, pid, "blk_host0"),
+        HostLocalTask(1, pid, "blk_host1"),
     ]
     graph = TaskGraphBuilder.linear_tasks(tasks)
 
@@ -373,9 +405,12 @@ def test_lr_program():
 
     host_instr_time = alice.local_ehi.latencies.host_instr_time
 
+    shared_ptr = 0
     tasks = [
-        BlockTask(0, pid, "blk_host2", CL),
-        BlockTask(1, pid, "blk_add_one", QL),
+        HostLocalTask(0, pid, "blk_host2"),
+        PreCallTask(1, pid, "blk_add_one", shared_ptr),
+        LocalRoutineTask(2, pid, "blk_add_one", shared_ptr),
+        PostCallTask(3, pid, "blk_add_one", shared_ptr),
     ]
     graph = TaskGraphBuilder.linear_tasks(tasks)
 
@@ -412,7 +447,12 @@ def test_epr_md_1():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    tasks = [BlockTask(0, pid, "blk_epr_md_1", QC)]
+    shared_ptr = 0
+    tasks = [
+        PreCallTask(0, pid, "blk_epr_md_1", shared_ptr),
+        MultiPairTask(1, pid, shared_ptr),
+        PostCallTask(2, pid, "blk_epr_md_1", shared_ptr),
+    ]
     graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
     bob.scheduler.upload_task_graph(graph)
@@ -444,7 +484,12 @@ def test_epr_md_2():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    tasks = [BlockTask(0, pid, "blk_epr_md_2", QC)]
+    shared_ptr = 0
+    tasks = [
+        PreCallTask(0, pid, "blk_epr_md_2", shared_ptr),
+        MultiPairTask(1, pid, shared_ptr),
+        PostCallTask(2, pid, "blk_epr_md_2", shared_ptr),
+    ]
     graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
     bob.scheduler.upload_task_graph(graph)
@@ -478,9 +523,15 @@ def test_epr_ck_1():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
+    shared_ptr0 = 0
+    shared_ptr1 = 1
     tasks = [
-        BlockTask(0, pid, "blk_epr_ck_1", QC),
-        BlockTask(1, pid, "blk_meas_q0", QL),
+        PreCallTask(0, pid, "blk_epr_ck_1", shared_ptr0),
+        MultiPairTask(1, pid, shared_ptr0),
+        PostCallTask(2, pid, "blk_epr_ck_1", shared_ptr0),
+        PreCallTask(3, pid, "blk_meas_q0", shared_ptr1),
+        LocalRoutineTask(4, pid, "blk_meas_q0", shared_ptr1),
+        PostCallTask(5, pid, "blk_meas_q0", shared_ptr1),
     ]
     graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
@@ -517,9 +568,15 @@ def test_epr_ck_2():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
+    shared_ptr0 = 0
+    shared_ptr1 = 1
     tasks = [
-        BlockTask(0, pid, "blk_epr_ck_2", QC),
-        BlockTask(1, pid, "blk_meas_q0_q1", QL),
+        PreCallTask(0, pid, "blk_epr_ck_2", shared_ptr0),
+        MultiPairTask(1, pid, shared_ptr0),
+        PostCallTask(2, pid, "blk_epr_ck_2", shared_ptr0),
+        PreCallTask(3, pid, "blk_meas_q0_q1", shared_ptr1),
+        LocalRoutineTask(4, pid, "blk_meas_q0_q1", shared_ptr1),
+        PostCallTask(5, pid, "blk_meas_q0_q1", shared_ptr1),
     ]
     graph = TaskGraphBuilder.linear_tasks(tasks)
     alice.scheduler.upload_task_graph(graph)
@@ -563,15 +620,15 @@ def test_cc():
     assert alice.local_ehi.latencies.host_instr_time == 1000
 
     tasks_alice = [
-        (BlockTask(0, pid, "blk_prep_cc", CL), 0),
-        (BlockTask(1, pid, "blk_send", CL), 2000),
-        (BlockTask(2, pid, "blk_host1", CL), 10000),
+        (HostLocalTask(0, pid, "blk_prep_cc"), 0),
+        (HostLocalTask(1, pid, "blk_send"), 2000),
+        (HostLocalTask(2, pid, "blk_host1"), 10000),
     ]
     graph_alice = TaskGraphBuilder.linear_tasks_with_start_times(tasks_alice)
     tasks_bob = [
-        (BlockTask(4, pid, "blk_prep_cc", CL), 0),
-        (BlockTask(5, pid, "blk_recv", CC), 3000),
-        (BlockTask(6, pid, "blk_host1", CL), 10000),
+        (HostLocalTask(4, pid, "blk_prep_cc"), 0),
+        (HostEventTask(5, pid, "blk_recv"), 3000),
+        (HostLocalTask(6, pid, "blk_host1"), 10000),
     ]
     graph_bob = TaskGraphBuilder.linear_tasks_with_start_times(tasks_bob)
     alice.scheduler.upload_cpu_task_graph(graph_alice)
@@ -605,10 +662,10 @@ def test_full_program():
     alice.scheduler.submit_program_instance(instance_alice)
     bob.scheduler.submit_program_instance(instance_bob)
 
-    tasks_alice = TaskGraphBuilder.from_file_block_tasks(
+    tasks_alice = TaskGraphBuilder.from_program(
         program_alice, pid, alice.local_ehi, alice.network_ehi
     )
-    tasks_bob = TaskGraphBuilder.from_file_block_tasks(
+    tasks_bob = TaskGraphBuilder.from_program(
         program_bob, pid, bob.local_ehi, bob.network_ehi
     )
 

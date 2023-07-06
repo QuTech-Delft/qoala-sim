@@ -17,7 +17,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 
 
@@ -65,7 +65,6 @@ def run_bqc(
     theta1,
     theta2,
     num_iterations: int,
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ) -> BqcResult:
     ns.sim_reset()
 
@@ -74,9 +73,7 @@ def run_bqc(
     server_id = 1
 
     server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
-    server_node_cfg.tem = tem.name
     client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
-    client_node_cfg.tem = tem.name
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
@@ -133,7 +130,7 @@ def run_bqc(
     return BqcResult(client_results, server_results)
 
 
-def check(alpha, beta, theta1, theta2, expected, num_iterations, tem):
+def check(alpha, beta, theta1, theta2, expected, num_iterations):
     # Effective computation: measure in Z the following state:
     # H Rz(beta) H Rz(alpha) |+>
     # m2 should be this outcome
@@ -147,7 +144,6 @@ def check(alpha, beta, theta1, theta2, expected, num_iterations, tem):
         theta1=theta1,
         theta2=theta2,
         num_iterations=num_iterations,
-        tem=tem,
     )
     assert len(bqc_result.client_results) > 0
     assert len(bqc_result.server_results) > 0
@@ -159,22 +155,12 @@ def check(alpha, beta, theta1, theta2, expected, num_iterations, tem):
         assert all(m2 == expected for m2 in m2s)
 
 
-def test_bqc_block_tasks():
-    tem = TaskExecutionMode.BLOCK
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
-
-
-def test_bqc_qoala_tasks():
-    tem = TaskExecutionMode.QOALA
-    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10, tem=tem)
-    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10, tem=tem)
-    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10, tem=tem)
+def test_bqc():
+    check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
+    check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
+    check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)
+    check(alpha=8, beta=24, theta1=2, theta2=22, expected=1, num_iterations=10)
 
 
 if __name__ == "__main__":
-    test_bqc_block_tasks()
-    test_bqc_qoala_tasks()
+    test_bqc()

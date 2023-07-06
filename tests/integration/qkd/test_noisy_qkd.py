@@ -18,20 +18,16 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode
 from qoala.util.runner import run_application
 
 
-def create_procnode_cfg(
-    name: str, id: int, num_qubits: int, tem: TaskExecutionMode
-) -> ProcNodeConfig:
+def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
-        tem=tem.name,
     )
 
 
@@ -57,14 +53,13 @@ def run_qkd(
     attempt_duration: float,
     state_delay: float,
     num_pairs: Optional[int] = None,
-    tem: TaskExecutionMode = TaskExecutionMode.QOALA,
 ):
     num_qubits = 3
     alice_id = 0
     bob_id = 1
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, tem)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, tem)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
     link_cfg = LinkConfig.depolarise_config(
         prob_max_mixed, attempt_success_prob, attempt_duration, state_delay

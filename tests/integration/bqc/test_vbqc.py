@@ -17,7 +17,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 
@@ -150,17 +150,13 @@ def run_bqc(
     num_iterations: List[int],
     deadlines: List[int],
     num_clients: int,
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
 
     # server needs to have 2 qubits per client
     server_num_qubits = num_clients * 2
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
-    server_config.tem = tem.name
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
-    for cfg in client_configs:
-        cfg.tem = tem.name
 
     network = create_network(server_config, client_configs, num_clients)
 
@@ -247,7 +243,6 @@ def check_computation(
     num_iterations,
     deadlines,
     num_clients,
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
     bqc_result, makespan = run_bqc(
@@ -260,7 +255,6 @@ def check_computation(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        tem=tem,
     )
 
     batch_success_probabilities: List[float] = []
@@ -284,7 +278,6 @@ def compute_succ_prob_computation(
     num_clients: int,
     num_iterations: List[int],
     deadlines: List[int],
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
@@ -299,7 +292,6 @@ def compute_succ_prob_computation(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        tem=tem,
     )
 
 
@@ -313,7 +305,6 @@ def check_trap(
     num_iterations,
     deadlines,
     num_clients,
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.sim_reset()
     bqc_result, makespan = run_bqc(
@@ -326,7 +317,6 @@ def check_trap(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        tem=tem,
     )
 
     batch_success_probabilities: List[float] = []
@@ -364,7 +354,6 @@ def compute_succ_prob_trap(
     num_clients: int,
     num_iterations: List[int],
     deadlines: List[int],
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
@@ -378,50 +367,37 @@ def compute_succ_prob_trap(
         num_iterations=num_iterations,
         deadlines=deadlines,
         num_clients=num_clients,
-        tem=tem,
     )
 
 
-def bqc_computation(num_clients: int, num_iterations: int, tem: TaskExecutionMode):
+def bqc_computation(num_clients: int, num_iterations: int):
     succ_probs, makespan = compute_succ_prob_computation(
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
         deadlines=[1e9] * num_clients,
-        tem=tem,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
 
 
-def bqc_trap(num_clients: int, num_iterations: int, tem: TaskExecutionMode):
+def bqc_trap(num_clients: int, num_iterations: int):
     succ_probs, makespan = compute_succ_prob_trap(
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
         deadlines=[1e9] * num_clients,
-        tem=tem,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
 
 
-def test_bqc_computation_block_tasks():
-    bqc_computation(3, 30, TaskExecutionMode.BLOCK)
+def test_bqc_computation():
+    bqc_computation(3, 30)
 
 
-def test_bqc_computation_qoala_tasks():
-    bqc_computation(3, 30, TaskExecutionMode.QOALA)
-
-
-def test_bqc_trap_block_tasks():
-    bqc_trap(3, 30, TaskExecutionMode.BLOCK)
-
-
-def test_bqc_trap_qoala_tasks():
-    bqc_trap(3, 30, TaskExecutionMode.QOALA)
+def test_bqc_trap():
+    bqc_trap(3, 30)
 
 
 if __name__ == "__main__":
-    test_bqc_computation_block_tasks()
-    test_bqc_computation_qoala_tasks()
-    test_bqc_trap_block_tasks()
-    test_bqc_trap_qoala_tasks()
+    test_bqc_computation()
+    test_bqc_trap()

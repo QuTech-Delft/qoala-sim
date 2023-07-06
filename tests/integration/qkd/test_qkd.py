@@ -16,20 +16,16 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode
 from qoala.util.runner import run_application
 
 
-def create_procnode_cfg(
-    name: str, id: int, num_qubits: int, tem: TaskExecutionMode
-) -> ProcNodeConfig:
+def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
-        tem=tem.name,
     )
 
 
@@ -51,14 +47,13 @@ def run_qkd(
     alice_file: str,
     bob_file: str,
     num_pairs: Optional[int] = None,
-    tem: TaskExecutionMode = TaskExecutionMode.BLOCK,
 ):
     num_qubits = 3
     alice_id = 0
     bob_id = 1
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, tem)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, tem)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
@@ -87,14 +82,14 @@ def run_qkd(
     return QkdResult(alice_result, bob_result)
 
 
-def qkd_1pair_md(tem: TaskExecutionMode):
+def qkd_1pair_md():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_1pair_MD_alice.iqoala"
     bob_file = "qkd_1pair_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -108,14 +103,14 @@ def qkd_1pair_md(tem: TaskExecutionMode):
         assert alice["m0"] == bob["m0"]
 
 
-def qkd_1pair_ck(tem: TaskExecutionMode):
+def qkd_1pair_ck():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_1pair_CK_alice.iqoala"
     bob_file = "qkd_1pair_CK_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -129,14 +124,14 @@ def qkd_1pair_ck(tem: TaskExecutionMode):
         assert alice["m0"] == bob["m0"]
 
 
-def qkd_1pair_ck_cb(tem: TaskExecutionMode):
+def qkd_1pair_ck_cb():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_1pair_CK_cb_alice.iqoala"
     bob_file = "qkd_1pair_CK_cb_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -150,14 +145,14 @@ def qkd_1pair_ck_cb(tem: TaskExecutionMode):
         assert alice["m0"] == bob["m0"]
 
 
-def qkd_2pairs_md(tem: TaskExecutionMode):
+def qkd_2pairs_md():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_2pairs_MD_alice.iqoala"
     bob_file = "qkd_2pairs_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
 
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -173,14 +168,14 @@ def qkd_2pairs_md(tem: TaskExecutionMode):
         assert alice["m1"] == bob["m1"]
 
 
-def qkd_2pairs_ck_1qubit(tem: TaskExecutionMode):
+def qkd_2pairs_ck_1qubit():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_2pairs_CK_1qubit_alice.iqoala"
     bob_file = "qkd_2pairs_CK_1qubit_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -195,14 +190,14 @@ def qkd_2pairs_ck_1qubit(tem: TaskExecutionMode):
         assert alice["m1"] == bob["m1"]
 
 
-def qkd_2pairs_ck_1qubit_cb(tem: TaskExecutionMode):
+def qkd_2pairs_ck_1qubit_cb():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_2pairs_CK_1qubit_cb_alice.iqoala"
     bob_file = "qkd_2pairs_CK_1qubit_cb_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -217,14 +212,14 @@ def qkd_2pairs_ck_1qubit_cb(tem: TaskExecutionMode):
         assert alice["m1"] == bob["m1"]
 
 
-def qkd_2pairs_ck_2qubits_app_move(tem: TaskExecutionMode):
+def qkd_2pairs_ck_2qubits_app_move():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_2pairs_CK_2qubits_app_move_alice.iqoala"
     bob_file = "qkd_2pairs_CK_2qubits_app_move_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -239,14 +234,14 @@ def qkd_2pairs_ck_2qubits_app_move(tem: TaskExecutionMode):
         assert alice["m1"] == bob["m1"]
 
 
-def qkd_2pairs_ck_2qubits_wait_all(tem: TaskExecutionMode):
+def qkd_2pairs_ck_2qubits_wait_all():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_2pairs_CK_2qubits_wait_all_alice.iqoala"
     bob_file = "qkd_2pairs_CK_2qubits_wait_all_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -261,14 +256,14 @@ def qkd_2pairs_ck_2qubits_wait_all(tem: TaskExecutionMode):
         assert alice["m1"] == bob["m1"]
 
 
-def qkd_100pairs_md(tem: TaskExecutionMode):
+def qkd_100pairs_md():
     ns.sim_reset()
 
     num_iterations = 10
     alice_file = "qkd_100pairs_MD_alice.iqoala"
     bob_file = "qkd_100pairs_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
 
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -285,14 +280,14 @@ def qkd_100pairs_md(tem: TaskExecutionMode):
         assert alice["outcomes"] == bob["outcomes"]
 
 
-def qkd_npairs_md(tem: TaskExecutionMode):
+def qkd_npairs_md():
     ns.sim_reset()
 
     num_iterations = 1
     alice_file = "qkd_npairs_MD_alice.iqoala"
     bob_file = "qkd_npairs_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=100, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=100)
 
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
@@ -309,14 +304,14 @@ def qkd_npairs_md(tem: TaskExecutionMode):
         assert alice["outcomes"] == bob["outcomes"]
 
 
-def qkd_npairs_ck_1qubit_cb(tem: TaskExecutionMode):
+def qkd_npairs_ck_1qubit_cb():
     ns.sim_reset()
 
     num_iterations = 1
     alice_file = "qkd_npairs_CK_cb_alice.iqoala"
     bob_file = "qkd_npairs_CK_cb_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=100, tem=tem)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=100)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -332,114 +327,59 @@ def qkd_npairs_ck_1qubit_cb(tem: TaskExecutionMode):
         assert alice["outcomes"] == bob["outcomes"]
 
 
-def test_qkd_1pair_md_qoala_tasks():
-    qkd_1pair_md(tem=TaskExecutionMode.QOALA)
+def test_qkd_1pair_md():
+    qkd_1pair_md()
 
 
-def test_qkd_1pair_md_block_tasks():
-    qkd_1pair_md(tem=TaskExecutionMode.BLOCK)
+def test_qkd_1pair_ck():
+    qkd_1pair_ck()
 
 
-def test_qkd_1pair_ck_qoala_tasks():
-    qkd_1pair_ck(tem=TaskExecutionMode.QOALA)
+def test_qkd_1pair_ck_cb():
+    qkd_1pair_ck_cb()
 
 
-def test_qkd_1pair_ck_block_tasks():
-    qkd_1pair_ck(tem=TaskExecutionMode.BLOCK)
+def test_qkd_2pairs_md():
+    qkd_2pairs_md()
 
 
-def test_qkd_1pair_ck_cb_qoala_tasks():
-    qkd_1pair_ck_cb(tem=TaskExecutionMode.QOALA)
+def test_qkd_2pairs_ck_1qubit():
+    qkd_2pairs_ck_1qubit()
 
 
-def test_qkd_1pair_ck_cb_block_tasks():
-    qkd_1pair_ck_cb(tem=TaskExecutionMode.BLOCK)
+def test_qkd_2pairs_ck_1qubit_cb():
+    qkd_2pairs_ck_1qubit_cb()
 
 
-def test_qkd_2pairs_md_qoala_tasks():
-    qkd_2pairs_md(tem=TaskExecutionMode.QOALA)
+def test_qkd_2pairs_ck_2qubits_app_move():
+    qkd_2pairs_ck_2qubits_app_move()
 
 
-def test_qkd_2pairs_md_block_tasks():
-    qkd_2pairs_md(tem=TaskExecutionMode.BLOCK)
+def test_qkd_2pairs_ck_2qubits_wait_all():
+    qkd_2pairs_ck_2qubits_wait_all()
 
 
-def test_qkd_2pairs_ck_1qubit_qoala_tasks():
-    qkd_2pairs_ck_1qubit(tem=TaskExecutionMode.QOALA)
+def test_qkd_100pairs_md():
+    qkd_100pairs_md()
 
 
-def test_qkd_2pairs_ck_1qubit_block_tasks():
-    qkd_2pairs_ck_1qubit(tem=TaskExecutionMode.BLOCK)
+def test_qkd_npairs_md():
+    qkd_npairs_md()
 
 
-def test_qkd_2pairs_ck_1qubit_cb_qoala_tasks():
-    qkd_2pairs_ck_1qubit_cb(tem=TaskExecutionMode.QOALA)
-
-
-def test_qkd_2pairs_ck_1qubit_cb_block_tasks():
-    qkd_2pairs_ck_1qubit_cb(tem=TaskExecutionMode.BLOCK)
-
-
-def test_qkd_2pairs_ck_2qubits_app_move_qoala_tasks():
-    qkd_2pairs_ck_2qubits_app_move(tem=TaskExecutionMode.QOALA)
-
-
-def test_qkd_2pairs_ck_2qubits_app_move_block_tasks():
-    qkd_2pairs_ck_2qubits_app_move(tem=TaskExecutionMode.BLOCK)
-
-
-def test_qkd_2pairs_ck_2qubits_wait_all_qoala_tasks():
-    qkd_2pairs_ck_2qubits_wait_all(tem=TaskExecutionMode.QOALA)
-
-
-def test_qkd_2pairs_ck_2qubits_wait_all_block_tasks():
-    qkd_2pairs_ck_2qubits_wait_all(tem=TaskExecutionMode.BLOCK)
-
-
-def test_qkd_100pairs_md_qoala_tasks():
-    qkd_100pairs_md(tem=TaskExecutionMode.QOALA)
-
-
-def test_qkd_100pairs_md_block_tasks():
-    qkd_100pairs_md(tem=TaskExecutionMode.BLOCK)
-
-
-def test_qkd_npairs_md_qoala_tasks():
-    qkd_npairs_md(tem=TaskExecutionMode.QOALA)
-
-
-def test_qkd_npairs_md_block_tasks():
-    qkd_npairs_md(tem=TaskExecutionMode.BLOCK)
-
-
-def test_qkd_npairs_ck_1qubit_cb_qoala_tasks():
-    qkd_npairs_ck_1qubit_cb(tem=TaskExecutionMode.QOALA)
-
-
-def test_qkd_npairs_ck_1qubit_cb_block_tasks():
-    qkd_npairs_ck_1qubit_cb(tem=TaskExecutionMode.BLOCK)
+def test_qkd_npairs_ck_1qubit_cb():
+    qkd_npairs_ck_1qubit_cb()
 
 
 if __name__ == "__main__":
-    test_qkd_1pair_md_qoala_tasks()
-    # test_qkd_1pair_md_block_tasks()
-    # test_qkd_1pair_ck_qoala_tasks()
-    # test_qkd_1pair_ck_block_tasks()
-    # test_qkd_1pair_ck_cb_qoala_tasks()
-    # test_qkd_1pair_ck_cb_block_tasks()
-    # test_qkd_2pairs_md_qoala_tasks()
-    # test_qkd_2pairs_md_block_tasks()
-    # test_qkd_2pairs_ck_1qubit_qoala_tasks()
-    # test_qkd_2pairs_ck_1qubit_block_tasks()
-    # test_qkd_2pairs_ck_1qubit_cb_qoala_tasks()
-    # test_qkd_2pairs_ck_1qubit_cb_block_tasks()
-    # test_qkd_2pairs_ck_2qubits_app_move_qoala_tasks()
-    # test_qkd_2pairs_ck_2qubits_app_move_block_tasks()
-    # test_qkd_2pairs_ck_2qubits_wait_all_qoala_tasks()
-    # test_qkd_2pairs_ck_2qubits_wait_all_block_tasks()
-    # test_qkd_100pairs_md_qoala_tasks()
-    # test_qkd_100pairs_md_block_tasks()
-    # test_qkd_npairs_md_qoala_tasks()
-    # test_qkd_npairs_md_block_tasks()
-    # test_qkd_npairs_ck_1qubit_cb_qoala_tasks()
-    # test_qkd_npairs_ck_1qubit_cb_block_tasks()
+    test_qkd_1pair_md()
+    test_qkd_1pair_ck()
+    test_qkd_1pair_ck_cb()
+    test_qkd_2pairs_md()
+    test_qkd_2pairs_ck_1qubit()
+    test_qkd_2pairs_ck_1qubit_cb()
+    test_qkd_2pairs_ck_2qubits_app_move()
+    test_qkd_2pairs_ck_2qubits_wait_all()
+    test_qkd_100pairs_md()
+    test_qkd_npairs_md()
+    test_qkd_npairs_ck_1qubit_cb()
