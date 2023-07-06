@@ -112,12 +112,12 @@ def test_single_pair_only_netstack_interface():
     class AliceNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             yield from self.wait(500)
-            self.send_entdist_msg(Message(self._requests[0]))
+            self.send_entdist_msg(Message(0, 0, self._requests[0]))
 
     class BobNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             yield from self.wait(800)
-            self.send_entdist_msg(Message(self._requests[0]))
+            self.send_entdist_msg(Message(0, 0, self._requests[0]))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
     ehi_network: EhiNetworkInfo = entdist._ehi_network
@@ -149,13 +149,13 @@ def test_multiple_pairs_only_netstack_interface():
         def run(self) -> Generator[EventExpression, None, None]:
             for request in self._requests:
                 yield from self.wait(500)
-                self.send_entdist_msg(Message(request))
+                self.send_entdist_msg(Message(0, 0, request))
 
     class BobNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             for request in self._requests:
                 yield from self.wait(500)
-                self.send_entdist_msg(Message(request))
+                self.send_entdist_msg(Message(0, 0, request))
 
     alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
     ehi_network: EhiNetworkInfo = entdist._ehi_network

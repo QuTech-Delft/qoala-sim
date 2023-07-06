@@ -150,21 +150,27 @@ class NodeScheduler(Protocol):
     def get_batches(self) -> Dict[int, ProgramBatch]:
         return self._batches
 
-    def create_process(self, prog_instance: ProgramInstance) -> QoalaProcess:
+    def create_process(
+        self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
+    ) -> QoalaProcess:
         prog_memory = ProgramMemory(prog_instance.pid)
         meta = prog_instance.program.meta
 
+        if remote_pid is None:
+            remote_pid = 42  # TODO: allow this at all?
         csockets: Dict[int, ClassicalSocket] = {}
         for i, remote_name in meta.csockets.items():
-            # TODO: check for already existing epr sockets
-            csockets[i] = self.host.create_csocket(remote_name)
+            # TODO: check for already existing classical sockets
+            csockets[i] = self.host.create_csocket(
+                remote_name, prog_instance.pid, remote_pid
+            )
 
         epr_sockets: Dict[int, EprSocket] = {}
         for i, remote_name in meta.epr_sockets.items():
             remote_id = self._network_ehi.get_node_id(remote_name)
             # TODO: check for already existing epr sockets
             # TODO: fidelity
-            epr_sockets[i] = EprSocket(i, remote_id, 1.0)
+            epr_sockets[i] = EprSocket(i, remote_id, prog_instance.pid, remote_pid, 1.0)
 
         result = ProgramResult(values={})
 

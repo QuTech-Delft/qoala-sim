@@ -33,6 +33,7 @@ from qoala.util.math import has_state
 
 def create_process(
     pid: int,
+    remote_pid: int,
     program: QoalaProgram,
     unit_module: UnitModule,
     host_interface: HostInterface,
@@ -54,7 +55,7 @@ def create_process(
         prog_instance=instance,
         prog_memory=mem,
         csockets={
-            id: ClassicalSocket(host_interface, name)
+            id: ClassicalSocket(host_interface, name, pid, remote_pid)
             for (id, name) in program.meta.csockets.items()
         },
         epr_sockets=program.meta.epr_sockets,
@@ -289,6 +290,7 @@ def run_bqc(
     server_ehi = server_procnode.memmgr.get_ehi()
     server_process = create_process(
         pid=server_pid,
+        remote_pid=client_pid,
         program=server_program,
         unit_module=UnitModule.from_full_ehi(server_ehi),
         host_interface=server_procnode.host._interface,
@@ -312,6 +314,7 @@ def run_bqc(
     client_ehi = client_procnode.memmgr.get_ehi()
     client_process = create_process(
         pid=client_pid,
+        remote_pid=server_pid,
         program=client_program,
         unit_module=UnitModule.from_full_ehi(client_ehi),
         host_interface=client_procnode.host._interface,

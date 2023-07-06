@@ -51,7 +51,7 @@ class NetstackProcessor:
     def execute_entdist_request(
         self, request: EntDistRequest
     ) -> Generator[EventExpression, None, None]:
-        self._interface.send_entdist_msg(Message(request))
+        self._interface.send_entdist_msg(Message(-1, -1, request))
         result = yield from self._interface.receive_entdist_msg()
         if result.content != MSG_REQUEST_DELIVERED:
             raise RuntimeError("Request was not served")

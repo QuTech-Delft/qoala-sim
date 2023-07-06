@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
 
-from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import LocalRoutineParser
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
@@ -25,7 +24,6 @@ from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import GenericProcessor, QnosInterface, QnosLatencies, QnosProcessor
 from qoala.util.tests import netsquid_run, yield_from
 
-MOCK_MESSAGE = Message(content=42)
 MOCK_QNOS_RET_REG = "R0"
 MOCK_QNOS_RET_VALUE = 7
 
@@ -77,30 +75,6 @@ class MockQnosInterface(QnosInterface):
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self.send_events.append(InterfaceEvent(peer, msg))
-
-    def receive_peer_msg(self, peer: str) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent(peer, MOCK_MESSAGE))
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def send_host_msg(self, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent("host", msg))
-
-    def receive_host_msg(self) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent("host", MOCK_MESSAGE))
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def send_netstack_msg(self, msg: Message) -> None:
-        self.send_events.append(InterfaceEvent("netstack", msg))
-
-    def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
-        self.recv_events.append(InterfaceEvent("netstack", MOCK_MESSAGE))
-        return MOCK_MESSAGE
-        yield  # to make it behave as a generator
-
-    def flush_netstack_msgs(self) -> None:
-        self.flush_events.append(FlushEvent())
 
     def signal_memory_freed(self) -> None:
         self.signal_events.append(SignalEvent())

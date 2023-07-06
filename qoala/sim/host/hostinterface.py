@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generator
+from typing import Generator, List, Tuple
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
@@ -54,6 +54,8 @@ class HostInterface(ComponentProtocol):
             "netstack",
             PortListener(self._comp.netstack_in_port, SIGNAL_NSTK_HOST_MSG),
         )
+        self._listener_names = []
+        self._signal_names = []
         for peer in self._ehi_network.nodes.values():
             if peer == self._comp.node_name:
                 continue
@@ -63,28 +65,31 @@ class HostInterface(ComponentProtocol):
                     self._comp.peer_in_port(peer), f"{SIGNAL_HOST_HOST_MSG}_{peer}"
                 ),
             )
-
-    def send_qnos_msg(self, msg: Message) -> None:
-        self._comp.qnos_out_port.tx_output(msg)
-
-    def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
-        return (yield from self._receive_msg("qnos", SIGNAL_QNOS_HOST_MSG))
-
-    def send_netstack_msg(self, msg: Message) -> None:
-        self._comp.netstack_out_port.tx_output(msg)
-
-    def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
-        return (yield from self._receive_msg("netstack", SIGNAL_NSTK_HOST_MSG))
+            self._listener_names.append(f"peer_{peer}")
+            self._signal_names.append(f"{SIGNAL_HOST_HOST_MSG}_{peer}")
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
+        self._logger.info(f"sending message {msg}")
         self._comp.peer_out_port(peer).tx_output(msg)
 
-    def receive_peer_msg(self, peer: str) -> Generator[EventExpression, None, Message]:
-        return (
-            yield from self._receive_msg(
-                f"peer_{peer}", f"{SIGNAL_HOST_HOST_MSG}_{peer}"
-            )
+    def get_available_messages(self, peer: str) -> List[Tuple[int, int]]:
+        listener = self._listeners[f"peer_{peer}"]
+        return listener.buffer.get_all()
+
+    def wait_for_msg(self, peer: str) -> Generator[EventExpression, None, None]:
+        yield from self._wait_for_msg(f"peer_{peer}", f"{SIGNAL_HOST_HOST_MSG}_{peer}")
+
+    def wait_for_any_msg(self) -> Generator[EventExpression, None, None]:
+        yield from self._wait_for_msg_any_source(
+            self._listener_names, self._signal_names
         )
+
+    def pop_msg(self, peer: str, src_pid: int, dst_pid: int) -> Message:
+        return self._pop_msg(f"peer_{peer}", src_pid, dst_pid)
+
+    def receive_peer_msg(self, peer: str) -> Generator[EventExpression, None, Message]:
+        yield from self._wait_for_msg(f"peer_{peer}", f"{SIGNAL_HOST_HOST_MSG}_{peer}")
+        return self._pop_any_msg(f"peer_{peer}")
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)

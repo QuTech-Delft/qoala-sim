@@ -83,24 +83,6 @@ class NetstackInterface(ComponentProtocol):
                 ),
             )
 
-    def send_host_msg(self, msg: Message) -> None:
-        """Send a message to the host."""
-        self._comp.host_out_port.tx_output(msg)
-
-    def receive_host_msg(self) -> Generator[EventExpression, None, Message]:
-        """Receive a message from the host. Block until there is at least one
-        message."""
-        return (yield from self._receive_msg("host", SIGNAL_HOST_NSTK_MSG))
-
-    def send_qnos_msg(self, msg: Message) -> None:
-        """Send a message to the processor."""
-        self._comp.qnos_out_port.tx_output(msg)
-
-    def receive_qnos_msg(self) -> Generator[EventExpression, None, Message]:
-        """Receive a message from the processor. Block until there is at least one
-        message."""
-        return (yield from self._receive_msg("qnos", SIGNAL_QNOS_NSTK_MSG))
-
     def send_entdist_msg(self, msg: Message) -> None:
         """Send a message to the Entdist."""
         self._comp.entdist_out_port.tx_output(msg)
@@ -108,30 +90,20 @@ class NetstackInterface(ComponentProtocol):
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
         """Receive a message from the Entdist. Block until there is at least one
         message."""
-        return (yield from self._receive_msg("entdist", SIGNAL_ENTD_NSTK_MSG))
+        yield from self._wait_for_msg("entdist", SIGNAL_ENTD_NSTK_MSG)
+        return self._pop_any_msg("entdist")
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
-        """Send a message to the network stack of the other node.
+        """Send a message to the network stack of the other node."""
 
-        NOTE: for now we assume there is only one other node, which is 'the' peer."""
         self._comp.peer_out_port(peer).tx_output(msg)
 
     def receive_peer_msg(self, peer: str) -> Generator[EventExpression, None, Message]:
         """Receive a message from the network stack of the other node. Block until
-        there is at least one message.
+        there is at least one message."""
 
-        NOTE: for now we assume there is only one other node, which is 'the' peer."""
-        return (
-            yield from self._receive_msg(
-                f"peer_{peer}", f"{SIGNAL_NSTK_NSTK_MSG}_{peer}"
-            )
-        )
-
-    def await_memory_freed_signal(
-        self, pid: int, virt_id: int
-    ) -> Generator[EventExpression, None, None]:
-        # TODO: use pid and virt_id?
-        yield from self._receive_msg("qnos_mem", SIGNAL_MEMORY_FREED)
+        yield from self._wait_for_msg(f"peer_{peer}", f"{SIGNAL_NSTK_NSTK_MSG}_{peer}")
+        return self._pop_any_msg(f"peer_{peer}")
 
     @property
     def qdevice(self) -> QDevice:

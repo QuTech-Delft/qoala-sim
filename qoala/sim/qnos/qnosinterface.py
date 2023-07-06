@@ -56,23 +56,8 @@ class QnosInterface(ComponentProtocol):
 
         self.add_signal(SIGNAL_MEMORY_FREED)
 
-    def send_host_msg(self, msg: Message) -> None:
-        self._comp.host_out_port.tx_output(msg)
-
-    def receive_host_msg(self) -> Generator[EventExpression, None, Message]:
-        return (yield from self._receive_msg("host", SIGNAL_HOST_QNOS_MSG))
-
-    def send_netstack_msg(self, msg: Message) -> None:
-        self._comp.netstack_out_port.tx_output(msg)
-
-    def receive_netstack_msg(self) -> Generator[EventExpression, None, Message]:
-        return (yield from self._receive_msg("netstack", SIGNAL_NSTK_QNOS_MSG))
-
-    def flush_netstack_msgs(self) -> None:
-        self._listeners["netstack"].buffer.clear()
-
     def signal_memory_freed(self) -> None:
-        self._comp.netstack_mem_out_port.tx_output(Message(content=None))
+        self._comp.netstack_mem_out_port.tx_output(Message(0, 0, content=None))
 
     @property
     def qdevice(self) -> QDevice:

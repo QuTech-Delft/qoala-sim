@@ -55,5 +55,7 @@ class Host(Protocol):
         self._interface.stop()
         super().stop()
 
-    def create_csocket(self, remote_name: str) -> ClassicalSocket:
-        return ClassicalSocket(self._interface, remote_name)
+    def create_csocket(
+        self, remote_name: str, pid: int, remote_pid: int
+    ) -> ClassicalSocket:
+        return ClassicalSocket(self._interface, remote_name, pid, remote_pid)

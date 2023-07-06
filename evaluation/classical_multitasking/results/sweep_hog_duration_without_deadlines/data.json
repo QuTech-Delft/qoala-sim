@@ -1,0 +1,276 @@
+{
+    "meta": {
+        "latency_factors": [
+            0.01,
+            0.05,
+            0.1,
+            0.2
+        ]
+    },
+    "data_points": [
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.01,
+            "busy_factor": 0.1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.97,
+            "succ_prob_lower": 0.9510959078150344,
+            "succ_prob_upper": 0.9817369507659164,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.01,
+            "busy_factor": 0.2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.96,
+            "succ_prob_lower": 0.9390259449029252,
+            "succ_prob_upper": 0.9739594060486436,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.01,
+            "busy_factor": 0.5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.942,
+            "succ_prob_lower": 0.9179433020026042,
+            "succ_prob_upper": 0.9593165352160772,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.01,
+            "busy_factor": 1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.89,
+            "succ_prob_lower": 0.8595438141340721,
+            "succ_prob_upper": 0.9145089834118233,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.01,
+            "busy_factor": 2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.82,
+            "succ_prob_lower": 0.7839246244600844,
+            "succ_prob_upper": 0.8511956196801373,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.01,
+            "busy_factor": 5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.656,
+            "succ_prob_lower": 0.6133133706304251,
+            "succ_prob_upper": 0.6963077483879331,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.05,
+            "busy_factor": 0.1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.822,
+            "succ_prob_lower": 0.7860541079213073,
+            "succ_prob_upper": 0.8530356377447909,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.05,
+            "busy_factor": 0.2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.774,
+            "succ_prob_lower": 0.7353308968855181,
+            "succ_prob_upper": 0.8084908121595469,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.05,
+            "busy_factor": 0.5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.712,
+            "succ_prob_lower": 0.6708097689717581,
+            "succ_prob_upper": 0.7499573927711388,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.05,
+            "busy_factor": 1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.618,
+            "succ_prob_lower": 0.5746644739023564,
+            "succ_prob_upper": 0.6595361161243504,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.05,
+            "busy_factor": 2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.56,
+            "succ_prob_lower": 0.5161960663856535,
+            "succ_prob_upper": 0.6028889793906382,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.05,
+            "busy_factor": 5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.516,
+            "succ_prob_lower": 0.4722406641485616,
+            "succ_prob_upper": 0.5595153480584495,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.1,
+            "busy_factor": 0.1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.684,
+            "succ_prob_lower": 0.641977078070737,
+            "succ_prob_upper": 0.7232170623098906,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.1,
+            "busy_factor": 0.2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.706,
+            "succ_prob_lower": 0.6646164747606613,
+            "succ_prob_upper": 0.7442421824046065,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.1,
+            "busy_factor": 0.5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.598,
+            "succ_prob_lower": 0.5544335612927797,
+            "succ_prob_upper": 0.6400720134751632,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.1,
+            "busy_factor": 1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.578,
+            "succ_prob_lower": 0.534276169564903,
+            "succ_prob_upper": 0.620534389944276,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.1,
+            "busy_factor": 2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.498,
+            "succ_prob_lower": 0.45435606501666037,
+            "succ_prob_upper": 0.5416744334574632,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.1,
+            "busy_factor": 5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.492,
+            "succ_prob_lower": 0.44840701227596835,
+            "succ_prob_upper": 0.5357149816205261,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.2,
+            "busy_factor": 0.1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.646,
+            "succ_prob_lower": 0.6031151949321184,
+            "succ_prob_upper": 0.6866584164568579,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.2,
+            "busy_factor": 0.2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.622,
+            "succ_prob_lower": 0.5787196479091445,
+            "succ_prob_upper": 0.663419945169315,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.2,
+            "busy_factor": 0.5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.498,
+            "succ_prob_lower": 0.45435606501666037,
+            "succ_prob_upper": 0.5416744334574632,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.2,
+            "busy_factor": 1,
+            "hog_prob": 0.1,
+            "succ_prob": 0.492,
+            "succ_prob_lower": 0.44840701227596835,
+            "succ_prob_upper": 0.5357149816205261,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.2,
+            "busy_factor": 2,
+            "hog_prob": 0.1,
+            "succ_prob": 0.502,
+            "succ_prob_lower": 0.45832556654253676,
+            "succ_prob_upper": 0.5456439349833396,
+            "makespan": -1
+        },
+        {
+            "t2": 100000000.0,
+            "use_deadlines": false,
+            "latency_factor": 0.2,
+            "busy_factor": 5,
+            "hog_prob": 0.1,
+            "succ_prob": 0.522,
+            "succ_prob_lower": 0.4782146879120214,
+            "succ_prob_upper": 0.565449828872619,
+            "makespan": -1
+        }
+    ]
+}

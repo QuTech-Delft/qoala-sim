@@ -37,16 +37,14 @@ class EntDistInterface(ComponentProtocol):
         self._comp.node_out_port(node).tx_output(msg)
 
     def receive_node_msg(self, node: str) -> Generator[EventExpression, None, Message]:
-        return (
-            yield from self._receive_msg(
-                f"node_{node}", f"{SIGNAL_NSTK_ENTD_MSG}_{node}"
-            )
-        )
+        yield from self._wait_for_msg(f"node_{node}", f"{SIGNAL_NSTK_ENTD_MSG}_{node}")
+        return self._pop_any_msg(f"node_{node}")
 
     def receive_msg(self) -> Generator[EventExpression, None, Message]:
-        return (
-            yield from self._receive_msg_any_source(
-                [f"node_{node}" for node in self._all_node_names],
-                [f"{SIGNAL_NSTK_ENTD_MSG}_{node}" for node in self._all_node_names],
-            )
+        yield from self._wait_for_msg_any_source(
+            [f"node_{node}" for node in self._all_node_names],
+            [f"{SIGNAL_NSTK_ENTD_MSG}_{node}" for node in self._all_node_names],
+        )
+        return self._pop_any_msg_any_source(
+            [f"node_{node}" for node in self._all_node_names]
         )
