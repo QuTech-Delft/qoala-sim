@@ -1244,7 +1244,6 @@ class ProcNodeConfig(BaseModel):
     topology: TopologyConfig
     latencies: LatenciesConfig
     ntf: NtfConfig
-    tem: Optional[str] = None
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:

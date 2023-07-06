@@ -10,7 +10,6 @@ from pydynaa import EventExpression
 from qoala.lang.hostlang import BasicBlockType, RunRequestOp, RunSubroutineOp
 from qoala.runtime.message import LrCallTuple, RrCallTuple
 from qoala.runtime.task import (
-    BlockTask,
     HostEventTask,
     HostLocalTask,
     LocalRoutineTask,
@@ -129,10 +128,7 @@ class CpuDriver(Driver):
         self._hostprocessor.post_rr_call(process, instr, rrcall)
 
     def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
-        if isinstance(task, BlockTask):
-            process = self._memmgr.get_process(task.pid)
-            yield from self._hostprocessor.assign_block(process, task.block_name)
-        elif isinstance(task, HostLocalTask):
+        if isinstance(task, HostLocalTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
         elif isinstance(task, HostEventTask):
@@ -190,45 +186,6 @@ class QpuDriver(Driver):
         for virt_id in routine.metadata.qubit_use:
             if virt_id not in routine.metadata.qubit_keep:
                 self._memmgr.free(process.pid, virt_id)
-
-    def _handle_block_ql(
-        self, task: BlockTask
-    ) -> Generator[EventExpression, None, None]:
-        process = self._memmgr.get_process(task.pid)
-        block = process.program.get_block(task.block_name)
-        assert len(block.instructions) == 1
-        instr = block.instructions[0]
-        assert isinstance(instr, RunSubroutineOp)
-
-        # Let Host setup shared memory.
-        lrcall = self._hostprocessor.prepare_lr_call(process, instr)
-        # Allocate required qubits.
-        self.allocate_qubits_for_routine(process, lrcall.routine_name)
-        # Execute the routine on Qnos.
-        yield from self._qnosprocessor.assign_local_routine(
-            process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
-        )
-        # Free qubits that do not need to be kept.
-        self.free_qubits_after_routine(process, lrcall.routine_name)
-        # Let Host get results from shared memory.
-        self._hostprocessor.post_lr_call(process, instr, lrcall)
-
-    def _handle_block_qc(
-        self, task: BlockTask
-    ) -> Generator[EventExpression, None, None]:
-        process = self._memmgr.get_process(task.pid)
-        block = process.program.get_block(task.block_name)
-        assert len(block.instructions) == 1
-        instr = block.instructions[0]
-        assert isinstance(instr, RunRequestOp)
-
-        # Let Host setup shared memory.
-        rrcall = self._hostprocessor.prepare_rr_call(process, instr)
-        # TODO: refactor this. Bit of a hack to just pass the QnosProcessor around like this!
-        yield from self._netstackprocessor.assign_request_routine(
-            process, rrcall, self._qnosprocessor
-        )
-        self._hostprocessor.post_rr_call(process, instr, rrcall)
 
     def _handle_local_routine(
         self, task: LocalRoutineTask
@@ -311,14 +268,7 @@ class QpuDriver(Driver):
         )
 
     def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
-        if isinstance(task, BlockTask):
-            if task.typ == BasicBlockType.QL:
-                yield from self._handle_block_ql(task)
-            elif task.typ == BasicBlockType.QC:
-                yield from self._handle_block_qc(task)
-            else:
-                raise RuntimeError
-        elif isinstance(task, LocalRoutineTask):
+        if isinstance(task, LocalRoutineTask):
             yield from self._handle_local_routine(task)
         elif isinstance(task, MultiPairTask):
             yield from self._handle_multi_pair(task)

@@ -15,7 +15,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode
 from qoala.util.runner import run_application
 
 
@@ -26,7 +25,6 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
         topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
-        tem=TaskExecutionMode.QOALA.name,
     )
 
 

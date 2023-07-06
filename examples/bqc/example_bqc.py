@@ -19,7 +19,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 
@@ -60,7 +60,6 @@ def get_client_config(id: int) -> ProcNodeConfig:
             qnos_instr_time=INSTR_LATENCY,
         ),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
-        tem=TaskExecutionMode.QOALA.name,
     )
 
 
@@ -75,7 +74,6 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
             qnos_instr_time=INSTR_LATENCY,
         ),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
-        tem=TaskExecutionMode.QOALA.name,
     )
 
 
