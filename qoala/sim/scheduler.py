@@ -116,7 +116,7 @@ class NodeScheduler(Protocol):
     def qpu_scheduler(self) -> ProcessorScheduler:
         return self._qpu_scheduler
 
-    def submit_batch(self, batch_info: BatchInfo) -> None:
+    def submit_batch(self, batch_info: BatchInfo) -> ProgramBatch:
         prog_instances: List[ProgramInstance] = []
 
         for i in range(batch_info.num_iterations):
@@ -146,6 +146,7 @@ class NodeScheduler(Protocol):
         )
         self._batches[batch.batch_id] = batch
         self._batch_counter += 1
+        return batch
 
     def get_batches(self) -> Dict[int, ProgramBatch]:
         return self._batches
@@ -182,10 +183,17 @@ class NodeScheduler(Protocol):
             result=result,
         )
 
-    def create_processes_for_batches(self) -> None:
-        for batch in self._batches.values():
-            for prog_instance in batch.instances:
-                process = self.create_process(prog_instance)
+    def create_processes_for_batches(
+        self,
+        remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+    ) -> None:
+        for batch_id, batch in self._batches.items():
+            for i, prog_instance in enumerate(batch.instances):
+                if remote_pids is not None:
+                    remote_pid = remote_pids[batch_id][i]
+                else:
+                    remote_pid = None
+                process = self.create_process(prog_instance, remote_pid)
 
                 self.memmgr.add_process(process)
                 self.initialize_process(process)

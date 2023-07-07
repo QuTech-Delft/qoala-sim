@@ -14,7 +14,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import ProgramInput
-from qoala.util.runner import run_application
+from qoala.util.runner import run_single_node_app
 
 
 def get_config() -> ProcNodeConfig:
@@ -46,11 +46,13 @@ def test_simple_program():
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("simple_program.iqoala")
 
-    app_results = run_application(
+    app_results = run_single_node_app(
         num_iterations=num_iterations,
-        programs={"alice": program},
-        program_inputs={"alice": ProgramInput.empty()},
+        program_name="alice",
+        program=program,
+        program_input=ProgramInput.empty(),
         network_cfg=network_cfg,
+        linear=True,
     )
 
     all_results = app_results.batch_results["alice"].results
@@ -68,10 +70,11 @@ def test_return_vector():
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("return_vector.iqoala")
 
-    app_results = run_application(
+    app_results = run_single_node_app(
         num_iterations=num_iterations,
-        programs={"alice": program},
-        program_inputs={"alice": ProgramInput.empty()},
+        program_name="alice",
+        program=program,
+        program_input=ProgramInput.empty(),
         network_cfg=network_cfg,
     )
 
@@ -90,10 +93,11 @@ def test_return_vector_loop():
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("return_vector_loop.iqoala")
 
-    app_results = run_application(
+    app_results = run_single_node_app(
         num_iterations=num_iterations,
-        programs={"alice": program},
-        program_inputs={"alice": ProgramInput.empty()},
+        program_name="alice",
+        program=program,
+        program_input=ProgramInput.empty(),
         network_cfg=network_cfg,
     )
 

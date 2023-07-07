@@ -83,7 +83,8 @@ class HostProcessor:
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.BusyOp):
             value = instr.attributes[0]
-            assert isinstance(value, int)
+            if not isinstance(value, int):
+                value = host_mem.read(value)
             self._logger.debug(f"busy for {value} ns")
             yield from self._interface.wait(value)
         elif isinstance(instr, hostlang.SendCMsgOp):
@@ -102,7 +103,13 @@ class HostProcessor:
             assert isinstance(instr.results, list)
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
-            msg = yield from csck.recv_int()
+
+            # TODO: refactor
+            tup = (csck.remote_pid, process.pid)
+            if tup not in self._interface.get_available_messages(csck.remote_name):
+                msg = yield from csck.recv_int()
+            else:
+                msg = csck.read_int()
 
             yield from self._interface.wait(self._latencies.host_peer_latency)
             host_mem.write(instr.results[0], msg)
