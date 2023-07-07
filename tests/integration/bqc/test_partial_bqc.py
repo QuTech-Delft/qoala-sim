@@ -24,6 +24,7 @@ from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.driver import QpuDriver
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.sim.eprsocket import EprSocket
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import QoalaProcess
@@ -37,6 +38,7 @@ def create_process(
     program: QoalaProgram,
     unit_module: UnitModule,
     host_interface: HostInterface,
+    network_ehi: EhiNetworkInfo,
     inputs: Optional[Dict[str, Any]] = None,
 ) -> QoalaProcess:
     if inputs is None:
@@ -58,7 +60,10 @@ def create_process(
             id: ClassicalSocket(host_interface, name, pid, remote_pid)
             for (id, name) in program.meta.csockets.items()
         },
-        epr_sockets=program.meta.epr_sockets,
+        epr_sockets={
+            id: EprSocket(id, network_ehi.get_node_id(name), pid, remote_pid, 1.0)
+            for (id, name) in program.meta.epr_sockets.items()
+        },
         result=ProgramResult(values={}),
     )
     return process
@@ -294,6 +299,7 @@ def run_bqc(
         program=server_program,
         unit_module=UnitModule.from_full_ehi(server_ehi),
         host_interface=server_procnode.host._interface,
+        network_ehi=network_ehi,
         inputs={"client_id": client_id},
     )
     server_procnode.add_process(server_process)
@@ -318,6 +324,7 @@ def run_bqc(
         program=client_program,
         unit_module=UnitModule.from_full_ehi(client_ehi),
         host_interface=client_procnode.host._interface,
+        network_ehi=network_ehi,
         inputs={
             "server_id": server_id,
             "alpha": alpha,

@@ -31,7 +31,7 @@ from qoala.runtime.task import (
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
-from qoala.sim.scheduler import EdfScheduler
+from qoala.sim.scheduler import CpuEdfScheduler, QpuEdfScheduler
 from qoala.util.builder import ObjectBuilder
 from qoala.util.logging import LogManager
 
@@ -152,7 +152,9 @@ def test_cpu_scheduler():
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    scheduler = EdfScheduler("alice", driver)
+    scheduler = CpuEdfScheduler(
+        "alice", driver, procnode.memmgr, procnode.host.interface
+    )
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -180,7 +182,9 @@ def test_cpu_scheduler_no_time():
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    scheduler = EdfScheduler("alice", driver)
+    scheduler = CpuEdfScheduler(
+        "alice", driver, procnode.memmgr, procnode.host.interface
+    )
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -216,7 +220,9 @@ def test_cpu_scheduler_2_processes():
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    scheduler = EdfScheduler("alice", driver)
+    scheduler = CpuEdfScheduler(
+        "alice", driver, procnode.memmgr, procnode.host.interface
+    )
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -268,7 +274,9 @@ def test_qpu_scheduler():
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    cpu_scheduler = EdfScheduler("alice", cpu_driver)
+    cpu_scheduler = CpuEdfScheduler(
+        "alice", cpu_driver, procnode.memmgr, procnode.host.interface
+    )
     cpu_scheduler.upload_task_graph(cpu_graph)
 
     qpu_driver = QpuDriver(
@@ -279,7 +287,7 @@ def test_qpu_scheduler():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = EdfScheduler("alice", qpu_driver)
+    qpu_scheduler = QpuEdfScheduler("alice", qpu_driver, procnode.memmgr, None)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)
@@ -333,7 +341,9 @@ def test_qpu_scheduler_2_processes():
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
-    cpu_scheduler = EdfScheduler("alice", cpu_driver)
+    cpu_scheduler = CpuEdfScheduler(
+        "alice", cpu_driver, procnode.memmgr, procnode.host.interface
+    )
     cpu_scheduler.upload_task_graph(cpu_graph)
 
     qpu_driver = QpuDriver(
@@ -344,7 +354,7 @@ def test_qpu_scheduler_2_processes():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = EdfScheduler("alice", qpu_driver)
+    qpu_scheduler = QpuEdfScheduler("alice", qpu_driver, procnode.memmgr, None)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)
@@ -370,8 +380,8 @@ def test_host_program():
     pid = 0
     instance = instantiate(program, alice.local_ehi, pid)
 
-    alice.scheduler.submit_program_instance(instance)
-    bob.scheduler.submit_program_instance(instance)
+    alice.scheduler.submit_program_instance(instance, remote_pid=0)
+    bob.scheduler.submit_program_instance(instance, remote_pid=0)
 
     tasks = [
         HostLocalTask(0, pid, "blk_host0"),
@@ -400,8 +410,8 @@ def test_lr_program():
     pid = 0
     instance = instantiate(program, alice.local_ehi, pid)
 
-    alice.scheduler.submit_program_instance(instance)
-    bob.scheduler.submit_program_instance(instance)
+    alice.scheduler.submit_program_instance(instance, remote_pid=0)
+    bob.scheduler.submit_program_instance(instance, remote_pid=0)
 
     host_instr_time = alice.local_ehi.latencies.host_instr_time
 
@@ -425,7 +435,7 @@ def test_lr_program():
 
     host_instr_time = alice.local_ehi.latencies.host_instr_time
     qnos_instr_time = alice.local_ehi.latencies.qnos_instr_time
-    expected_duration = host_instr_time + 5 * qnos_instr_time
+    expected_duration = 3 * host_instr_time + 5 * qnos_instr_time
     assert ns.sim_time() == expected_duration
     alice.memmgr.get_process(pid).host_mem.read("y") == 4
     bob.memmgr.get_process(pid).host_mem.read("y") == 4
@@ -444,8 +454,8 @@ def test_epr_md_1():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice)
-    bob.scheduler.submit_program_instance(instance_bob)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     shared_ptr = 0
     tasks = [
@@ -461,8 +471,9 @@ def test_epr_md_1():
     network.start()
     ns.sim_run()
 
+    host_instr_time = alice.local_ehi.latencies.host_instr_time
     expected_duration = alice.network_ehi.get_link(0, 1).duration
-    assert ns.sim_time() == expected_duration
+    assert ns.sim_time() == 2 * host_instr_time + expected_duration
     alice_outcome = alice.memmgr.get_process(pid).host_mem.read("m")
     bob_outcome = bob.memmgr.get_process(pid).host_mem.read("m")
     assert alice_outcome == bob_outcome
@@ -481,8 +492,8 @@ def test_epr_md_2():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice)
-    bob.scheduler.submit_program_instance(instance_bob)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     shared_ptr = 0
     tasks = [
@@ -498,8 +509,9 @@ def test_epr_md_2():
     network.start()
     ns.sim_run()
 
+    host_instr_time = alice.local_ehi.latencies.host_instr_time
     expected_duration = alice.network_ehi.get_link(0, 1).duration * 2
-    assert ns.sim_time() == expected_duration
+    assert ns.sim_time() == 2 * host_instr_time + expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     bob_mem = bob.memmgr.get_process(pid).host_mem
     alice_outcomes = [alice_mem.read("m0"), alice_mem.read("m1")]
@@ -520,8 +532,8 @@ def test_epr_ck_1():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice)
-    bob.scheduler.submit_program_instance(instance_bob)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     shared_ptr0 = 0
     shared_ptr1 = 1
@@ -545,7 +557,9 @@ def test_epr_ck_1():
     subrt_class_time = 3 * alice.local_ehi.latencies.qnos_instr_time
     subrt_meas_time = alice.local_ehi.find_single_gate(0, core.MeasInstruction).duration
     subrt_time = subrt_class_time + subrt_meas_time
-    expected_duration = alice.network_ehi.get_link(0, 1).duration + subrt_time
+    host_instr_time = alice.local_ehi.latencies.host_instr_time
+    epr_time = alice.network_ehi.get_link(0, 1).duration
+    expected_duration = 4 * host_instr_time + epr_time + subrt_time
     assert ns.sim_time() == expected_duration
     alice_outcome = alice.memmgr.get_process(pid).host_mem.read("p")
     bob_outcome = bob.memmgr.get_process(pid).host_mem.read("p")
@@ -565,8 +579,8 @@ def test_epr_ck_2():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice)
-    bob.scheduler.submit_program_instance(instance_bob)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     shared_ptr0 = 0
     shared_ptr1 = 1
@@ -590,8 +604,9 @@ def test_epr_ck_2():
     subrt_class_time = 6 * alice.local_ehi.latencies.qnos_instr_time
     meas_time = alice.local_ehi.find_single_gate(0, core.MeasInstruction).duration
     subrt_time = subrt_class_time + 2 * meas_time
+    host_instr_time = alice.local_ehi.latencies.host_instr_time
     epr_time = alice.network_ehi.get_link(0, 1).duration
-    expected_duration = 2 * epr_time + subrt_time
+    expected_duration = 4 * host_instr_time + 2 * epr_time + subrt_time
     assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     bob_mem = bob.memmgr.get_process(pid).host_mem
@@ -613,8 +628,8 @@ def test_cc():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice)
-    bob.scheduler.submit_program_instance(instance_bob)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     assert alice.local_ehi.latencies.host_peer_latency == 3000
     assert alice.local_ehi.latencies.host_instr_time == 1000
@@ -659,8 +674,8 @@ def test_full_program():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice)
-    bob.scheduler.submit_program_instance(instance_bob)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     tasks_alice = TaskGraphBuilder.from_program(
         program_alice, pid, alice.local_ehi, alice.network_ehi

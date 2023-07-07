@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import List
 
 import netsquid as ns
 
@@ -17,8 +17,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
-from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network_from_config
+from qoala.util.runner import run_two_node_app
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -55,8 +54,8 @@ def create_batch(
 
 @dataclass
 class BqcResult:
-    client_results: Dict[int, BatchResult]
-    server_results: Dict[int, BatchResult]
+    client_results: BatchResult
+    server_results: BatchResult
 
 
 def run_bqc(
@@ -78,54 +77,31 @@ def run_bqc(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[server_node_cfg, client_node_cfg], link_duration=1000
     )
-    network = build_network_from_config(network_cfg)
-    server_procnode = network.nodes["server"]
-    client_procnode = network.nodes["client"]
 
     server_program = load_program("bqc_server.iqoala")
-    server_inputs = [
-        ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
-    ]
-
-    server_unit_module = UnitModule.from_full_ehi(server_procnode.memmgr.get_ehi())
-    server_batch = create_batch(
-        server_program, server_unit_module, server_inputs, num_iterations
-    )
-    server_procnode.submit_batch(server_batch)
-    server_procnode.initialize_processes()
-    server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
-    server_merged = TaskGraphBuilder.merge(server_tasks)
-    server_procnode.scheduler.upload_task_graph(server_merged)
+    server_input = ProgramInput({"client_id": client_id})
 
     client_program = load_program("bqc_client.iqoala")
-    client_inputs = [
-        ProgramInput(
-            {
-                "server_id": server_id,
-                "alpha": alpha,
-                "beta": beta,
-                "theta1": theta1,
-                "theta2": theta2,
-            }
-        )
-        for _ in range(num_iterations)
-    ]
-
-    client_unit_module = UnitModule.from_full_ehi(client_procnode.memmgr.get_ehi())
-    client_batch = create_batch(
-        client_program, client_unit_module, client_inputs, num_iterations
+    client_input = ProgramInput(
+        {
+            "server_id": server_id,
+            "alpha": alpha,
+            "beta": beta,
+            "theta1": theta1,
+            "theta2": theta2,
+        }
     )
-    client_procnode.submit_batch(client_batch)
-    client_procnode.initialize_processes()
-    client_tasks = client_procnode.scheduler.get_tasks_to_schedule()
-    client_merged = TaskGraphBuilder.merge(client_tasks)
-    client_procnode.scheduler.upload_task_graph(client_merged)
 
-    network.start()
-    ns.sim_run()
+    app_result = run_two_node_app(
+        num_iterations=num_iterations,
+        programs={"server": server_program, "client": client_program},
+        program_inputs={"server": server_input, "client": client_input},
+        network_cfg=network_cfg,
+        linear=True,
+    )
 
-    client_results = client_procnode.scheduler.get_batch_results()
-    server_results = server_procnode.scheduler.get_batch_results()
+    client_results = app_result.batch_results["client"]
+    server_results = app_result.batch_results["server"]
 
     return BqcResult(client_results, server_results)
 
@@ -145,17 +121,17 @@ def check(alpha, beta, theta1, theta2, expected, num_iterations):
         theta2=theta2,
         num_iterations=num_iterations,
     )
-    assert len(bqc_result.client_results) > 0
-    assert len(bqc_result.server_results) > 0
+    assert len(bqc_result.client_results.results) > 0
+    assert len(bqc_result.server_results.results) > 0
 
-    server_batch_results = bqc_result.server_results
-    for _, batch_results in server_batch_results.items():
-        program_results = batch_results.results
-        m2s = [result.values["m2"] for result in program_results]
-        assert all(m2 == expected for m2 in m2s)
+    program_results = bqc_result.server_results.results
+    m2s = [result.values["m2"] for result in program_results]
+    assert all(m2 == expected for m2 in m2s)
 
 
 def test_bqc():
+    # LogManager.enable_task_logger(True)
+    # LogManager.log_tasks_to_file("bqc_comp_1.log")
     check(alpha=8, beta=8, theta1=0, theta2=0, expected=0, num_iterations=10)
     check(alpha=8, beta=24, theta1=0, theta2=0, expected=1, num_iterations=10)
     check(alpha=8, beta=8, theta1=13, theta2=27, expected=0, num_iterations=10)

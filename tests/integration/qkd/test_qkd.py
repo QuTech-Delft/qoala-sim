@@ -47,6 +47,7 @@ def run_qkd(
     alice_file: str,
     bob_file: str,
     num_pairs: Optional[int] = None,
+    linear: bool = True,
 ):
     num_qubits = 3
     alice_id = 0
@@ -74,6 +75,7 @@ def run_qkd(
         programs={"alice": alice_program, "bob": bob_program},
         program_inputs={"alice": alice_input, "bob": bob_input},
         network_cfg=network_cfg,
+        linear=linear,
     )
 
     alice_result = app_result.batch_results["alice"]
@@ -197,7 +199,7 @@ def qkd_2pairs_ck_1qubit_cb():
     alice_file = "qkd_2pairs_CK_1qubit_cb_alice.iqoala"
     bob_file = "qkd_2pairs_CK_1qubit_cb_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, linear=False)
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 

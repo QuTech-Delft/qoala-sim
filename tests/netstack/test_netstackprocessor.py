@@ -14,6 +14,7 @@ from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
 from qoala.sim.entdist.entdist import EntDistRequest
+from qoala.sim.eprsocket import EprSocket
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
 from qoala.sim.process import QoalaProcess
@@ -100,12 +101,15 @@ def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
 
 
 def create_simple_request(
-    remote_id: int, num_pairs: int, virt_ids: RequestVirtIdMapping
+    remote_id: int,
+    num_pairs: int,
+    virt_ids: RequestVirtIdMapping,
+    epr_socket_id: int = 0,
 ) -> QoalaRequest:
     return QoalaRequest(
         name="req",
         remote_id=remote_id,
-        epr_socket_id=0,
+        epr_socket_id=epr_socket_id,
         num_pairs=num_pairs,
         virt_ids=virt_ids,
         timeout=1000,
@@ -115,7 +119,7 @@ def create_simple_request(
     )
 
 
-def test_allocate_for_pair():
+def test__allocate_for_pair():
     topology = generic_topology(5)
     qdevice = MockQDevice(topology)
     ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
@@ -134,24 +138,24 @@ def test_allocate_for_pair():
     )
 
     assert memmgr.phys_id_for(process.pid, 0) is None
-    assert processor.allocate_for_pair(process, request, 0) == 0
+    assert processor._allocate_for_pair(process, request, 0) == 0
     assert memmgr.phys_id_for(process.pid, 0) == 0
 
     assert memmgr.phys_id_for(process.pid, 1) is None
     with pytest.raises(AllocError):
         # Index 1 also requires virt ID but it's already alloacted
-        processor.allocate_for_pair(process, request, 1)
+        processor._allocate_for_pair(process, request, 1)
 
     request2 = create_simple_request(
         remote_id=1, num_pairs=2, virt_ids=RequestVirtIdMapping.from_str("increment 1")
     )
-    assert processor.allocate_for_pair(process, request2, index=0) == 1
+    assert processor._allocate_for_pair(process, request2, index=0) == 1
     assert memmgr.phys_id_for(process.pid, virt_id=1) == 1
-    assert processor.allocate_for_pair(process, request2, index=1) == 2
+    assert processor._allocate_for_pair(process, request2, index=1) == 2
     assert memmgr.phys_id_for(process.pid, virt_id=2) == 2
 
 
-def test_create_entdist_request():
+def test__create_entdist_request():
     topology = generic_topology(5)
     qdevice = MockQDevice(topology)
     ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
@@ -166,15 +170,23 @@ def test_create_entdist_request():
     processor = NetstackProcessor(interface, latencies)
 
     request = create_simple_request(
-        remote_id=1, num_pairs=5, virt_ids=RequestVirtIdMapping.from_str("all 0")
+        remote_id=1,
+        num_pairs=5,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        epr_socket_id=7,
     )
 
     phys_id = memmgr.allocate(process.pid, 3)
-    assert processor.create_entdist_request(process, request, 3) == EntDistRequest(
-        local_node_id=interface.node_id, remote_node_id=1, local_qubit_id=phys_id
+    process.epr_sockets[7] = EprSocket(7, 1, 0, 42, 1.0)
+    assert processor._create_entdist_request(process, request, 3) == EntDistRequest(
+        local_node_id=interface.node_id,
+        remote_node_id=1,
+        local_qubit_id=phys_id,
+        local_pids=[0],
+        remote_pids=[42],
     )
 
 
 if __name__ == "__main__":
-    test_allocate_for_pair()
-    test_create_entdist_request()
+    test__allocate_for_pair()
+    test__create_entdist_request()

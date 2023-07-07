@@ -2,7 +2,7 @@ META_START
     name: bob
     parameters:
     csockets: 0 -> alice
-    epr_sockets:
+    epr_sockets: 0 -> alice
 META_END
 
 ^blk_host0 {type = CL}:
