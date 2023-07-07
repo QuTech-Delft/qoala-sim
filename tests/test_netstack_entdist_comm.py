@@ -7,6 +7,7 @@ from netsquid.nodes import Node
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
+from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
 from qoala.sim.netstack.netstackcomp import NetstackComponent
@@ -16,6 +17,9 @@ from qoala.sim.netstack.netstackinterface import NetstackInterface
 class MockNetstackInterface(NetstackInterface):
     def __init__(self, comp: NetstackComponent, ehi_network: EhiNetworkInfo) -> None:
         super().__init__(comp, ehi_network, None, None)
+
+    def send_entdist_str(self, msg: str) -> None:
+        self.send_entdist_msg(Message(0, 0, msg))
 
 
 def test_connection():
@@ -37,11 +41,11 @@ def test_connection():
 
     class AliceNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            self.send_entdist_msg("hello this is Alice")
+            self.send_entdist_msg(Message(0, 0, "hello this is Alice"))
 
     class BobNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            self.send_entdist_msg("hello this is Bob")
+            self.send_entdist_msg(Message(0, 0, "hello this is Bob"))
 
     class TestEntDistInterface(EntDistInterface):
         def __init__(self, comp: EntDistComponent, ehi_network: EhiNetworkInfo) -> None:
@@ -63,8 +67,8 @@ def test_connection():
 
     ns.sim_run()
 
-    assert entdist_intf.msg_alice == "hello this is Alice"
-    assert entdist_intf.msg_bob == "hello this is Bob"
+    assert entdist_intf.msg_alice.content == "hello this is Alice"
+    assert entdist_intf.msg_bob.content == "hello this is Bob"
 
 
 def test_wait_for_any_node():
@@ -86,15 +90,15 @@ def test_wait_for_any_node():
 
     class AliceNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            self.send_entdist_msg("hello this is Alice")
+            self.send_entdist_msg(Message(0, 0, "hello this is Alice"))
             yield from self.wait(2000)
-            self.send_entdist_msg("hello again from Alice")
+            self.send_entdist_msg(Message(0, 0, "hello again from Alice"))
 
     class BobNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            self.send_entdist_msg("hello this is Bob")
+            self.send_entdist_msg(Message(0, 0, "hello this is Bob"))
             yield from self.wait(1000)
-            self.send_entdist_msg("hello again from Bob")
+            self.send_entdist_msg(Message(0, 0, "hello again from Bob"))
 
     class TestEntDistInterface(EntDistInterface):
         def __init__(self, comp: EntDistComponent, ehi_network: EhiNetworkInfo) -> None:
@@ -118,10 +122,10 @@ def test_wait_for_any_node():
     ns.sim_run()
 
     assert entdist_intf.messages == [
-        "hello this is Alice",
-        "hello this is Bob",
-        "hello again from Bob",
-        "hello again from Alice",
+        Message(0, 0, "hello this is Alice"),
+        Message(0, 0, "hello this is Bob"),
+        Message(0, 0, "hello again from Bob"),
+        Message(0, 0, "hello again from Alice"),
     ]
 
 
@@ -151,22 +155,22 @@ def test_wait_for_any_node_2():
     class AliceNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             yield from self.wait(500)
-            self.send_entdist_msg("hello this is Alice at time 500")
+            self.send_entdist_str("hello this is Alice at time 500")
             yield from self.wait(2000)
-            self.send_entdist_msg("hello again from Alice at time 2500")
+            self.send_entdist_str("hello again from Alice at time 2500")
 
     class BobNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            self.send_entdist_msg("hello this is Bob at time 0")
+            self.send_entdist_str("hello this is Bob at time 0")
             yield from self.wait(1000)
-            self.send_entdist_msg("hello again from Bob at time 1000")
+            self.send_entdist_str("hello again from Bob at time 1000")
 
     class CharlieNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             yield from self.wait(300)
-            self.send_entdist_msg("hello this is Charlie at time 300")
+            self.send_entdist_str("hello this is Charlie at time 300")
             yield from self.wait(1500)
-            self.send_entdist_msg("hello again from Charlie at time 1800")
+            self.send_entdist_str("hello again from Charlie at time 1800")
 
     class TestEntDistInterface(EntDistInterface):
         def __init__(self, comp: EntDistComponent, ehi_network: EhiNetworkInfo) -> None:
@@ -190,12 +194,12 @@ def test_wait_for_any_node_2():
     ns.sim_run()
 
     assert entdist_intf.messages == [
-        "hello this is Bob at time 0",
-        "hello this is Charlie at time 300",
-        "hello this is Alice at time 500",
-        "hello again from Bob at time 1000",
-        "hello again from Charlie at time 1800",
-        "hello again from Alice at time 2500",
+        Message(0, 0, "hello this is Bob at time 0"),
+        Message(0, 0, "hello this is Charlie at time 300"),
+        Message(0, 0, "hello this is Alice at time 500"),
+        Message(0, 0, "hello again from Bob at time 1000"),
+        Message(0, 0, "hello again from Charlie at time 1800"),
+        Message(0, 0, "hello again from Alice at time 2500"),
     ]
 
 

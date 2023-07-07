@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Generator, List
+from typing import Dict, Generator, List, Tuple
 
 from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
@@ -9,15 +9,56 @@ from qoala.runtime.message import Message
 from qoala.util.logging import LogManager
 
 
+class MessageBuffer:
+    def __init__(self) -> None:
+        self._messages: Dict[
+            Tuple[int, int], List[Message]
+        ] = {}  # (src PID, dst PID) -> message list
+
+    def add_msg(self, msg: Message) -> None:
+        if (msg.src_pid, msg.dst_pid) not in self._messages:
+            self._messages[(msg.src_pid, msg.dst_pid)] = [msg]
+        else:
+            self._messages[(msg.src_pid, msg.dst_pid)].append(msg)
+
+    def has_msg(self, src_pid: int, dst_pid: int) -> bool:
+        if (src_pid, dst_pid) not in self._messages:
+            return False
+        return len(self._messages[(src_pid, dst_pid)]) > 0
+
+    def has_any(self) -> bool:
+        if len(self._messages) == 0:
+            return False
+        return any(len(buf) > 0 for buf in self._messages.values())
+
+    def get_all(self) -> List[Tuple[int, int]]:
+        # Does *NOT* pop messages.
+        return [
+            (src, dst) for ((src, dst), buf) in self._messages.items() if len(buf) > 0
+        ]
+
+    def count_all(self) -> int:
+        return sum(len(buf) for buf in self._messages.values())
+
+    def pop_msg(self, src_pid: int, dst_pid: int) -> Message:
+        return self._messages[(src_pid, dst_pid)].pop(0)
+
+    def pop_any(self) -> Message:
+        for buf in self._messages.values():
+            if len(buf) > 0:
+                return buf.pop(0)
+        raise RuntimeError
+
+
 class PortListener(Protocol):
     def __init__(self, port: Port, signal_label: str) -> None:
-        self._buffer: List[Message] = []
-        self._port: Port = port
+        self._buffer = MessageBuffer()
+        self._port = port
         self._signal_label = signal_label
         self.add_signal(signal_label)
 
     @property
-    def buffer(self) -> List[Message]:
+    def buffer(self) -> MessageBuffer:
         return self._buffer
 
     def run(self) -> Generator[EventExpression, None, None]:
@@ -31,7 +72,8 @@ class PortListener(Protocol):
                 input = self._port.rx_input()
                 if input is None:
                     break
-                self._buffer += input.items
+                for item in input.items:
+                    self._buffer.add_msg(item)
                 counter += 1
             # If there are n inputs, there have been n events, but we yielded only
             # on one of them so far. "Flush" these n-1 additional events:
@@ -55,31 +97,49 @@ class ComponentProtocol(Protocol):
     def add_listener(self, name, listener: PortListener) -> None:
         self._listeners[name] = listener
 
-    def _receive_msg(
+    def _wait_for_msg(
         self, listener_name: str, wake_up_signal: str
-    ) -> Generator[EventExpression, None, Message]:
+    ) -> Generator[EventExpression, None, None]:
         listener = self._listeners[listener_name]
-        if len(listener.buffer) == 0:
+        if not listener.buffer.has_any():
             yield self.await_signal(sender=listener, signal_label=wake_up_signal)
-        return listener.buffer.pop(0)
 
-    def _receive_msg_any_source(
+    def _pop_any_msg(self, listener_name: str) -> Message:
+        listener = self._listeners[listener_name]
+        return listener.buffer.pop_any()
+
+    def _pop_msg(self, listener_name: str, src_pid: int, dst_pid: int) -> Message:
+        listener = self._listeners[listener_name]
+        return listener.buffer.pop_msg(src_pid, dst_pid)
+
+    def _has_msg(self, listener_name: str, src_pid: int, dst_pid: int) -> bool:
+        listener = self._listeners[listener_name]
+        return listener.buffer.has_msg(src_pid, dst_pid)
+
+    def _pop_any_msg_any_source(self, listener_names: List[str]) -> Message:
+        for listener_name in listener_names:
+            listener = self._listeners[listener_name]
+            if listener.buffer.has_any():
+                return listener.buffer.pop_any()
+        raise RuntimeError
+
+    def _wait_for_msg_any_source(
         self, listener_names: List[str], wake_up_signals: List[str]
-    ) -> Generator[EventExpression, None, Message]:
+    ) -> Generator[EventExpression, None, None]:
         # TODO rewrite two separate lists as function arguments
 
         # First check if there is any listener with messages in their buffer.
         for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
             listener = self._listeners[listener_name]
-            if len(listener.buffer) != 0:
-                return listener.buffer.pop(0)
+            if listener.buffer.has_any():
+                return
 
         # Else, get an EventExpression for each listener.
         expressions: List[EventExpression] = []
 
         for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
             listener = self._listeners[listener_name]
-            assert len(listener.buffer) == 0  # already checked this above
+            assert not listener.buffer.has_any()  # already checked this above
             ev_expr = self.await_signal(sender=listener, signal_label=wake_up_signal)
             expressions.append(ev_expr)
 
@@ -92,30 +152,22 @@ class ComponentProtocol(Protocol):
         # Yield until at least one of the listeners got a message.
         yield union
 
-        # Count the messages in listener's buffers.
-        msg_count = 0
-        msg_to_return = None
+        # OLD: Count the messages in listener's buffers.
+        # Count the number of listeners that has messages in their buffers.
+        # This number is equal to the number of events that have fired.
+        ev_count = 0
         for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
             listener = self._listeners[listener_name]
 
-            # Count the number of new messages.
-            msg_count += len(listener.buffer)
+            if listener.buffer.has_any():
+                ev_count += 1
 
-            # Only the first buffered message we encounter is actually popped
-            # and returned. The others messages will get returned in a new call
-            # to `_receive_msg_any_source`.
-            if len(listener.buffer) != 0 and msg_to_return is None:
-                msg_to_return = listener.buffer.pop(0)
-
-        # There *must* be at least one since we yielded.
-        assert msg_count > 0
+        # There *must* be at least one event that has fired since we yielded.
+        assert ev_count > 0
         # "Flush away" the events that were also in the union.
         # We already yielded on one (above), but need to yield on the rest.
-        for _ in range(msg_count - 1):
+        for _ in range(ev_count - 1):
             yield union
-
-        assert msg_to_return is not None
-        return msg_to_return
 
     def start(self) -> None:
         super().start()

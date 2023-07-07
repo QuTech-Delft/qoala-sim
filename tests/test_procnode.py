@@ -15,9 +15,7 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     ClassicalIqoalaOp,
-    IqoalaTuple,
     ReceiveCMsgOp,
-    RunSubroutineOp,
     SendCMsgOp,
 )
 from qoala.lang.parse import LocalRoutineParser, QoalaParser
@@ -41,6 +39,7 @@ from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import MSG_REQUEST_DELIVERED
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
@@ -52,7 +51,7 @@ from qoala.sim.qdevice import QDevice, QDeviceCommand
 from qoala.util.math import has_multi_state
 from qoala.util.tests import netsquid_run
 
-MOCK_MESSAGE = Message(content=42)
+MOCK_MESSAGE = Message(src_pid=0, dst_pid=0, content=42)
 MOCK_QNOS_RET_REG = "R0"
 MOCK_QNOS_RET_VALUE = 7
 
@@ -96,7 +95,7 @@ class MockNetstackInterface(NetstackInterface):
         return None
 
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
-        return Message(MSG_REQUEST_DELIVERED)
+        return Message(-1, -1, MSG_REQUEST_DELIVERED)
         yield  # to make this behave as a generator
 
     @property
@@ -198,10 +197,10 @@ def create_process(
         prog_instance=instance,
         prog_memory=mem,
         csockets={
-            id: ClassicalSocket(host_interface, name)
+            id: ClassicalSocket(host_interface, name, 0, 0)
             for (id, name) in program.meta.csockets.items()
         },
-        epr_sockets=program.meta.epr_sockets,
+        epr_sockets={0: EprSocket(0, 0, 0, 0, 1.0)},
         result=ProgramResult(values={}),
     )
     return process
@@ -363,75 +362,6 @@ def test_initialize():
     assert process.host_mem.read("x") == 3
     assert process.qnos_mem.get_reg_value("R5") == 42
     assert procnode.memmgr.phys_id_for(pid=process.pid, virt_id=0) == 0
-
-
-def test_2():
-    ns.sim_reset()
-
-    num_qubits = 3
-    topology = generic_topology(num_qubits)
-    latencies = LhiLatencies.all_zero()
-    ntf = GenericNtf()
-
-    network_ehi = create_network_ehi(num_qubits)
-    procnode = create_procnode(
-        "alice",
-        network_ehi,
-        num_qubits,
-        topology,
-        latencies,
-        ntf,
-        asynchronous=True,
-    )
-    procnode.qdevice = MockQDevice(topology)
-
-    host_processor = procnode.host.processor
-    qnos_processor = procnode.qnos.processor
-
-    ehi = LhiConverter.to_ehi(topology, ntf, latencies)
-    unit_module = UnitModule.from_full_ehi(ehi)
-
-    instrs = [RunSubroutineOp(IqoalaTuple(["result"]), IqoalaTuple([]), "subrt1")]
-    subroutines = parse_iqoala_subroutines(
-        """
-SUBROUTINE subrt1
-    params: 
-    returns: result
-    uses: 
-    keeps: 
-    request:
-  NETQASM_START
-    set R5 42
-    store R5 @output[0]
-  NETQASM_END
-    """
-    )
-
-    program = create_program(instrs=instrs, subroutines=subroutines)
-    process = create_process(
-        pid=0,
-        program=program,
-        unit_module=unit_module,
-        host_interface=procnode.host._interface,
-        inputs={"x": 1, "theta": 3.14, "name": "alice"},
-    )
-    procnode.add_process(process)
-
-    host_processor.initialize(process)
-
-    def host_run() -> Generator[EventExpression, None, None]:
-        yield from host_processor.assign_instr_index(process, instr_idx=0)
-
-    def qnos_run() -> Generator[EventExpression, None, None]:
-        yield from qnos_processor.await_local_routine_call(process)
-
-    procnode.host.run = host_run
-    procnode.qnos.run = qnos_run
-    procnode.start()
-    ns.sim_run()
-
-    assert process.host_mem.read("result") == 42
-    assert process.qnos_mem.get_reg_value("R5") == 42
 
 
 def test_classical_comm():
@@ -934,7 +864,6 @@ REQUEST req1
 
 if __name__ == "__main__":
     test_initialize()
-    test_2()
     test_classical_comm()
     test_classical_comm_three_nodes()
     test_epr()

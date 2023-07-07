@@ -27,7 +27,6 @@ from netsquid.components.instructions import Instruction as NsInstr
 from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
-from qoala.runtime.message import LrCallTuple, Message
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.memmgr import NotAllocatedError
 from qoala.sim.process import QoalaProcess
@@ -98,17 +97,6 @@ class QnosProcessor:
 
         running_routine = RunningLocalRoutine(instance, input_addr, result_addr)
         process.qnos_mem.add_running_local_routine(running_routine)
-
-    def await_local_routine_call(
-        self, process: QoalaProcess
-    ) -> Generator[EventExpression, None, None]:
-        msg = yield from self._interface.receive_host_msg()
-        payload: LrCallTuple = msg.content
-        yield from self.assign_local_routine(
-            process, payload.routine_name, payload.input_addr, payload.result_addr
-        )
-        # Mock sending signal back to Host that subroutine has finished.
-        self._interface.send_host_msg(Message(None))
 
     def assign_local_routine(
         self,

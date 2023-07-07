@@ -15,7 +15,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import ProgramInput
-from qoala.util.runner import run_application
+from qoala.util.runner import run_single_node_app
 
 
 def get_config() -> ProcNodeConfig:
@@ -43,10 +43,11 @@ def run_program(num_iterations: int, node_cfg: ProcNodeConfig):
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("move_qubit_nv.iqoala")
 
-    app_results = run_application(
+    app_results = run_single_node_app(
         num_iterations=num_iterations,
-        programs={"alice": program},
-        program_inputs={"alice": ProgramInput.empty()},
+        program_name="alice",
+        program=program,
+        program_input=ProgramInput.empty(),
         network_cfg=network_cfg,
     )
 

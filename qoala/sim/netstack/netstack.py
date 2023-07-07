@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from typing import Generator
-
 from netsquid.protocols import Protocol
 
-from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack.netstackcomp import NetstackComponent
@@ -39,14 +36,6 @@ class Netstack(Protocol):
         # Owned objects.
         self._interface = NetstackInterface(comp, ehi_network, qdevice, memmgr)
         self._processor = NetstackProcessor(self._interface, latencies)
-
-    def run(self) -> Generator[EventExpression, None, None]:
-        # Loop forever acting on messages from the processor.
-        while True:
-            # Wait for a new message.
-            msg = yield from self._interface.receive_qnos_msg()
-            self._logger.debug(f"received new msg from processor: {msg}")
-            # request = msg.content
 
     @property
     def qdevice(self) -> QDevice:

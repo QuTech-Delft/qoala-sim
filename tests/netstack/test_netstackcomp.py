@@ -100,7 +100,7 @@ def test_connection():
 
     class AliceNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            self.send_peer_msg("bob", Message("hello"))
+            self.send_peer_msg("bob", Message(0, 0, "hello"))
 
     class BobNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -139,8 +139,8 @@ def test_three_way_connection():
 
     class AliceNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            self.send_peer_msg("bob", Message("hello bob"))
-            self.send_peer_msg("charlie", Message("hello charlie"))
+            self.send_peer_msg("bob", Message(0, 0, "hello bob"))
+            self.send_peer_msg("charlie", Message(0, 0, "hello charlie"))
 
     class BobNetstackInterface(MockNetstackInterface):
         def run(self) -> Generator[EventExpression, None, None]:

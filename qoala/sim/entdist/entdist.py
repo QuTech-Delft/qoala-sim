@@ -171,8 +171,8 @@ class EntDist(Protocol):
         # Send messages to the nodes indictating a request has been delivered.
         node1 = self._interface.remote_id_to_peer_name(node1_id)
         node2 = self._interface.remote_id_to_peer_name(node2_id)
-        self._interface.send_node_msg(node1, Message(MSG_REQUEST_DELIVERED))
-        self._interface.send_node_msg(node2, Message(MSG_REQUEST_DELIVERED))
+        self._interface.send_node_msg(node1, Message(-1, -1, MSG_REQUEST_DELIVERED))
+        self._interface.send_node_msg(node2, Message(-1, -1, MSG_REQUEST_DELIVERED))
 
     def put_request(self, request: EntDistRequest) -> None:
         if request.local_node_id not in self._nodes:

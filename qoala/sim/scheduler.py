@@ -116,7 +116,7 @@ class NodeScheduler(Protocol):
     def qpu_scheduler(self) -> ProcessorScheduler:
         return self._qpu_scheduler
 
-    def submit_batch(self, batch_info: BatchInfo) -> None:
+    def submit_batch(self, batch_info: BatchInfo) -> ProgramBatch:
         prog_instances: List[ProgramInstance] = []
 
         for i in range(batch_info.num_iterations):
@@ -146,25 +146,32 @@ class NodeScheduler(Protocol):
         )
         self._batches[batch.batch_id] = batch
         self._batch_counter += 1
+        return batch
 
     def get_batches(self) -> Dict[int, ProgramBatch]:
         return self._batches
 
-    def create_process(self, prog_instance: ProgramInstance) -> QoalaProcess:
+    def create_process(
+        self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
+    ) -> QoalaProcess:
         prog_memory = ProgramMemory(prog_instance.pid)
         meta = prog_instance.program.meta
 
+        if remote_pid is None:
+            remote_pid = 42  # TODO: allow this at all?
         csockets: Dict[int, ClassicalSocket] = {}
         for i, remote_name in meta.csockets.items():
-            # TODO: check for already existing epr sockets
-            csockets[i] = self.host.create_csocket(remote_name)
+            # TODO: check for already existing classical sockets
+            csockets[i] = self.host.create_csocket(
+                remote_name, prog_instance.pid, remote_pid
+            )
 
         epr_sockets: Dict[int, EprSocket] = {}
         for i, remote_name in meta.epr_sockets.items():
             remote_id = self._network_ehi.get_node_id(remote_name)
             # TODO: check for already existing epr sockets
             # TODO: fidelity
-            epr_sockets[i] = EprSocket(i, remote_id, 1.0)
+            epr_sockets[i] = EprSocket(i, remote_id, prog_instance.pid, remote_pid, 1.0)
 
         result = ProgramResult(values={})
 
@@ -176,10 +183,17 @@ class NodeScheduler(Protocol):
             result=result,
         )
 
-    def create_processes_for_batches(self) -> None:
-        for batch in self._batches.values():
-            for prog_instance in batch.instances:
-                process = self.create_process(prog_instance)
+    def create_processes_for_batches(
+        self,
+        remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+    ) -> None:
+        for batch_id, batch in self._batches.items():
+            for i, prog_instance in enumerate(batch.instances):
+                if remote_pids is not None:
+                    remote_pid = remote_pids[batch_id][i]
+                else:
+                    remote_pid = None
+                process = self.create_process(prog_instance, remote_pid)
 
                 self.memmgr.add_process(process)
                 self.initialize_process(process)

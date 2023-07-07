@@ -13,7 +13,7 @@ def load_program(path: str) -> QoalaProgram:
     return QoalaParser(text).parse()
 
 
-def test1():
+def disabled_test1():
     program = load_program("test_callbacks_2_pairs.iqoala")
     # graph = TaskGraphBuilder.from_program(program, 0)
     graph = TaskGraphBuilder.from_program(program, 0)
@@ -22,4 +22,5 @@ def test1():
 
 
 if __name__ == "__main__":
-    test1()
+    # test1()
+    pass

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from netsquid.components import QuantumProcessor
 from netsquid.protocols import Protocol
@@ -227,11 +227,14 @@ class ProcNode(Protocol):
         self._host.stop()
         super().stop()
 
-    def submit_batch(self, batch_info: BatchInfo) -> None:
-        self.scheduler.submit_batch(batch_info)
+    def submit_batch(self, batch_info: BatchInfo) -> ProgramBatch:
+        return self.scheduler.submit_batch(batch_info)
 
-    def initialize_processes(self) -> None:
-        self.scheduler.create_processes_for_batches()
+    def initialize_processes(
+        self,
+        remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+    ) -> None:
+        self.scheduler.create_processes_for_batches(remote_pids)
 
     def add_process(self, process: QoalaProcess) -> None:
         self.memmgr.add_process(process)

@@ -8,6 +8,8 @@ from qoala.runtime.sharedmem import MemAddr
 
 @dataclass
 class Message:
+    src_pid: int
+    dst_pid: int
     content: Any
 
 

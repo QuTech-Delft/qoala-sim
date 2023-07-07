@@ -15,7 +15,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.runner import run_application
+from qoala.util.runner import run_two_node_app
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
@@ -61,7 +61,7 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     bob_program = load_program("teleport_bob.iqoala")
     bob_input = ProgramInput({"alice_id": alice_id})
 
-    app_result = run_application(
+    app_result = run_two_node_app(
         num_iterations=num_iterations,
         programs={"alice": alice_program, "bob": bob_program},
         program_inputs={"alice": alice_input, "bob": bob_input},

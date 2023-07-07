@@ -8,7 +8,7 @@ from netqasm.lang.operand import Template
 from pydynaa import EventExpression
 from qoala.lang import hostlang
 from qoala.lang.request import CallbackType
-from qoala.runtime.message import LrCallTuple, Message, RrCallTuple
+from qoala.runtime.message import LrCallTuple, RrCallTuple
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import QoalaProcess
@@ -83,7 +83,8 @@ class HostProcessor:
             host_mem.write(loc, value)
         elif isinstance(instr, hostlang.BusyOp):
             value = instr.attributes[0]
-            assert isinstance(value, int)
+            if not isinstance(value, int):
+                value = host_mem.read(value)
             self._logger.debug(f"busy for {value} ns")
             yield from self._interface.wait(value)
         elif isinstance(instr, hostlang.SendCMsgOp):
@@ -102,7 +103,13 @@ class HostProcessor:
             assert isinstance(instr.results, list)
             csck_id = host_mem.read(instr.arguments[0])
             csck = csockets[csck_id]
-            msg = yield from csck.recv_int()
+
+            # TODO: refactor
+            tup = (csck.remote_pid, process.pid)
+            if tup not in self._interface.get_available_messages(csck.remote_name):
+                msg = yield from csck.recv_int()
+            else:
+                msg = csck.read_int()
 
             yield from self._interface.wait(self._latencies.host_peer_latency)
             host_mem.write(instr.results[0], msg)
@@ -148,30 +155,6 @@ class HostProcessor:
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
-        elif isinstance(instr, hostlang.RunSubroutineOp):
-            # NOTE: this code is in practice never reached when using a Scheduler.
-            # (The Scheduler manually calls prepare_lr_call and post_lr_call).
-            lrcall = self.prepare_lr_call(process, instr)
-
-            # Send a message to Qnos asking to run the routine.
-            self._interface.send_qnos_msg(Message(lrcall))
-
-            # Wait until Qnos says it has finished.
-            yield from self._interface.receive_qnos_msg()
-
-            self.post_lr_call(process, instr, lrcall)
-        elif isinstance(instr, hostlang.RunRequestOp):
-            yield from self._interface.wait(first_half)
-            rrcall = self.prepare_rr_call(process, instr)
-
-            # Send a message to the Netstack asking to run the routine.
-            self._interface.send_netstack_msg(Message(rrcall))
-
-            # Wait until the Netstack says it has finished.
-            yield from self._interface.receive_netstack_msg()
-
-            # TODO: read results
-
         elif isinstance(instr, hostlang.ReturnResultOp):
             assert isinstance(instr.arguments[0], str)
             loc = instr.arguments[0]
