@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import random
 from dataclasses import dataclass
+from typing import List
 
 import netsquid as ns
 from netqasm.lang.instr.flavour import NVFlavour
@@ -17,18 +19,18 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.runner import run_two_node_app
+from qoala.util.logging import LogManager
+from qoala.util.runner import run_two_node_app, run_two_node_app_separate_inputs
 
 
 def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.from_nv_params(
-            num_qubits=num_qubits, params=NvParams()
-        ),
+        topology=TopologyConfig.from_nv_params(num_qubits=5, params=NvParams()),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("NvNtf"),
+        determ_sched=True,
     )
 
 
@@ -45,7 +47,7 @@ class TeleportResult:
     bob_results: BatchResult
 
 
-def run_teleport(num_iterations: int) -> TeleportResult:
+def run_teleport(num_iterations: int, different_inputs: bool = False) -> TeleportResult:
     ns.sim_reset()
 
     num_qubits = 3
@@ -60,17 +62,34 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     )
 
     alice_program = load_program("teleport_nv_alice.iqoala")
-    alice_input = ProgramInput({"bob_id": bob_id})
-
     bob_program = load_program("teleport_nv_bob.iqoala")
-    bob_input = ProgramInput({"alice_id": alice_id})
 
-    app_result = run_two_node_app(
-        num_iterations=num_iterations,
-        programs={"alice": alice_program, "bob": bob_program},
-        program_inputs={"alice": alice_input, "bob": bob_input},
-        network_cfg=network_cfg,
-    )
+    if different_inputs:
+        alice_inputs: List[ProgramInput] = []
+        bob_inputs: List[ProgramInput] = []
+        for _ in range(num_iterations):
+            basis = random.randint(0, 5)
+            alice_inputs.append(ProgramInput({"bob_id": bob_id, "state": basis}))
+            bob_inputs.append(ProgramInput({"alice_id": alice_id, "state": basis}))
+
+        app_result = run_two_node_app_separate_inputs(
+            num_iterations=num_iterations,
+            programs={"alice": alice_program, "bob": bob_program},
+            program_inputs={"alice": alice_inputs, "bob": bob_inputs},
+            network_cfg=network_cfg,
+        )
+    else:
+        # state = 5 -> teleport |1> state
+        alice_input = ProgramInput({"bob_id": bob_id, "state": 5})
+        # state = 4 -> measure in +Z, i.e. expect a "1" outcome
+        bob_input = ProgramInput({"alice_id": alice_id, "state": 4})
+
+        app_result = run_two_node_app(
+            num_iterations=num_iterations,
+            programs={"alice": alice_program, "bob": bob_program},
+            program_inputs={"alice": alice_input, "bob": bob_input},
+            network_cfg=network_cfg,
+        )
 
     alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
@@ -80,6 +99,7 @@ def run_teleport(num_iterations: int) -> TeleportResult:
 
 def test_teleport():
     # LogManager.set_log_level("DEBUG")
+    # LogManager.enable_task_logger(True)
     num_iterations = 10
 
     result = run_teleport(num_iterations=num_iterations)
@@ -90,5 +110,19 @@ def test_teleport():
     assert all(outcome == 1 for outcome in outcomes)
 
 
+def test_teleport_different_inputs():
+    # LogManager.set_log_level("DEBUG")
+    LogManager.enable_task_logger(True)
+    num_iterations = 10
+
+    result = run_teleport(num_iterations=num_iterations, different_inputs=True)
+
+    program_results = result.bob_results.results
+    outcomes = [result.values["outcome"] for result in program_results]
+    print(outcomes)
+    assert all(outcome == 0 for outcome in outcomes)
+
+
 if __name__ == "__main__":
-    test_teleport()
+    # test_teleport()
+    test_teleport_different_inputs()

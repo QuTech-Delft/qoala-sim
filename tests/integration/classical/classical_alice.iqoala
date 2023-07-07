@@ -1,0 +1,18 @@
+META_START
+    name: alice
+    parameters: bob_id, value
+    csockets: 0 -> bob
+    epr_sockets: 0 -> bob
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = CL}:
+    send_cmsg(csocket, value)
+
+^b2 {type = CC}:
+    returned_value = recv_cmsg(csocket)
+
+^b3 {type = CL}:
+    return_result(returned_value)
