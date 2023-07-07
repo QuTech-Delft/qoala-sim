@@ -25,7 +25,7 @@ class RoutineMetadata:
         return RoutineMetadata(ids, [])
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class LrReturnVector:
     name: str
     size: int
@@ -34,40 +34,13 @@ class LrReturnVector:
         return f"{self.name}<{self.size}>"
 
 
+@dataclass(frozen=True)
 class LocalRoutine:
-    def __init__(
-        self,
-        name: str,
-        subrt: Subroutine,
-        return_vars: List[Union[str, LrReturnVector]],
-        metadata: RoutineMetadata,
-        request_name: Optional[str] = None,
-    ) -> None:
-        self._name = name
-        self._subrt = subrt
-        self._return_vars = return_vars
-        self._metadata = metadata
-        self._request_name = request_name
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def subroutine(self) -> Subroutine:
-        return self._subrt
-
-    @property
-    def return_vars(self) -> List[Union[str, LrReturnVector]]:
-        return self._return_vars
-
-    @property
-    def metadata(self) -> RoutineMetadata:
-        return self._metadata
-
-    @property
-    def request_name(self) -> Optional[str]:
-        return self._request_name
+    name: str
+    subroutine: Subroutine
+    return_vars: List[Union[str, LrReturnVector]]
+    metadata: RoutineMetadata
+    request_name: Optional[str] = None
 
     def get_return_size(self) -> int:
         size = 0
@@ -97,13 +70,3 @@ class LocalRoutine:
         s += self.subroutine.print_instructions()
         s += "\nNETQASM_END"
         return s
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, LocalRoutine):
-            return NotImplemented
-        return (
-            self.name == other.name
-            and self.subroutine == other.subroutine
-            and self.metadata == other.metadata
-            and self.return_vars == other.return_vars
-        )

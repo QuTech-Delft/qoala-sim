@@ -347,20 +347,18 @@ class QnosProcessor:
         qnos_mem = self._prog_mem().qnos_mem
         a, b = None, None
         registers = []
+        condition = False
         if isinstance(instr, core.BranchUnaryInstruction):
             a = qnos_mem.get_reg_value(instr.reg)
             registers = [instr.reg]
+            condition = instr.check_condition(a)
         elif isinstance(instr, core.BranchBinaryInstruction):
             a = qnos_mem.get_reg_value(instr.reg0)
             b = qnos_mem.get_reg_value(instr.reg1)
             registers = [instr.reg0, instr.reg1]
-
-        if isinstance(instr, core.JmpInstruction):
-            condition = True
-        elif isinstance(instr, core.BranchUnaryInstruction):
-            condition = instr.check_condition(a)
-        elif isinstance(instr, core.BranchBinaryInstruction):
             condition = instr.check_condition(a, b)
+        elif isinstance(instr, core.JmpInstruction):
+            condition = True
 
         # Simulate instruction duration.
         yield from self._interface.wait(self._latencies.qnos_instr_time)
@@ -463,7 +461,7 @@ class QnosProcessor:
         return None
 
     def _interpret_single_rotation_instr(
-        self, pid: int, instr: nv.RotXInstruction
+        self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
@@ -513,7 +511,7 @@ class QnosProcessor:
         raise NotImplementedError
 
     def _interpret_two_qubit_instr(
-        self, pid: int, instr: core.SingleQubitInstruction
+        self, pid: int, instr: core.TwoQubitInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
@@ -582,7 +580,7 @@ class GenericProcessor(QnosProcessor):
         return None
 
     def _interpret_single_rotation_instr(
-        self, pid: int, instr: nv.RotXInstruction
+        self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, vanilla.RotXInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_X)
@@ -600,7 +598,7 @@ class GenericProcessor(QnosProcessor):
         raise UnsupportedNetqasmInstructionError
 
     def _interpret_two_qubit_instr(
-        self, pid: int, instr: core.SingleQubitInstruction
+        self, pid: int, instr: core.TwoQubitInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id0 = qnos_mem.get_reg_value(instr.reg0)
@@ -731,7 +729,7 @@ class NVProcessor(QnosProcessor):
         return None
 
     def _interpret_single_rotation_instr(
-        self, pid: int, instr: nv.RotXInstruction
+        self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, nv.RotXInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_X)

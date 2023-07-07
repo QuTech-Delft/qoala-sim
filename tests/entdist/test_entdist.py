@@ -75,7 +75,8 @@ def test_add_sampler():
     entdist.add_sampler(alice.ID, bob.ID, link_info)
 
     assert len(entdist._samplers) == 1
-    sampler = entdist._samplers[(alice.ID, bob.ID)]
+    link = frozenset([alice.ID, bob.ID])
+    sampler = entdist._samplers[link]
     assert type(sampler) == DelayedSampler
     assert type(sampler.sampler) == StateDeliverySampler
     assert sampler.delay == 1000
@@ -97,13 +98,17 @@ def test_add_sampler_many_nodes():
     entdist.add_sampler(nodes[0].ID, nodes[2].ID, link_info)
     entdist.add_sampler(nodes[2].ID, nodes[9].ID, link_info)
 
+    link = frozenset([nodes[0].ID, nodes[1].ID])
+    assert entdist._samplers[link] == entdist.get_sampler(nodes[0].ID, nodes[1].ID)
+
+    with pytest.raises(ValueError):
+        entdist.get_sampler(nodes[0].ID, nodes[9].ID)
+
     assert len(entdist._samplers) == 3
     for (i, j) in [(0, 1), (0, 2), (2, 9)]:
-        assert (
-            type(entdist._samplers[(nodes[i].ID, nodes[j].ID)].sampler)
-            == StateDeliverySampler
-        )
-        assert entdist._samplers[(nodes[i].ID, nodes[j].ID)].delay == 1000
+        link = frozenset([nodes[i].ID, nodes[j].ID])
+        assert type(entdist._samplers[link].sampler) == StateDeliverySampler
+        assert entdist._samplers[link].delay == 1000
 
 
 def test_sample_perfect():
@@ -251,6 +256,10 @@ def test_put_request_many_nodes():
     with pytest.raises(ValueError):
         entdist.put_request(request_invalid)
 
+    request_invalid = create_request(0, 0)
+    with pytest.raises(ValueError):
+        entdist.put_request(request_invalid)
+
 
 def test_get_remote_request_for():
     alice, bob, charlie = create_n_nodes(3)
@@ -286,8 +295,8 @@ def test_get_remote_request_for():
 
     # Bob's first request still corresponds to Alice.
     assert entdist.get_remote_request_for(request_alice_1) == 0
-    # Remove this request.
-    entdist.pop_request(bob.ID, 0)
+    # Remove and check if it was the correct request.
+    assert entdist.pop_request(bob.ID, 0) == request_bob
     # The corresponding request is now 2nd in Bob's queue.
     assert entdist.get_remote_request_for(request_alice_1) == 1
 
@@ -376,8 +385,20 @@ def test_serve_request():
     bob_mem = 0
     joint_request = create_joint_request(alice.ID, bob.ID, alice_mem, bob_mem)
 
+    # Also create a joint request with invalid qubit location
+    alice_mem_invalid = 3
+    invalid_joint_request = create_joint_request(
+        alice.ID, bob.ID, alice_mem_invalid, bob_mem
+    )
+
     ns.sim_reset()
     assert ns.sim_time() == 0
+
+    with pytest.raises(ValueError):
+        netsquid_run(entdist.serve_request(invalid_joint_request))
+
+    assert ns.sim_time() == 0
+
     netsquid_run(entdist.serve_request(joint_request))
     assert ns.sim_time() == 1000
 

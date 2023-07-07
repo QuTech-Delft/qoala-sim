@@ -19,7 +19,7 @@ class NonInitializedQubitError(Exception):
     pass
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class QDeviceCommand:
     instr: Instruction
     indices: List[int]

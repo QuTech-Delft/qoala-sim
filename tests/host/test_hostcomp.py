@@ -89,7 +89,7 @@ def test_connection():
     class BobHostInterface(HostInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             msg = yield from self.receive_peer_msg("alice")
-            print(f"{self.name}: received msg with content: {msg.content}")
+            assert msg.content == "hello"
 
     alice_intf = AliceHostInterface(alice_comp, ehi_network)
     bob_intf = BobHostInterface(bob_comp, ehi_network)
@@ -129,12 +129,12 @@ def test_three_way_connection():
     class BobHostInterface(HostInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             msg = yield from self.receive_peer_msg("alice")
-            print(f"{self.name}: received msg with content: {msg.content}")
+            assert msg.content == "hello bob"
 
     class CharlieHostInterface(HostInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             msg = yield from self.receive_peer_msg("alice")
-            print(f"{self.name}: received msg with content: {msg.content}")
+            assert msg.content == "hello charlie"
 
     alice_intf = AliceHostInterface(alice_comp, ehi_network)
     bob_intf = BobHostInterface(bob_comp, ehi_network)

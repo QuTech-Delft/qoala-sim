@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import itertools
-from abc import ABC, abstractclassmethod, abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Type
 
 import yaml
 from netsquid.components.instructions import (
@@ -86,12 +86,12 @@ NV_MEM_GATES = [
 
 NV_TWO_GATES = ["INSTR_CXDIR", "INSTR_CYDIR"]
 
-NV_DEFAULT_COM_GATE_DURATION = 1e5
-NV_DEFAULT_MEM_GATE_DURATION = 1e6
-NV_DEFAULT_TWO_GATE_DURATION = 2e6
+NV_DEFAULT_COM_GATE_DURATION = int(1e5)
+NV_DEFAULT_MEM_GATE_DURATION = int(1e6)
+NV_DEFAULT_TWO_GATE_DURATION = int(2e6)
 
-GENERIC_DEFAULT_ONE_GATE_DURATION = 5e3
-GENERIC_DEFAULT_TWO_GATE_DURATION = 200e3
+GENERIC_DEFAULT_ONE_GATE_DURATION = int(5e3)
+GENERIC_DEFAULT_TWO_GATE_DURATION = int(200e3)
 
 # NV_LAB_COMM_T1 = 1e6
 # NV_LAB_COMM_T2 = 1e6
@@ -107,31 +107,36 @@ class BaseModel(PydanticBaseModel):
 
 
 class InstrConfigRegistry(ABC):
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def map(cls) -> Dict[str, NetSquidInstruction]:
         raise NotImplementedError
 
 
 class QubitConfigRegistry(ABC):
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def map(cls) -> Dict[str, LhiQubitConfigInterface]:
         raise NotImplementedError
 
 
 class GateConfigRegistry(ABC):
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def map(cls) -> Dict[str, GateNoiseConfigInterface]:
         raise NotImplementedError
 
 
 class NtfInterfaceRegistry(ABC):
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def map(cls) -> Dict[str, NtfInterface]:
         raise NotImplementedError
 
 
 class SamplerFactoryRegistry(ABC):
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def map(cls) -> Dict[str, IStateDeliverySamplerFactory]:
         raise NotImplementedError
 
@@ -152,7 +157,8 @@ def _read_dict(path: str) -> Any:
 
 
 class QubitNoiseConfigInterface:
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def from_dict(cls, dict: Any) -> QubitNoiseConfigInterface:
         raise NotImplementedError
 
@@ -255,7 +261,8 @@ class QubitConfig(LhiQubitConfigInterface, BaseModel):
 
 
 class GateNoiseConfigInterface:
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def from_dict(cls, dict: Any) -> GateNoiseConfigInterface:
         raise NotImplementedError
 
@@ -482,7 +489,7 @@ class SingleGateConfig(BaseModel):
     gate_configs: List[GateConfig]
 
     @classmethod
-    def from_dict(cls, dict: Any) -> MultiGateConfig:
+    def from_dict(cls, dict: Any) -> SingleGateConfig:
         return SingleGateConfig(
             qubit_id=dict["qubit_id"],
             gate_configs=[GateConfig.from_dict(d) for d in dict["gate_configs"]],
@@ -798,7 +805,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         return infos
 
     def get_single_gate_configs(self) -> Dict[int, List[LhiGateConfigInterface]]:
-        infos: Dict[int, LhiGateConfigInterface] = {}
+        infos: Dict[int, List[LhiGateConfigInterface]] = {}
         for cfg in self.single_gates:
             infos[cfg.qubit_id] = cfg.gate_configs
         return infos
@@ -806,7 +813,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
     def get_multi_gate_configs(
         self,
     ) -> Dict[MultiQubit, List[LhiGateConfigInterface]]:
-        infos: Dict[Tuple[int, ...], LhiGateConfigInterface] = {}
+        infos: Dict[MultiQubit, List[LhiGateConfigInterface]] = {}
         for cfg in self.multi_gates:
             infos[MultiQubit(cfg.qubit_ids)] = cfg.gate_configs
         return infos
@@ -1266,7 +1273,8 @@ class ProcNodeConfig(BaseModel):
 
 
 class LinkSamplerConfigInterface:
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def from_dict(cls, dict: Any) -> LinkSamplerConfigInterface:
         raise NotImplementedError
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, Generator, List, Optional, Tuple
 
 from netsquid.nodes import Node
 from netsquid.protocols import Protocol
@@ -25,14 +25,14 @@ from qoala.sim.events import EPR_DELIVERY, MSG_REQUEST_DELIVERED
 from qoala.util.logging import LogManager
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class EntDistRequest:
     local_node_id: int
     remote_node_id: int
     local_qubit_id: int
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class JointRequest:
     node1_id: int
     node2_id: int
@@ -79,7 +79,7 @@ class EntDist(Protocol):
         self._nodes: Dict[int, Node] = {node.ID: node for node in nodes}
 
         # (Node ID 1, Node ID 2) -> Sampler
-        self._samplers: Dict[Tuple[int, int], DelayedSampler] = {}
+        self._samplers: Dict[FrozenSet[int], DelayedSampler] = {}
 
         # Node ID -> list of requests
         self._requests: Dict[int, List[EntDistRequest]] = {
@@ -102,15 +102,14 @@ class EntDist(Protocol):
         kwargs: Dict[str, Any],
         delay: float,
     ) -> None:
-        if (node1_id, node2_id) in self._samplers:
-            raise ValueError(f"Sampler for ({node1_id}, {node2_id}) already registered")
-        if (node2_id, node1_id) in self._samplers:
+        link = frozenset([node1_id, node2_id])
+        if link in self._samplers:
             raise ValueError(
-                f"Sampler for ({node1_id}, {node2_id}) already registered. "
-                "NOTE: only one sampler per node pair is allowed; order does not matter."
+                f"Sampler for ({node1_id}, {node2_id}) already registered \
+                NOTE: only one sampler per node pair is allowed; order does not matter."
             )
         sampler = factory.create_state_delivery_sampler(**kwargs)
-        self._samplers[(node1_id, node2_id)] = DelayedSampler(sampler, delay)
+        self._samplers[link] = DelayedSampler(sampler, delay)
 
     def add_sampler(self, node1_id: int, node2_id: int, info: LhiLinkInfo) -> None:
         self._add_sampler(
@@ -122,20 +121,20 @@ class EntDist(Protocol):
         )
 
     def get_sampler(self, node1_id: int, node2_id: int) -> DelayedSampler:
+        link = frozenset([node1_id, node2_id])
         try:
-            return self._samplers[(node1_id, node2_id)]
+            return self._samplers[link]
         except KeyError:
-            pass
-        try:
-            return self._samplers[(node2_id, node1_id)]
-        except KeyError:
-            raise ValueError(f"No sampler registered for pair ({node1_id}, {node2_id})")
+            raise ValueError(
+                f"No sampler registered for pair ({node1_id}, {node2_id}) \
+                NOTE: only one sampler per node pair is allowed; order does not matter."
+            )
 
-    def sample_state(self, sampler: StateDeliverySampler) -> EprDeliverySample:
+    def sample_state(cls, sampler: StateDeliverySampler) -> EprDeliverySample:
         raw_sample: DeliverySample = sampler.sample()
         return EprDeliverySample.from_ns_magic_delivery_sample(raw_sample)
 
-    def create_epr_pair_with_state(self, state: QRepr) -> Tuple[Qubit, Qubit]:
+    def create_epr_pair_with_state(cls, state: QRepr) -> Tuple[Qubit, Qubit]:
         q0, q1 = qubitapi.create_qubits(2)
         qubitapi.assign_qstate([q0, q1], state)
         return q0, q1
@@ -158,6 +157,16 @@ class EntDist(Protocol):
         node1_mem = self._nodes[node1_id].qmemory
         node2_mem = self._nodes[node2_id].qmemory
 
+        if not (0 <= node1_phys_id < node1_mem.num_positions):
+            raise ValueError(
+                f"qubit location id of {node1_phys_id} is not present in \
+                    quantum memory of node ID {node1_id}."
+            )
+        if not (0 <= node2_phys_id < node2_mem.num_positions):
+            raise ValueError(
+                f"qubit location id of {node2_phys_id} is not present in \
+                    quantum memory of node ID {node2_id}."
+            )
         node1_mem.mem_positions[node1_phys_id].in_use = True
         node2_mem.mem_positions[node2_phys_id].in_use = True
 
@@ -183,6 +192,12 @@ class EntDist(Protocol):
             raise ValueError(
                 f"Invalid request: node ID {request.remote_node_id} not registered in EntDist."
             )
+        if request.remote_node_id == request.local_node_id:
+            raise ValueError(
+                f"Invalid request: local node ID {request.local_node_id} and remote node ID \
+                {request.remote_node_id} are the same."
+            )
+
         self._requests[request.local_node_id].append(request)
 
     def get_requests(self, node_id: int) -> List[EntDistRequest]:
@@ -200,9 +215,9 @@ class EntDist(Protocol):
         except KeyError:
             # Invalid remote node ID.
             raise ValueError(
-                f"Request {local_request} refers to remote node "
-                f"{local_request.remote_node_id} "
-                "but this node is not registed in the EntDist."
+                f"Request {local_request} refers to remote node \
+                {local_request.remote_node_id} \
+                but this node is not registed in the EntDist."
             )
 
         for i, req in enumerate(remote_requests):

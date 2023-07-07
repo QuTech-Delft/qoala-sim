@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum, auto
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Set, Tuple
 
 import netsquid as ns
 from netsquid.protocols import Protocol
@@ -429,7 +429,7 @@ class EdfScheduler(ProcessorScheduler):
             )
 
     def wait_for_external_tasks(
-        self, ext_pred: List[int]
+        self, ext_pred: Set[int]
     ) -> Generator[EventExpression, None, None]:
         self._logger.debug("checking if external predecessors have finished...")
         assert self._other_scheduler is not None

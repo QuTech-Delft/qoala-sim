@@ -329,7 +329,7 @@ SUBROUTINE subrt1
     expected_args = ["my_value"]
     assert subrt == LocalRoutine(
         name="subrt1",
-        subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        subroutine=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.use_none(),
         return_vars=["m"],
     )
@@ -365,7 +365,7 @@ SUBROUTINE my_subroutine
     expected_args = ["param1", "param2"]
     assert subrt == LocalRoutine(
         name="my_subroutine",
-        subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        subroutine=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
         return_vars=["result1", "result2"],
     )
@@ -401,7 +401,7 @@ SUBROUTINE my_subroutine
     expected_args = ["param1", "param2"]
     assert subrt == LocalRoutine(
         name="my_subroutine",
-        subrt=Subroutine(instructions=expected_instrs, arguments=expected_args),
+        subroutine=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
         return_vars=[LrReturnVector("outcomes", 10)],
     )
@@ -450,13 +450,17 @@ SUBROUTINE subrt2
 
     assert subrt1 == LocalRoutine(
         name="subrt1",
-        subrt=Subroutine(instructions=expected_instrs_1, arguments=expected_args_1),
+        subroutine=Subroutine(
+            instructions=expected_instrs_1, arguments=expected_args_1
+        ),
         metadata=RoutineMetadata.free_all([0]),
         return_vars=["m"],
     )
     assert subrt2 == LocalRoutine(
         name="subrt2",
-        subrt=Subroutine(instructions=expected_instrs_2, arguments=expected_args_2),
+        subroutine=Subroutine(
+            instructions=expected_instrs_2, arguments=expected_args_2
+        ),
         metadata=RoutineMetadata.use_none(),
         return_vars=[],
     )

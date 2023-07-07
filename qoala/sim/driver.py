@@ -128,10 +128,7 @@ class CpuDriver(Driver):
         self._hostprocessor.post_rr_call(process, instr, rrcall)
 
     def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
-        if isinstance(task, HostLocalTask):
-            process = self._memmgr.get_process(task.pid)
-            yield from self._hostprocessor.assign_block(process, task.block_name)
-        elif isinstance(task, HostEventTask):
+        if isinstance(task, HostLocalTask) or isinstance(task, HostEventTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
         elif isinstance(task, PreCallTask):

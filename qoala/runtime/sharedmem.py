@@ -18,7 +18,7 @@ class SharedMemIllegalRegionError(Exception):
     pass
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class MemAddr:
     addr: int
 
@@ -38,17 +38,23 @@ class NetQASMArrays:
 
     def write(self, addr: MemAddr, data: List[int], offset: int) -> None:
         if addr not in self._memory:
-            raise SharedMemWriteError
+            raise SharedMemWriteError(f"Address {addr} is not in the memory.")
         if len(self._memory[addr]) < offset + len(data):
-            raise SharedMemWriteError
+            raise SharedMemWriteError(
+                f"Address size of the data + offset is larger than the \
+                allocated space in the memory for address {addr}."
+            )
         for i in range(len(data)):
             self._memory[addr][i + offset] = data[i]
 
     def read(self, addr: MemAddr, size: int, offset: int) -> List[int]:
         if addr not in self._memory:
-            raise SharedMemReadError
+            raise SharedMemReadError(f"Address {addr} is not in the memory.")
         if len(self._memory[addr]) < offset + size:
-            raise SharedMemReadError
+            raise SharedMemReadError(
+                f"Size + offset is larger than the \
+                allocated space in the memory for address {addr}."
+            )
         array = self._memory[addr][offset : offset + size]
         assert all(v is not None for v in array)
         return array  # type: ignore

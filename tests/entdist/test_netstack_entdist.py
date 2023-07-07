@@ -133,11 +133,15 @@ def test_single_pair_only_netstack_interface():
     bob_intf = BobNetstackInterface(
         bob_comp, ehi_network, bob_qdevice, requests=[request_bob]
     )
+    ns.sim_reset()
+    assert ns.sim_time() == 0
 
     alice_intf.start()
     bob_intf.start()
     entdist.start()
     ns.sim_run()
+
+    assert ns.sim_time() == 1800  # 1000 + max(800, 500)
 
     alice_qubit = alice_qdevice.get_local_qubit(0)
     bob_qubit = bob_qdevice.get_local_qubit(0)
@@ -180,16 +184,28 @@ def test_multiple_pairs_only_netstack_interface():
         bob_comp, ehi_network, bob_qdevice, requests=requests_bob
     )
 
+    ns.sim_reset()
+    assert ns.sim_time() == 0
     alice_intf.start()
     bob_intf.start()
     entdist.start()
     ns.sim_run()
+
+    # 500 + 1000 * 3 since epr pairs are created sequentially
+    assert ns.sim_time() == 3500
 
     alice_q0, alice_q1, alice_q2 = [alice_qdevice.get_local_qubit(i) for i in range(3)]
     bob_q0, bob_q1, bob_q2 = [bob_qdevice.get_local_qubit(i) for i in range(3)]
     assert has_multi_state([alice_q0, bob_q1], B00_DENS)
     assert has_multi_state([alice_q1, bob_q2], B00_DENS)
     assert has_multi_state([alice_q2, bob_q0], B00_DENS)
+
+    assert not has_multi_state([alice_q0, bob_q0], B00_DENS)
+    assert not has_multi_state([alice_q1, bob_q1], B00_DENS)
+    assert not has_multi_state([alice_q2, bob_q2], B00_DENS)
+    assert not has_multi_state([alice_q0, bob_q2], B00_DENS)
+    assert not has_multi_state([alice_q1, bob_q0], B00_DENS)
+    assert not has_multi_state([alice_q2, bob_q1], B00_DENS)
 
 
 def setup_components_full_netstack(
@@ -264,10 +280,14 @@ def test_single_pair_full_netstack():
         1, alice_id, bob_id, AliceNetstack, BobNetstack
     )
 
+    ns.sim_reset()
+    assert ns.sim_time() == 0
     alice_netstack.start()
     bob_netstack.start()
     entdist.start()
     ns.sim_run()
+
+    assert ns.sim_time() == 1000
 
     alice_qubit = alice_netstack.qdevice.get_local_qubit(0)
     bob_qubit = bob_netstack.qdevice.get_local_qubit(0)
@@ -303,10 +323,14 @@ def test_multiple_pairs_full_netstack():
         3, alice_id, bob_id, AliceNetstack, BobNetstack
     )
 
+    ns.sim_reset()
+    assert ns.sim_time() == 0
     alice_netstack.start()
     bob_netstack.start()
     entdist.start()
     ns.sim_run()
+
+    assert ns.sim_time() == 2000  # 2 pairs, 1000 ns each
 
     aq0 = alice_netstack.qdevice.get_local_qubit(0)
     bq0 = bob_netstack.qdevice.get_local_qubit(0)
@@ -314,6 +338,9 @@ def test_multiple_pairs_full_netstack():
     bq2 = bob_netstack.qdevice.get_local_qubit(2)
     assert has_multi_state([aq0, bq0], B00_DENS)
     assert has_multi_state([aq1, bq2], B00_DENS)
+
+    assert not has_multi_state([aq0, bq2], B00_DENS)
+    assert not has_multi_state([aq1, bq0], B00_DENS)
 
 
 def create_simple_request(
@@ -342,7 +369,7 @@ def simple_req_routine(
     virt_ids: RequestVirtIdMapping,
     typ: EprType,
     role: EprRole,
-) -> QoalaRequest:
+) -> RequestRoutine:
     return RequestRoutine(
         name="req1",
         request=create_simple_request(remote_id, num_pairs, virt_ids, typ, role),
@@ -357,10 +384,7 @@ def create_process(
     routines: Optional[Dict[str, LocalRoutine]] = None,
     req_routines: Optional[Dict[str, RequestRoutine]] = None,
 ) -> QoalaProcess:
-    if routines is None:
-        routines = {}
-    if req_routines is None:
-        req_routines = {}
+
     program = QoalaProgram(
         blocks=[],
         local_routines=routines,

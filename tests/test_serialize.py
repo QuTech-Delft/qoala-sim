@@ -120,7 +120,7 @@ SUBROUTINE subrt1
     M0 = Register.from_str("M0")
     subrt = LocalRoutine(
         name="subrt1",
-        subrt=Subroutine(
+        subroutine=Subroutine(
             instructions=[
                 SetInstruction(reg=Q0, imm=0),
                 RotZInstruction(reg=Q0, imm0=Template("my_value"), imm1=4),
@@ -167,7 +167,7 @@ SUBROUTINE subrt2
     M0 = Register.from_str("M0")
     subrt1 = LocalRoutine(
         name="subrt1",
-        subrt=Subroutine(
+        subroutine=Subroutine(
             instructions=[
                 SetInstruction(reg=R0, imm=Template("param1")),
                 MeasInstruction(reg0=Q0, reg1=M0),
@@ -179,7 +179,7 @@ SUBROUTINE subrt2
     )
     subrt2 = LocalRoutine(
         name="subrt2",
-        subrt=Subroutine(
+        subroutine=Subroutine(
             instructions=[
                 SetInstruction(reg=R0, imm=Template("theta")),
             ],
@@ -250,7 +250,7 @@ SUBROUTINE subrt1
     M0 = Register.from_str("M0")
     subrt = LocalRoutine(
         name="subrt1",
-        subrt=Subroutine(
+        subroutine=Subroutine(
             instructions=[
                 SetInstruction(reg=Q0, imm=0),
                 RotZInstruction(reg=Q0, imm0=Template("my_value"), imm1=4),

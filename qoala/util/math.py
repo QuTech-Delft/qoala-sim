@@ -48,31 +48,31 @@ def prob_max_mixed_to_fidelity(num_qubits: int, prob: float) -> float:
 
 
 def has_state(qubit: Qubit, state: np.ndarray, margin: float = 0.001) -> bool:
-    dist: float = abs(1.0 - qubitapi.fidelity(qubit, state, squared=True))
-    return dist < margin
+    fidelity = qubitapi.fidelity(qubit, state, squared=True)
+    return math.isclose(1.0, fidelity, abs_tol=margin)
 
 
 def has_multi_state(
     qubits: List[Qubit], state: np.ndarray, margin: float = 0.001
 ) -> bool:
-    dist: float = abs(1.0 - qubitapi.fidelity(qubits, state, squared=True))
-    return dist < margin
+    fidelity = qubitapi.fidelity(qubits, state, squared=True)
+    return math.isclose(1.0, fidelity, abs_tol=margin)
 
 
 def density_matrices_equal(
     state1: np.ndarray, state2: np.ndarray, margin: float = 0.001
 ) -> bool:
-    distance: float = abs(0.5 * np.linalg.norm(state1 - state2, 1))  # type: ignore
-    return distance < margin
+    distance = np.linalg.norm(state1 - state2, 1) / 2
+    return math.isclose(0, distance, abs_tol=margin)
 
 
 def has_max_mixed_state(qubit: Qubit, margin: float = 0.001) -> bool:
     max_mixed = np.array([[0.5, 0], [0, 0.5]])
     qubit_state = qubitapi.reduced_dm(qubit)
-    return density_matrices_equal(qubit_state, max_mixed)
+    return density_matrices_equal(qubit_state, max_mixed, margin)
 
 
 def has_max_mixed_two_qubit_state(q0: Qubit, q1: Qubit, margin: float = 0.001) -> bool:
     max_mixed = TWO_MAX_MIXED
     qubit_state = qubitapi.reduced_dm([q0, q1])
-    return density_matrices_equal(qubit_state, max_mixed)
+    return density_matrices_equal(qubit_state, max_mixed, margin)

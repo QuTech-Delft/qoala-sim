@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import netsquid as ns
+import pytest
 from netqasm.lang.subroutine import Subroutine
 
 from pydynaa import EventExpression
@@ -52,7 +53,7 @@ MOCK_QNOS_RET_VALUE = 7
 MOCK_NETSTACK_RET_VALUE = 22
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class InterfaceEvent:
     peer: str
     msg: Message
@@ -101,10 +102,7 @@ def create_program(
 ) -> QoalaProgram:
     if instrs is None:
         instrs = []
-    if subroutines is None:
-        subroutines = {}
-    if requests is None:
-        requests = {}
+
     if meta is None:
         meta = ProgramMeta.empty("prog")
     # TODO: split into proper blocks
@@ -164,9 +162,13 @@ def test_initialize():
 
     processor.initialize(process)
     host_mem = process.prog_memory.host_mem
+
     assert host_mem.read("x") == 1
     assert host_mem.read("theta") == 3.14
     assert host_mem.read("name") == "alice"
+
+    with pytest.raises(KeyError):
+        host_mem.read_vec("x")
 
 
 def test_assign_cvalue():

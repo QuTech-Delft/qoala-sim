@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class MultiQubit:
     qubit_ids: List[int]
 

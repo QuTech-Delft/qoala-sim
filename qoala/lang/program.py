@@ -74,7 +74,7 @@ class QoalaProgram:
         return self._blocks
 
     @blocks.setter
-    def blocks(self, new_blocks) -> None:
+    def blocks(self, new_blocks: List[BasicBlock]) -> None:
         self._blocks = new_blocks
 
     def get_block(self, name: str) -> BasicBlock:

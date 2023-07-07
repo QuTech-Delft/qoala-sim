@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any, Dict, FrozenSet, Optional, Type
 
 from netsquid.components.models.qerrormodels import (
     DepolarNoiseModel,
@@ -117,8 +117,9 @@ class LhiConverter:
 
     @classmethod
     def network_to_ehi(cls, info: LhiNetworkInfo) -> EhiNetworkInfo:
-        links: Dict[Tuple[int, int], EhiLinkInfo] = {}
+        links: Dict[FrozenSet[int], EhiLinkInfo] = {}
         for ([n1, n2], link_info) in info.links.items():
             ehi_link = cls.link_info_to_ehi(link_info)
-            links[(n1, n2)] = ehi_link
+            node_link = frozenset([n1, n2])
+            links[node_link] = ehi_link
         return EhiNetworkInfo(info.nodes, links)

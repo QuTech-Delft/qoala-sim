@@ -83,6 +83,8 @@ def test1():
 
 def test2():
     qdevices = create_n_qdevices(4, num_qubits=2)
+    assert all(qdevice.get_qubit_count() == 2 for qdevice in qdevices)
+
     entdist = create_entdist(qdevices)
 
     ids = [qdevices[i].node.ID for i in range(4)]
