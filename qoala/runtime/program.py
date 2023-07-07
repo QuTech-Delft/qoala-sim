@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import QoalaProgram
@@ -55,8 +55,9 @@ class ProgramBatch:
 class BatchResult:
     batch_id: int
     results: List[ProgramResult]
-    timestamps: List[Tuple[float, float]]  # start, end
+    timestamps: List[Optional[Tuple[float, float]]]  # start, end
 
     @property
     def durations(self) -> List[float]:
-        return [end - start for (start, end) in self.timestamps]
+        assert all(entry is not None for entry in self.timestamps)
+        return [end - start for (start, end) in self.timestamps]  # type: ignore

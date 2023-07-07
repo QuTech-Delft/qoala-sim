@@ -198,18 +198,35 @@ class NodeScheduler(Protocol):
                 self.memmgr.add_process(process)
                 self.initialize_process(process)
 
-    def collect_batch_results(self) -> None:
-        for batch_id, batch in self._batches.items():
-            results: List[ProgramResult] = []
-            timestamps: List[Tuple[float, float]] = []
-            for prog_instance in batch.instances:
-                process = self.memmgr.get_process(prog_instance.pid)
-                results.append(process.result)
-                cpu_start, cpu_end = self.cpu_scheduler.get_timestamps(process.pid)
-                qpu_start, qpu_end = self.qpu_scheduler.get_timestamps(process.pid)
+    def collect_timestamps(self, batch_id: int) -> List[Optional[Tuple[float, float]]]:
+        batch = self._batches[batch_id]
+        timestamps: List[Optional[Tuple[float, float]]] = []
+        for prog_instance in batch.instances:
+            process = self.memmgr.get_process(prog_instance.pid)
+            cpu_start_end = self.cpu_scheduler.get_timestamps(process.pid)
+            if cpu_start_end is None:
+                timestamps.append(None)
+                continue
+
+            cpu_start, cpu_end = cpu_start_end
+            qpu_start_end = self.qpu_scheduler.get_timestamps(process.pid)
+            # QPU timestamps could be None (if program did not have any quantum tasks)
+            if qpu_start_end is not None:
+                qpu_start, qpu_end = qpu_start_end
                 start = min(cpu_start, qpu_start)
                 end = max(cpu_end, qpu_end)
                 timestamps.append((start, end))
+            else:
+                timestamps.append((cpu_start, cpu_end))
+        return timestamps
+
+    def collect_batch_results(self) -> None:
+        for batch_id, batch in self._batches.items():
+            results: List[ProgramResult] = []
+            for prog_instance in batch.instances:
+                process = self.memmgr.get_process(prog_instance.pid)
+                results.append(process.result)
+            timestamps = self.collect_timestamps(batch_id)
             self._batch_results[batch_id] = BatchResult(batch_id, results, timestamps)
 
     def get_batch_results(self) -> Dict[int, BatchResult]:
@@ -318,7 +335,11 @@ class ProcessorScheduler(Protocol):
         # Overwrite end time for every task. Automatically the last timestamp remains.
         self._prog_end_timestamps[pid] = time
 
-    def get_timestamps(self, pid: int) -> Tuple[float, float]:
+    def get_timestamps(self, pid: int) -> Optional[Tuple[float, float]]:
+        if pid not in self._prog_start_timestamps:
+            assert pid not in self._prog_end_timestamps
+            return None
+        assert pid in self._prog_end_timestamps
         return self._prog_start_timestamps[pid], self._prog_end_timestamps[pid]
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:

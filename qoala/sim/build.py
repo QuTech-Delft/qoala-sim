@@ -1,8 +1,11 @@
 import itertools
 from typing import Dict, List, Tuple
 
+from netsquid.components import ClassicalChannel
+from netsquid.components.models import FibreDelayModel
 from netsquid.components.models.qerrormodels import QuantumErrorModel
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
+from netsquid.nodes.connections import Connection
 
 from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo, EhiNetworkSchedule
 
@@ -23,6 +26,18 @@ from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.network import ProcNodeNetwork
 from qoala.sim.procnode import ProcNode
+
+
+class ClassicalConnection(Connection):
+    def __init__(self, name: str, length: float):
+        super().__init__(name=name)
+        self.add_subcomponent(
+            ClassicalChannel(
+                "Channel_A2B", length=length, models={"delay_model": FibreDelayModel()}
+            )
+        )
+        self.ports["A"].forward_input(self.subcomponents["Channel_A2B"].ports["send"])
+        self.subcomponents["Channel_A2B"].ports["recv"].forward_output(self.ports["B"])
 
 
 def build_qprocessor_from_topology(
@@ -136,12 +151,30 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         n2 = link_between_nodes.node_id2
         entdist.add_sampler(n1, n2, link)
 
-    for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
-        s1.connect_to(s2)
+    def get_latency(node1: int, node2: int) -> float:
+        if config.cconns is None:
+            return 0.0
+        for cconn in config.cconns:
+            if (cconn.node_id1 == node1 and cconn.node_id2 == node2) or (
+                cconn.node_id1 == node1 and cconn.node_id2 == node2
+            ):
+                return cconn.latency  # type: ignore
+        return 0.0
 
+    for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
+        latency = get_latency(s1.node.node_id, s2.node.node_id)
+        s1.connect_to(s2, latency)
+
+    # TODO: make this configurable
+    node_entdist_latency = 0
     for name, procnode in procnodes.items():
-        procnode.node.entdist_out_port.connect(entdistcomp.node_in_port(name))
-        procnode.node.entdist_in_port.connect(entdistcomp.node_out_port(name))
+        chan_ne = ClassicalChannel(f"chan_{name}_entdist", delay=node_entdist_latency)
+        procnode.node.entdist_out_port.connect(chan_ne.ports["send"])
+        chan_ne.ports["recv"].connect(entdistcomp.node_in_port(name))
+
+        chan_en = ClassicalChannel(f"chan_entdist_{name}", delay=node_entdist_latency)
+        entdistcomp.node_out_port(name).connect(chan_en.ports["send"])
+        chan_en.ports["recv"].connect(procnode.node.entdist_in_port)
 
     return ProcNodeNetwork(procnodes, entdist)
 

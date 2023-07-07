@@ -1436,6 +1436,32 @@ class LinkBetweenNodesConfig(BaseModel):
         )
 
 
+class ClassicalConnectionConfig(BaseModel):
+    node_id1: int
+    node_id2: int
+    latency: float
+
+    @classmethod
+    def from_nodes(
+        cls, node_id1: int, node_id2: int, latency: float
+    ) -> ClassicalConnectionConfig:
+        return ClassicalConnectionConfig(
+            node_id1=node_id1, node_id2=node_id2, latency=latency
+        )
+
+    @classmethod
+    def from_file(cls, path: str) -> ClassicalConnectionConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> ClassicalConnectionConfig:
+        return ClassicalConnectionConfig(
+            node_id1=dict["node_id1"],
+            node_id2=dict["node_id2"],
+            latency=dict["latency"],
+        )
+
+
 class NetworkScheduleConfig(BaseModel):
     bin_length: int
     first_bin: int
@@ -1458,6 +1484,7 @@ class ProcNodeNetworkConfig(BaseModel):
     nodes: List[ProcNodeConfig]
     links: List[LinkBetweenNodesConfig]
     netschedule: Optional[NetworkScheduleConfig] = None
+    cconns: List[ClassicalConnectionConfig] = None
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeNetworkConfig:
