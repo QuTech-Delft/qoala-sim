@@ -28,7 +28,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import TaskExecutionMode, TaskGraphBuilder
+from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.util.logging import LogManager
 from qoala.util.runner import AppResult, create_batch
@@ -141,7 +141,6 @@ def create_procnode_cfg(
         topology=TopologyConfig.from_nv_params(num_qubits=5, params=nv_params),
         latencies=LatenciesConfig(qnos_instr_time=1000, host_instr_time=1000),
         ntf=NtfConfig.from_cls_name("NvNtf"),
-        tem=TaskExecutionMode.QOALA.name,
         determ_sched=determ,
         use_deadlines=deadlines,
     )

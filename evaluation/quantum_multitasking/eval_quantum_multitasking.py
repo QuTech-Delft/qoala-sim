@@ -25,13 +25,8 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.runtime.task import TaskExecutionMode
 from qoala.util.logging import LogManager
-from qoala.util.runner import (
-    run_1_server_n_clients,
-    run_two_node_app_separate_inputs,
-    run_two_node_app_separate_inputs_plus_3rd_program,
-)
+from qoala.util.runner import run_1_server_n_clients
 
 
 def create_procnode_cfg(
@@ -46,7 +41,6 @@ def create_procnode_cfg(
         topology=TopologyConfig.from_nv_params(num_qubits=5, params=nv_params),
         latencies=LatenciesConfig(qnos_instr_time=1000, host_instr_time=1000),
         ntf=NtfConfig.from_cls_name("NvNtf"),
-        tem=TaskExecutionMode.QOALA.name,
         determ_sched=determ,
         use_deadlines=deadlines,
     )
