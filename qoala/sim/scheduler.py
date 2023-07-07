@@ -17,9 +17,11 @@ from qoala.runtime.program import (
     ProgramInstance,
     ProgramResult,
 )
+from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import (
     MultiPairTask,
     ProcessorType,
+    QoalaTask,
     SinglePairTask,
     TaskGraph,
     TaskGraphBuilder,
@@ -159,6 +161,7 @@ class NodeScheduler(Protocol):
 
         if remote_pid is None:
             remote_pid = 42  # TODO: allow this at all?
+
         csockets: Dict[int, ClassicalSocket] = {}
         for i, remote_name in meta.csockets.items():
             # TODO: check for already existing classical sockets
@@ -273,8 +276,10 @@ class NodeScheduler(Protocol):
         self._cpu_scheduler.stop()
         super().stop()
 
-    def submit_program_instance(self, prog_instance: ProgramInstance) -> None:
-        process = self.create_process(prog_instance)
+    def submit_program_instance(
+        self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
+    ) -> None:
+        process = self.create_process(prog_instance, remote_pid)
         self.memmgr.add_process(process)
         self.initialize_process(process)
 
@@ -286,6 +291,16 @@ class NodeScheduler(Protocol):
                 all_tasks.append(inst.task_graph)
 
         return all_tasks
+
+    def get_statistics(self) -> SchedulerStatistics:
+        return SchedulerStatistics(
+            cpu_tasks_executed=self.cpu_scheduler.get_tasks_executed(),
+            qpu_tasks_executed=self.qpu_scheduler.get_tasks_executed(),
+            cpu_task_starts=self.cpu_scheduler.get_task_starts(),
+            qpu_task_starts=self.qpu_scheduler.get_task_starts(),
+            cpu_task_ends=self.cpu_scheduler.get_task_ends(),
+            qpu_task_ends=self.qpu_scheduler.get_task_ends(),
+        )
 
 
 class ProcessorScheduler(Protocol):
@@ -310,6 +325,10 @@ class ProcessorScheduler(Protocol):
 
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
         self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
+
+        self._tasks_executed: Dict[int, QoalaTask] = {}
+        self._task_starts: Dict[int, float] = {}
+        self._task_ends: Dict[int, float] = {}
 
         self._network_schedule = network_schedule
 
@@ -341,6 +360,15 @@ class ProcessorScheduler(Protocol):
             return None
         assert pid in self._prog_end_timestamps
         return self._prog_start_timestamps[pid], self._prog_end_timestamps[pid]
+
+    def get_tasks_executed(self) -> Dict[int, QoalaTask]:
+        return self._tasks_executed
+
+    def get_task_starts(self) -> Dict[int, float]:
+        return self._task_starts
+
+    def get_task_ends(self) -> Dict[int, float]:
+        return self._task_ends
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
