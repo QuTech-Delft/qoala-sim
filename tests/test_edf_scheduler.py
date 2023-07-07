@@ -6,7 +6,7 @@ from pydynaa import EventExpression
 from qoala.runtime.task import ProcessorType, QoalaTask, TaskGraph
 from qoala.sim.driver import Driver
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.scheduler import EdfScheduler, SchedulerStatus
+from qoala.sim.scheduler import CpuEdfScheduler, StatusNextTask
 
 
 class SimpleTask(QoalaTask):
@@ -32,25 +32,25 @@ class MockDriver(Driver):
         yield
 
 
-def test_next_task_one_root():
+def test_update_status_one_root():
     graph = TaskGraph()
     graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
     graph.add_precedences([(0, 1)])
     graph.add_rel_deadlines([((0, 1), 100)])
 
-    scheduler = EdfScheduler(name="sched", driver=MockDriver())
+    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
-    assert scheduler.next_task() == (SchedulerStatus.TASK_AVAILABLE, 0)
+    assert scheduler.update_status() == StatusNextTask(0)
 
 
-def test_next_task_two_roots():
+def test_update_status_two_roots():
     graph = TaskGraph()
     graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
     graph.add_deadlines([(0, 1000), (1, 500)])
 
-    scheduler = EdfScheduler(name="sched", driver=MockDriver())
+    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
-    assert scheduler.next_task() == (SchedulerStatus.TASK_AVAILABLE, 1)
+    assert scheduler.update_status() == StatusNextTask(1)
 
 
 def test_edf_1():
@@ -59,7 +59,7 @@ def test_edf_1():
     graph.add_precedences([(0, 1)])
     graph.add_rel_deadlines([((0, 1), 100)])
 
-    scheduler = EdfScheduler(name="sched", driver=MockDriver())
+    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -77,7 +77,7 @@ def test_edf_2():
     graph.add_precedences([(1, 2), (1, 3), (2, 4)])
     graph.add_rel_deadlines([((1, 2), 200), ((1, 3), 400), ((2, 4), 100)])
 
-    scheduler = EdfScheduler(name="sched", driver=MockDriver())
+    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -88,7 +88,7 @@ def test_edf_2():
 
 
 if __name__ == "__main__":
-    test_next_task_one_root()
-    test_next_task_two_roots()
+    test_update_status_one_root()
+    test_update_status_two_roots()
     test_edf_1()
     test_edf_2()

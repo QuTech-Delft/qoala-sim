@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Dict, Generator
+from typing import Dict, Generator, List
 
 from netsquid.protocols import Protocol
 
@@ -142,6 +142,10 @@ class CpuDriver(Driver):
             else:
                 assert block.typ == BasicBlockType.QC
                 self._handle_precall_rr(task)
+            # Simulate processing time of PreCallTask
+            # TODO refactor
+            latency = self._hostprocessor._latencies.host_instr_time
+            yield from self._hostprocessor._interface.wait(latency)
         elif isinstance(task, PostCallTask):
             process = self._memmgr.get_process(task.pid)
             block = process.program.get_block(task.block_name)
@@ -150,6 +154,10 @@ class CpuDriver(Driver):
             else:
                 assert block.typ == BasicBlockType.QC
                 self._handle_postcall_rr(task)
+            # Simulate processing time of PostCallTask
+            # TODO refactor
+            latency = self._hostprocessor._latencies.host_instr_time
+            yield from self._hostprocessor._interface.wait(latency)
         else:
             raise NotImplementedError
 
@@ -253,6 +261,37 @@ class QpuDriver(Driver):
         yield from self._netstackprocessor.handle_single_pair(
             process, rrcall.routine_name, task.pair_index
         )
+
+    def handle_single_pair_group(
+        self, tasks: List[SinglePairTask]
+    ) -> Generator[EventExpression, None, int]:
+        processes: List[QoalaProcess] = []
+        routine_names: List[str] = []
+        indices: List[int] = []
+
+        for task in tasks:
+            process = self._memmgr.get_process(task.pid)
+
+            # The corresponding PreCallTask must have executed, and it must have written
+            # to the sharded scheduler memory.
+            rrcall = self._memory.read_shared_rrcall(task.shared_ptr)
+
+            global_args = process.prog_instance.inputs.values
+            try:
+                process.qnos_mem.get_running_request_routine(rrcall.routine_name)
+            except KeyError:
+                self._netstackprocessor.instantiate_routine(
+                    process, rrcall, global_args
+                )
+
+            processes.append(process)
+            routine_names.append(rrcall.routine_name)
+            indices.append(task.pair_index)
+
+        pid = yield from self._netstackprocessor.handle_single_pair_group(
+            processes, routine_names, indices
+        )
+        return pid
 
     def _handle_single_pair_callback(
         self, task: SinglePairCallbackTask

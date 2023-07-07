@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Generator
 
 import netsquid as ns
+from netsquid.components.cchannel import ClassicalChannel
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
@@ -147,6 +148,95 @@ def test_three_way_connection():
     ns.sim_run()
 
 
+def test_connection_with_channel():
+    ns.sim_reset()
+
+    alice = Node(name="alice", ID=0)
+    bob = Node(name="bob", ID=1)
+    ehi_network = EhiNetworkInfo.only_nodes({alice.ID: alice.name, bob.ID: bob.name})
+
+    alice_comp = HostComponent(alice, ehi_network)
+    bob_comp = HostComponent(bob, ehi_network)
+
+    channel_ab = ClassicalChannel("chan_ab", delay=1000)
+    channel_ba = ClassicalChannel("chan_ba", delay=1000)
+
+    alice_comp.peer_out_port("bob").connect(channel_ab.ports["send"])
+    channel_ab.ports["recv"].connect(bob_comp.peer_in_port("alice"))
+
+    bob_comp.peer_out_port("alice").connect(channel_ba.ports["send"])
+    channel_ba.ports["recv"].connect(alice_comp.peer_in_port("bob"))
+
+    class AliceHostInterface(HostInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            self.send_peer_msg("bob", Message(0, 0, "hello"))
+
+    class BobHostInterface(HostInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            print(f"before receiving: {ns.sim_time()}")
+            msg = yield from self.receive_peer_msg("alice")
+            print(f"{self.name}: received msg with content: {msg.content}")
+            print(f"after receiving: {ns.sim_time()}")
+
+    alice_intf = AliceHostInterface(alice_comp, ehi_network)
+    bob_intf = BobHostInterface(bob_comp, ehi_network)
+
+    alice_intf.start()
+    bob_intf.start()
+
+    ns.sim_run()
+
+
+def test_connection_with_pids():
+    ns.sim_reset()
+
+    alice = Node(name="alice", ID=0)
+    bob = Node(name="bob", ID=1)
+    ehi_network = EhiNetworkInfo.only_nodes({alice.ID: alice.name, bob.ID: bob.name})
+
+    alice_comp = HostComponent(alice, ehi_network)
+    bob_comp = HostComponent(bob, ehi_network)
+
+    channel_ab = ClassicalChannel("chan_ab", delay=1000)
+    channel_ba = ClassicalChannel("chan_ba", delay=1000)
+
+    alice_comp.peer_out_port("bob").connect(channel_ab.ports["send"])
+    channel_ab.ports["recv"].connect(bob_comp.peer_in_port("alice"))
+
+    bob_comp.peer_out_port("alice").connect(channel_ba.ports["send"])
+    channel_ba.ports["recv"].connect(alice_comp.peer_in_port("bob"))
+
+    class AliceHostInterface(HostInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            # Send message from PID 0 (alice) to PID 0 (bob)
+            self.send_peer_msg("bob", Message(0, 0, "hello (0, 0)"))
+
+            self.wait(500)
+
+            # Send message from PID 2 (alice) to PID 1 (bob)
+            self.send_peer_msg("bob", Message(2, 1, "hello (2, 1)"))
+
+    class BobHostInterface(HostInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            assert len(self.get_available_messages("alice")) == 0
+            yield from self.wait_for_msg("alice")
+            assert self.get_available_messages("alice") == [(0, 0), (2, 1)]
+            msg00 = self.pop_msg("alice", 0, 0)
+            msg21 = self.pop_msg("alice", 2, 1)
+            print(f"{self.name}: received msg (0, 0) with content: {msg00.content}")
+            print(f"{self.name}: received msg (2, 1) with content: {msg21.content}")
+            assert msg00 == Message(0, 0, "hello (0, 0)")
+            assert msg21 == Message(2, 1, "hello (2, 1)")
+
+    alice_intf = AliceHostInterface(alice_comp, ehi_network)
+    bob_intf = BobHostInterface(bob_comp, ehi_network)
+
+    alice_intf.start()
+    bob_intf.start()
+
+    ns.sim_run()
+
+
 if __name__ == "__main__":
     test_no_other_nodes()
     test_one_other_node()
@@ -154,3 +244,5 @@ if __name__ == "__main__":
 
     test_connection()
     test_three_way_connection()
+    test_connection_with_channel()
+    test_connection_with_pids()

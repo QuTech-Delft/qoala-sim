@@ -8,7 +8,7 @@ from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.sim.entdist.entdist import EntDistRequest
-from qoala.sim.events import MSG_REQUEST_DELIVERED
+from qoala.sim.memmgr import VirtualLocation
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
@@ -48,15 +48,28 @@ class NetstackProcessor:
     def qdevice(self) -> QDevice:
         return self._interface.qdevice
 
-    def execute_entdist_request(
+    def _execute_entdist_request(
         self, request: EntDistRequest
     ) -> Generator[EventExpression, None, None]:
+        # TODO: use PIDs??
         self._interface.send_entdist_msg(Message(-1, -1, request))
         result = yield from self._interface.receive_entdist_msg()
-        if result.content != MSG_REQUEST_DELIVERED:
+        if result.content < 0:  # ?? never happens ?
             raise RuntimeError("Request was not served")
 
-    def allocate_for_pair(
+    def _execute_entdist_request_group(
+        self, request: EntDistRequest
+    ) -> Generator[EventExpression, None, int]:
+        self._logger.info(f"sending message {request}")
+        self._interface.send_entdist_msg(Message(-1, -1, request))
+        result = yield from self._interface.receive_entdist_msg()
+        self._logger.info("got a response")
+        if result.content < 0:  # ?? never happens ?
+            raise RuntimeError("Request was not served")
+        pid: int = result.content  # PID that was chosen
+        return pid
+
+    def _allocate_for_pair(
         self, process: QoalaProcess, request: QoalaRequest, index: int
     ) -> int:
         memmgr = self._interface.memmgr
@@ -67,24 +80,28 @@ class NetstackProcessor:
 
         return virt_id
 
-    def create_entdist_request(
+    def _create_entdist_request(
         self, process: QoalaProcess, request: QoalaRequest, virt_id: int
     ) -> EntDistRequest:
         memmgr = self._interface.memmgr
         pid = process.pid
         phys_id = memmgr.phys_id_for(pid, virt_id)
 
+        epr_sck = process.epr_sockets[request.epr_socket_id]
+
         return EntDistRequest(
             local_node_id=self._interface.node_id,
             remote_node_id=request.remote_id,
             local_qubit_id=phys_id,
+            local_pids=[epr_sck.local_pid],
+            remote_pids=[epr_sck.remote_pid],
         )
 
     def measure_epr_qubit(
         self, process: QoalaProcess, virt_id: int
     ) -> Generator[EventExpression, None, int]:
         phys_id = self._interface.memmgr.phys_id_for(process.pid, virt_id)
-        # Should have been allocated by `handle_req_routine_md`
+        # Should have been allocated by `_handle_req_routine_md`
         assert phys_id is not None
         # Use the special INSTR_MEASURE_INSTANT instruction so that measuring
         # doesn't take time.
@@ -93,7 +110,7 @@ class NetstackProcessor:
         assert m is not None
         return m
 
-    def handle_req_routine_md(
+    def _handle_req_routine_md(
         self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
@@ -108,10 +125,10 @@ class NetstackProcessor:
             raise NotImplementedError
         else:
             for i in range(num_pairs):
-                virt_id = self.allocate_for_pair(process, request, i)
-                entdist_req = self.create_entdist_request(process, request, virt_id)
+                virt_id = self._allocate_for_pair(process, request, i)
+                entdist_req = self._create_entdist_request(process, request, virt_id)
                 # Create EPR pair
-                yield from self.execute_entdist_request(entdist_req)
+                yield from self._execute_entdist_request(entdist_req)
                 # Measure local qubit
                 m = yield from self.measure_epr_qubit(process, virt_id)
                 # Free virt qubit
@@ -122,7 +139,7 @@ class NetstackProcessor:
         results_addr = running_routine.result_addr
         shared_mem.write_rr_out(results_addr, outcomes)
 
-    def handle_req_routine_ck(
+    def _handle_req_routine_ck(
         self,
         process: QoalaProcess,
         routine_name: str,
@@ -135,9 +152,9 @@ class NetstackProcessor:
 
         if routine.callback_type == CallbackType.SEQUENTIAL:
             for i in range(num_pairs):
-                virt_id = self.allocate_for_pair(process, request, i)
-                entdist_req = self.create_entdist_request(process, request, virt_id)
-                yield from self.execute_entdist_request(entdist_req)
+                virt_id = self._allocate_for_pair(process, request, i)
+                entdist_req = self._create_entdist_request(process, request, virt_id)
+                yield from self._execute_entdist_request(entdist_req)
 
                 if routine.callback is not None:
                     # TODO: write CR inputs to shared memory
@@ -165,9 +182,9 @@ class NetstackProcessor:
                             self._interface.memmgr.free(process.pid, virt_id)
         else:
             for i in range(num_pairs):
-                virt_id = self.allocate_for_pair(process, request, i)
-                entdist_req = self.create_entdist_request(process, request, virt_id)
-                yield from self.execute_entdist_request(entdist_req)
+                virt_id = self._allocate_for_pair(process, request, i)
+                entdist_req = self._create_entdist_request(process, request, virt_id)
+                yield from self._execute_entdist_request(entdist_req)
 
             if routine.callback is not None:
                 # TODO: write CR inputs to shared memory
@@ -194,7 +211,7 @@ class NetstackProcessor:
                     if virt_id not in cb_routine.metadata.qubit_keep:
                         self._interface.memmgr.free(process.pid, virt_id)
 
-    def handle_multi_pair_ck(
+    def _handle_multi_pair_ck(
         self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
@@ -204,11 +221,11 @@ class NetstackProcessor:
         num_pairs = request.num_pairs
 
         for i in range(num_pairs):
-            virt_id = self.allocate_for_pair(process, request, i)
-            entdist_req = self.create_entdist_request(process, request, virt_id)
-            yield from self.execute_entdist_request(entdist_req)
+            virt_id = self._allocate_for_pair(process, request, i)
+            entdist_req = self._create_entdist_request(process, request, virt_id)
+            yield from self._execute_entdist_request(entdist_req)
 
-    def handle_multi_pair_md(
+    def _handle_multi_pair_md(
         self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
@@ -223,10 +240,10 @@ class NetstackProcessor:
             raise NotImplementedError
         else:
             for i in range(num_pairs):
-                virt_id = self.allocate_for_pair(process, request, i)
-                entdist_req = self.create_entdist_request(process, request, virt_id)
+                virt_id = self._allocate_for_pair(process, request, i)
+                entdist_req = self._create_entdist_request(process, request, virt_id)
                 # Create EPR pair
-                yield from self.execute_entdist_request(entdist_req)
+                yield from self._execute_entdist_request(entdist_req)
                 # Measure local qubit
                 m = yield from self.measure_epr_qubit(process, virt_id)
                 # Free virt qubit
@@ -245,9 +262,9 @@ class NetstackProcessor:
         request = routine.request
 
         if request.typ == EprType.CREATE_KEEP:
-            yield from self.handle_multi_pair_ck(process, routine_name)
+            yield from self._handle_multi_pair_ck(process, routine_name)
         elif request.typ == EprType.MEASURE_DIRECTLY:
-            yield from self.handle_multi_pair_md(process, routine_name)
+            yield from self._handle_multi_pair_md(process, routine_name)
         else:
             raise NotImplementedError
 
@@ -284,9 +301,74 @@ class NetstackProcessor:
         routine = running_routine.routine
         request = routine.request
 
-        virt_id = self.allocate_for_pair(process, request, index)
-        entdist_req = self.create_entdist_request(process, request, virt_id)
-        yield from self.execute_entdist_request(entdist_req)
+        virt_id = self._allocate_for_pair(process, request, index)
+        entdist_req = self._create_entdist_request(process, request, virt_id)
+        yield from self._execute_entdist_request(entdist_req)
+
+    def handle_single_pair_group(
+        self,
+        processes: List[QoalaProcess],
+        routine_names: List[str],
+        indices: List[int],
+    ) -> Generator[EventExpression, None, int]:
+        # TODO: how to handle different virt IDs ?
+        # Allocate only the virt ID of one of the processes.
+        # Based on which process was served (i.e. for which process entanglement
+        # was delivered), the memory mapping will be updated afterwards.
+        proc0 = processes[0]
+        running_routine0 = proc0.qnos_mem.get_running_request_routine(routine_names[0])
+        req0 = running_routine0.routine.request
+        remote_id = req0.remote_id
+        index0 = indices[0]
+        virt_id0 = self._allocate_for_pair(proc0, req0, index0)
+        phys_id = self._interface.memmgr.phys_id_for(proc0.pid, virt_id0)
+        assert phys_id is not None
+
+        local_pids: List[int] = []
+        remote_pids: List[int] = []
+
+        for proc, rtname, _ in zip(processes, routine_names, indices):
+            running_routine = proc.qnos_mem.get_running_request_routine(rtname)
+            routine = running_routine.routine
+            request = routine.request
+            # We only allow multiple PairTasks if they are with the same node
+            assert request.remote_id == remote_id
+            epr_sck = proc.epr_sockets[request.epr_socket_id]
+
+            local_pids.append(epr_sck.local_pid)
+            remote_pids.append(epr_sck.remote_pid)
+
+        entdist_req = EntDistRequest(
+            local_node_id=self._interface.node_id,
+            remote_node_id=request.remote_id,
+            local_qubit_id=phys_id,
+            local_pids=local_pids,
+            remote_pids=remote_pids,
+        )
+
+        pid = yield from self._execute_entdist_request_group(entdist_req)
+        # Update memory allocation now that PID is known
+        self._logger.debug(
+            f"Initially virt ID {virt_id0} for PID {proc0.pid} was allocated (phys ID {phys_id})"
+        )
+        memmgr = self._interface.memmgr
+        memmgr.free(proc0.pid, virt_id0)
+
+        if pid == -1:  # no EPR generation happened
+            return pid
+
+        # Manually insert correct mapping
+        vmap = memmgr._process_mappings[pid]
+        self._interface.memmgr._physical_mapping[phys_id] = VirtualLocation(
+            pid, vmap.unit_module, virt_id0
+        )
+        memmgr._process_mappings[pid].mapping[virt_id0] = phys_id
+
+        self._logger.debug(
+            f"Now virt ID {virt_id0} for PID {pid} is mapped to phys ID {phys_id}"
+        )
+
+        return pid
 
     def handle_single_pair_callback(
         self,
@@ -348,10 +430,10 @@ class NetstackProcessor:
         self.instantiate_routine(process, rrcall, global_args)
 
         if routine.request.typ == EprType.CREATE_KEEP:
-            yield from self.handle_req_routine_ck(
+            yield from self._handle_req_routine_ck(
                 process, rrcall.routine_name, qnosprocessor
             )
         elif routine.request.typ == EprType.MEASURE_DIRECTLY:
-            yield from self.handle_req_routine_md(process, rrcall.routine_name)
+            yield from self._handle_req_routine_md(process, rrcall.routine_name)
         else:
             raise NotImplementedError

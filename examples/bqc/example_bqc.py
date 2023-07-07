@@ -178,8 +178,9 @@ def run_bqc(
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
 
     network = create_network(server_config, client_configs, num_clients)
-
     server_procnode = network.nodes["server"]
+    server_batches: Dict[int, ProgramBatch] = {}  # client ID -> server batch
+    client_batches: Dict[int, ProgramBatch] = {}  # client ID -> client batch
 
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
@@ -198,11 +199,7 @@ def run_bqc(
             deadline=deadlines[index],
         )
 
-        server_procnode.submit_batch(server_batch_info)
-    server_procnode.initialize_processes()
-    server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
-    server_merged = TaskGraphBuilder.merge_linear(server_tasks)
-    server_procnode.scheduler.upload_task_graph(server_merged)
+        server_batches[client_id] = server_procnode.submit_batch(server_batch_info)
 
     for client_id in range(1, num_clients + 1):
         # index in num_iterations and deadlines list
@@ -230,11 +227,27 @@ def run_bqc(
             client_inputs, client_unit_module, num_iterations[index], deadlines[index]
         )
 
-        client_procnode.submit_batch(client_batch_info)
-        client_procnode.initialize_processes()
+        client_batches[client_id] = client_procnode.submit_batch(client_batch_info)
+        batch_id = client_batches[client_id].batch_id
+        server_pids = [inst.pid for inst in server_batches[client_id].instances]
+        print(
+            f"client ID: {client_id}, batch ID: {batch_id}, server PIDs: {server_pids}"
+        )
+        client_procnode.initialize_processes(remote_pids={batch_id: server_pids})
         client_tasks = client_procnode.scheduler.get_tasks_to_schedule()
         client_merged = TaskGraphBuilder.merge_linear(client_tasks)
         client_procnode.scheduler.upload_task_graph(client_merged)
+
+    client_pids = {
+        server_batches[client_id].batch_id: [
+            inst.pid for inst in client_batches[client_id].instances
+        ]
+        for client_id in range(1, num_clients + 1)
+    }
+    server_procnode.initialize_processes(remote_pids=client_pids)
+    server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
+    server_merged = TaskGraphBuilder.merge_linear(server_tasks)
+    server_procnode.scheduler.upload_task_graph(server_merged)
 
     network.start()
     start_time = ns.sim_time()
@@ -325,7 +338,7 @@ def compute_succ_prob(
 
 def test_bqc():
     # LogManager.set_log_level("INFO")
-    num_clients = 10
+    num_clients = 1
     succ_probs, makespan = compute_succ_prob(
         num_clients=num_clients,
         num_iterations=[30] * num_clients,
