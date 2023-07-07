@@ -241,17 +241,35 @@ def test_build_network_from_config():
     alice_host_out = alice.node.host_peer_out_port("bob")
     bob_host_in = bob.node.host_peer_in_port("alice")
     bob_host_out = bob.node.host_peer_out_port("alice")
-    assert alice_host_in.connected_port == bob_host_out
-    assert alice_host_out.connected_port == bob_host_in
+
+    alice_host_in_chan = alice_host_in.connected_port.component
+    alice_host_in_remote = alice_host_in_chan.ports["send"].connected_port
+    assert alice_host_in_remote == bob_host_out
+
+    alice_host_out_chan = alice_host_out.connected_port.component
+    alice_host_out_remote = alice_host_out_chan.ports["recv"].connected_port
+    assert alice_host_out_remote == bob_host_in
 
     alice_ent_in = alice.node.entdist_in_port
     alice_ent_out = alice.node.entdist_out_port
     bob_ent_in = bob.node.entdist_in_port
     bob_ent_out = bob.node.entdist_out_port
-    assert alice_ent_in.connected_port == entdist.comp.node_out_port("alice")
-    assert alice_ent_out.connected_port == entdist.comp.node_in_port("alice")
-    assert bob_ent_in.connected_port == entdist.comp.node_out_port("bob")
-    assert bob_ent_out.connected_port == entdist.comp.node_in_port("bob")
+
+    alice_ent_in_chan = alice_ent_in.connected_port.component
+    alice_ent_in_remote = alice_ent_in_chan.ports["send"].connected_port
+    assert alice_ent_in_remote == entdist.comp.node_out_port("alice")
+
+    alice_ent_out_chan = alice_ent_out.connected_port.component
+    alice_ent_out_remote = alice_ent_out_chan.ports["recv"].connected_port
+    assert alice_ent_out_remote == entdist.comp.node_in_port("alice")
+
+    bob_ent_in_chan = bob_ent_in.connected_port.component
+    bob_ent_in_remote = bob_ent_in_chan.ports["send"].connected_port
+    assert bob_ent_in_remote == entdist.comp.node_out_port("bob")
+
+    bob_ent_out_chan = bob_ent_out.connected_port.component
+    bob_ent_out_remote = bob_ent_out_chan.ports["recv"].connected_port
+    assert bob_ent_out_remote == entdist.comp.node_in_port("bob")
 
 
 def test_build_network_perfect_links():

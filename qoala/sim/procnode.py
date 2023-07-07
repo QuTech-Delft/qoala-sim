@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from netsquid.components import QuantumProcessor
+from netsquid.components.cchannel import ClassicalChannel
 from netsquid.protocols import Protocol
 
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
@@ -193,13 +194,19 @@ class ProcNode(Protocol):
     def network_ehi(self, network_ehi: EhiNetworkInfo) -> None:
         self._network_ehi = network_ehi
 
-    def connect_to(self, other: ProcNode) -> None:
+    def connect_to(self, other: ProcNode, latency: float = 0.0) -> None:
         """Create connections between ports of this ProcNode and those of
         another ProcNode."""
         here = self.node.name
         there = other.node.name
-        self.node.host_peer_out_port(there).connect(other.node.host_peer_in_port(here))
-        self.node.host_peer_in_port(there).connect(other.node.host_peer_out_port(here))
+        chan_host_ht = ClassicalChannel(f"chan_host_{here}_{there}", delay=latency)
+        self.node.host_peer_out_port(there).connect(chan_host_ht.ports["send"])
+        chan_host_ht.ports["recv"].connect(other.node.host_peer_in_port(here))
+
+        chan_host_th = ClassicalChannel(f"chan_host_{there}_{here}", delay=latency)
+        other.node.host_peer_out_port(here).connect(chan_host_th.ports["send"])
+        chan_host_th.ports["recv"].connect(self.node.host_peer_in_port(there))
+
         self.node.netstack_peer_out_port(there).connect(
             other.node.netstack_peer_in_port(here)
         )
