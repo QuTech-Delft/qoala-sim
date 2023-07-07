@@ -1,6 +1,14 @@
-from __future__ import annotations
+from typing import Generator
 
+import netsquid as ns
+from netsquid.components.cchannel import ClassicalChannel
+
+from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
+from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
+from qoala.runtime.message import Message
+from qoala.runtime.ntf import GenericNtf
+from qoala.sim.procnode import ProcNode
 from qoala.sim.procnodecomp import ProcNodeComponent
 
 
@@ -71,7 +79,49 @@ def test_many_other_nodes():
         )
 
 
+def test_connection_with_channel():
+    ns.sim_reset()
+
+    nodes = {0: "alice", 1: "bob"}
+
+    ehi_network = EhiNetworkInfo.only_nodes(nodes)
+    alice = ProcNodeComponent("alice", None, ehi_network=ehi_network, node_id=0)
+    bob = ProcNodeComponent("bob", None, ehi_network=ehi_network, node_id=1)
+
+    channel_ab = ClassicalChannel("chan_ab", delay=1000)
+
+    alice.host_peer_out_port("bob").connect(channel_ab.ports["send"])
+    channel_ab.ports["recv"].connect(bob.host_peer_in_port("alice"))
+    alice.host_peer_in_port("bob").connect(bob.host_peer_out_port("alice"))
+
+    class AliceProcnode(ProcNode):
+        def run(self) -> Generator[EventExpression, None, None]:
+            self.host.interface.send_peer_msg("bob", Message(0, 0, "hello"))
+
+    class BobProcnode(ProcNode):
+        def run(self) -> Generator[EventExpression, None, None]:
+            msg = yield from self.host.interface.receive_peer_msg("alice")
+            print(f"before receiving: {ns.sim_time()}")
+            print(f"{self.name}: received msg with content: {msg.content}")
+            print(f"after receiving: {ns.sim_time()}")
+
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(1)
+    latencies = LhiLatencies.all_zero()
+    ntf = GenericNtf()
+    alice_proc = AliceProcnode(
+        "alice", None, topology, latencies, ntf, ehi_network, node=alice
+    )
+    bob_proc = BobProcnode("bob", None, topology, latencies, ntf, ehi_network, node=bob)
+
+    alice_proc.start()
+    bob_proc.start()
+
+    ns.sim_run()
+
+
 if __name__ == "__main__":
     test_no_other_nodes()
     test_one_other_node()
     test_many_other_nodes()
+
+    test_connection_with_channel()

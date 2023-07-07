@@ -11,6 +11,7 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
+from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.util.logging import LogManager
@@ -19,6 +20,7 @@ from qoala.util.logging import LogManager
 @dataclass
 class AppResult:
     batch_results: Dict[str, BatchResult]
+    statistics: Dict[str, SchedulerStatistics]
     total_duration: float
 
 
@@ -97,14 +99,16 @@ def run_two_node_app_separate_inputs(
     ns.sim_run()
 
     results: Dict[str, BatchResult] = {}
+    statistics: Dict[str, SchedulerStatistics] = {}
 
     for name in names:
         procnode = network.nodes[name]
         # only one batch (ID = 0), so get value at index 0
         results[name] = procnode.scheduler.get_batch_results()[0]
+        statistics[name] = procnode.scheduler.get_statistics()
 
     total_duration = ns.sim_time()
-    return AppResult(results, total_duration)
+    return AppResult(results, statistics, total_duration)
 
 
 def run_1_server_n_clients(
@@ -157,17 +161,20 @@ def run_1_server_n_clients(
     ns.sim_run()
 
     results: Dict[str, BatchResult] = {}
+    statistics: Dict[str, SchedulerStatistics] = {}
 
     for name in client_names:
         procnode = network.nodes[name]
         # only one batch (ID = 0), so get value at index 0
         results[name] = procnode.scheduler.get_batch_results()[0]
+        statistics[name] = procnode.scheduler.get_statistics()
 
     server_procnode = network.nodes[server_name]
     results[server_name] = server_procnode.scheduler.get_batch_results()[0]
+    statistics[server_name] = server_procnode.scheduler.get_statistics()
 
     total_duration = ns.sim_time()
-    return AppResult(results, total_duration)
+    return AppResult(results, statistics, total_duration)
 
 
 def run_two_node_app(
@@ -231,9 +238,12 @@ def run_single_node_app_separate_inputs(
 
     # only one batch (ID = 0), so get value at index 0
     results = procnode.scheduler.get_batch_results()[0]
+    statistics = procnode.scheduler.get_statistics()
     total_duration = ns.sim_time()
 
-    return AppResult({program_name: results}, total_duration)
+    return AppResult(
+        {program_name: results}, {program_name: statistics}, total_duration
+    )
 
 
 def run_single_node_app(
