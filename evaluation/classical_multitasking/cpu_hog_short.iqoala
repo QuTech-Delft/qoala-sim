@@ -1,0 +1,12 @@
+META_START
+    name: alice
+    parameters: duration
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = CL}:
+    busy() : duration
+
+^b1 {type = CL}:
+    busy() : duration

@@ -1,0 +1,30 @@
+META_START
+    name: bob
+    parameters: 
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b1 {type = QL}:
+    tuple<> = run_subroutine(tuple<>) : prepare_meas
+
+^b2 {type = CL, deadlines = [b0: 1]}:
+    return_result(outcome)
+
+SUBROUTINE prepare_meas
+    params:
+    returns: m
+    uses: 0
+    keeps: 
+    request: 
+  NETQASM_START
+    set Q0 0
+    init Q0
+
+    // hadamard
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
