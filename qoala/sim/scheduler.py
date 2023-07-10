@@ -452,7 +452,15 @@ class StatusBlockedOnOtherCore(SchedulerStatus):
     pass
 
 
+class StatusBlockedOnMessageOrOtherCore(SchedulerStatus):
+    pass
+
+
 class StatusBlockedOnResource(SchedulerStatus):
+    pass
+
+
+class StatusBlockedOnResourceOrOtherCore(SchedulerStatus):
     pass
 
 
@@ -604,90 +612,60 @@ class CpuEdfScheduler(EdfScheduler):
         if tg is None or len(tg.get_tasks()) == 0:
             return StatusGraphEmpty()
 
-        # Get all "receive message" tasks without predecessors
-        event_roots = tg.get_event_roots(ignore_external=False)
-        self._task_logger.debug(f"event roots: {event_roots}")
+        # All tasks that have no predecessors, internal nor external.
+        no_predecessors = tg.get_roots()
 
-        blocked_event_roots: List[int] = []
-        blocked_on_message = False
-        for tid in event_roots:
-            if not self.is_message_available(tid):
-                blocked_event_roots.append(tid)
-                blocked_on_message = True
+        # All tasks that have only external predecessors.
+        blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
 
-        # if at least one "receive message" task is blocked on actually receiving
-        # the message, `blocked_on_message` is True
-
-        roots = tg.get_roots(ignore_external=False)
-
-        # filter out blocked event roots
-        roots = [r for r in roots if r not in blocked_event_roots]
-        self._task_logger.debug(f"roots: {roots}")
-        self._task_logger.debug(f"blocked event roots: {blocked_event_roots}")
-
-        # `roots` now contains all tasks that can be immediately executed
-
-        if len(roots) == 0:
-            # No tasks exist that can be immediately executed; check the reason for this.
-
-            if blocked_on_message:
-                # There is at least one task blocked on receiving a message.
-                self._task_logger.debug("blocked on message")
-                return StatusBlockedOnMessage()
-            else:
-                internal_roots = tg.get_roots(ignore_external=True)
-                self._task_logger.debug(f"all intenral roots: {internal_roots}")
-                internal_roots = [
-                    r for r in internal_roots if r not in blocked_event_roots
-                ]
-                self._task_logger.debug(f"non-blocked intenral roots: {internal_roots}")
-                self._task_logger.debug("only roots with external dependencies")
-
-                # otherwise the graph must be empty (already checked above)
-                assert len(internal_roots) > 0
-
-                return StatusBlockedOnOtherCore()
-
-                # TODO: handle case where we are blocked on both (message or other core)
-                # and we don't know which one will unblock us first
-                # (now we assume it's always receiving a message)
-
-        with_ext_preds = [
-            tid for tid in roots if len(tg.get_tinfo(tid).ext_predecessors) > 0
+        # All "receive message" tasks without predecessors (internal nor external).
+        event_no_predecessors = [
+            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
         ]
-        self._task_logger.debug(f"with ext preds: {with_ext_preds}")
 
-        if blocked_on_message:
-            self._task_logger.warning(
-                "blocked on message but there is a local task to execute"
-            )
+        event_blocked_on_message = [
+            tid for tid in event_no_predecessors if not self.is_message_available(tid)
+        ]
 
-        # From the readily executable tasks, choose which one to execute
-        with_deadline = [t for t in roots if tg.get_tinfo(t).deadline is not None]
-        if not self._use_deadlines:
-            with_deadline = []
+        ready = [tid for tid in no_predecessors if tid not in event_blocked_on_message]
 
-        to_return: int
+        if len(ready) > 0:
+            # From the readily executable tasks, choose which one to execute
+            with_deadline = [t for t in ready if tg.get_tinfo(t).deadline is not None]
+            if not self._use_deadlines:
+                with_deadline = []
 
-        if len(with_deadline) > 0:
-            # Sort them by deadline and return the one with the earliest deadline
-            deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
-            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
-            self._task_logger.info(f"tasks with deadlines: {sorted_by_deadline}")
-            to_return = sorted_by_deadline[0][0]
-            self._logger.debug(f"Return task {to_return}")
-            self._task_logger.debug(f"Return task {to_return}")
-        else:
-            # No deadlines
-            if self._deterministic:
-                to_return = roots[0]
+            to_return: int
+
+            if len(with_deadline) > 0:
+                # Sort them by deadline and return the one with the earliest deadline
+                deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
+                sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
+                self._task_logger.info(f"tasks with deadlines: {sorted_by_deadline}")
+                to_return = sorted_by_deadline[0][0]
+                self._logger.debug(f"Return task {to_return}")
+                self._task_logger.debug(f"Return task {to_return}")
             else:
-                index = random.randint(0, len(roots) - 1)
-                to_return = roots[index]
-            self._logger.debug(f"Return task {to_return}")
-            self._task_logger.debug(f"Return task {to_return}")
+                # No deadlines
+                if self._deterministic:
+                    to_return = ready[0]
+                else:
+                    index = random.randint(0, len(ready) - 1)
+                    to_return = ready[index]
+                self._logger.debug(f"Return task {to_return}")
+                self._task_logger.debug(f"Return task {to_return}")
 
-        return StatusNextTask(to_return)
+            return StatusNextTask(to_return)
+        else:
+            # No tasks ready to execute. Check what is/are the cause(s).
+            if len(blocked_on_other_core) > 0:
+                if len(event_blocked_on_message) > 0:
+                    return StatusBlockedOnMessageOrOtherCore()
+                else:
+                    return StatusBlockedOnOtherCore()
+            else:
+                assert len(event_blocked_on_message) > 0
+                return StatusBlockedOnMessage()
 
     def wait_for_timeslot(self, task) -> Generator[EventExpression, None, None]:
         return None
@@ -709,10 +687,26 @@ class CpuEdfScheduler(EdfScheduler):
                 self._task_logger.debug("got TASK_COMPLETED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnMessage):
-                self._task_logger.debug("blocked, waitingn for message...")
+                self._task_logger.debug("blocked, waiting for message...")
                 yield from self._host_interface.wait_for_any_msg()
                 self._task_logger.debug("message arrived")
                 self.update_external_predcessors()
+            elif isinstance(status, StatusBlockedOnMessageOrOtherCore):
+                self._task_logger.debug("blocked, waiting for message OR other core...")
+
+                ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
+
+                ev_other_core = self.await_signal(
+                    sender=self._other_scheduler,
+                    signal_label=SIGNAL_TASK_COMPLETED,
+                )
+                union = ev_msg_arrived | ev_other_core
+
+                yield union
+                if len(union.first_term.triggered_events) > 0:
+                    # It was "ev_msg_arrived" that triggered.
+                    # Need to process this event (flushing potential other messages)
+                    yield from self._host_interface.handle_msg_evexpr(union.first_term)
             elif isinstance(status, StatusNextTask):
                 yield from self.handle_task(status.task_id)
                 self.update_external_predcessors()
@@ -799,7 +793,14 @@ class QpuEdfScheduler(EdfScheduler):
                 return True
             except AllocError:
                 return False
-        raise RuntimeError
+        else:
+            self._logger.info(
+                f"Checking if resources are available for task type {type(task)}, "
+                "returning True but no actual check is implemented"
+            )
+            # NOTE: we assume that callback tasks never allocate any additional
+            # resources so they can always return `True` here.
+            return True
 
     def update_status(self) -> SchedulerStatus:
         tg = self._task_graph
@@ -807,77 +808,72 @@ class QpuEdfScheduler(EdfScheduler):
         if tg is None or len(tg.get_tasks()) == 0:
             return StatusGraphEmpty()
 
-        epr_roots = tg.get_epr_roots(ignore_external=False)
-        self._task_logger.debug(f"epr roots: {epr_roots}")
-        blocked_epr_roots: List[int] = []
-        available_epr_roots: List[int] = []
-        blocked_on_resource = False
-        for er in epr_roots:
-            if self.are_resources_available(er):
-                available_epr_roots.append(er)
+        # All tasks that have no predecessors, internal nor external.
+        no_predecessors = tg.get_roots()
+
+        # All tasks that have only external predecessors.
+        blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
+
+        # All EPR (SinglePair or MultiPair) tasks that have no predecessors,
+        # internal nor external.
+        epr_no_predecessors = [
+            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_epr_task()
+        ]
+
+        # All tasks without predecessors for which not all resources are availables.
+        blocked_on_resources = [
+            tid for tid in no_predecessors if not self.are_resources_available(tid)
+        ]
+
+        # All EPR tasks that are ready for execution.
+        epr_ready = [
+            tid for tid in epr_no_predecessors if tid not in blocked_on_resources
+        ]
+
+        # All non-EPR tasks that are ready for execution.
+        non_epr_ready = [
+            tid
+            for tid in no_predecessors
+            if tid not in epr_no_predecessors and tid not in blocked_on_resources
+        ]
+
+        if len(epr_ready) > 0:
+            return StatusEprGen(epr_ready)
+        elif len(non_epr_ready) > 0:
+            # `roots` contains the tasks we can choose from
+            with_deadline = [
+                t for t in non_epr_ready if tg.get_tinfo(t).deadline is not None
+            ]
+            if not self._use_deadlines:
+                with_deadline = []
+            if len(with_deadline) > 0:
+                # Sort them by deadline and return the one with the earliest deadline
+                deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
+                sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
+                to_return = sorted_by_deadline[0][0]
+                self._logger.debug(f"Return task {to_return}")
+                self._task_logger.debug(f"Return task {to_return}")
+                return StatusNextTask(to_return)
             else:
-                blocked_epr_roots.append(er)
-                blocked_on_resource = True
-        self._task_logger.debug(f"available epr roots: {available_epr_roots}")
-        if len(available_epr_roots) > 0:
-            return StatusEprGen(available_epr_roots)
-
-        roots = tg.get_roots(ignore_external=False)
-        # Filter out blocked tasks
-        roots = [r for r in roots if r not in blocked_epr_roots]
-        self._task_logger.debug(f"roots: {roots}")
-
-        if len(roots) == 0:
-            internal_roots = tg.get_roots(ignore_external=True)
-            self._task_logger.debug(f"internal roots: {internal_roots}")
-            if len(internal_roots) == 0:
-                assert blocked_on_resource
-                self._task_logger.debug("blocked on resource")
-                return StatusBlockedOnResource()
-            else:
-                self._task_logger.debug("only roots with external dependencies")
-                return StatusBlockedOnOtherCore()
-
-        blocked_roots: List[int] = []
-        blocked_on_resource = False
-        for r in roots:
-            task = tg.get_tinfo(r).task
-            # NOTE: Callback Tasks are not checked since they are assumed to never
-            # allocate extra qubits !
-            if isinstance(task, LocalRoutineTask):
-                self._task_logger.debug("checking resources")
-                if not self.are_resources_available(task.task_id):
-                    self._task_logger.debug("blocked on resource")
-                    blocked_roots.append(task.task_id)
-                    blocked_on_resource = True
-
-        roots = [r for r in roots if r not in blocked_roots]
-        if len(roots) == 0:
-            assert blocked_on_resource is True
-            return StatusBlockedOnResource()
-
-        # `roots` contains the tasks we can choose from
-        with_deadline = [t for t in roots if tg.get_tinfo(t).deadline is not None]
-        if not self._use_deadlines:
-            with_deadline = []
-        if len(with_deadline) > 0:
-            # Sort them by deadline and return the one with the earliest deadline
-            deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
-            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
-            to_return = sorted_by_deadline[0][0]
-            self._logger.debug(f"Return task {to_return}")
-            self._task_logger.debug(f"Return task {to_return}")
-            return StatusNextTask(to_return)
+                # No deadlines
+                if self._deterministic:
+                    index = 0
+                else:
+                    index = random.randint(0, len(non_epr_ready) - 1)
+                to_return = non_epr_ready[index]
+                self._logger.debug(f"Return task {to_return}")
+                self._task_logger.debug(f"Return task {to_return}")
+                return StatusNextTask(to_return)
         else:
-            # No deadlines
-            if self._deterministic:
-                index = 0
+            # No tasks ready to execute. Check what is/are the cause(s).
+            if len(blocked_on_other_core) > 0:
+                if len(blocked_on_resources) > 0:
+                    return StatusBlockedOnResourceOrOtherCore()
+                else:
+                    return StatusBlockedOnOtherCore()
             else:
-                index = random.randint(0, len(roots) - 1)
-            to_return = roots[index]
-            self._logger.debug(f"Return task {to_return}")
-            self._task_logger.debug(f"Return task {to_return}")
-            return StatusNextTask(to_return)
+                assert len(blocked_on_resources) > 0
+                return StatusBlockedOnResource()
 
     def wait_for_timeslot(self, task) -> Generator[EventExpression, None, None]:
         if self._network_schedule is not None and (
@@ -973,6 +969,22 @@ class QpuEdfScheduler(EdfScheduler):
                     signal_label=SIGNAL_MEMORY_FREED,
                 )
                 self._task_logger.debug("blocked on resource: got MEMORY_FREED signal")
+                self.update_external_predcessors()
+            elif isinstance(status, StatusBlockedOnResourceOrOtherCore):
+                self._task_logger.debug(
+                    "blocked on resource and other core: "
+                    "waiting for MEMORY_FREED signal OR TASK_COMPLETED signal"
+                )
+                ev_mem_freed = self.await_signal(
+                    sender=self._memmgr,
+                    signal_label=SIGNAL_MEMORY_FREED,
+                )
+                ev_task_completed = self.await_signal(
+                    sender=self._other_scheduler,
+                    signal_label=SIGNAL_TASK_COMPLETED,
+                )
+                yield ev_mem_freed | ev_task_completed
+
                 self.update_external_predcessors()
             elif isinstance(status, StatusEprGen):
                 yield from self.handle_epr_gen(status.task_ids)

@@ -49,6 +49,7 @@ def run_program(num_iterations: int, node_cfg: ProcNodeConfig):
         program=program,
         program_input=ProgramInput.empty(),
         network_cfg=network_cfg,
+        linear=True,
     )
 
     all_results = app_results.batch_results["alice"].results
