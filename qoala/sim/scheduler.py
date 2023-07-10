@@ -32,7 +32,7 @@ from qoala.runtime.task import (
 )
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
-from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
+from qoala.sim.events import EVENT_WAIT, SIGNAL_MEMORY_FREED, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.host import Host
 from qoala.sim.host.hostinterface import HostInterface
@@ -965,22 +965,14 @@ class QpuEdfScheduler(EdfScheduler):
                 self._task_logger.debug("got TASK_COMPLETED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnResource):
-                # raise RuntimeError(
-                #     "Blocked on resource: handling this has not been implemented yet"
-                # )
-                # TODO: ACTUALLY WAIT FOR A SIGNAL SAYING A RESOURCE HAS BEEN FREED!
-                # Now we just assume that finishing an external task also always
-                # resolves the resource problem, but this is not necessarily the case.
                 self._task_logger.debug(
-                    "blocked on resource: waiting for TASK_COMPLETED signal"
+                    "blocked on resource: waiting for MEMORY_FREED signal"
                 )
                 yield self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
+                    sender=self._memmgr,
+                    signal_label=SIGNAL_MEMORY_FREED,
                 )
-                self._task_logger.debug(
-                    "blocked on resource: got TASK_COMPLETED signal"
-                )
+                self._task_logger.debug("blocked on resource: got MEMORY_FREED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusEprGen):
                 yield from self.handle_epr_gen(status.task_ids)
