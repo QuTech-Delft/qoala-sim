@@ -101,7 +101,7 @@ class NvNtf(NtfInterface):
         INSTR_MEASURE_INSTANT: [core.MeasInstruction],
     }
 
-    _NQ_NS_MAP: Dict[Type[NetQASMInstruction], List[Type[NetQASMInstruction]]] = {
+    _NQ_NS_MAP: Dict[Type[NetQASMInstruction], List[Type[NetSquidInstruction]]] = {
         core.InitInstruction: [INSTR_INIT],
         nv.RotXInstruction: [INSTR_ROT_X],
         nv.RotYInstruction: [INSTR_ROT_Y],

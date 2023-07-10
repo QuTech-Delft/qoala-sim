@@ -13,5 +13,5 @@ class NetworkSchedule:
     def next_bin(self, time: int) -> int:
         offset = time - self.first_bin
         next_bin_index = ceil(offset / self.bin_period)
-        next_bin_start = next_bin_index * self.bin_period
-        return next_bin_start + self.first_bin
+        next_bin_start = next_bin_index * self.bin_period + self.first_bin
+        return next_bin_start

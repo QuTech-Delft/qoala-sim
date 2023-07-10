@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Set, Tuple
 
 import netsquid as ns
 from netqasm.lang.operand import Template
@@ -486,7 +486,7 @@ class EdfScheduler(ProcessorScheduler):
             )
 
     def wait_for_external_tasks(
-        self, ext_pred: List[int]
+        self, ext_pred: Set[int]
     ) -> Generator[EventExpression, None, None]:
         self._logger.debug("checking if external predecessors have finished...")
         assert self._other_scheduler is not None
@@ -506,9 +506,9 @@ class EdfScheduler(ProcessorScheduler):
         tg = self._task_graph
         for r in tg.get_roots(ignore_external=True):
             ext_preds = tg.get_tinfo(r).ext_predecessors
-            new_ext_preds = [
+            new_ext_preds = {
                 ext for ext in ext_preds if not self._other_scheduler.has_finished(ext)
-            ]
+            }
             tg.get_tinfo(r).ext_predecessors = new_ext_preds
 
     def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:

@@ -38,7 +38,7 @@ class VirtIdMappingType(Enum):
     CUSTOM = auto()
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass
 class RequestVirtIdMapping:
     typ: VirtIdMappingType
     # Only allow templates with "all" or "increment", not with "custom"
@@ -98,7 +98,7 @@ class RequestVirtIdMapping:
         raise ValueError
 
 
-@dataclass(eq=True)
+@dataclass
 class QoalaRequest:
     name: str  # TODO: remove?
     remote_id: Union[int, Template]
@@ -142,7 +142,7 @@ class QoalaRequest:
         return self.serialize()
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class RrReturnVector:
     name: str
     size: Union[int, Template]

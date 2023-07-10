@@ -1,5 +1,5 @@
 import itertools
-from typing import Dict, List, Tuple
+from typing import Dict, FrozenSet, List
 
 from netsquid.components import ClassicalChannel
 from netsquid.components.models import FibreDelayModel
@@ -127,12 +127,13 @@ def build_procnode_from_config(
 def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
-    ehi_links: Dict[Tuple[int, int], EhiLinkInfo] = {}
+    ehi_links: Dict[FrozenSet[int], EhiLinkInfo] = {}
     for link_between_nodes in config.links:
         lhi_link = LhiLinkInfo.from_config(link_between_nodes.link_config)
         ehi_link = LhiConverter.link_info_to_ehi(lhi_link)
         ids = (link_between_nodes.node_id1, link_between_nodes.node_id2)
-        ehi_links[ids] = ehi_link
+        node_link = frozenset(ids)
+        ehi_links[node_link] = ehi_link
     nodes = {cfg.node_id: cfg.node_name for cfg in config.nodes}
     if config.netschedule is not None:
         netschedule = EhiNetworkSchedule.from_config(config.netschedule)
@@ -163,7 +164,7 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
                 return cconn.latency  # type: ignore
         return 0.0
 
-    for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
+    for s1, s2 in itertools.combinations(procnodes.values(), 2):
         latency = get_latency(s1.node.node_id, s2.node.node_id)
         s1.connect_to(s2, latency)
 
@@ -224,7 +225,7 @@ def build_network_from_lhi(
     for ([n1, n2], link_info) in network_lhi.links.items():
         entdist.add_sampler(n1, n2, link_info)
 
-    for (_, s1), (_, s2) in itertools.combinations(procnodes.items(), 2):
+    for s1, s2 in itertools.combinations(procnodes.values(), 2):
         s1.connect_to(s2)
 
     for name, procnode in procnodes.items():

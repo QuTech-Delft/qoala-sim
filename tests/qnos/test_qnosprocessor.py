@@ -28,18 +28,18 @@ MOCK_QNOS_RET_REG = "R0"
 MOCK_QNOS_RET_VALUE = 7
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class InterfaceEvent:
     peer: str
     msg: Message
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class FlushEvent:
     pass
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class SignalEvent:
     pass
 

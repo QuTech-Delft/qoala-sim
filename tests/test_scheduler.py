@@ -269,8 +269,8 @@ def test_qpu_scheduler():
     qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(
         qpu_tasks_with_start_times
     )
-    qpu_graph.get_tinfo(3).ext_predecessors.append(1)
-    cpu_graph.get_tinfo(2).ext_predecessors.append(3)
+    qpu_graph.get_tinfo(3).ext_predecessors.add(1)
+    cpu_graph.get_tinfo(2).ext_predecessors.add(3)
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
@@ -334,10 +334,10 @@ def test_qpu_scheduler_2_processes():
     ]
     qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(qpu_tasks)
 
-    cpu_graph.get_tinfo(4).ext_predecessors.append(6)
-    cpu_graph.get_tinfo(5).ext_predecessors.append(7)
-    qpu_graph.get_tinfo(6).ext_predecessors.append(2)
-    qpu_graph.get_tinfo(7).ext_predecessors.append(3)
+    cpu_graph.get_tinfo(4).ext_predecessors.add(6)
+    cpu_graph.get_tinfo(5).ext_predecessors.add(7)
+    qpu_graph.get_tinfo(6).ext_predecessors.add(2)
+    qpu_graph.get_tinfo(7).ext_predecessors.add(3)
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
@@ -397,8 +397,8 @@ def test_host_program():
     ns.sim_run()
 
     assert ns.sim_time() == 3 * alice.local_ehi.latencies.host_instr_time
-    alice.memmgr.get_process(pid).host_mem.read("var_z") == 9
-    bob.memmgr.get_process(pid).host_mem.read("var_z") == 9
+    assert alice.memmgr.get_process(pid).host_mem.read("var_z") == 9
+    assert bob.memmgr.get_process(pid).host_mem.read("var_z") == 9
 
 
 def test_lr_program():
@@ -437,8 +437,8 @@ def test_lr_program():
     qnos_instr_time = alice.local_ehi.latencies.qnos_instr_time
     expected_duration = 3 * host_instr_time + 5 * qnos_instr_time
     assert ns.sim_time() == expected_duration
-    alice.memmgr.get_process(pid).host_mem.read("y") == 4
-    bob.memmgr.get_process(pid).host_mem.read("y") == 4
+    assert alice.memmgr.get_process(pid).host_mem.read("y") == 4
+    assert bob.memmgr.get_process(pid).host_mem.read("y") == 4
 
 
 def test_epr_md_1():

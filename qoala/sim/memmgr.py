@@ -118,15 +118,15 @@ class MemoryManager:
         vmap = self._process_mappings[pid]
         # Check if the virtual ID is in the unit module
         assert virt_id in vmap.unit_module.get_all_qubit_ids()
-        assert virt_id in self._process_mappings[pid].mapping
+        assert virt_id in vmap.mapping
 
-        phys_id = self._process_mappings[pid].mapping[virt_id]
+        phys_id = vmap.mapping[virt_id]
         if phys_id is None:
             raise AllocError
 
         # update mappings
         self._physical_mapping[phys_id] = None
-        self._process_mappings[pid].mapping[virt_id] = None
+        vmap.mapping[virt_id] = None
 
         # update netsquid memory
         self._qdevice.set_mem_pos_in_use(phys_id, False)

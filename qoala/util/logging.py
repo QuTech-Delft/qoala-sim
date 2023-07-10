@@ -74,23 +74,23 @@ class LogManager:
 
     @classmethod
     def log_to_file(cls, path: str) -> None:
-        fileHandler = logging.FileHandler(path, mode="w")
+        file_handler = logging.FileHandler(path, mode="w")
         formatter = logging.Formatter(
             "%(levelname)s:%(simtime)s ns:%(name)s:%(message)s"
         )
-        fileHandler.setFormatter(formatter)
-        fileHandler.addFilter(SimTimeFilter())
-        cls.get_stack_logger().addHandler(fileHandler)
+        file_handler.setFormatter(formatter)
+        file_handler.addFilter(SimTimeFilter())
+        cls.get_stack_logger().addHandler(file_handler)
 
     @classmethod
     def log_tasks_to_file(cls, path: str) -> None:
-        fileHandler = logging.FileHandler(path, mode="w")
+        file_handler = logging.FileHandler(path, mode="w")
         formatter = logging.Formatter(
             "%(levelname)s:%(simtime)s ns:%(name)s:%(message)s"
         )
-        fileHandler.setFormatter(formatter)
-        fileHandler.addFilter(SimTimeFilter())
-        cls.get_task_logger().addHandler(fileHandler)
+        file_handler.setFormatter(formatter)
+        file_handler.addFilter(SimTimeFilter())
+        cls.get_task_logger().addHandler(file_handler)
 
     @classmethod
     def enable_task_logger(cls, enable: bool) -> None:

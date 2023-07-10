@@ -375,9 +375,9 @@ class MultiPairCallbackTask(QoalaTask):
 @dataclass
 class TaskInfo:
     task: QoalaTask
-    predecessors: List[int]
-    ext_predecessors: List[int]
-    successors: List[int]
+    predecessors: Set[int]
+    ext_predecessors: Set[int]
+    successors: Set[int]
     deadline: Optional[int]
     rel_deadlines: Dict[int, int]
     ext_rel_deadlines: Dict[int, int]
@@ -385,7 +385,7 @@ class TaskInfo:
 
     @classmethod
     def only_task(cls, task: QoalaTask) -> TaskInfo:
-        return TaskInfo(task, [], [], [], None, {}, {}, None)
+        return TaskInfo(task, set(), set(), set(), None, {}, {}, None)
 
     def is_cpu_task(self) -> bool:
         return self.task.processor_type == ProcessorType.CPU
@@ -394,7 +394,7 @@ class TaskInfo:
         return self.task.processor_type == ProcessorType.QPU
 
 
-@dataclass(eq=True)
+@dataclass
 class TaskGraph:
     """DAG of Tasks."""
 
@@ -420,8 +420,8 @@ class TaskGraph:
         # an entry (x, y) means that x precedes y (y should execute after x)
         for (x, y) in precedences:
             assert x in self._tasks and y in self._tasks
-            self._tasks[y].predecessors.append(x)
-            self._tasks[x].successors.append(y)
+            self._tasks[y].predecessors.add(x)
+            self._tasks[x].successors.add(y)
 
     def update_successors(self) -> None:
         # Make sure all `successors` of all tinfos match all predecessors
@@ -429,14 +429,14 @@ class TaskGraph:
             for pred in tinfo.predecessors:
                 pred_tinfo = self.get_tinfo(pred)
                 if tid not in pred_tinfo.successors:
-                    pred_tinfo.successors.append(tid)
+                    pred_tinfo.successors.add(tid)
 
     def add_ext_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x (which is not in this graph) precedes y
         # (which is in this graph)
         for (x, y) in precedences:
             assert x not in self._tasks and y in self._tasks
-            self._tasks[y].ext_predecessors.append(x)
+            self._tasks[y].ext_predecessors.add(x)
 
     def add_deadlines(self, deadlines: List[Tuple[int, int]]) -> None:
         for (x, d) in deadlines:
@@ -488,21 +488,23 @@ class TaskGraph:
         roots = self.get_roots(ignore_external)
         return [r for r in roots if self.get_tinfo(r).task.is_event_task()]
 
-    def linearize(self) -> Optional[List[int]]:
+    def linearize(self) -> List[int]:
         # Returns None if not linear
         if len(self.get_tasks()) == 0:
             return []  # empty graph is linear
 
         roots = self.get_roots()
         if len(roots) != 1:
-            return None
+            raise RuntimeError("Task Graph cannot be linearized")
 
         chain: List[int] = [roots[0]]
         for _ in range(len(self._tasks) - 1):
             successors = self.get_tinfo(chain[-1]).successors
             if len(successors) != 1:
-                return None
-            chain.append(successors[0])
+                raise RuntimeError("Task Graph cannot be Linearized")
+            successor = successors.pop()
+            chain.append(successor)
+            successors.add(successor)
         return chain
 
     def remove_task(self, id: int) -> None:
@@ -583,27 +585,26 @@ class TaskGraph:
         # Move predecessor tasks that have been removed to ext_predecessors.
         for tinfo in partial_tasks.values():
             # Keep predecessors if they are still in the graph.
-            new_predecessors = [
+            new_predecessors = {
                 pred for pred in tinfo.predecessors if pred in partial_tasks
-            ]
+            }
             # Move others to ext_predecessors.
-            new_ext_predecessors = [
+            new_ext_predecessors = {
                 pred for pred in tinfo.predecessors if pred not in partial_tasks
-            ]
+            }
             tinfo.predecessors = new_predecessors
             tinfo.ext_predecessors = new_ext_predecessors
             # Clear successors. Will be filled in at the end of this function.
-            tinfo.successors = []
+            tinfo.successors.clear()
 
         # Precedence constraints for same-processor tasks that used to have a
         # precedence chain of other-processor tasks in between them.
         for tid, tinfo in partial_tasks.items():
             for pred in self.double_cross_predecessors(tid):
                 if pred not in tinfo.predecessors:
-                    tinfo.predecessors.append(pred)
+                    tinfo.predecessors.add(pred)
 
-        # Relative deadlines.
-        for tinfo in partial_tasks.values():
+            # Relative deadlines.
             # Keep rel_deadline to pred if pred is still in the graph.
             tinfo.rel_deadlines = {
                 pred: dl
@@ -631,7 +632,7 @@ class TaskGraphBuilder:
         for i in range(len(tinfos) - 1):
             t1 = tinfos[i]
             t2 = tinfos[i + 1]
-            t2.predecessors.append(t1.task.task_id)
+            t2.predecessors.add(t1.task.task_id)
 
         graph = TaskGraph(tasks={t.task.task_id: t for t in tinfos})
         graph.update_successors()
@@ -650,7 +651,7 @@ class TaskGraphBuilder:
         for i in range(len(tinfos) - 1):
             t1 = tinfos[i]
             t2 = tinfos[i + 1]
-            t2.predecessors.append(t1.task.task_id)
+            t2.predecessors.add(t1.task.task_id)
 
         graph = TaskGraph(tasks={t.task.task_id: t for t in tinfos})
         graph.update_successors()
@@ -679,8 +680,6 @@ class TaskGraphBuilder:
         for i in range(1, len(graphs)):
             chain1 = graphs[i - 1].linearize()
             chain2 = graphs[i].linearize()
-            assert chain1 is not None
-            assert chain2 is not None
             # Add precedence between last task of graph1 and first task of graph2
             precedence = (chain1[-1], chain2[0])
             merged.add_precedences([precedence])
@@ -705,7 +704,7 @@ class TaskGraphBuilder:
 
 class TaskDurationEstimator:
     @classmethod
-    def lr_duration(self, ehi: EhiNodeInfo, routine: LocalRoutine) -> float:
+    def lr_duration(cls, ehi: EhiNodeInfo, routine: LocalRoutine) -> float:
         duration = 0.0
         # TODO: refactor this
         for instr in routine.subroutine.instructions:
@@ -780,9 +779,7 @@ class QoalaGraphFromProgramBuilder:
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
-                    self._graph.get_tinfo(task_id).predecessors.append(
-                        prev_block_task_id
-                    )
+                    self._graph.get_tinfo(task_id).predecessors.add(prev_block_task_id)
                 if block.deadlines is not None:
                     for blk, dl in block.deadlines.items():
                         other_task = self._block_to_task_map[blk]
@@ -804,9 +801,7 @@ class QoalaGraphFromProgramBuilder:
                 # Task for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
-                    self._graph.get_tinfo(task_id).predecessors.append(
-                        prev_block_task_id
-                    )
+                    self._graph.get_tinfo(task_id).predecessors.add(prev_block_task_id)
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.QL:
                 assert len(block.instructions) == 1
@@ -855,15 +850,15 @@ class QoalaGraphFromProgramBuilder:
                 self._block_to_task_map[block.name] = postcall_id
 
                 # LR task should come after precall task
-                self._graph.get_tinfo(lr_id).predecessors.append(precall_id)
+                self._graph.get_tinfo(lr_id).predecessors.add(precall_id)
                 # postcall task should come after LR task
-                self._graph.get_tinfo(postcall_id).predecessors.append(lr_id)
+                self._graph.get_tinfo(postcall_id).predecessors.add(lr_id)
 
                 # Tasks for this block should come after task for previous block
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     # First task for this block is precall task.
-                    self._graph.get_tinfo(precall_id).predecessors.append(
+                    self._graph.get_tinfo(precall_id).predecessors.add(
                         prev_block_task_id
                     )
                 # Last task for this block is postcall task.
@@ -876,7 +871,7 @@ class QoalaGraphFromProgramBuilder:
                 # (Assuming linear program!)
                 if prev_block_task_id is not None:
                     # First task for QC block is precall task.
-                    self._graph.get_tinfo(precall_id).predecessors.append(
+                    self._graph.get_tinfo(precall_id).predecessors.add(
                         prev_block_task_id
                     )
                 # Last task for QC block is postcall task.
@@ -945,7 +940,7 @@ class QoalaGraphFromProgramBuilder:
             rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
             self._graph.add_tasks([rr_task])
             # RR task should come after precall task
-            self._graph.get_tinfo(rr_id).predecessors.append(precall_id)
+            self._graph.get_tinfo(rr_id).predecessors.add(precall_id)
 
             if callback is not None:
                 cb_id = self.unique_id()
@@ -954,12 +949,12 @@ class QoalaGraphFromProgramBuilder:
                 )
                 self._graph.add_tasks([cb_task])
                 # callback task should come after RR task
-                self._graph.get_tinfo(cb_id).predecessors.append(rr_id)
+                self._graph.get_tinfo(cb_id).predecessors.add(rr_id)
                 # postcall task should come after callback task
-                self._graph.get_tinfo(postcall_id).predecessors.append(cb_id)
+                self._graph.get_tinfo(postcall_id).predecessors.add(cb_id)
             else:  # no callback
                 # postcall task should come after RR task
-                self._graph.get_tinfo(postcall_id).predecessors.append(rr_id)
+                self._graph.get_tinfo(postcall_id).predecessors.add(rr_id)
 
         else:
             assert req_routine.callback_type == CallbackType.SEQUENTIAL
@@ -978,7 +973,7 @@ class QoalaGraphFromProgramBuilder:
                 # RR pair task should come after precall task.
                 # Note: the RR pair tasks do not have precedence
                 # constraints among each other.
-                self._graph.get_tinfo(rr_pair_id).predecessors.append(precall_id)
+                self._graph.get_tinfo(rr_pair_id).predecessors.add(precall_id)
                 if callback is not None:
                     pair_cb_id = self.unique_id()
                     pair_cb_task = SinglePairCallbackTask(
@@ -988,11 +983,11 @@ class QoalaGraphFromProgramBuilder:
                     # Callback task for pair should come after corresponding
                     # RR pair task. Note: the pair callback tasks do not have
                     # precedence constraints among each other.
-                    self._graph.get_tinfo(pair_cb_id).predecessors.append(rr_pair_id)
+                    self._graph.get_tinfo(pair_cb_id).predecessors.add(rr_pair_id)
                     # postcall task should come after callback task
-                    self._graph.get_tinfo(postcall_id).predecessors.append(pair_cb_id)
+                    self._graph.get_tinfo(postcall_id).predecessors.add(pair_cb_id)
                 else:  # no callback
                     # postcall task should come after RR task
-                    self._graph.get_tinfo(postcall_id).predecessors.append(rr_pair_id)
+                    self._graph.get_tinfo(postcall_id).predecessors.add(rr_pair_id)
 
         return precall_id, postcall_id

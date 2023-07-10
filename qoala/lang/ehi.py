@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import copy
 import itertools
 from dataclasses import dataclass
 from math import ceil
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, FrozenSet, List, Optional, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
@@ -12,26 +13,26 @@ from qoala.lang.common import MultiQubit
 from qoala.runtime.config import NetworkScheduleConfig  # type: ignore
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class EhiQubitInfo:
     is_communication: bool
     decoherence_rate: float  # rate per second
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class EhiGateInfo:
     instruction: Type[NetQASMInstruction]
     duration: float  # ns
     decoherence: float  # rate per second, for all qubits
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class EhiLinkInfo:
     duration: float  # ns
     fidelity: float
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class EhiLatencies:
     host_instr_time: float  # duration of classical Host instr execution (CL)
     qnos_instr_time: float  # duration of classical Qnos instr execution (QL)
@@ -42,7 +43,7 @@ class EhiLatencies:
         return EhiLatencies(0, 0, 0)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class EhiNodeInfo:
     """Hardware made available to offline compiler."""
 
@@ -244,7 +245,7 @@ class EhiBuilder:
         return EhiNodeInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class UnitModule:
     """Description of virtual memory space for programs. Target for a compiler.
 
@@ -285,8 +286,7 @@ class UnitModule:
     @classmethod
     def from_full_ehi(cls, ehi: EhiNodeInfo) -> UnitModule:
         """Use the full EhiNodeInfo"""
-        qubit_ids = [i for i in ehi.qubit_infos.keys()]
-        return cls.from_ehi(ehi, qubit_ids)
+        return UnitModule(info=copy.deepcopy(ehi))
 
     def get_all_qubit_ids(self) -> List[int]:
         return list(self.info.qubit_infos.keys())
@@ -301,8 +301,8 @@ class EhiNetworkSchedule:
     def next_bin(self, time: int) -> int:
         offset = time - self.first_bin
         next_bin_index = ceil(offset / self.bin_period)
-        next_bin_start = next_bin_index * self.bin_period
-        return next_bin_start + self.first_bin
+        next_bin_start = next_bin_index * self.bin_period + self.first_bin
+        return next_bin_start
 
     @classmethod
     def from_config(cls, config: NetworkScheduleConfig) -> EhiNetworkSchedule:
@@ -317,7 +317,7 @@ class EhiNetworkInfo:
 
     # (node A ID, node B ID) -> link info
     # for a pair (a, b) there exists no separate (b, a) info (it is the same)
-    links: Dict[Tuple[int, int], EhiLinkInfo]
+    links: Dict[FrozenSet[int], EhiLinkInfo]
 
     network_schedule: Optional[EhiNetworkSchedule] = None
 
@@ -329,9 +329,10 @@ class EhiNetworkInfo:
     def fully_connected(
         cls, nodes: Dict[int, str], info: EhiLinkInfo
     ) -> EhiNetworkInfo:
-        links: Dict[Tuple[int, int], EhiLinkInfo] = {}
+        links: Dict[FrozenSet[int], EhiLinkInfo] = {}
         for n1, n2 in itertools.combinations(nodes.keys(), 2):
-            links[(n1, n2)] = info
+            node_link = frozenset([n1, n2])
+            links[node_link] = info
         return EhiNetworkInfo(nodes, links)
 
     @classmethod
@@ -345,13 +346,18 @@ class EhiNetworkInfo:
         for id, node_name in self.nodes.items():
             if node_name == name:
                 return id
-        raise ValueError
+        raise ValueError(f"Node with name {name} not found")
+
+    def add_link(self, node1_id, node2_id, link_info: EhiLinkInfo):
+        node_link = frozenset([node1_id, node2_id])
+        self.links[node_link] = link_info
 
     def get_all_node_names(self) -> List[str]:
         return list(self.nodes.values())
 
     def get_link(self, node_id1: int, node_id2: int) -> EhiLinkInfo:
+        node_link = frozenset([node_id1, node_id2])
         try:
-            return self.links[(node_id1, node_id2)]
+            return self.links[node_link]
         except KeyError:
-            return self.links[(node_id2, node_id1)]
+            raise ValueError(f"No link between nodes {node_id1} and {node_id2}")

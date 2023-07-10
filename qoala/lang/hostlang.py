@@ -16,54 +16,28 @@ class IqoalaInstructionType(Enum):
     QL = auto()
 
 
+@dataclass(frozen=True)
 class IqoalaAttribute:
-    def __init__(self, value: IqoalaValue) -> None:
-        self._value = value
-
-    @property
-    def value(self) -> IqoalaValue:
-        return self._value
+    value: IqoalaValue
 
 
+@dataclass(frozen=True)
 class IqoalaTuple:
-    def __init__(self, values: List[str]) -> None:
-        self._values = values
-
-    @property
-    def values(self) -> List[str]:
-        return self._values
+    values: List[str]
 
     def __str__(self) -> str:
         return f"tuple<{','.join(v for v in self.values)}>"
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, IqoalaTuple):
-            return NotImplemented
-        return self.values == other.values
 
-
+@dataclass(frozen=True)
 class IqoalaVector:
     # TODO: create single IqoalaVar class that IqoalaVector, IqoalaTuple,
     # and IqoalaSingleton derive from
-    def __init__(self, name: str, size: Union[int, str]) -> None:
-        self._name = name
-        self._size = size
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def size(self) -> Union[int, str]:
-        return self._size
+    name: str
+    size: Union[int, str]
 
     def __str__(self) -> str:
         return f"{self.name}<{self.size}>"
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, IqoalaVector):
-            return NotImplemented
-        return self.name == other.name and self.size == other.size
 
 
 class ClassicalIqoalaOp:
@@ -132,7 +106,10 @@ class ClassicalIqoalaOp:
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ) -> ClassicalIqoalaOp:
         raise NotImplementedError
 
@@ -162,7 +139,10 @@ class AssignCValueOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is not None
         assert len(args) == 0
@@ -179,7 +159,10 @@ class BusyOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is None
         assert len(args) == 0
@@ -199,11 +182,16 @@ class SendCMsgOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is None
         assert len(args) == 2
         assert attr is None
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], str)
         return cls(args[0], args[1])
 
 
@@ -216,11 +204,15 @@ class ReceiveCMsgOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is not None
         assert len(args) == 1
         assert attr is None
+        assert isinstance(args[0], str)
         return cls(args[0], result)
 
 
@@ -233,11 +225,16 @@ class AddCValueOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is not None
         assert len(args) == 2
         assert attr is None
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], str)
         return cls(result, args[0], args[1])
 
 
@@ -251,11 +248,15 @@ class MultiplyConstantCValueOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is not None
         assert len(args) == 1
         assert attr is not None
+        assert isinstance(args[0], str)
         return cls(result, args[0], attr)
 
 
@@ -272,11 +273,16 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is not None
         assert len(args) == 2
         assert attr is not None
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], str)
         return cls(result, args[0], args[1], attr)
 
 
@@ -294,7 +300,10 @@ class RunSubroutineOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         if result is not None:
             assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
@@ -326,7 +335,10 @@ class RunRequestOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         if result is not None:
             assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
@@ -353,11 +365,15 @@ class ReturnResultOp(ClassicalIqoalaOp):
 
     @classmethod
     def from_generic_args(
-        cls, result: Optional[str], args: List[str], attr: Optional[IqoalaValue]
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
     ):
         assert result is None
         assert len(args) == 1
         assert attr is None
+        assert isinstance(args[0], str)
         return cls(args[0])
 
 

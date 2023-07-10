@@ -4,7 +4,7 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, FrozenSet, List, Optional, Type
 
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -449,15 +449,16 @@ class LhiNetworkInfo:
 
     # (node A ID, node B ID) -> link info
     # for a pair (a, b) there exists no separate (b, a) info (it is the same)
-    links: Dict[Tuple[int, int], LhiLinkInfo]
+    links: Dict[FrozenSet[int], LhiLinkInfo]
 
     @classmethod
     def fully_connected(
         cls, nodes: Dict[int, str], info: LhiLinkInfo
     ) -> LhiNetworkInfo:
-        links: Dict[Tuple[int, int], LhiLinkInfo] = {}
+        links: Dict[FrozenSet[int], LhiLinkInfo] = {}
         for n1, n2 in itertools.combinations(nodes.keys(), 2):
-            links[(n1, n2)] = info
+            node_link = frozenset([n1, n2])
+            links[node_link] = info
         return LhiNetworkInfo(nodes, links)
 
     @classmethod
@@ -467,11 +468,18 @@ class LhiNetworkInfo:
         link = LhiLinkInfo.perfect(duration)
         return cls.fully_connected(nodes, link)
 
+    def add_link(self, node1_id, node2_id, link_info: LhiLinkInfo):
+        node_link = frozenset([node1_id, node2_id])
+        self.links[node_link] = link_info
+
     def get_link(self, node_id1: int, node_id2: int) -> LhiLinkInfo:
+        node_link = frozenset([node_id1, node_id2])
         try:
-            return self.links[(node_id1, node_id2)]
+            return self.links[node_link]
         except KeyError:
-            return self.links[(node_id2, node_id1)]
+            raise ValueError(
+                f"There is no link between nodes {node_id1} and {node_id2} in the network"
+            )
 
 
 @dataclass

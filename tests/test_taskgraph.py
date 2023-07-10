@@ -32,7 +32,7 @@ def linear():
 
     assert graph.get_roots() == [0]
     assert graph.get_tinfo(0).predecessors == []
-    assert all(graph.get_tinfo(i).predecessors == [i - 1] for i in range(1, 5))
+    assert all(graph.get_tinfo(i).predecessors == {i - 1} for i in range(1, 5))
     assert all(graph.get_tinfo(i).deadline is None for i in range(5))
     assert graph.get_tinfo(0).rel_deadlines == {}
     assert all(graph.get_tinfo(i).rel_deadlines == {i - 1: 100} for i in range(1, 5))
@@ -43,8 +43,8 @@ def linear():
         graph.get_tinfo(0)
 
     assert graph.get_roots() == [1]
-    assert graph.get_tinfo(1).predecessors == []
-    assert all(graph.get_tinfo(i).predecessors == [i - 1] for i in range(2, 5))
+    assert graph.get_tinfo(1).predecessors == set()
+    assert all(graph.get_tinfo(i).predecessors == {i - 1} for i in range(2, 5))
     assert graph.get_tinfo(1).deadline == 100
     assert all(graph.get_tinfo(i).deadline is None for i in range(2, 5))
     assert graph.get_tinfo(1).rel_deadlines == {}
@@ -63,7 +63,7 @@ def no_precedence():
     graph.add_rel_deadlines(rel_deadlines)
 
     assert graph.get_roots() == [i for i in range(5)]
-    assert all(graph.get_tinfo(i).predecessors == [] for i in range(5))
+    assert all(graph.get_tinfo(i).predecessors == set() for i in range(5))
     assert all(graph.get_tinfo(i).deadline is None for i in range(5))
     assert graph.get_tinfo(0).rel_deadlines == {}
     assert all(graph.get_tinfo(i).rel_deadlines == {i - 1: 100} for i in range(1, 5))
@@ -74,7 +74,7 @@ def no_precedence():
         graph.get_tinfo(0)
 
     assert graph.get_roots() == [i for i in range(1, 5)]
-    assert all(graph.get_tinfo(i).predecessors == [] for i in range(1, 5))
+    assert all(graph.get_tinfo(i).predecessors == set() for i in range(1, 5))
     assert graph.get_tinfo(1).deadline == 100
     assert all(graph.get_tinfo(i).deadline is None for i in range(2, 5))
     assert graph.get_tinfo(1).rel_deadlines == {}
@@ -86,7 +86,7 @@ def no_precedence():
         graph.get_tinfo(4)
 
     assert graph.get_roots() == [1, 2, 3]
-    assert all(graph.get_tinfo(i).predecessors == [] for i in range(1, 4))
+    assert all(graph.get_tinfo(i).predecessors == set() for i in range(1, 4))
     assert all(graph.get_tinfo(i).rel_deadlines == {i - 1: 100} for i in range(2, 4))
 
 
@@ -220,10 +220,10 @@ def test_linear_tasks():
 
     graph = TaskGraphBuilder.linear_tasks(tasks)
     assert graph.get_tinfo(0).task == tasks[0]
-    assert graph.get_tinfo(0).predecessors == []
+    assert graph.get_tinfo(0).predecessors == set()
     for i in range(1, len(tasks)):
         assert graph.get_tinfo(i).task == tasks[i]
-        assert graph.get_tinfo(i).predecessors == [i - 1]
+        assert graph.get_tinfo(i).predecessors == {i - 1}
 
 
 def test_linear_tasks_with_timestamps():
@@ -239,10 +239,10 @@ def test_linear_tasks_with_timestamps():
 
     graph = TaskGraphBuilder.linear_tasks_with_start_times(start_times)
     assert graph.get_tinfo(0).task == tasks[0]
-    assert graph.get_tinfo(0).predecessors == []
+    assert graph.get_tinfo(0).predecessors == set()
     for i in range(1, len(tasks)):
         assert graph.get_tinfo(i).task == tasks[i]
-        assert graph.get_tinfo(i).predecessors == [i - 1]
+        assert graph.get_tinfo(i).predecessors == {i - 1}
 
     for task, start_time in start_times:
         assert graph.get_tinfo(task.task_id).start_time == start_time
@@ -261,8 +261,8 @@ def test_merge():
     for i in range(4):
         assert merged.get_tinfo(i).task == SimpleTask(i)
 
-    assert merged.get_tinfo(1).predecessors == [0]
-    assert merged.get_tinfo(3).predecessors == [2]
+    assert merged.get_tinfo(1).predecessors == {0}
+    assert merged.get_tinfo(3).predecessors == {2}
 
 
 def test_merge_linear():
@@ -278,17 +278,18 @@ def test_merge_linear():
     for i in range(4):
         assert merged.get_tinfo(i).task == SimpleTask(i)
 
-    assert merged.get_tinfo(1).predecessors == [0]
-    assert merged.get_tinfo(3).predecessors == [2]
+    assert merged.get_tinfo(1).predecessors == {0}
+    assert merged.get_tinfo(3).predecessors == {2}
 
     # Check that there is precedence between two original graphs
-    assert merged.get_tinfo(2).predecessors == [1]
+    assert merged.get_tinfo(2).predecessors == {1}
 
 
 def test_linearize_1():
     graph = TaskGraph()
     graph.add_tasks([SimpleTask(0), SimpleTask(1)])
-    assert graph.linearize() is None
+    with pytest.raises(RuntimeError):
+        graph.linearize()
 
 
 def test_linearize_2():
@@ -303,7 +304,8 @@ def test_linearize_3():
     graph.add_tasks([SimpleTask(0), SimpleTask(1), SimpleTask(2)])
     graph.add_precedences([(0, 1)])
     graph.add_precedences([(0, 2)])
-    assert graph.linearize() is None
+    with pytest.raises(RuntimeError):
+        graph.linearize()
 
 
 def test_linearize_4():

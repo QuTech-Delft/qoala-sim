@@ -15,7 +15,7 @@ class NetstackComponent(Component):
 
     Has communications ports with
      - the processor component of this QNodeOS
-     - the netstack compmonent of the remote node
+     - the netstack component of the remote node
         NOTE: at this moment only a single other node is supported in the network
 
     This is a static container for network-stack-related components and ports.

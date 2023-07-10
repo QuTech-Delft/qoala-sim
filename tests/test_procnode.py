@@ -55,18 +55,18 @@ MOCK_QNOS_RET_REG = "R0"
 MOCK_QNOS_RET_VALUE = 7
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class InterfaceEvent:
     peer: str
     msg: Message
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class FlushEvent:
     pass
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class SignalEvent:
     pass
 
@@ -210,9 +210,10 @@ def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
     return build_qprocessor_from_topology(name=f"{name}_processor", topology=topology)
 
 
-def create_network_ehi(
-    num_qubits: int, names: List[str] = ["alice", "bob", "charlie"]
-) -> EhiNetworkInfo:
+def create_network_ehi(num_qubits: int, names: List[str] = None) -> EhiNetworkInfo:
+    if names is None:
+        names = ["alice", "bob", "charlie"]
+
     nodes = {i: name for i, name in enumerate(names)}
     return EhiNetworkInfo(nodes, links={})
 
