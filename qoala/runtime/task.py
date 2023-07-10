@@ -487,7 +487,7 @@ class TaskGraph:
     def get_event_roots(self, ignore_external: bool = False) -> List[int]:
         roots = self.get_roots(ignore_external)
         return [r for r in roots if self.get_tinfo(r).task.is_event_task()]
-    
+
     def linearize(self) -> List[int]:
         # Returns None if not linear
         if len(self.get_tasks()) == 0:

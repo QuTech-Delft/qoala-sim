@@ -313,9 +313,10 @@ def test_get_remote_request_for():
     request_bob_2 = create_request(bob.ID, alice.ID, [3], [3])
     entdist.put_request(request_bob_2)
 
-    # Remove and check if it was the correct request.
-    assert entdist.pop_request(bob.ID, 0) == request_bob
-
+    # Bob's third (in total) request corresponds to Alice.
+    assert entdist.get_remote_request_for(request_alice_1) == (2, 3, 3)
+    # Remove his first request.
+    entdist.pop_request(bob.ID, 0)
     # The corresponding request is now 2nd in Bob's queue.
     assert entdist.get_remote_request_for(request_alice_1) == (1, 3, 3)
 
