@@ -1,5 +1,5 @@
 import itertools
-from typing import List
+from typing import List, Optional
 
 import netsquid as ns
 import numpy as np
@@ -44,20 +44,40 @@ def create_n_nodes(n: int, num_qubits: int = 1) -> List[Node]:
     return nodes
 
 
-def create_request(node1_id: int, node2_id: int) -> EntDistRequest:
+def create_request(
+    node1_id: int,
+    node2_id: int,
+    lpids: Optional[List[int]] = None,
+    rpids: Optional[List[int]] = None,
+) -> EntDistRequest:
+    if lpids is None:
+        lpids = []
+    if rpids is None:
+        rpids = []
     return EntDistRequest(
-        local_node_id=node1_id, remote_node_id=node2_id, local_qubit_id=0
+        local_node_id=node1_id,
+        remote_node_id=node2_id,
+        local_qubit_id=0,
+        local_pids=lpids,
+        remote_pids=rpids,
     )
 
 
 def create_joint_request(
-    node1_id: int, node2_id: int, node1_qubit_id: int = 0, node2_qubit_id: int = 0
+    node1_id: int,
+    node2_id: int,
+    node1_qubit_id: int = 0,
+    node2_qubit_id: int = 0,
+    node1_pid: int = 0,
+    node2_pid: int = 0,
 ) -> JointRequest:
     return JointRequest(
         node1_id=node1_id,
         node2_id=node2_id,
         node1_qubit_id=node1_qubit_id,
         node2_qubit_id=node2_qubit_id,
+        node1_pid=node1_pid,
+        node2_pid=node2_pid,
     )
 
 
@@ -169,7 +189,7 @@ def test_deliver_perfect():
 
     ns.sim_reset()
     assert ns.sim_time() == 0
-    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0))
+    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0, 0, 0))
     assert ns.sim_time() == 1000
 
     assert alice.qmemory.mem_positions[0].in_use
@@ -197,7 +217,7 @@ def test_deliver_depolar():
     ns.sim_reset()
     ns.set_qstate_formalism(QFormalism.DM)
     assert ns.sim_time() == 0
-    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0))
+    netsquid_run(entdist.deliver(alice.ID, 0, bob.ID, 0, 0, 0))
     assert ns.sim_time() == 1000
 
     assert alice.qmemory.mem_positions[0].in_use
@@ -265,47 +285,46 @@ def test_get_remote_request_for():
     alice, bob, charlie = create_n_nodes(3)
     entdist = create_entdist(nodes=[alice, bob, charlie])
 
-    request_alice = create_request(alice.ID, bob.ID)
+    request_alice = create_request(alice.ID, bob.ID, [0], [1])
     entdist.put_request(request_alice)
 
     # Only Alice's request registered; no corresponding request from Bob yet.
     assert entdist.get_remote_request_for(request_alice) is None
 
-    request_bob = create_request(bob.ID, alice.ID)
+    request_bob = create_request(bob.ID, alice.ID, [1], [0])
     entdist.put_request(request_bob)
 
     # Bob's first request corresponds to Alice's request.
-    assert entdist.get_remote_request_for(request_alice) == 0
+    assert entdist.get_remote_request_for(request_alice) == (0, 0, 1)
 
     invalid_request = create_request(100, 100)
     with pytest.raises(ValueError):
         entdist.get_remote_request_for(invalid_request)
 
     # Put 2 new identical requests for Alice.
-    request_alice_1 = create_request(alice.ID, bob.ID)
+    request_alice_1 = create_request(alice.ID, bob.ID, [2, 3], [2, 3])
     entdist.put_request(request_alice_1)
-    request_alice_2 = create_request(alice.ID, bob.ID)
+    request_alice_2 = create_request(alice.ID, bob.ID, [2, 3], [2, 3])
     entdist.put_request(request_alice_2)
 
     # Put 2 new requests for Bob. Only the 2nd corresponds to Alice.
-    request_bob_1 = create_request(bob.ID, charlie.ID)
+    request_bob_1 = create_request(bob.ID, charlie.ID, [0], [0])
     entdist.put_request(request_bob_1)
-    request_bob_2 = create_request(bob.ID, alice.ID)
+    request_bob_2 = create_request(bob.ID, alice.ID, [3], [3])
     entdist.put_request(request_bob_2)
 
-    # Bob's first request still corresponds to Alice.
-    assert entdist.get_remote_request_for(request_alice_1) == 0
     # Remove and check if it was the correct request.
     assert entdist.pop_request(bob.ID, 0) == request_bob
+
     # The corresponding request is now 2nd in Bob's queue.
-    assert entdist.get_remote_request_for(request_alice_1) == 1
+    assert entdist.get_remote_request_for(request_alice_1) == (1, 3, 3)
 
 
 def test_get_next_joint_request():
     alice, bob = create_n_nodes(2)
     entdist = create_entdist(nodes=[alice, bob])
 
-    request_alice = create_request(alice.ID, bob.ID)
+    request_alice = create_request(alice.ID, bob.ID, [0, 1], [0, 1])
     entdist.put_request(request_alice)
     assert len(entdist.get_requests(alice.ID)) == 1
     assert len(entdist.get_requests(bob.ID)) == 0
@@ -317,7 +336,7 @@ def test_get_next_joint_request():
     assert len(entdist.get_requests(alice.ID)) == 1
     assert len(entdist.get_requests(bob.ID)) == 0
 
-    request_bob = create_request(bob.ID, alice.ID)
+    request_bob = create_request(bob.ID, alice.ID, [1], [1])
     entdist.put_request(request_bob)
     assert len(entdist.get_requests(bob.ID)) == 1
 
@@ -334,15 +353,15 @@ def test_get_next_joint_request_2():
     alice, bob, charlie = create_n_nodes(3)
     entdist = create_entdist(nodes=[alice, bob, charlie])
 
-    request_ab = create_request(alice.ID, bob.ID)
-    request_ac = create_request(alice.ID, charlie.ID)
+    request_ab = create_request(alice.ID, bob.ID, [0], [0])
+    request_ac = create_request(alice.ID, charlie.ID, [0], [1])
     entdist.put_request(request_ab)
     entdist.put_request(request_ac)
 
     assert entdist.get_next_joint_request() is None
 
-    request_bc = create_request(bob.ID, charlie.ID)
-    request_ba = create_request(bob.ID, alice.ID)
+    request_bc = create_request(bob.ID, charlie.ID, [0], [1])
+    request_ba = create_request(bob.ID, alice.ID, [0], [0])
     entdist.put_request(request_bc)
     entdist.put_request(request_ba)
 
@@ -356,8 +375,8 @@ def test_get_next_joint_request_2():
     # No next joint request at this moment.
     assert entdist.get_next_joint_request() is None
 
-    request_cb = create_request(charlie.ID, bob.ID)
-    request_ca = create_request(charlie.ID, alice.ID)
+    request_cb = create_request(charlie.ID, bob.ID, [1], [0])
+    request_ca = create_request(charlie.ID, alice.ID, [1], [0])
     entdist.put_request(request_cb)
     entdist.put_request(request_ca)
 
@@ -365,10 +384,12 @@ def test_get_next_joint_request_2():
     # TODO: even though Bob put his request first, Alice's request is handled first
     # since Alice is first in the node list. Improve this!
     assert entdist.get_next_joint_request() == create_joint_request(
-        alice.ID, charlie.ID
+        alice.ID, charlie.ID, node1_pid=0, node2_pid=1
     )
     # Bob <-> Charlie
-    assert entdist.get_next_joint_request() == create_joint_request(bob.ID, charlie.ID)
+    assert entdist.get_next_joint_request() == create_joint_request(
+        bob.ID, charlie.ID, node1_pid=0, node2_pid=1
+    )
 
 
 def test_serve_request():

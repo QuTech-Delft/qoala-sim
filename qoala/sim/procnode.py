@@ -37,6 +37,8 @@ class ProcNode(Protocol):
         node_id: Optional[int] = None,
         scheduler: Optional[NodeScheduler] = None,
         asynchronous: bool = False,
+        deterministic_scheduler: bool = True,
+        use_deadlines: bool = True,
     ) -> None:
         """ProcNode constructor.
 
@@ -112,6 +114,8 @@ class ProcNode(Protocol):
                 self._memmgr,
                 self._local_ehi,
                 self._network_ehi,
+                deterministic_scheduler,
+                use_deadlines,
             )
         else:
             self._scheduler = scheduler

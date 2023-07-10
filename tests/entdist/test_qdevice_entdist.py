@@ -1,5 +1,5 @@
 import itertools
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import netsquid as ns
 from netsquid.nodes import Node
@@ -42,21 +42,50 @@ def create_entdist(qdevices: List[QDevice]) -> EntDist:
 
 
 def create_request(
-    node1_id: int, node2_id: int, local_qubit_id: int = 0
+    node1_id: int,
+    node2_id: int,
+    local_qubit_id: int = 0,
+    lpids: Optional[List[int]] = None,
+    rpids: Optional[List[int]] = None,
 ) -> EntDistRequest:
+    if lpids is None:
+        lpids = []
+    if rpids is None:
+        rpids = []
     return EntDistRequest(
-        local_node_id=node1_id, remote_node_id=node2_id, local_qubit_id=local_qubit_id
+        local_node_id=node1_id,
+        remote_node_id=node2_id,
+        local_qubit_id=local_qubit_id,
+        local_pids=lpids,
+        remote_pids=rpids,
     )
 
 
 def create_request_pair(
-    node1_id: int, node2_id: int, node1_qubit_id: int = 0, node2_qubit_id: int = 0
+    node1_id: int,
+    node2_id: int,
+    node1_qubit_id: int = 0,
+    node2_qubit_id: int = 0,
+    lpids: Optional[List[int]] = None,
+    rpids: Optional[List[int]] = None,
 ) -> Tuple[EntDistRequest]:
+    if lpids is None:
+        lpids = []
+    if rpids is None:
+        rpids = []
     req1 = EntDistRequest(
-        local_node_id=node1_id, remote_node_id=node2_id, local_qubit_id=node1_qubit_id
+        local_node_id=node1_id,
+        remote_node_id=node2_id,
+        local_qubit_id=node1_qubit_id,
+        local_pids=lpids,
+        remote_pids=rpids,
     )
     req2 = EntDistRequest(
-        local_node_id=node2_id, remote_node_id=node1_id, local_qubit_id=node2_qubit_id
+        local_node_id=node2_id,
+        remote_node_id=node1_id,
+        local_qubit_id=node2_qubit_id,
+        local_pids=rpids,
+        remote_pids=lpids,
     )
     return req1, req2
 
@@ -65,8 +94,8 @@ def test1():
     alice, bob = create_n_qdevices(2)
     entdist = create_entdist([alice, bob])
 
-    request_alice = create_request(alice.node.ID, bob.node.ID)
-    request_bob = create_request(bob.node.ID, alice.node.ID)
+    request_alice = create_request(alice.node.ID, bob.node.ID, 0, [0], [0])
+    request_bob = create_request(bob.node.ID, alice.node.ID, 0, [0], [0])
 
     entdist.put_request(request_alice)
     entdist.put_request(request_bob)
@@ -89,15 +118,15 @@ def test2():
 
     ids = [qdevices[i].node.ID for i in range(4)]
 
-    req01, req10 = create_request_pair(ids[0], ids[1], 0, 0)
+    req01, req10 = create_request_pair(ids[0], ids[1], 0, 0, [0], [0])
     entdist.put_request(req01)
     entdist.put_request(req10)
 
-    req02, req20 = create_request_pair(ids[0], ids[2], 1, 0)
+    req02, req20 = create_request_pair(ids[0], ids[2], 1, 0, [0], [0])
     entdist.put_request(req02)
     entdist.put_request(req20)
 
-    req13, req31 = create_request_pair(ids[1], ids[3], 1, 0)
+    req13, req31 = create_request_pair(ids[1], ids[3], 1, 0, [0], [0])
     entdist.put_request(req13)
     entdist.put_request(req31)
 

@@ -24,6 +24,7 @@ from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist, EntDistRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
+from qoala.sim.eprsocket import EprSocket
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies
 from qoala.sim.netstack.netstack import Netstack
@@ -74,10 +75,22 @@ def create_alice_bob_qdevices(
 
 
 def create_request(
-    node1_id: int, node2_id: int, local_qubit_id: int = 0
+    node1_id: int,
+    node2_id: int,
+    local_qubit_id: int = 0,
+    lpids: Optional[List[int]] = None,
+    rpids: Optional[List[int]] = None,
 ) -> EntDistRequest:
+    if lpids is None:
+        lpids = []
+    if rpids is None:
+        rpids = []
     return EntDistRequest(
-        local_node_id=node1_id, remote_node_id=node2_id, local_qubit_id=local_qubit_id
+        local_node_id=node1_id,
+        remote_node_id=node2_id,
+        local_qubit_id=local_qubit_id,
+        local_pids=lpids,
+        remote_pids=rpids,
     )
 
 
@@ -124,8 +137,8 @@ def test_single_pair_only_netstack_interface():
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
-    request_alice = create_request(alice_id, bob_id)
-    request_bob = create_request(bob_id, alice_id)
+    request_alice = create_request(alice_id, bob_id, 0, [0], [0])
+    request_bob = create_request(bob_id, alice_id, 0, [0], [0])
 
     alice_intf = AliceNetstackInterface(
         alice_comp, ehi_network, alice_qdevice, requests=[request_alice]
@@ -167,14 +180,14 @@ def test_multiple_pairs_only_netstack_interface():
     bob_id = bob_comp.node.ID
 
     requests_alice = [
-        create_request(alice_id, bob_id, 0),
-        create_request(alice_id, bob_id, 1),
-        create_request(alice_id, bob_id, 2),
+        create_request(alice_id, bob_id, 0, [0], [0]),
+        create_request(alice_id, bob_id, 1, [0], [0]),
+        create_request(alice_id, bob_id, 2, [0], [0]),
     ]
     requests_bob = [
-        create_request(bob_id, alice_id, 1),
-        create_request(bob_id, alice_id, 2),
-        create_request(bob_id, alice_id, 0),
+        create_request(bob_id, alice_id, 1, [0], [0]),
+        create_request(bob_id, alice_id, 2, [0], [0]),
+        create_request(bob_id, alice_id, 0, [0], [0]),
     ]
 
     alice_intf = AliceNetstackInterface(
@@ -265,16 +278,16 @@ def test_single_pair_full_netstack():
     alice_id = 0
     bob_id = 1
 
-    request_alice = create_request(alice_id, bob_id)
-    request_bob = create_request(bob_id, alice_id)
+    request_alice = create_request(alice_id, bob_id, 0, [0], [0])
+    request_bob = create_request(bob_id, alice_id, 0, [0], [0])
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.execute_entdist_request(request_alice)
+            yield from self.processor._execute_entdist_request(request_alice)
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
-            yield from self.processor.execute_entdist_request(request_bob)
+            yield from self.processor._execute_entdist_request(request_bob)
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
         1, alice_id, bob_id, AliceNetstack, BobNetstack
@@ -301,23 +314,71 @@ def test_multiple_pairs_full_netstack():
     bob_id = 1
 
     requests_alice = [
-        create_request(alice_id, bob_id, 0),
-        create_request(alice_id, bob_id, 1),
+        create_request(alice_id, bob_id, 0, [0], [0]),
+        create_request(alice_id, bob_id, 1, [1], [1]),
     ]
     requests_bob = [
-        create_request(bob_id, alice_id, 0),
-        create_request(bob_id, alice_id, 2),
+        create_request(bob_id, alice_id, 0, [0], [0]),
+        create_request(bob_id, alice_id, 2, [1], [1]),
     ]
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
             for request in requests_alice:
-                yield from self.processor.execute_entdist_request(request)
+                yield from self.processor._execute_entdist_request(request)
 
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
             for request in requests_bob:
-                yield from self.processor.execute_entdist_request(request)
+                yield from self.processor._execute_entdist_request(request)
+
+    alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
+        3, alice_id, bob_id, AliceNetstack, BobNetstack
+    )
+
+    alice_netstack.start()
+    bob_netstack.start()
+    entdist.start()
+    ns.sim_run()
+
+    aq0 = alice_netstack.qdevice.get_local_qubit(0)
+    bq0 = bob_netstack.qdevice.get_local_qubit(0)
+    aq1 = alice_netstack.qdevice.get_local_qubit(1)
+    bq2 = bob_netstack.qdevice.get_local_qubit(2)
+    assert has_multi_state([aq0, bq0], B00_DENS)
+    assert has_multi_state([aq1, bq2], B00_DENS)
+
+
+def test_multiple_pairs_as_group():
+    ns.sim_reset()
+
+    alice_id = 0
+    bob_id = 1
+
+    request_alice = create_request(alice_id, bob_id, 0, [0, 1], [0, 2])
+    request_bob = create_request(bob_id, alice_id, 0, [2, 0], [1, 0])
+
+    class AliceNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            pid = yield from self.processor._execute_entdist_request_group(
+                request_alice
+            )
+            if pid == 0:
+                new_request_alice = create_request(alice_id, bob_id, 1, [1], [2])
+            else:
+                assert pid == 1
+                new_request_alice = create_request(alice_id, bob_id, 1, [0], [0])
+            yield from self.processor._execute_entdist_request_group(new_request_alice)
+
+    class BobNetstack(Netstack):
+        def run(self) -> Generator[EventExpression, None, None]:
+            pid = yield from self.processor._execute_entdist_request_group(request_bob)
+            if pid == 2:
+                new_request_bob = create_request(bob_id, alice_id, 2, [0], [0])
+            else:
+                assert pid == 0
+                new_request_bob = create_request(bob_id, alice_id, 2, [2], [1])
+            yield from self.processor._execute_entdist_request_group(new_request_bob)
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
         3, alice_id, bob_id, AliceNetstack, BobNetstack
@@ -383,8 +444,14 @@ def create_process(
     num_qubits: int,
     routines: Optional[Dict[str, LocalRoutine]] = None,
     req_routines: Optional[Dict[str, RequestRoutine]] = None,
+    epr_sockets: Optional[Dict[int, EprSocket]] = None,
 ) -> QoalaProcess:
-
+    if routines is None:
+        routines = {}
+    if req_routines is None:
+        req_routines = {}
+    if epr_sockets is None:
+        epr_sockets = {}
     program = QoalaProgram(
         blocks=[],
         local_routines=routines,
@@ -407,7 +474,7 @@ def create_process(
         prog_instance=instance,
         prog_memory=mem,
         csockets={},
-        epr_sockets=program.meta.epr_sockets,
+        epr_sockets=epr_sockets,
         result=ProgramResult(values={}),
     )
     return process
@@ -427,10 +494,13 @@ def test_single_pair_qoala_ck_request_only_alice():
     )
 
     requests_bob = [
-        create_request(bob_id, alice_id, 0),
-        create_request(bob_id, alice_id, 1),
+        create_request(bob_id, alice_id, 0, [0], [0]),
+        create_request(bob_id, alice_id, 1, [0], [0]),
     ]
-    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
+    epr_socket = EprSocket(0, bob_id, 0, 0, 1.0)
+    process_alice = create_process(
+        num_qubits, req_routines={"req1": routine_alice}, epr_sockets={0: epr_socket}
+    )
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -440,7 +510,7 @@ def test_single_pair_qoala_ck_request_only_alice():
     class BobNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
             for request in requests_bob:
-                yield from self.processor.execute_entdist_request(request)
+                yield from self.processor._execute_entdist_request(request)
 
     alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
         num_qubits, alice_id, bob_id, AliceNetstack, BobNetstack
@@ -480,8 +550,16 @@ def test_single_pair_qoala_ck_request():
         role=EprRole.RECEIVE,
     )
 
-    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
-    process_bob = create_process(num_qubits, req_routines={"req1": routine_bob})
+    epr_socket_alice = EprSocket(0, bob_id, 0, 0, 1.0)
+    process_alice = create_process(
+        num_qubits,
+        req_routines={"req1": routine_alice},
+        epr_sockets={0: epr_socket_alice},
+    )
+    epr_socket_bob = EprSocket(0, alice_id, 0, 0, 1.0)
+    process_bob = create_process(
+        num_qubits, req_routines={"req1": routine_bob}, epr_sockets={0: epr_socket_bob}
+    )
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -532,8 +610,16 @@ def test_single_pair_qoala_md_request_different_virt_ids():
         role=EprRole.RECEIVE,
     )
 
-    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
-    process_bob = create_process(num_qubits, req_routines={"req1": routine_bob})
+    epr_socket_alice = EprSocket(0, bob_id, 0, 0, 1.0)
+    process_alice = create_process(
+        num_qubits,
+        req_routines={"req1": routine_alice},
+        epr_sockets={0: epr_socket_alice},
+    )
+    epr_socket_bob = EprSocket(0, alice_id, 0, 0, 1.0)
+    process_bob = create_process(
+        num_qubits, req_routines={"req1": routine_bob}, epr_sockets={0: epr_socket_bob}
+    )
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -605,8 +691,16 @@ def test_single_pair_qoala_md_request_same_virt_ids():
         role=EprRole.RECEIVE,
     )
 
-    process_alice = create_process(num_qubits, req_routines={"req1": routine_alice})
-    process_bob = create_process(num_qubits, req_routines={"req1": routine_bob})
+    epr_socket_alice = EprSocket(0, bob_id, 0, 0, 1.0)
+    process_alice = create_process(
+        num_qubits,
+        req_routines={"req1": routine_alice},
+        epr_sockets={0: epr_socket_alice},
+    )
+    epr_socket_bob = EprSocket(0, alice_id, 0, 0, 1.0)
+    process_bob = create_process(
+        num_qubits, req_routines={"req1": routine_bob}, epr_sockets={0: epr_socket_bob}
+    )
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -666,6 +760,7 @@ if __name__ == "__main__":
     test_multiple_pairs_only_netstack_interface()
     test_single_pair_full_netstack()
     test_multiple_pairs_full_netstack()
+    test_multiple_pairs_as_group()
     test_single_pair_qoala_ck_request_only_alice()
     test_single_pair_qoala_ck_request()
     test_single_pair_qoala_md_request_different_virt_ids()

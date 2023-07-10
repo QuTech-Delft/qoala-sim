@@ -58,6 +58,12 @@ class QoalaTask:
     def duration(self) -> Optional[float]:
         return self._duration
 
+    def is_epr_task(self) -> bool:
+        return isinstance(self, SinglePairTask) or isinstance(self, MultiPairTask)
+
+    def is_event_task(self) -> bool:
+        return isinstance(self, HostEventTask)
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, QoalaTask):
             return NotImplemented
@@ -474,6 +480,14 @@ class TaskGraph:
                 if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) == 0
             ]
 
+    def get_epr_roots(self, ignore_external: bool = False) -> List[int]:
+        roots = self.get_roots(ignore_external)
+        return [r for r in roots if self.get_tinfo(r).task.is_epr_task()]
+
+    def get_event_roots(self, ignore_external: bool = False) -> List[int]:
+        roots = self.get_roots(ignore_external)
+        return [r for r in roots if self.get_tinfo(r).task.is_event_task()]
+    
     def linearize(self) -> List[int]:
         # Returns None if not linear
         if len(self.get_tasks()) == 0:
@@ -803,6 +817,12 @@ class QoalaGraphFromProgramBuilder:
                     pre_duration = None
                     post_duration = None
 
+                deadlines: Dict[int, int] = {}  # other task ID -> relative deadline
+                if block.deadlines is not None:
+                    for blk, dl in block.deadlines.items():
+                        other_task = self._block_to_task_map[blk]
+                        deadlines[other_task] = dl
+
                 precall_id = self.unique_id()
                 # Use a unique "pointer" or identifier which is used at runtime to point
                 # to shared data. The PreCallTask will store the lrcall object
@@ -813,6 +833,8 @@ class QoalaGraphFromProgramBuilder:
                     precall_id, pid, block.name, shared_ptr, pre_duration
                 )
                 self._graph.add_tasks([precall_task])
+                for other_task, dl in deadlines.items():
+                    self._graph.get_tinfo(precall_id).rel_deadlines[other_task] = dl
 
                 lr_id = self.unique_id()
                 qputask = LocalRoutineTask(

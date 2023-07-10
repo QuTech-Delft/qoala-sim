@@ -93,7 +93,6 @@ def run_bqc(
     server_instance = instantiate(
         server_program, server_procnode.local_ehi, 0, server_input
     )
-    server_procnode.scheduler.submit_program_instance(server_instance)
 
     client_program = load_program("bqc_client.iqoala")
     client_input = ProgramInput(
@@ -108,7 +107,13 @@ def run_bqc(
     client_instance = instantiate(
         client_program, client_procnode.local_ehi, 0, client_input
     )
-    client_procnode.scheduler.submit_program_instance(client_instance)
+
+    client_procnode.scheduler.submit_program_instance(
+        client_instance, remote_pid=server_instance.pid
+    )
+    server_procnode.scheduler.submit_program_instance(
+        server_instance, remote_pid=client_instance.pid
+    )
 
     tasks_server = TaskGraphBuilder.from_program(
         server_program,

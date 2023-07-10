@@ -86,6 +86,7 @@ def run_qkd(
         programs={"alice": alice_program, "bob": bob_program},
         program_inputs={"alice": alice_input, "bob": bob_input},
         network_cfg=network_cfg,
+        linear=True,
     )
 
     alice_result = app_result.batch_results["alice"]

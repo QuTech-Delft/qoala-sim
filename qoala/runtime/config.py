@@ -1251,6 +1251,8 @@ class ProcNodeConfig(BaseModel):
     topology: TopologyConfig
     latencies: LatenciesConfig
     ntf: NtfConfig
+    determ_sched: bool = True
+    use_deadlines: bool = True
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:

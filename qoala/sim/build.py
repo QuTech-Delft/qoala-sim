@@ -111,6 +111,8 @@ def build_procnode_from_config(
         ntf_interface=ntf_interface,
         node_id=cfg.node_id,
         network_ehi=network_ehi,
+        deterministic_scheduler=cfg.determ_sched,
+        use_deadlines=cfg.use_deadlines,
     )
 
     # TODO: refactor this hack

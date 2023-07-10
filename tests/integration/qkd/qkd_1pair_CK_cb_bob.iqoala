@@ -24,7 +24,7 @@ SUBROUTINE post_epr
   NETQASM_END
 
 REQUEST req
-  callback_type: wait_all
+  callback_type: sequential
   callback: post_epr
   return_vars:
   remote_id: {alice_id}

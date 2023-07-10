@@ -40,7 +40,6 @@ from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.eprsocket import EprSocket
-from qoala.sim.events import MSG_REQUEST_DELIVERED
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import MemoryManager
@@ -95,7 +94,7 @@ class MockNetstackInterface(NetstackInterface):
         return None
 
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
-        return Message(-1, -1, MSG_REQUEST_DELIVERED)
+        return Message(-1, -1, 0)
         yield  # to make this behave as a generator
 
     @property
