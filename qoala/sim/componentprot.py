@@ -49,6 +49,13 @@ class MessageBuffer:
                 return buf.pop(0)
         raise RuntimeError
 
+    def pop_all(self) -> List[Message]:
+        messages = []
+        for buf in self._messages.values():
+            messages.extend(buf)
+            buf.clear()
+        return messages
+
 
 class PortListener(Protocol):
     def __init__(self, port: Port, signal_label: str) -> None:
@@ -122,6 +129,14 @@ class ComponentProtocol(Protocol):
             if listener.buffer.has_any():
                 return listener.buffer.pop_any()
         raise RuntimeError
+
+    def _pop_all_messages(self, listener_names: List[str]) -> List[Message]:
+        messages = []
+        for listener_name in listener_names:
+            listener = self._listeners[listener_name]
+            if listener.buffer.has_any():
+                messages.extend(listener.buffer.pop_all())
+        return messages
 
     def _get_evexpr_for_any_msg(
         self, listener_names: List[str], wake_up_signals: List[str]

@@ -10,12 +10,14 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app
 
 
@@ -58,6 +60,9 @@ def run_qkd(
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
+    )
+    network_cfg.netschedule = NetworkScheduleConfig(
+        bin_length=10000, first_bin=0, bin_period=2e4
     )
 
     alice_program = load_program(alice_file)
@@ -374,14 +379,14 @@ def test_qkd_npairs_ck_1qubit_cb():
 
 
 if __name__ == "__main__":
-    test_qkd_1pair_md()
-    test_qkd_1pair_ck()
-    test_qkd_1pair_ck_cb()
-    test_qkd_2pairs_md()
-    test_qkd_2pairs_ck_1qubit()
-    test_qkd_2pairs_ck_1qubit_cb()
+    # test_qkd_1pair_md()
+    # test_qkd_1pair_ck()
+    # test_qkd_1pair_ck_cb()
+    # test_qkd_2pairs_md()
+    # test_qkd_2pairs_ck_1qubit()
+    # test_qkd_2pairs_ck_1qubit_cb()
     test_qkd_2pairs_ck_2qubits_app_move()
-    test_qkd_2pairs_ck_2qubits_wait_all()
-    test_qkd_100pairs_md()
-    test_qkd_npairs_md()
-    test_qkd_npairs_ck_1qubit_cb()
+    # test_qkd_2pairs_ck_2qubits_wait_all()
+    # test_qkd_100pairs_md()
+    # test_qkd_npairs_md()
+    # test_qkd_npairs_ck_1qubit_cb()

@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, Generator, List, Optional, Tuple
 
+import netsquid as ns
 from netsquid.nodes import Node
 from netsquid.protocols import Protocol
 from netsquid.qubits import qubitapi
@@ -75,6 +76,7 @@ class EntDist(Protocol):
         # References to objects.
         self._ehi_network = ehi_network
         self._comp = comp
+        self._netschedule = ehi_network.network_schedule
 
         # Owned objects.
         self._interface = EntDistInterface(comp, ehi_network)
@@ -97,6 +99,11 @@ class EntDist(Protocol):
     @property
     def comp(self) -> EntDistComponent:
         return self._comp
+
+    def clear_requests(self) -> None:
+        self._requests: Dict[int, List[EntDistRequest]] = {
+            id: [] for id in self._nodes.keys()
+        }
 
     def _add_sampler(
         self,
@@ -303,9 +310,28 @@ class EntDist(Protocol):
     def run(self) -> Generator[EventExpression, None, None]:
         # Loop forever acting on messages from the nodes.
         while True:
+            now = ns.sim_time()
+            next_slot = self._netschedule.next_bin(now)
+
+            if next_slot - now > 0:
+                yield from self._interface.wait(next_slot - now)
+            elif next_slot - now < 0:
+                raise RuntimeError()
             # Wait for a new message.
-            msg = yield from self._interface.receive_msg()
-            self._logger.info(f"received new msg from node: {msg}")
-            request: EntDistRequest = msg.content
-            self.put_request(request)
-            yield from self.serve_all_requests()
+            yield from self._interface.wait_for_any_msg()
+            if ns.sim_time() == now:
+                # No time passed, meaning the messages were already there.
+                messages = self._interface.pop_all_messages()
+
+                print(f"checking messages at time: {now}")
+
+                for msg in messages:
+                    self._logger.info(f"received new msg from node: {msg}")
+                    request: EntDistRequest = msg.content
+                    print(f"putting request")
+                    self.put_request(request)
+                yield from self.serve_all_requests()
+                self.clear_requests()
+
+            if next_slot == now:
+                yield from self._interface.wait(1)
