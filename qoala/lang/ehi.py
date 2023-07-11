@@ -3,8 +3,8 @@ from __future__ import annotations
 import copy
 import itertools
 from dataclasses import dataclass
-from math import ceil
-from typing import Dict, FrozenSet, List, Optional, Type
+from math import ceil, floor
+from typing import Dict, FrozenSet, List, Optional, Tuple, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
@@ -293,16 +293,43 @@ class UnitModule:
 
 
 @dataclass
+class EhiNetworkTimebin:
+    node1: int
+    pid1: int
+    node2: int
+    pid2: int
+
+
+@dataclass
 class EhiNetworkSchedule:
     bin_length: int
     first_bin: int
-    bin_period: int
 
-    def next_bin(self, time: int) -> int:
-        offset = time - self.first_bin
-        next_bin_index = ceil(offset / self.bin_period)
-        next_bin_start = next_bin_index * self.bin_period + self.first_bin
-        return next_bin_start
+    bin_pattern: List[EhiNetworkTimebin]
+    repeat_period: int
+
+    def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
+        global_offset = time - self.first_bin
+
+        # Get the start of the current iteration of the repeating pattern.
+        curr_pattern_index = floor(global_offset / self.repeat_period)
+        curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
+
+        # Get relative time within the pattern.
+        time_since_pattern_start = global_offset - curr_pattern_start
+
+        # Get the index of the next bin within the pattern.
+        # It could be that we're already in the last bin. Then the next bin
+        # is the first bin of the next pattern repetition.
+        next_bin_index = ceil(time_since_pattern_start / self.bin_length)
+
+        if next_bin_index >= len(self.bin_pattern):
+            next_bin_start = curr_pattern_start + self.repeat_period
+            next_bin = self.bin_pattern[0]
+        else:
+            next_bin_start = next_bin_index * self.bin_length + curr_pattern_start
+            next_bin = self.bin_pattern[next_bin_index]
+        return next_bin_start, next_bin
 
     @classmethod
     def from_config(cls, config: NetworkScheduleConfig) -> EhiNetworkSchedule:

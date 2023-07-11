@@ -288,15 +288,20 @@ class EntDist(Protocol):
         )
 
     def serve_all_requests(self) -> Generator[EventExpression, None, None]:
-        while request := self.get_next_joint_request():
-            yield from self.deliver(
-                node1_id=request.node1_id,
-                node1_phys_id=request.node1_qubit_id,
-                node2_id=request.node2_id,
-                node2_phys_id=request.node2_qubit_id,
-                node1_pid=request.node1_pid,
-                node2_pid=request.node2_pid,
-            )
+        while (request := self.get_next_joint_request()) is not None:
+            yield from self.serve_request(request)
+
+    def serve_request(
+        self, request: JointRequest
+    ) -> Generator[EventExpression, None, None]:
+        yield from self.deliver(
+            node1_id=request.node1_id,
+            node1_phys_id=request.node1_qubit_id,
+            node2_id=request.node2_id,
+            node2_phys_id=request.node2_qubit_id,
+            node1_pid=request.node1_pid,
+            node2_pid=request.node2_pid,
+        )
 
     def start(self) -> None:
         assert self._interface is not None
@@ -307,15 +312,14 @@ class EntDist(Protocol):
         self._interface.stop()
         super().stop()
 
-    def run(self) -> Generator[EventExpression, None, None]:
-        # Loop forever acting on messages from the nodes.
+    def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         while True:
             now = ns.sim_time()
-            next_slot = self._netschedule.next_bin(now)
+            next_slot_time, next_slot = self._netschedule.next_bin(now)
 
-            if next_slot - now > 0:
+            if next_slot_time - now > 0:
                 yield from self._interface.wait(next_slot - now)
-            elif next_slot - now < 0:
+            elif next_slot_time - now < 0:
                 raise RuntimeError()
             # Wait for a new message.
             yield from self._interface.wait_for_any_msg()
@@ -323,15 +327,36 @@ class EntDist(Protocol):
                 # No time passed, meaning the messages were already there.
                 messages = self._interface.pop_all_messages()
 
-                print(f"checking messages at time: {now}")
-
+                requesting_nodes: List[int] = []
                 for msg in messages:
                     self._logger.info(f"received new msg from node: {msg}")
                     request: EntDistRequest = msg.content
-                    print(f"putting request")
+
+                    requesting_nodes.append(request.local_node_id)
                     self.put_request(request)
-                yield from self.serve_all_requests()
+                joint_request = self.get_next_joint_request()
+                if joint_request is not None:
+                    yield from self.serve_request(joint_request)
+                else:
+                    for node_id in requesting_nodes:
+                        node = self._interface.remote_id_to_peer_name(node_id)
+                        self._interface.send_node_msg(node, Message(-1, -1, None))
                 self.clear_requests()
 
             if next_slot == now:
                 yield from self._interface.wait(1)
+
+    def _run_without_netschedule(self) -> Generator[EventExpression, None, None]:
+        while True:
+            # Wait for a new message.
+            msg = yield from self._interface.receive_msg()
+            self._logger.info(f"received new msg from node: {msg}")
+            request: EntDistRequest = msg.content
+            self.put_request(request)
+            yield from self.serve_all_requests()
+
+    def run(self) -> Generator[EventExpression, None, None]:
+        if self._netschedule is None:
+            yield from self._run_without_netschedule()
+        else:
+            yield from self._run_with_netschedule()

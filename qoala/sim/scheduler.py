@@ -556,9 +556,6 @@ class EdfScheduler(ProcessorScheduler):
         self._logger.info(f"finished task {task}")
         self._task_logger.info(f"finish {task}")
 
-        if self.name == "bob_qpu" and isinstance(task, LocalRoutineTask):
-            self._task_logger.warning(f"finish {task}")
-
         self._tasks_executed[task.task_id] = task
         self._task_ends[task.task_id] = after
 
@@ -910,9 +907,11 @@ class QpuEdfScheduler(EdfScheduler):
         # NOTE: we only allow all tasks to be of SinglePairTask for now!
         self._task_logger.debug(f"trying EPR tasks {to_send_str}")
         if all(isinstance(task, SinglePairTask) for task in tasks_to_send.values()):
+            self._task_logger.info(f"Handle single pair group, tasks = {tasks_to_send}")
             pid = yield from self.driver.handle_single_pair_group(
                 tasks_to_send.values()
             )
+            self._task_logger.info(f"Pair created for PID {pid}")
         elif len(tasks_to_send) == 1:
             pid = list(tasks_to_send.keys())[0]
             task = tasks_to_send[pid]
@@ -922,6 +921,9 @@ class QpuEdfScheduler(EdfScheduler):
                 "Scheduling multiple MultiPairTasks is not supported at the moment"
             )
         self._task_logger.debug(f"EPR pair delivered for PID {pid}")
+
+        if pid is None:
+            return
 
         finished_task = tasks_to_send[pid]
 
@@ -940,9 +942,6 @@ class QpuEdfScheduler(EdfScheduler):
         self.send_signal(SIGNAL_TASK_COMPLETED)
         self._logger.info(f"finished task {finished_task}")
         self._task_logger.info(f"finish epr task {finished_task}")
-
-        if self.name == "bob_qpu":
-            self._task_logger.warning(f"finish epr task {finished_task}")
 
         self._tasks_executed[finished_task.task_id] = finished_task
         self._task_ends[finished_task.task_id] = after

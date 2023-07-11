@@ -1,26 +1,41 @@
-from qoala.lang.ehi import EhiNetworkSchedule
+from qoala.lang.ehi import EhiNetworkSchedule, EhiNetworkTimebin
 
 
 def test_network_schedule():
-    # [0, 100), [500, 600), [1000, 1100) etc
-    schedule1 = EhiNetworkSchedule(bin_length=100, first_bin=0, bin_period=500)
-    assert schedule1.next_bin(0) == 0
-    assert schedule1.next_bin(10) == 500
-    assert schedule1.next_bin(100) == 500
-    assert schedule1.next_bin(200) == 500
-    assert schedule1.next_bin(500) == 500
-    assert schedule1.next_bin(510) == 1000
+    # 0:    (1, 0, 2, 0)
+    # 100:  (1, 1, 2, 1)
+    # 200:  (1, 2, 2, 2)
+    # 1000: (1, 0, 2, 0)
+    # 1100: (1, 1, 2, 1)
+    # 1200: (1, 2, 2, 2)
+    # 2000: (1, 0, 2, 0)
+    # 2100: (1, 1, 2, 1)
+    # 2200: (1, 2, 2, 2)
+    # etc.
 
-    # [150, 250), [350, 450), [550, 650) etc
-    schedule1 = EhiNetworkSchedule(bin_length=100, first_bin=150, bin_period=200)
-    assert schedule1.next_bin(0) == 150
-    assert schedule1.next_bin(100) == 150
-    assert schedule1.next_bin(150) == 150
-    assert schedule1.next_bin(200) == 350
-    assert schedule1.next_bin(250) == 350
-    assert schedule1.next_bin(300) == 350
-    assert schedule1.next_bin(350) == 350
-    assert schedule1.next_bin(351) == 550
+    node1 = 1
+    node2 = 2
+
+    def bin(pid1: int, pid2: int) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(node1, pid1, node2, pid2)
+
+    pattern = [
+        bin(0, 0),
+        bin(1, 1),
+        bin(2, 2),
+    ]
+    schedule1 = EhiNetworkSchedule(
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=1000
+    )
+    assert schedule1.next_bin(0) == (0, bin(0, 0))
+    assert schedule1.next_bin(80) == (100, bin(1, 1))
+    assert schedule1.next_bin(100) == (100, bin(1, 1))
+    assert schedule1.next_bin(180) == (200, bin(2, 2))
+    assert schedule1.next_bin(200) == (200, bin(2, 2))
+    assert schedule1.next_bin(280) == (1000, bin(0, 0))
+    assert schedule1.next_bin(900) == (1000, bin(0, 0))
+    assert schedule1.next_bin(1000) == (1000, bin(0, 0))
+    assert schedule1.next_bin(1080) == (1100, bin(1, 1))
 
 
 if __name__ == "__main__":

@@ -59,14 +59,13 @@ class NetstackProcessor:
 
     def _execute_entdist_request_group(
         self, request: EntDistRequest
-    ) -> Generator[EventExpression, None, int]:
+    ) -> Generator[EventExpression, None, Optional[int]]:
         self._logger.info(f"sending message {request}")
         self._interface.send_entdist_msg(Message(-1, -1, request))
         result = yield from self._interface.receive_entdist_msg()
         self._logger.info("got a response")
-        if result.content < 0:  # ?? never happens ?
-            raise RuntimeError("Request was not served")
-        pid: int = result.content  # PID that was chosen
+        # Get PID that was chosen. None if nothing served.
+        pid: Optional[int] = result.content
         return pid
 
     def _allocate_for_pair(
@@ -354,7 +353,7 @@ class NetstackProcessor:
         memmgr = self._interface.memmgr
         memmgr.free(proc0.pid, virt_id0)
 
-        if pid == -1:  # no EPR generation happened
+        if pid is None:  # no EPR generation happened
             return pid
 
         # Manually insert correct mapping
