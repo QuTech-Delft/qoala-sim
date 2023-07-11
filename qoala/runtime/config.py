@@ -4,7 +4,7 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import yaml
 from netsquid.components.instructions import (
@@ -1475,7 +1475,8 @@ class ClassicalConnectionConfig(BaseModel):
 class NetworkScheduleConfig(BaseModel):
     bin_length: int
     first_bin: int
-    bin_period: int
+    bin_pattern: List[Tuple[int, int, int, int]]
+    repeat_period: int
 
     @classmethod
     def from_file(cls, path: str) -> NetworkScheduleConfig:
@@ -1486,7 +1487,8 @@ class NetworkScheduleConfig(BaseModel):
         return NetworkScheduleConfig(
             bin_length=dict["bin_length"],
             first_bin=dict["first_bin"],
-            bin_period=dict["bin_period"],
+            bin_pattern=dict["bin_pattern"],
+            repeat_period=dict["repeat_period"],
         )
 
 

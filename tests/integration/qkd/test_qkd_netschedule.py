@@ -6,6 +6,7 @@ from typing import Optional
 
 import netsquid as ns
 
+from qoala.lang.ehi import EhiNetworkTimebin
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
@@ -60,8 +61,9 @@ def run_qkd(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
+    pattern = [(alice_id, 0, bob_id, 0)]
     network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_000, first_bin=0, bin_period=5_000
+        bin_length=1_000, first_bin=0, bin_pattern=pattern, repeat_period=10_000
     )
 
     alice_program = load_program(alice_file)
@@ -105,6 +107,8 @@ def qkd_1pair_md():
 
     alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
     bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    print(alice_outcomes)
 
     for alice, bob in zip(alice_outcomes, bob_outcomes):
         assert alice["m0"] == bob["m0"]

@@ -333,8 +333,15 @@ class EhiNetworkSchedule:
 
     @classmethod
     def from_config(cls, config: NetworkScheduleConfig) -> EhiNetworkSchedule:
+        pattern = [
+            EhiNetworkTimebin(node1, pid1, node2, pid2)
+            for (node1, pid1, node2, pid2) in config.bin_pattern
+        ]
         return EhiNetworkSchedule(
-            config.bin_length, config.first_bin, config.bin_period
+            config.bin_length,
+            config.first_bin,
+            pattern,
+            config.repeat_period,
         )
 
 

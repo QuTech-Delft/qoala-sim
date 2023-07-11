@@ -51,22 +51,10 @@ class NetstackProcessor:
     def _execute_entdist_request(
         self, request: EntDistRequest
     ) -> Generator[EventExpression, None, None]:
-        # TODO: use PIDs??
         self._interface.send_entdist_msg(Message(-1, -1, request))
         result = yield from self._interface.receive_entdist_msg()
         if result.content < 0:  # ?? never happens ?
             raise RuntimeError("Request was not served")
-
-    def _execute_entdist_request_group(
-        self, request: EntDistRequest
-    ) -> Generator[EventExpression, None, Optional[int]]:
-        self._logger.info(f"sending message {request}")
-        self._interface.send_entdist_msg(Message(-1, -1, request))
-        result = yield from self._interface.receive_entdist_msg()
-        self._logger.info("got a response")
-        # Get PID that was chosen. None if nothing served.
-        pid: Optional[int] = result.content
-        return pid
 
     def _allocate_for_pair(
         self, process: QoalaProcess, request: QoalaRequest, index: int
@@ -92,8 +80,8 @@ class NetstackProcessor:
             local_node_id=self._interface.node_id,
             remote_node_id=request.remote_id,
             local_qubit_id=phys_id,
-            local_pids=[epr_sck.local_pid],
-            remote_pids=[epr_sck.remote_pid],
+            local_pid=epr_sck.local_pid,
+            remote_pid=epr_sck.remote_pid,
         )
 
     def measure_epr_qubit(
@@ -303,71 +291,6 @@ class NetstackProcessor:
         virt_id = self._allocate_for_pair(process, request, index)
         entdist_req = self._create_entdist_request(process, request, virt_id)
         yield from self._execute_entdist_request(entdist_req)
-
-    def handle_single_pair_group(
-        self,
-        processes: List[QoalaProcess],
-        routine_names: List[str],
-        indices: List[int],
-    ) -> Generator[EventExpression, None, int]:
-        # TODO: how to handle different virt IDs ?
-        # Allocate only the virt ID of one of the processes.
-        # Based on which process was served (i.e. for which process entanglement
-        # was delivered), the memory mapping will be updated afterwards.
-        proc0 = processes[0]
-        running_routine0 = proc0.qnos_mem.get_running_request_routine(routine_names[0])
-        req0 = running_routine0.routine.request
-        remote_id = req0.remote_id
-        index0 = indices[0]
-        virt_id0 = self._allocate_for_pair(proc0, req0, index0)
-        phys_id = self._interface.memmgr.phys_id_for(proc0.pid, virt_id0)
-        assert phys_id is not None
-
-        local_pids: List[int] = []
-        remote_pids: List[int] = []
-
-        for proc, rtname, _ in zip(processes, routine_names, indices):
-            running_routine = proc.qnos_mem.get_running_request_routine(rtname)
-            routine = running_routine.routine
-            request = routine.request
-            # We only allow multiple PairTasks if they are with the same node
-            assert request.remote_id == remote_id
-            epr_sck = proc.epr_sockets[request.epr_socket_id]
-
-            local_pids.append(epr_sck.local_pid)
-            remote_pids.append(epr_sck.remote_pid)
-
-        entdist_req = EntDistRequest(
-            local_node_id=self._interface.node_id,
-            remote_node_id=request.remote_id,
-            local_qubit_id=phys_id,
-            local_pids=local_pids,
-            remote_pids=remote_pids,
-        )
-
-        pid = yield from self._execute_entdist_request_group(entdist_req)
-        # Update memory allocation now that PID is known
-        self._logger.debug(
-            f"Initially virt ID {virt_id0} for PID {proc0.pid} was allocated (phys ID {phys_id})"
-        )
-        memmgr = self._interface.memmgr
-        memmgr.free(proc0.pid, virt_id0)
-
-        if pid is None:  # no EPR generation happened
-            return pid
-
-        # Manually insert correct mapping
-        vmap = memmgr._process_mappings[pid]
-        self._interface.memmgr._physical_mapping[phys_id] = VirtualLocation(
-            pid, vmap.unit_module, virt_id0
-        )
-        memmgr._process_mappings[pid].mapping[virt_id0] = phys_id
-
-        self._logger.debug(
-            f"Now virt ID {virt_id0} for PID {pid} is mapped to phys ID {phys_id}"
-        )
-
-        return pid
 
     def handle_single_pair_callback(
         self,

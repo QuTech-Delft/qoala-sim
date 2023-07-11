@@ -259,37 +259,6 @@ class QpuDriver(Driver):
             process, rrcall.routine_name, task.pair_index
         )
 
-    def handle_single_pair_group(
-        self, tasks: List[SinglePairTask]
-    ) -> Generator[EventExpression, None, int]:
-        processes: List[QoalaProcess] = []
-        routine_names: List[str] = []
-        indices: List[int] = []
-
-        for task in tasks:
-            process = self._memmgr.get_process(task.pid)
-
-            # The corresponding PreCallTask must have executed, and it must have written
-            # to the sharded scheduler memory.
-            rrcall = self._memory.read_shared_rrcall(task.shared_ptr)
-
-            global_args = process.prog_instance.inputs.values
-            try:
-                process.qnos_mem.get_running_request_routine(rrcall.routine_name)
-            except KeyError:
-                self._netstackprocessor.instantiate_routine(
-                    process, rrcall, global_args
-                )
-
-            processes.append(process)
-            routine_names.append(rrcall.routine_name)
-            indices.append(task.pair_index)
-
-        pid = yield from self._netstackprocessor.handle_single_pair_group(
-            processes, routine_names, indices
-        )
-        return pid
-
     def _handle_single_pair_callback(
         self, task: SinglePairCallbackTask
     ) -> Generator[EventExpression, None, None]:

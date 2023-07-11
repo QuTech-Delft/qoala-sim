@@ -523,16 +523,8 @@ class EdfScheduler(ProcessorScheduler):
         assert self._task_graph is not None
         tinfo = self._task_graph.get_tinfo(task_id)
         task = tinfo.task
-        start_time = tinfo.start_time
-        ext_pred = tinfo.ext_predecessors
 
         self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
-
-        if start_time is not None:
-            yield from self.wait_until(start_time)
-        if len(ext_pred) > 0:
-            yield from self.wait_for_external_tasks(ext_pred)
-        yield from self.wait_for_timeslot(task)
 
         before = ns.sim_time()
 
@@ -835,7 +827,8 @@ class QpuEdfScheduler(EdfScheduler):
         ]
 
         if len(epr_ready) > 0:
-            return StatusEprGen(epr_ready)
+            # TODO: use network schedule
+            return StatusNextTask(epr_ready[0])
         elif len(non_epr_ready) > 0:
             # `roots` contains the tasks we can choose from
             with_deadline = [
@@ -871,80 +864,6 @@ class QpuEdfScheduler(EdfScheduler):
             else:
                 assert len(blocked_on_resources) > 0
                 return StatusBlockedOnResource()
-
-    def wait_for_timeslot(self, task) -> Generator[EventExpression, None, None]:
-        if self._network_schedule is not None and (
-            isinstance(task, SinglePairTask) or isinstance(task, MultiPairTask)
-        ):
-            now = ns.sim_time()
-            next_timeslot = self._network_schedule.next_bin(now)
-            if next_timeslot - now > 0:
-                self._task_logger.debug(
-                    f"waiting until next timeslot ({next_timeslot}, (now: {now}))"
-                )
-                yield from self.wait_until(next_timeslot)
-
-    def handle_epr_gen(
-        self, task_ids: List[int]
-    ) -> Generator[EventExpression, None, None]:
-        assert self._task_graph is not None
-        tg = self._task_graph
-
-        tasks_to_send: Dict[int, QoalaTask] = {}  # PID -> task
-        # NOTE: we only allow one task per PID !!
-        for tid in task_ids:
-            pid = tg.get_tinfo(tid).task.pid
-            tasks_to_send[pid] = tg.get_tinfo(tid).task
-
-        self._task_logger.info(f"start  {task_ids}")
-
-        before = ns.sim_time()
-
-        to_send_str = ", ".join(
-            [f"(pid={p}, tid={t.task_id})" for p, t in tasks_to_send.items()]
-        )
-
-        # NOTE: we only allow all tasks to be of SinglePairTask for now!
-        self._task_logger.debug(f"trying EPR tasks {to_send_str}")
-        if all(isinstance(task, SinglePairTask) for task in tasks_to_send.values()):
-            self._task_logger.info(f"Handle single pair group, tasks = {tasks_to_send}")
-            pid = yield from self.driver.handle_single_pair_group(
-                tasks_to_send.values()
-            )
-            self._task_logger.info(f"Pair created for PID {pid}")
-        elif len(tasks_to_send) == 1:
-            pid = list(tasks_to_send.keys())[0]
-            task = tasks_to_send[pid]
-            yield from self._driver.handle_task(task)
-        else:
-            raise RuntimeError(
-                "Scheduling multiple MultiPairTasks is not supported at the moment"
-            )
-        self._task_logger.debug(f"EPR pair delivered for PID {pid}")
-
-        if pid is None:
-            return
-
-        finished_task = tasks_to_send[pid]
-
-        # Only now we know which task has finished, and we can record its start time.
-        self._task_starts[finished_task.task_id] = before
-        self.record_start_timestamp(finished_task.pid, before)
-
-        after = ns.sim_time()
-
-        self.record_end_timestamp(finished_task.pid, after)
-        duration = after - before
-        self._task_graph.decrease_deadlines(duration)
-        self._task_logger.debug(f"removing task with tid {finished_task.task_id}")
-        self._task_graph.remove_task(finished_task.task_id)
-        self._finished_tasks.append(finished_task.task_id)
-        self.send_signal(SIGNAL_TASK_COMPLETED)
-        self._logger.info(f"finished task {finished_task}")
-        self._task_logger.info(f"finish epr task {finished_task}")
-
-        self._tasks_executed[finished_task.task_id] = finished_task
-        self._task_ends[finished_task.task_id] = after
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
@@ -984,9 +903,6 @@ class QpuEdfScheduler(EdfScheduler):
                 )
                 yield ev_mem_freed | ev_task_completed
 
-                self.update_external_predcessors()
-            elif isinstance(status, StatusEprGen):
-                yield from self.handle_epr_gen(status.task_ids)
                 self.update_external_predcessors()
             elif isinstance(status, StatusNextTask):
                 yield from self.handle_task(status.task_id)

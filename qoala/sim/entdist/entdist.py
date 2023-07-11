@@ -31,8 +31,16 @@ class EntDistRequest:
     local_node_id: int
     remote_node_id: int
     local_qubit_id: int
-    local_pids: List[int]
-    remote_pids: List[int]
+    local_pid: int
+    remote_pid: int
+
+    def is_opposite(self, req: EntDistRequest) -> bool:
+        return (
+            self.local_node_id == req.remote_node_id
+            and self.remote_node_id == req.local_node_id
+            and self.local_pid == req.remote_pid
+            and self.remote_pid == req.local_pid
+        )
 
 
 @dataclass(frozen=True)
@@ -101,9 +109,7 @@ class EntDist(Protocol):
         return self._comp
 
     def clear_requests(self) -> None:
-        self._requests: Dict[int, List[EntDistRequest]] = {
-            id: [] for id in self._nodes.keys()
-        }
+        self._requests = {id: [] for id in self._nodes.keys()}
 
     def _add_sampler(
         self,
@@ -187,6 +193,8 @@ class EntDist(Protocol):
         event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
         yield event_expr
 
+        self._logger.info(f"pair delivered")
+
         node1_mem.put(qubits=epr[0], positions=node1_phys_id)
         node2_mem.put(qubits=epr[1], positions=node2_phys_id)
 
@@ -220,11 +228,8 @@ class EntDist(Protocol):
     def pop_request(self, node_id: int, index: int) -> EntDistRequest:
         return self._requests[node_id].pop(index)
 
-    def get_remote_request_for(
-        self, local_request: EntDistRequest
-    ) -> Optional[Tuple[int, int, int]]:
-        """Return (index, local_pid, remote_pid) where index is the
-        index in the request list of the remote node."""
+    def get_remote_request_for(self, local_request: EntDistRequest) -> Optional[int]:
+        """Return index in the request list of the remote node."""
 
         try:
             remote_requests = self._requests[local_request.remote_node_id]
@@ -238,15 +243,8 @@ class EntDist(Protocol):
 
         for i, req in enumerate(remote_requests):
             # Find the remote request that corresponds to the local request.
-            if req.remote_node_id != local_request.local_node_id:
-                continue
-
-            for (lpid, rpid) in zip(
-                local_request.local_pids, local_request.remote_pids
-            ):
-                for (remote_lpid, remote_rpid) in zip(req.local_pids, req.remote_pids):
-                    if (lpid == remote_rpid) and (rpid == remote_lpid):
-                        return (i, lpid, rpid)
+            if local_request.is_opposite(req):
+                return i
 
         return None
 
@@ -255,9 +253,8 @@ class EntDist(Protocol):
             if len(local_requests) == 0:
                 continue
             local_request = local_requests.pop(0)
-            matching_request = self.get_remote_request_for(local_request)
-            if matching_request is not None:
-                (remote_request_id, lpid, rpid) = matching_request
+            remote_request_id = self.get_remote_request_for(local_request)
+            if remote_request_id is not None:
                 remote_id = local_request.remote_node_id
                 remote_request = self._requests[remote_id].pop(remote_request_id)
                 return JointRequest(
@@ -265,8 +262,8 @@ class EntDist(Protocol):
                     remote_request.local_node_id,
                     local_request.local_qubit_id,
                     remote_request.local_qubit_id,
-                    lpid,
-                    rpid,
+                    local_request.local_pid,
+                    local_request.remote_pid,
                 )
             else:
                 # Put local request back
@@ -291,18 +288,6 @@ class EntDist(Protocol):
         while (request := self.get_next_joint_request()) is not None:
             yield from self.serve_request(request)
 
-    def serve_request(
-        self, request: JointRequest
-    ) -> Generator[EventExpression, None, None]:
-        yield from self.deliver(
-            node1_id=request.node1_id,
-            node1_phys_id=request.node1_qubit_id,
-            node2_id=request.node2_id,
-            node2_phys_id=request.node2_qubit_id,
-            node1_pid=request.node1_pid,
-            node2_pid=request.node2_pid,
-        )
-
     def start(self) -> None:
         assert self._interface is not None
         super().start()
@@ -318,7 +303,7 @@ class EntDist(Protocol):
             next_slot_time, next_slot = self._netschedule.next_bin(now)
 
             if next_slot_time - now > 0:
-                yield from self._interface.wait(next_slot - now)
+                yield from self._interface.wait(next_slot_time - now)
             elif next_slot_time - now < 0:
                 raise RuntimeError()
             # Wait for a new message.
