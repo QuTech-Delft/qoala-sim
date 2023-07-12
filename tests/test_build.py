@@ -84,6 +84,8 @@ def test_build_from_topology():
     proc: QuantumProcessor = build_qprocessor_from_topology("proc", topology)
     assert proc.num_positions == num_qubits
 
+    assert proc.name == "proc"
+
     for i in range(num_qubits):
         assert (
             proc.get_instruction_duration(INSTR_X, [i])
@@ -109,6 +111,8 @@ def test_build_perfect_topology():
     )
     proc: QuantumProcessor = build_qprocessor_from_topology("proc", topology)
     assert proc.num_positions == num_qubits
+
+    assert proc.name == "proc"
 
     for i in range(num_qubits):
         assert (
@@ -150,6 +154,9 @@ def test_build_nv_perfect():
         assert proc.get_instruction_duration(INSTR_INIT, [i]) == parms.mem_init_duration
         assert (
             proc.get_instruction_duration(INSTR_ROT_X, [i]) == parms.mem_gate_duration
+        )
+        assert (
+            proc.get_instruction_duration(INSTR_MEASURE, [i]) == parms.mem_meas_duration
         )
 
     with pytest.raises(MissingInstructionError):

@@ -429,10 +429,10 @@ def test_two_gate_noise():
 
 
 if __name__ == "__main__":
-    # test_depolarizing_decoherence()
-    # test_depolarizing_decoherence_qprocessor()
-    # test_depolarizing_decoherence_qprocessor_2()
-    # test_t1t2_decoherence_qprocessor()
-    # test_decoherence_in_subroutine()
-    # test_gate_noise()
+    test_depolarizing_decoherence()
+    test_depolarizing_decoherence_qprocessor()
+    test_depolarizing_decoherence_qprocessor_2()
+    test_t1t2_decoherence_qprocessor()
+    test_decoherence_in_subroutine()
+    test_gate_noise()
     test_two_gate_noise()

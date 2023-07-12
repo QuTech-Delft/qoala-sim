@@ -23,6 +23,8 @@ def test1():
     assert len(mgr._arrays._memory) == 1
     assert mgr._arrays._memory[addr] == params
 
+    assert mgr._lr_in_addrs == [addr]
+
     assert mgr.read_lr_in(addr, 2) == params
 
     assert mgr.read_lr_in(addr, 1) == params[0:1]

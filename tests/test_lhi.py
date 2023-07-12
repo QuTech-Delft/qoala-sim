@@ -1,5 +1,6 @@
 import os
 
+import pytest
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
@@ -449,6 +450,23 @@ def test_generic_t1t2_star():
         )
 
 
+def test_latencies():
+    latencies = LhiLatencies()
+    assert latencies.host_instr_time == 0
+    assert latencies.qnos_instr_time == 0
+    assert latencies.host_peer_latency == 0
+
+    latencies2 = LhiLatencies.all_zero()
+    assert latencies2.host_instr_time == 0
+    assert latencies2.qnos_instr_time == 0
+    assert latencies2.host_peer_latency == 0
+
+    latencies3 = LhiLatencies(host_instr_time=1, qnos_instr_time=2, host_peer_latency=3)
+    assert latencies3.host_instr_time == 1
+    assert latencies3.qnos_instr_time == 2
+    assert latencies3.host_peer_latency == 3
+
+
 def test_latencies_from_config():
     cfg = LatenciesConfig(
         host_instr_time=2,
@@ -460,6 +478,24 @@ def test_latencies_from_config():
     assert latencies.host_instr_time == 2
     assert latencies.qnos_instr_time == 3
     assert latencies.host_peer_latency == 4
+
+
+def test_link():
+    link = LhiLinkInfo.perfect(5)
+    assert link.state_delay == 5
+    assert link.sampler_factory == PerfectStateSamplerFactory
+    assert link.sampler_kwargs == {"cycle_time": 0}
+
+    link2 = LhiLinkInfo.depolarise(
+        cycle_time=10, prob_max_mixed=0.3, prob_success=0.1, state_delay=5
+    )
+    assert link2.state_delay == 5
+    assert link2.sampler_factory == DepolariseWithFailureStateSamplerFactory
+    assert link2.sampler_kwargs == {
+        "cycle_time": 10,
+        "prob_max_mixed": 0.3,
+        "prob_success": 0.1,
+    }
 
 
 def test_link_from_config():
@@ -493,6 +529,43 @@ def test_network_lhi():
     assert network_lhi.get_link(1, 2) == LhiLinkInfo.perfect(duration=1000)
 
 
+def test_network_lhi2():
+    nodes = {0: "node0", 1: "node1", 2: "node2"}
+    link_info = LhiLinkInfo.perfect(duration=10)
+    network = LhiNetworkInfo.fully_connected(nodes=nodes, info=link_info)
+
+    assert network.get_link(0, 1) == link_info
+    assert network.get_link(0, 2) == link_info
+    assert network.get_link(1, 2) == link_info
+
+
+def test_network_lhi3():
+    nodes = {0: "node0", 1: "node1", 2: "node2"}
+    network = LhiNetworkInfo(nodes=nodes, links={})
+
+    with pytest.raises(ValueError):
+        network.get_link(0, 1)
+
+    link_info = LhiLinkInfo.perfect(duration=10)
+    network.add_link(0, 1, link_info)
+
+    assert network.get_link(0, 1) == link_info
+
+    assert network.get_link(1, 0) == network.get_link(0, 1)
+
+    # Already existing link (order does not matter)
+    with pytest.raises(ValueError):
+        network.add_link(1, 0, link_info)
+
+    # Cannot create link with itself
+    with pytest.raises(ValueError):
+        network.add_link(0, 0, link_info)
+
+    # Cannot create link with non-existing node
+    with pytest.raises(ValueError):
+        network.add_link(0, 4, link_info)
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
@@ -507,7 +580,11 @@ if __name__ == "__main__":
     test_build_fully_uniform()
     test_perfect_star()
     test_generic_t1t2_star()
+    test_latencies()
     test_latencies_from_config()
+    test_link()
     test_link_from_config()
     test_link_from_config_2()
     test_network_lhi()
+    test_network_lhi2()
+    test_network_lhi3()
