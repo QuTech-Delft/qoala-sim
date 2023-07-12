@@ -201,8 +201,8 @@ class EntDist(Protocol):
             )
         if request.remote_node_id == request.local_node_id:
             raise ValueError(
-                f"Invalid request: local node ID {request.local_node_id} and remote node ID \
-                {request.remote_node_id} are the same."
+                f"Invalid request: local node ID {request.local_node_id} and remote node ID "
+                "{request.remote_node_id} are the same."
             )
 
         self._requests[request.local_node_id].append(request)

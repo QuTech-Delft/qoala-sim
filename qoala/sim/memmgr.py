@@ -152,6 +152,8 @@ class MemoryManager:
         return phys_id
 
     def virt_id_for(self, pid: int, phys_id: int) -> Optional[int]:
+        if phys_id not in self._qdevice.get_all_qubit_ids():
+            raise RuntimeError(f"phys ID {phys_id} not in QDevice")
         if virt_loc := self._physical_mapping[phys_id]:
             if virt_loc.pid == pid:
                 return virt_loc.virt_id
