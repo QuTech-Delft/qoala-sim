@@ -117,7 +117,7 @@ def test_multiple_pids():
 
 
 if __name__ == "__main__":
-    # test_send_str()
-    # test_send_int()
-    # test_send_float()
+    test_send_str()
+    test_send_int()
+    test_send_float()
     test_multiple_pids()

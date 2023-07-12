@@ -106,6 +106,13 @@ class EntDist(Protocol):
         kwargs: Dict[str, Any],
         delay: float,
     ) -> None:
+        if node1_id == node2_id:
+            raise ValueError("Cannot add sampler for same node.")
+        if node1_id not in self._nodes:
+            raise ValueError(f"Node {node1_id} not in network.")
+        if node2_id not in self._nodes:
+            raise ValueError(f"Node {node2_id} not in network.")
+
         link = frozenset([node1_id, node2_id])
         if link in self._samplers:
             raise ValueError(

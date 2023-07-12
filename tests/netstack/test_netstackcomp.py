@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Generator
 
 import netsquid as ns
+from netsquid.components import ClassicalChannel
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
@@ -116,6 +117,45 @@ def test_connection():
     ns.sim_run()
 
 
+def test_connection_with_channel():
+    ns.sim_reset()
+
+    alice = Node(name="alice", ID=0)
+    bob = Node(name="bob", ID=1)
+    ehi_network = EhiNetworkInfo.only_nodes({alice.ID: alice.name, bob.ID: bob.name})
+
+    alice_comp = NetstackComponent(alice, ehi_network)
+    bob_comp = NetstackComponent(bob, ehi_network)
+
+    channel_ab = ClassicalChannel("chan_ab", delay=1000)
+    channel_ba = ClassicalChannel("chan_ba", delay=1000)
+
+    alice_comp.peer_out_port("bob").connect(channel_ab.ports["send"])
+    channel_ab.ports["recv"].connect(bob_comp.peer_in_port("alice"))
+
+    bob_comp.peer_out_port("alice").connect(channel_ba.ports["send"])
+    channel_ba.ports["recv"].connect(alice_comp.peer_in_port("bob"))
+
+    class AliceNetstackInterface(MockNetstackInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            self.send_peer_msg("bob", Message(0, 0, "hello"))
+
+    class BobNetstackInterface(MockNetstackInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            assert ns.sim_time() == 0
+            msg = yield from self.receive_peer_msg("alice")
+            assert msg.content == "hello"
+            assert ns.sim_time() == 1000
+
+    alice_intf = AliceNetstackInterface(alice_comp, ehi_network)
+    bob_intf = BobNetstackInterface(bob_comp, ehi_network)
+
+    alice_intf.start()
+    bob_intf.start()
+
+    ns.sim_run()
+
+
 def test_three_way_connection():
     ns.sim_reset()
 
@@ -169,4 +209,5 @@ if __name__ == "__main__":
     test_many_other_nodes()
 
     test_connection()
+    test_connection_with_channel()
     test_three_way_connection()

@@ -138,7 +138,7 @@ def create_simple_request(
 
 
 def test__allocate_for_pair():
-    topology = generic_topology(5)
+    topology = generic_topology(10)
     qdevice = MockQDevice(topology)
     ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
@@ -171,6 +171,16 @@ def test__allocate_for_pair():
     assert memmgr.phys_id_for(process.pid, virt_id=1) == 1
     assert processor._allocate_for_pair(process, request2, index=1) == 2
     assert memmgr.phys_id_for(process.pid, virt_id=2) == 2
+
+    request3 = create_simple_request(
+        remote_id=1,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("custom 5, 7"),
+    )
+    assert processor._allocate_for_pair(process, request3, index=0) == 5
+    assert memmgr.phys_id_for(process.pid, virt_id=5) == 3
+    assert processor._allocate_for_pair(process, request3, index=1) == 7
+    assert memmgr.phys_id_for(process.pid, virt_id=7) == 4
 
 
 def test__create_entdist_request():
