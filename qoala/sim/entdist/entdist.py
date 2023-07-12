@@ -17,7 +17,7 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import EhiNetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkTimebin
 from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -40,6 +40,14 @@ class EntDistRequest:
             and self.remote_node_id == req.local_node_id
             and self.local_pid == req.remote_pid
             and self.remote_pid == req.local_pid
+        )
+
+    def matches_timebin(self, bin: EhiNetworkTimebin) -> bool:
+        if frozenset({self.local_node_id, self.remote_node_id}) != bin.nodes:
+            return False
+        return (
+            bin.pids[self.local_node_id] == self.local_pid
+            and bin.pids[self.remote_node_id] == self.remote_pid
         )
 
 
@@ -299,37 +307,42 @@ class EntDist(Protocol):
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         while True:
+            # Wait until a message arrives.
+            yield from self._interface.wait_for_any_msg()
+
+            # Wait until the next time bin.
             now = ns.sim_time()
             next_slot_time, next_slot = self._netschedule.next_bin(now)
 
             if next_slot_time - now > 0:
-                yield from self._interface.wait(next_slot_time - now)
+                yield from self._interface.wait(next_slot_time - now + 1)
             elif next_slot_time - now < 0:
                 raise RuntimeError()
-            # Wait for a new message.
-            yield from self._interface.wait_for_any_msg()
-            if ns.sim_time() == now:
-                # No time passed, meaning the messages were already there.
-                messages = self._interface.pop_all_messages()
 
-                requesting_nodes: List[int] = []
-                for msg in messages:
-                    self._logger.info(f"received new msg from node: {msg}")
-                    request: EntDistRequest = msg.content
+            messages = self._interface.pop_all_messages()
 
-                    requesting_nodes.append(request.local_node_id)
+            requesting_nodes: List[int] = []
+            for msg in messages:
+                self._logger.info(f"received new msg from node: {msg}")
+                request: EntDistRequest = msg.content
+                requesting_nodes.append(request.local_node_id)
+
+                if request.matches_timebin(next_slot):
+                    self._logger.warning(f"putting request: {request}")
                     self.put_request(request)
-                joint_request = self.get_next_joint_request()
-                if joint_request is not None:
-                    yield from self.serve_request(joint_request)
                 else:
-                    for node_id in requesting_nodes:
-                        node = self._interface.remote_id_to_peer_name(node_id)
-                        self._interface.send_node_msg(node, Message(-1, -1, None))
-                self.clear_requests()
-
-            if next_slot == now:
-                yield from self._interface.wait(1)
+                    self._logger.warning(f"not handling msg {msg} (wrong timebin)")
+            joint_request = self.get_next_joint_request()
+            if joint_request is not None:
+                self._logger.warning("serving request")
+                yield from self.serve_request(joint_request)
+                self._logger.warning("served request")
+            else:
+                for node_id in requesting_nodes:
+                    node = self._interface.remote_id_to_peer_name(node_id)
+                    self._interface.send_node_msg(node, Message(-1, -1, None))
+            self.clear_requests()
+            yield from self._interface.wait(1)
 
     def _run_without_netschedule(self) -> Generator[EventExpression, None, None]:
         while True:

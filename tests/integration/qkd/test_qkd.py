@@ -61,9 +61,6 @@ def run_qkd(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
-    network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=10000, first_bin=0, bin_period=1e5
-    )
 
     alice_program = load_program(alice_file)
     bob_program = load_program(bob_file)
@@ -223,7 +220,7 @@ def qkd_2pairs_ck_2qubits_app_move():
     ns.sim_reset()
     LogManager.enable_task_logger(True)
 
-    num_iterations = 1
+    num_iterations = 10
     alice_file = "qkd_2pairs_CK_2qubits_app_move_alice.iqoala"
     bob_file = "qkd_2pairs_CK_2qubits_app_move_bob.iqoala"
 
@@ -380,14 +377,14 @@ def test_qkd_npairs_ck_1qubit_cb():
 
 
 if __name__ == "__main__":
-    # test_qkd_1pair_md()
-    # test_qkd_1pair_ck()
-    # test_qkd_1pair_ck_cb()
-    # test_qkd_2pairs_md()
-    # test_qkd_2pairs_ck_1qubit()
-    # test_qkd_2pairs_ck_1qubit_cb()
+    test_qkd_1pair_md()
+    test_qkd_1pair_ck()
+    test_qkd_1pair_ck_cb()
+    test_qkd_2pairs_md()
+    test_qkd_2pairs_ck_1qubit()
+    test_qkd_2pairs_ck_1qubit_cb()
     test_qkd_2pairs_ck_2qubits_app_move()
-    # test_qkd_2pairs_ck_2qubits_wait_all()
-    # test_qkd_100pairs_md()
-    # test_qkd_npairs_md()
-    # test_qkd_npairs_ck_1qubit_cb()
+    test_qkd_2pairs_ck_2qubits_wait_all()
+    test_qkd_100pairs_md()
+    test_qkd_npairs_md()
+    test_qkd_npairs_ck_1qubit_cb()

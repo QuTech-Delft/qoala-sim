@@ -15,6 +15,8 @@ from qoala.lang.ehi import (
     EhiLatencies,
     EhiLinkInfo,
     EhiNetworkInfo,
+    EhiNetworkSchedule,
+    EhiNetworkTimebin,
     EhiNodeInfo,
     EhiQubitInfo,
 )
@@ -23,6 +25,8 @@ from qoala.runtime.lhi import (
     LhiLatencies,
     LhiLinkInfo,
     LhiNetworkInfo,
+    LhiNetworkSchedule,
+    LhiNetworkTimebin,
     LhiQubitInfo,
     LhiTopology,
 )
@@ -123,3 +127,16 @@ class LhiConverter:
             node_link = frozenset([n1, n2])
             links[node_link] = ehi_link
         return EhiNetworkInfo(info.nodes, links)
+
+    @classmethod
+    def timebin_to_ehi(cls, bin: LhiNetworkTimebin) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(bin.nodes, bin.pids)
+
+    @classmethod
+    def netschedule_to_ehi(cls, schedule: LhiNetworkSchedule) -> EhiNetworkSchedule:
+        return EhiNetworkSchedule(
+            bin_length=schedule.bin_length,
+            first_bin=schedule.first_bin,
+            bin_pattern=[cls.timebin_to_ehi(bin) for bin in schedule.bin_pattern],
+            repeat_period=schedule.repeat_period,
+        )

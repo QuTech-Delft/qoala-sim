@@ -62,7 +62,7 @@ class Driver(Protocol):
         self._memory = memory
 
     @abstractmethod
-    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, bool]:
         raise NotImplementedError
 
 
@@ -127,7 +127,7 @@ class CpuDriver(Driver):
         rrcall = self._memory.read_shared_rrcall(task.shared_ptr)
         self._hostprocessor.post_rr_call(process, instr, rrcall)
 
-    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, bool]:
         if isinstance(task, HostLocalTask) or isinstance(task, HostEventTask):
             process = self._memmgr.get_process(task.pid)
             yield from self._hostprocessor.assign_block(process, task.block_name)
@@ -157,6 +157,8 @@ class CpuDriver(Driver):
             yield from self._hostprocessor._interface.wait(latency)
         else:
             raise NotImplementedError
+
+        return True
 
 
 class QpuDriver(Driver):
@@ -216,7 +218,7 @@ class QpuDriver(Driver):
 
     def _handle_multi_pair(
         self, task: MultiPairTask
-    ) -> Generator[EventExpression, None, None]:
+    ) -> Generator[EventExpression, None, bool]:
         process = self._memmgr.get_process(task.pid)
 
         # The corresponding PreCallTask must have executed, and it must have written
@@ -226,9 +228,11 @@ class QpuDriver(Driver):
         global_args = process.prog_instance.inputs.values
         self._netstackprocessor.instantiate_routine(process, rrcall, global_args)
 
-        yield from self._netstackprocessor.handle_multi_pair(
+        result = yield from self._netstackprocessor.handle_multi_pair(
             process, rrcall.routine_name
         )
+        self._logger.warning(f"Driver result: {result}")
+        return result
 
     def _handle_multi_pair_callback(
         self, task: MultiPairCallbackTask
@@ -245,7 +249,7 @@ class QpuDriver(Driver):
 
     def _handle_single_pair(
         self, task: SinglePairTask
-    ) -> Generator[EventExpression, None, None]:
+    ) -> Generator[EventExpression, None, bool]:
         process = self._memmgr.get_process(task.pid)
 
         # The corresponding PreCallTask must have executed, and it must have written
@@ -255,9 +259,11 @@ class QpuDriver(Driver):
         global_args = process.prog_instance.inputs.values
         self._netstackprocessor.instantiate_routine(process, rrcall, global_args)
 
-        yield from self._netstackprocessor.handle_single_pair(
+        result = yield from self._netstackprocessor.handle_single_pair(
             process, rrcall.routine_name, task.pair_index
         )
+        self._logger.warning(f"Driver result: {result}")
+        return result
 
     def _handle_single_pair_callback(
         self, task: SinglePairCallbackTask
@@ -272,16 +278,19 @@ class QpuDriver(Driver):
             process, rrcall.routine_name, self._qnosprocessor, task.pair_index
         )
 
-    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task: QoalaTask) -> Generator[EventExpression, None, bool]:
         if isinstance(task, LocalRoutineTask):
             yield from self._handle_local_routine(task)
         elif isinstance(task, MultiPairTask):
-            yield from self._handle_multi_pair(task)
+            result = yield from self._handle_multi_pair(task)
+            return result
         elif isinstance(task, MultiPairCallbackTask):
             yield from self._handle_multi_pair_callback(task)
         elif isinstance(task, SinglePairTask):
-            yield from self._handle_single_pair(task)
+            result = yield from self._handle_single_pair(task)
+            return result
         elif isinstance(task, SinglePairCallbackTask):
             yield from self._handle_single_pair_callback(task)
         else:
             raise NotImplementedError
+        return True

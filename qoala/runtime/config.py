@@ -41,6 +41,8 @@ from qoala.runtime.lhi import (
     LhiGateConfigInterface,
     LhiLatenciesConfigInterface,
     LhiLinkConfigInterface,
+    LhiNetworkScheduleConfigInterface,
+    LhiNetworkTimebin,
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
@@ -1472,7 +1474,7 @@ class ClassicalConnectionConfig(BaseModel):
         )
 
 
-class NetworkScheduleConfig(BaseModel):
+class NetworkScheduleConfig(BaseModel, LhiNetworkScheduleConfigInterface):
     bin_length: int
     first_bin: int
     bin_pattern: List[Tuple[int, int, int, int]]
@@ -1490,6 +1492,22 @@ class NetworkScheduleConfig(BaseModel):
             bin_pattern=dict["bin_pattern"],
             repeat_period=dict["repeat_period"],
         )
+
+    def to_bin_length(self) -> int:
+        return self.bin_length
+
+    def to_first_bin(self) -> int:
+        return self.first_bin
+
+    def to_bin_pattern(self) -> List[LhiNetworkTimebin]:
+        pattern = [
+            LhiNetworkTimebin(frozenset({node1, node2}), {node1: pid1, node2: pid2})
+            for (node1, pid1, node2, pid2) in self.bin_pattern
+        ]
+        return pattern
+
+    def to_repeat_period(self) -> int:
+        return self.repeat_period
 
 
 class ProcNodeNetworkConfig(BaseModel):

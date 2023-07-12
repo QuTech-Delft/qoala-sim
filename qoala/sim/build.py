@@ -16,6 +16,7 @@ from qoala.runtime.lhi import (
     LhiLatencies,
     LhiLinkInfo,
     LhiNetworkInfo,
+    LhiNetworkSchedule,
     LhiProcNodeInfo,
     LhiTopology,
     LhiTopologyBuilder,
@@ -136,8 +137,9 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         ehi_links[node_link] = ehi_link
     nodes = {cfg.node_id: cfg.node_name for cfg in config.nodes}
     if config.netschedule is not None:
-        netschedule = EhiNetworkSchedule.from_config(config.netschedule)
-        network_ehi = EhiNetworkInfo(nodes, ehi_links, netschedule)
+        lhi_netschedule = LhiNetworkSchedule.from_config(config.netschedule)
+        ehi_netschedule = LhiConverter.netschedule_to_ehi(lhi_netschedule)
+        network_ehi = EhiNetworkInfo(nodes, ehi_links, ehi_netschedule)
     else:
         network_ehi = EhiNetworkInfo(nodes, ehi_links)
 

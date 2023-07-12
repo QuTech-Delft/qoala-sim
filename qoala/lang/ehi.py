@@ -4,13 +4,13 @@ import copy
 import itertools
 from dataclasses import dataclass
 from math import ceil, floor
+from multiprocessing import Value
 from typing import Dict, FrozenSet, List, Optional, Tuple, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import NetworkScheduleConfig  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -294,10 +294,8 @@ class UnitModule:
 
 @dataclass
 class EhiNetworkTimebin:
-    node1: int
-    pid1: int
-    node2: int
-    pid2: int
+    nodes: FrozenSet[int]
+    pids: Dict[int, int]  # node ID -> PID
 
 
 @dataclass
@@ -331,18 +329,26 @@ class EhiNetworkSchedule:
             next_bin = self.bin_pattern[next_bin_index]
         return next_bin_start, next_bin
 
-    @classmethod
-    def from_config(cls, config: NetworkScheduleConfig) -> EhiNetworkSchedule:
-        pattern = [
-            EhiNetworkTimebin(node1, pid1, node2, pid2)
-            for (node1, pid1, node2, pid2) in config.bin_pattern
-        ]
-        return EhiNetworkSchedule(
-            config.bin_length,
-            config.first_bin,
-            pattern,
-            config.repeat_period,
-        )
+    def next_specific_bin(self, time: int, bin: EhiNetworkTimebin) -> int:
+        bin_index: Optional[int] = None
+
+        for i, pat_bin in enumerate(self.bin_pattern):
+            if bin == pat_bin:
+                bin_index = i
+        if bin_index is None:
+            raise ValueError
+
+        bin_rel_to_pat_start = bin_index * self.bin_length
+
+        # TODO: merge below code with that in the `next_bin()` method
+        global_offset = time - self.first_bin
+        curr_pattern_index = floor(global_offset / self.repeat_period)
+        curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
+        time_since_pattern_start = global_offset - curr_pattern_start
+        if bin_rel_to_pat_start >= time_since_pattern_start:
+            return bin_rel_to_pat_start - time_since_pattern_start
+        else:
+            return self.repeat_period - time_since_pattern_start + bin_rel_to_pat_start
 
 
 @dataclass

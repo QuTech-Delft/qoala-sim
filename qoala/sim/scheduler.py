@@ -9,7 +9,12 @@ from netqasm.lang.operand import Template
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkSchedule, EhiNodeInfo
+from qoala.lang.ehi import (
+    EhiNetworkInfo,
+    EhiNetworkSchedule,
+    EhiNetworkTimebin,
+    EhiNodeInfo,
+)
 from qoala.lang.hostlang import ReceiveCMsgOp
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import (
@@ -30,6 +35,7 @@ from qoala.runtime.task import (
     TaskGraph,
     TaskGraphBuilder,
 )
+from qoala.sim import eprsocket
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT, SIGNAL_MEMORY_FREED, SIGNAL_TASK_COMPLETED
@@ -85,9 +91,13 @@ class NodeScheduler(Protocol):
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
 
+        # TODO: refactor
+        node_id = self.host._comp.node_id
+
         cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
         self._cpu_scheduler = CpuEdfScheduler(
             f"{node_name}_cpu",
+            node_id,
             cpudriver,
             memmgr,
             host.interface,
@@ -105,6 +115,7 @@ class NodeScheduler(Protocol):
         )
         self._qpu_scheduler = QpuEdfScheduler(
             f"{node_name}_qpu",
+            node_id,
             qpudriver,
             memmgr,
             netschedule,
@@ -336,6 +347,7 @@ class ProcessorScheduler(Protocol):
     def __init__(
         self,
         name: str,
+        node_id: int,
         driver: Driver,
         memmgr: MemoryManager,
         deterministic: bool = True,
@@ -347,6 +359,7 @@ class ProcessorScheduler(Protocol):
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}_{driver.__class__.__name__}({name})"
         )
+        self._node_id = node_id
         self._task_logger = LogManager.get_task_logger(name)
         self._driver = driver
         self._other_scheduler: Optional[ProcessorScheduler] = None
@@ -417,17 +430,17 @@ class StatusGraphEmpty(SchedulerStatus):
 
 
 class StatusEprGen(SchedulerStatus):
-    def __init__(self, task_ids: List[int]) -> None:
-        self._task_ids = task_ids
+    def __init__(self, task_id: int) -> None:
+        self._task_id = task_id
 
     @property
-    def task_ids(self) -> List[int]:
-        return self._task_ids
+    def task_id(self) -> int:
+        return self._task_id
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, StatusEprGen):
             raise NotImplementedError
-        return self.task_ids == other.task_ids
+        return self.task_id == other.task_id
 
 
 class StatusNextTask(SchedulerStatus):
@@ -464,10 +477,67 @@ class StatusBlockedOnResourceOrOtherCore(SchedulerStatus):
     pass
 
 
+class StatusBlockedOnTimebin(SchedulerStatus):
+    def __init__(self, task_id: int, delta: int) -> None:
+        self._task_id = task_id
+        self._delta = delta
+
+    @property
+    def task_id(self) -> int:
+        return self._task_id
+
+    @property
+    def delta(self) -> int:
+        return self._delta
+
+
+class StatusBlockedOnOtherCoreOrTimebin(SchedulerStatus):
+    def __init__(self, task_id: int, delta: int) -> None:
+        self._task_id = task_id
+        self._delta = delta
+
+    @property
+    def task_id(self) -> int:
+        return self._task_id
+
+    @property
+    def delta(self) -> int:
+        return self._delta
+
+
+class StatusBlockedOnResourceOrTimebin(SchedulerStatus):
+    def __init__(self, task_id: int, delta: int) -> None:
+        self._task_id = task_id
+        self._delta = delta
+
+    @property
+    def task_id(self) -> int:
+        return self._task_id
+
+    @property
+    def delta(self) -> int:
+        return self._delta
+
+
+class StatusBlockedOnOtherCoreorResourceOrTimebin(SchedulerStatus):
+    def __init__(self, task_id: int, delta: int) -> None:
+        self._task_id = task_id
+        self._delta = delta
+
+    @property
+    def task_id(self) -> int:
+        return self._task_id
+
+    @property
+    def delta(self) -> int:
+        return self._delta
+
+
 class EdfScheduler(ProcessorScheduler):
     def __init__(
         self,
         name: str,
+        node_id: int,
         driver: Driver,
         memmgr: MemoryManager,
         deterministic: bool = True,
@@ -475,36 +545,12 @@ class EdfScheduler(ProcessorScheduler):
     ) -> None:
         super().__init__(
             name=name,
+            node_id=node_id,
             driver=driver,
             memmgr=memmgr,
             deterministic=deterministic,
             use_deadlines=use_deadlines,
         )
-
-    def wait_until(self, start_time: float) -> Generator[EventExpression, None, None]:
-        now = ns.sim_time()
-        self._logger.debug(f"scheduled for {start_time}")
-        delta = start_time - now
-        if delta > 0:
-            self._logger.debug(f"waiting for {delta}...")
-            yield from self.wait(start_time - now)
-        else:
-            self._logger.warning(
-                f"start time is in the past (delta = {delta}), not waiting"
-            )
-
-    def wait_for_external_tasks(
-        self, ext_pred: Set[int]
-    ) -> Generator[EventExpression, None, None]:
-        self._logger.debug("checking if external predecessors have finished...")
-        assert self._other_scheduler is not None
-        while not all(self._other_scheduler.has_finished(p) for p in ext_pred):
-            # Wait for a signal that the other scheduler completed a task.
-            self._logger.debug("waiting for predecessor task to finish...")
-            yield self.await_signal(
-                sender=self._other_scheduler,
-                signal_label=SIGNAL_TASK_COMPLETED,
-            )
 
     def update_external_predcessors(self) -> None:
         if self._other_scheduler is None:
@@ -519,7 +565,7 @@ class EdfScheduler(ProcessorScheduler):
             }
             tg.get_tinfo(r).ext_predecessors = new_ext_preds
 
-    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
+    def handle_task(self, task_id: int) -> Generator[EventExpression, None, bool]:
         assert self._task_graph is not None
         tinfo = self._task_graph.get_tinfo(task_id)
         task = tinfo.task
@@ -534,31 +580,31 @@ class EdfScheduler(ProcessorScheduler):
         self.record_start_timestamp(task.pid, before)
 
         # Execute the task
-        yield from self._driver.handle_task(task)
+        success = yield from self._driver.handle_task(task)
+        if success:
+            after = ns.sim_time()
 
-        after = ns.sim_time()
+            self.record_end_timestamp(task.pid, after)
+            duration = after - before
+            self._task_graph.decrease_deadlines(duration)
+            self._task_graph.remove_task(task_id)
 
-        self.record_end_timestamp(task.pid, after)
-        duration = after - before
-        self._task_graph.decrease_deadlines(duration)
-        self._task_graph.remove_task(task_id)
+            self._finished_tasks.append(task.task_id)
+            self.send_signal(SIGNAL_TASK_COMPLETED)
+            self._logger.info(f"finished task {task}")
+            self._task_logger.info(f"finish {task}")
 
-        self._finished_tasks.append(task.task_id)
-        self.send_signal(SIGNAL_TASK_COMPLETED)
-        self._logger.info(f"finished task {task}")
-        self._task_logger.info(f"finish {task}")
-
-        self._tasks_executed[task.task_id] = task
-        self._task_ends[task.task_id] = after
-
-    def wait_for_timeslot(self, task) -> Generator[EventExpression, None, None]:
-        raise NotImplementedError
+            self._tasks_executed[task.task_id] = task
+            self._task_ends[task.task_id] = after
+        else:
+            self._task_logger.info(f"task failed")
 
 
 class CpuEdfScheduler(EdfScheduler):
     def __init__(
         self,
         name: str,
+        node_id: int,
         driver: CpuDriver,
         memmgr: MemoryManager,
         host_interface: HostInterface,
@@ -567,6 +613,7 @@ class CpuEdfScheduler(EdfScheduler):
     ) -> None:
         super().__init__(
             name=name,
+            node_id=node_id,
             driver=driver,
             memmgr=memmgr,
             deterministic=deterministic,
@@ -656,10 +703,6 @@ class CpuEdfScheduler(EdfScheduler):
                 assert len(event_blocked_on_message) > 0
                 return StatusBlockedOnMessage()
 
-    def wait_for_timeslot(self, task) -> Generator[EventExpression, None, None]:
-        return None
-        yield
-
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             self._task_logger.debug("updating status...")
@@ -705,6 +748,7 @@ class QpuEdfScheduler(EdfScheduler):
     def __init__(
         self,
         name: str,
+        node_id: int,
         driver: QpuDriver,
         memmgr: MemoryManager,
         network_schedule: Optional[EhiNetworkSchedule] = None,
@@ -713,12 +757,31 @@ class QpuEdfScheduler(EdfScheduler):
     ) -> None:
         super().__init__(
             name=name,
+            node_id=node_id,
             driver=driver,
             memmgr=memmgr,
             deterministic=deterministic,
             use_deadlines=use_deadlines,
         )
         self._network_schedule = network_schedule
+
+    def timebin_for_task(self, tid: int) -> EhiNetworkTimebin:
+        assert self._task_graph is not None
+        task = self._task_graph.get_tinfo(tid).task
+        assert isinstance(task, SinglePairTask) or isinstance(task, MultiPairTask)
+        drv_mem = self._driver._memory
+        rrcall = drv_mem.read_shared_rrcall(task.shared_ptr)
+        process = self._memmgr.get_process(task.pid)
+        routine = process.get_request_routine(rrcall.routine_name)
+        request = routine.request
+        epr_sck = process.epr_sockets[request.epr_socket_id]
+        return EhiNetworkTimebin(
+            nodes=frozenset({self._node_id, epr_sck.remote_id}),
+            pids={
+                self._node_id: epr_sck.local_pid,
+                epr_sck.remote_id: epr_sck.remote_pid,
+            },
+        )
 
     def are_resources_available(self, tid: int) -> bool:
         assert self._task_graph is not None
@@ -814,11 +877,6 @@ class QpuEdfScheduler(EdfScheduler):
             tid for tid in no_predecessors if not self.are_resources_available(tid)
         ]
 
-        # All EPR tasks that are ready for execution.
-        epr_ready = [
-            tid for tid in epr_no_predecessors if tid not in blocked_on_resources
-        ]
-
         # All non-EPR tasks that are ready for execution.
         non_epr_ready = [
             tid
@@ -826,11 +884,51 @@ class QpuEdfScheduler(EdfScheduler):
             if tid not in epr_no_predecessors and tid not in blocked_on_resources
         ]
 
+        # All EPR tasks that have no predecessors and are not blocked on resources.
+        epr_no_preds_not_blocked = [
+            tid for tid in epr_no_predecessors if tid not in blocked_on_resources
+        ]
+
+        # All EPR tasks that can be immediately executed.
+        epr_ready = []
+
+        # The next EPR task (if any) that is ready to execute but needs to wait for its
+        # corresponding time bin.
+        epr_wait_for_bin: Optional[Tuple[int, int]] = None  # (task ID, delta)
+
+        time_until_bin: Dict[int, int] = {}  # task ID -> time until bin
+
+        now = ns.sim_time()
+        for e in epr_no_preds_not_blocked:
+            if self._network_schedule is not None:
+                # Find the time until the next netschedule timebin that allows this EPR task.
+                bin = self.timebin_for_task(e)
+                self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")
+                delta = self._network_schedule.next_specific_bin(now, bin)
+                time_until_bin[e] = delta
+                self._task_logger.info(f"EPR ready: task {e}, delta: {delta}")
+                if delta == 0:
+                    epr_ready.append(e)
+            else:
+                # No network schedule: immediate just execute the EPR task
+                epr_ready.append(e)
+
+        epr_non_zero_delta = {
+            tid: delta for tid, delta in time_until_bin.items() if delta > 0
+        }
+        if len(epr_non_zero_delta) > 0:
+            sorted_by_delta = sorted(
+                epr_non_zero_delta.items(), key=lambda item: item[1]
+            )
+            earliest, delta = sorted_by_delta[0]
+            epr_wait_for_bin = (earliest, delta)
+
+        self._task_logger.info(f"epr_wait_for_bin: {epr_wait_for_bin}")
+
         if len(epr_ready) > 0:
-            # TODO: use network schedule
-            return StatusNextTask(epr_ready[0])
+            self._task_logger.info(f"epr_ready: {epr_ready}")
+            return StatusEprGen(epr_ready[0])
         elif len(non_epr_ready) > 0:
-            # `roots` contains the tasks we can choose from
             with_deadline = [
                 t for t in non_epr_ready if tg.get_tinfo(t).deadline is not None
             ]
@@ -858,20 +956,41 @@ class QpuEdfScheduler(EdfScheduler):
             # No tasks ready to execute. Check what is/are the cause(s).
             if len(blocked_on_other_core) > 0:
                 if len(blocked_on_resources) > 0:
-                    return StatusBlockedOnResourceOrOtherCore()
+                    if epr_wait_for_bin is not None:
+                        task_id, delta = epr_wait_for_bin
+                        return StatusBlockedOnOtherCoreorResourceOrTimebin(
+                            task_id, delta
+                        )
+                    else:
+                        return StatusBlockedOnResourceOrOtherCore()
                 else:
-                    return StatusBlockedOnOtherCore()
+                    if epr_wait_for_bin is not None:
+                        task_id, delta = epr_wait_for_bin
+                        return StatusBlockedOnOtherCoreOrTimebin(task_id, delta)
+                    else:
+                        return StatusBlockedOnOtherCore()
             else:
-                assert len(blocked_on_resources) > 0
-                return StatusBlockedOnResource()
+                if len(blocked_on_resources) > 0:
+                    if epr_wait_for_bin is not None:
+                        task_id, delta = epr_wait_for_bin
+                        return StatusBlockedOnResourceOrTimebin(task_id, delta)
+                    else:
+                        return StatusBlockedOnResource()
+                else:
+                    if epr_wait_for_bin is not None:
+                        task_id, delta = epr_wait_for_bin
+                        return StatusBlockedOnTimebin(task_id, delta)
+                    else:
+                        raise RuntimeError
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             status = self.update_status()
             if isinstance(status, StatusGraphEmpty):
+                self._task_logger.info("graph empty")
                 break
             elif isinstance(status, StatusBlockedOnOtherCore):
-                self._task_logger.debug("waiting for TASK_COMPLETED signal")
+                self._task_logger.info("waiting for TASK_COMPLETED signal")
                 yield self.await_signal(
                     sender=self._other_scheduler,
                     signal_label=SIGNAL_TASK_COMPLETED,
@@ -879,7 +998,7 @@ class QpuEdfScheduler(EdfScheduler):
                 self._task_logger.debug("got TASK_COMPLETED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnResource):
-                self._task_logger.debug(
+                self._task_logger.info(
                     "blocked on resource: waiting for MEMORY_FREED signal"
                 )
                 yield self.await_signal(
@@ -889,7 +1008,7 @@ class QpuEdfScheduler(EdfScheduler):
                 self._task_logger.debug("blocked on resource: got MEMORY_FREED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnResourceOrOtherCore):
-                self._task_logger.debug(
+                self._task_logger.info(
                     "blocked on resource and other core: "
                     "waiting for MEMORY_FREED signal OR TASK_COMPLETED signal"
                 )
@@ -904,6 +1023,56 @@ class QpuEdfScheduler(EdfScheduler):
                 yield ev_mem_freed | ev_task_completed
 
                 self.update_external_predcessors()
+            elif isinstance(status, StatusEprGen):
+                self._task_logger.info(f"handling EPR task {status.task_id}")
+                yield from self.handle_task(status.task_id)
             elif isinstance(status, StatusNextTask):
+                self._task_logger.info(f"handling task {status.task_id}")
                 yield from self.handle_task(status.task_id)
                 self.update_external_predcessors()
+            elif isinstance(status, StatusBlockedOnTimebin):
+                self._task_logger.info(f"Blocked on timebin (delta = {status.delta})")
+                yield from self.wait(status.delta)
+            elif isinstance(status, StatusBlockedOnOtherCoreOrTimebin):
+                self._task_logger.info(
+                    f"Blocked on other core or timebin (delta = {status.delta})"
+                )
+                self._schedule_after(status.delta, EVENT_WAIT)
+                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
+                ev_task_completed = self.await_signal(
+                    sender=self._other_scheduler,
+                    signal_label=SIGNAL_TASK_COMPLETED,
+                )
+                yield ev_timebin | ev_task_completed
+                self._task_logger.info(f"unblocked")
+                self.update_external_predcessors()
+            elif isinstance(status, StatusBlockedOnResourceOrTimebin):
+                self._task_logger.info(
+                    f"Blocked on resource or timebin (delta = {status.delta})"
+                )
+                self._schedule_after(status.delta, EVENT_WAIT)
+                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
+                ev_mem_freed = self.await_signal(
+                    sender=self._memmgr,
+                    signal_label=SIGNAL_MEMORY_FREED,
+                )
+                yield ev_timebin | ev_mem_freed
+                self.update_external_predcessors()
+            elif isinstance(status, StatusBlockedOnOtherCoreorResourceOrTimebin):
+                self._task_logger.info(
+                    f"Blocked on other core or resource or timebin (delta = {status.delta})"
+                )
+                ev_task_completed = self.await_signal(
+                    sender=self._other_scheduler,
+                    signal_label=SIGNAL_TASK_COMPLETED,
+                )
+                self._schedule_after(status.delta, EVENT_WAIT)
+                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
+                ev_mem_freed = self.await_signal(
+                    sender=self._memmgr,
+                    signal_label=SIGNAL_MEMORY_FREED,
+                )
+                yield ev_task_completed | ev_timebin | ev_mem_freed
+                self.update_external_predcessors()
+            else:
+                raise RuntimeError()
