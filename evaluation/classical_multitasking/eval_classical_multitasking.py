@@ -28,10 +28,16 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import TaskGraphBuilder
+from qoala.runtime.task import QoalaGraphFromProgramBuilder, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.util.logging import LogManager
-from qoala.util.runner import AppResult, create_batch
+from qoala.util.runner import (
+    AppResult,
+    create_batch,
+    run_two_node_app,
+    run_two_node_app_separate_inputs,
+    run_two_node_app_separate_inputs_plus_constant_tasks,
+)
 
 
 def run_two_node_app_separate_inputs_plus_3rd_program(
@@ -132,15 +138,14 @@ def run_two_node_app_separate_inputs_plus_3rd_program(
 def create_procnode_cfg(
     name: str, id: int, t1: float, t2: float, determ: bool, deadlines: bool
 ) -> ProcNodeConfig:
-    nv_params = NvParams()
-    nv_params.comm_t1 = t1
-    nv_params.comm_t2 = t2
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.from_nv_params(num_qubits=5, params=nv_params),
+        topology=TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
+            5, t1, t2
+        ),
         latencies=LatenciesConfig(qnos_instr_time=1000, host_instr_time=1000),
-        ntf=NtfConfig.from_cls_name("NvNtf"),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=determ,
         use_deadlines=deadlines,
     )
@@ -150,7 +155,7 @@ def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return QoalaParser(text, flavour=NVFlavour()).parse()
+    return QoalaParser(text).parse()
 
 
 @dataclass
@@ -162,6 +167,7 @@ class ProgResult:
 
 
 def run_apps(
+    num_iterations: int,
     t1: float,
     t2: float,
     cc_latency: float,
@@ -188,21 +194,45 @@ def run_apps(
     )
     network_cfg.cconns = [cconn]
 
-    alice_program = load_program("controller.iqoala")
-    bob_program = load_program("interactive_quantum.iqoala")
-    busy_program = load_program("cpu_hog_short.iqoala")
+    alice_program = load_program("programs/controller.iqoala")
+    bob_program = load_program("programs/interactive_quantum.iqoala")
+    busy_program = load_program("programs/cpu_busy.iqoala")
 
-    alice_inputs = [ProgramInput({"bob_id": bob_id})]
-    bob_inputs = [ProgramInput({"alice_id": alice_id})]
+    alice_inputs = [ProgramInput({"bob_id": bob_id}) for i in range(num_iterations)]
 
-    app_result = run_two_node_app_separate_inputs_plus_3rd_program(
-        num_iterations=1,
-        programs={"alice": alice_program, "bob": bob_program},
-        program_inputs={"alice": alice_inputs, "bob": bob_inputs},
-        third_program=busy_program,
-        third_program_input=ProgramInput({"duration": busy_duration}),
+    def measure_state(prepare_state: int) -> int:
+        return {0: 1, 1: 0, 2: 3, 3: 2, 4: 5, 5: 4}[prepare_state]
+
+    bob_inputs = [
+        ProgramInput(
+            {
+                "alice_id": alice_id,
+                "prepare_state": i % 6,
+                "measure_state": measure_state(i % 6),
+            },
+        )
+        for i in range(num_iterations)
+    ]
+
+    num_const_tasks = 100
+
+    busy_inputs = [
+        ProgramInput({"duration": busy_duration}) for _ in range(num_const_tasks)
+    ]
+
+    app_result = run_two_node_app_separate_inputs_plus_constant_tasks(
+        num_iterations=num_iterations,
+        num_const_tasks=num_const_tasks,
+        node1="alice",
+        node2="bob",
+        prog_node1=alice_program,
+        prog_node1_inputs=alice_inputs,
+        prog_node2=bob_program,
+        prog_node2_inputs=bob_inputs,
+        const_prog_node2=busy_program,
+        const_prog_node2_inputs=busy_inputs,
+        const_rate=1.0,
         network_cfg=network_cfg,
-        hog_prob=arrival_rate,
         linear=True,
     )
 
@@ -211,13 +241,7 @@ def run_apps(
 
     bob_stats = app_result.statistics["bob"]
 
-    qpu_tasks = [t for t in bob_stats._qpu_tasks_executed.values() if t.pid == 0]
-    qpu_starts = [bob_stats._qpu_task_starts[task.task_id] for task in qpu_tasks]
-    qpu_ends = [bob_stats._qpu_task_ends[task.task_id] for task in qpu_tasks]
-    assert len(qpu_starts) == len(qpu_ends)
-    qpu_waits = [qpu_starts[i + 1] - qpu_ends[i] for i in range(len(qpu_starts) - 1)]
-
-    return ProgResult(alice_result, bob_result, qpu_waits, app_result.total_duration)
+    return ProgResult(alice_result, bob_result, [], app_result.total_duration)
 
 
 @dataclass
@@ -276,7 +300,7 @@ def wilson_score_interval(p_hat, n, z):
 def run(deadlines: bool, output_dir: str):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("classical_multitasking.log")
-    # LogManager.enable_task_logger(True)
+    LogManager.enable_task_logger(True)
     # LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
 
     start_time = time.time()
@@ -286,16 +310,16 @@ def run(deadlines: bool, output_dir: str):
     t1 = 1e10
     t2 = 1e8
 
-    determ = False
+    determ = True
     use_deadlines = deadlines
     arrival_rate = 0
 
-    num_iterations = 1
+    num_iterations = 5
     # latency_factors = [0.01, 0.05, 0.1, 0.2]
-    latency_factors = [0.1]
+    latency_factors = [0.01]
     # busy_factors = [0.1, 0.2, 0.5, 1, 2]
     # busy_factors = [0.01, 0.1, 1]
-    busy_factors = [0]
+    busy_factors = [1]
 
     data_points: List[DataPoint] = []
 
@@ -308,23 +332,22 @@ def run(deadlines: bool, output_dir: str):
 
             successes: List[bool] = []
             qpu_waits: List[List[float]] = []
-            for _ in range(num_iterations):
-                result = run_apps(
-                    t1=t1,
-                    t2=t2,
-                    cc_latency=cc,
-                    busy_duration=busy,
-                    determ_sched=determ,
-                    deadlines=use_deadlines,
-                    arrival_rate=arrival_rate,
-                )
-                program_results = result.bob_results.results
-                outcomes = [result.values["outcome"] for result in program_results]
-                assert len(outcomes) == 1
-                success = outcomes[0] == 1
-                successes.append(success)
-                qpu_waits.append(result.qpu_waits)
-                makespan += result.total_duration
+            result = run_apps(
+                num_iterations=num_iterations,
+                t1=t1,
+                t2=t2,
+                cc_latency=cc,
+                busy_duration=busy,
+                determ_sched=determ,
+                deadlines=use_deadlines,
+                arrival_rate=arrival_rate,
+            )
+            program_results = result.bob_results.results
+            outcomes = [result.values["outcome"] for result in program_results]
+            assert len(outcomes) == num_iterations
+            successes = [outcome == 1 for outcome in outcomes]
+            qpu_waits.append(result.qpu_waits)
+            makespan += result.total_duration
             # print(f"cc = {cc}: {outcomes}")
             avg_succ = len([s for s in successes if s]) / len(successes)
             curr_time = round(time.time() - start_time, 3)

@@ -12,7 +12,7 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import TaskGraphBuilder
+from qoala.runtime.task import QoalaTask, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.util.logging import LogManager
 
@@ -106,6 +106,93 @@ def run_two_node_app_separate_inputs(
         # only one batch (ID = 0), so get value at index 0
         results[name] = procnode.scheduler.get_batch_results()[0]
         statistics[name] = procnode.scheduler.get_statistics()
+
+    total_duration = ns.sim_time()
+    return AppResult(results, statistics, total_duration)
+
+
+def run_two_node_app_separate_inputs_plus_constant_tasks(
+    num_iterations: int,
+    num_const_tasks: int,
+    node1: str,
+    node2: str,
+    prog_node1: QoalaProgram,
+    prog_node1_inputs: Dict[str, List[ProgramInput]],
+    prog_node2: QoalaProgram,
+    prog_node2_inputs: Dict[str, List[ProgramInput]],
+    const_prog_node2: QoalaProgram,
+    const_prog_node2_inputs: Dict[str, List[ProgramInput]],
+    const_rate: float,
+    network_cfg: ProcNodeNetworkConfig,
+    linear: bool = False,
+) -> AppResult:
+    ns.sim_reset()
+    ns.set_qstate_formalism(ns.QFormalism.DM)
+    seed = random.randint(0, 1000)
+    ns.set_random_state(seed=seed)
+
+    network = build_network_from_config(network_cfg)
+
+    procnode1 = network.nodes[node1]
+    unit_module1 = UnitModule.from_full_ehi(procnode1.memmgr.get_ehi())
+    batch_info1 = create_batch(
+        prog_node1, unit_module1, prog_node1_inputs, num_iterations
+    )
+    batch_node1 = procnode1.submit_batch(batch_info1)
+
+    procnode2 = network.nodes[node2]
+    unit_module2 = UnitModule.from_full_ehi(procnode2.memmgr.get_ehi())
+    batch_info2 = create_batch(
+        prog_node2, unit_module2, prog_node2_inputs, num_iterations
+    )
+    batch_node2 = procnode2.submit_batch(batch_info2)
+
+    batch_info_const = create_batch(
+        const_prog_node2, unit_module2, const_prog_node2_inputs, num_const_tasks
+    )
+    batch_const = procnode2.submit_batch(batch_info_const)
+
+    # Init
+
+    remote_pids1 = {batch_node2.batch_id: [p.pid for p in batch_node2.instances]}
+    procnode1.initialize_processes(remote_pids1)
+
+    remote_pids2 = {batch_node1.batch_id: [p.pid for p in batch_node1.instances]}
+    procnode2.initialize_processes(remote_pids2)
+
+    # Upload tasks
+
+    tasks1 = procnode1.scheduler.get_tasks_to_schedule()
+    if linear:
+        merged1 = TaskGraphBuilder.merge_linear(tasks1)
+    else:
+        merged1 = TaskGraphBuilder.merge(tasks1)
+    procnode1.scheduler.upload_task_graph(merged1)
+
+    tasks2 = procnode2.scheduler.get_tasks_to_schedule_for(batch_node2.batch_id)
+    if linear:
+        merged2 = TaskGraphBuilder.merge_linear(tasks2)
+    else:
+        merged2 = TaskGraphBuilder.merge(tasks2)
+
+    tasks_const = procnode2.scheduler.get_tasks_to_schedule_for(batch_const.batch_id)
+    merged_const = TaskGraphBuilder.merge_linear(tasks_const)
+    print(merged_const)
+    merged_with_const = TaskGraphBuilder.merge([merged2, merged_const])
+
+    procnode2.scheduler.upload_task_graph(merged_with_const)
+
+    network.start()
+    ns.sim_run()
+
+    results: Dict[str, BatchResult] = {}
+    statistics: Dict[str, SchedulerStatistics] = {}
+
+    # only one batch (ID = 0), so get value at index 0
+    results[node1] = procnode1.scheduler.get_batch_results()[0]
+    results[node2] = procnode2.scheduler.get_batch_results()[0]
+    statistics[node1] = procnode1.scheduler.get_statistics()
+    statistics[node2] = procnode2.scheduler.get_statistics()
 
     total_duration = ns.sim_time()
     return AppResult(results, statistics, total_duration)

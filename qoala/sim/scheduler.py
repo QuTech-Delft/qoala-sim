@@ -223,7 +223,7 @@ class NodeScheduler(Protocol):
     ) -> None:
         for batch_id, batch in self._batches.items():
             for i, prog_instance in enumerate(batch.instances):
-                if remote_pids is not None:
+                if remote_pids is not None and batch_id in remote_pids:
                     remote_pid = remote_pids[batch_id][i]
                 else:
                     remote_pid = None
