@@ -177,7 +177,12 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
 
     tasks_const = procnode2.scheduler.get_tasks_to_schedule_for(batch_const.batch_id)
     merged_const = TaskGraphBuilder.merge_linear(tasks_const)
-    print(merged_const)
+    counter = 0
+    for tid, tinfo in merged_const.get_tasks().items():
+        merged_const.get_tinfo(tid).start_time = counter
+        counter += 1000
+    for tid, tinfo in merged_const.get_tasks().items():
+        print(f"tid: {tid}, tinfo: {tinfo}")
     merged_with_const = TaskGraphBuilder.merge([merged2, merged_const])
 
     procnode2.scheduler.upload_task_graph(merged_with_const)

@@ -300,7 +300,7 @@ def wilson_score_interval(p_hat, n, z):
 def run(deadlines: bool, output_dir: str):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("classical_multitasking.log")
-    LogManager.enable_task_logger(True)
+    # LogManager.enable_task_logger(True)
     # LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
 
     start_time = time.time()

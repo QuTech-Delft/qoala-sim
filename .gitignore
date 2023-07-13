@@ -25,3 +25,5 @@ coverage.xml
 report.xml
 
 .pydeps
+
+evaluation/**/*.json
