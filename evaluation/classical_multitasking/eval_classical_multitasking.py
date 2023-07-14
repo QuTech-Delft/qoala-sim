@@ -168,13 +168,14 @@ class ProgResult:
 
 def run_apps(
     num_iterations: int,
+    num_const_tasks: int,
     t1: float,
     t2: float,
     cc_latency: float,
     busy_duration: float,
     determ_sched: bool,
     deadlines: bool,
-    arrival_rate: float,
+    const_period: int,
 ) -> ProgResult:
     ns.sim_reset()
 
@@ -214,8 +215,6 @@ def run_apps(
         for i in range(num_iterations)
     ]
 
-    num_const_tasks = 100
-
     busy_inputs = [
         ProgramInput({"duration": busy_duration}) for _ in range(num_const_tasks)
     ]
@@ -231,7 +230,7 @@ def run_apps(
         prog_node2_inputs=bob_inputs,
         const_prog_node2=busy_program,
         const_prog_node2_inputs=busy_inputs,
-        const_rate=1.0,
+        const_period=const_period,
         network_cfg=network_cfg,
         linear=True,
     )
@@ -250,7 +249,7 @@ class DataPoint:
     use_deadlines: bool
     latency_factor: float
     busy_factor: float
-    arrival_rate: float
+    const_period: int
     succ_prob: float
     succ_prob_lower: float
     succ_prob_upper: float
@@ -297,11 +296,102 @@ def wilson_score_interval(p_hat, n, z):
     return (lower_bound, upper_bound)
 
 
+def get_metrics(
+    start_time: float,
+    t1: int,
+    t2: int,
+    determ: bool,
+    use_deadlines: bool,
+    cc_latency: int,
+    num_iterations: int,
+    num_const_tasks: int,
+    const_period: int,
+    busy_duration: int,
+) -> float:
+    print(f"use deadlines: {use_deadlines}")
+    makespan = 0
+
+    successes: List[bool] = []
+    qpu_waits: List[List[float]] = []
+    result = run_apps(
+        num_iterations=num_iterations,
+        num_const_tasks=num_const_tasks,
+        t1=t1,
+        t2=t2,
+        cc_latency=cc_latency,
+        busy_duration=busy_duration,
+        determ_sched=determ,
+        deadlines=use_deadlines,
+        const_period=const_period,
+    )
+    program_results = result.bob_results.results
+    outcomes = [result.values["outcome"] for result in program_results]
+    assert len(outcomes) == num_iterations
+    successes = [outcome == 1 for outcome in outcomes]
+    qpu_waits.append(result.qpu_waits)
+    makespan += result.total_duration
+    # print(f"cc = {cc}: {outcomes}")
+    avg_succ = len([s for s in successes if s]) / len(successes)
+    curr_time = round(time.time() - start_time, 3)
+    # print(f"{curr_time}s: succ_prob: {avg_succ}, makespan: {makespan}")
+
+    return avg_succ
+
+    # succ_prob_lower, succ_prob_upper = wilson_score_interval(
+    #     p_hat=avg_succ, n=len(successes), z=1.96
+    # )
+    # succ_per_s = 1e9 * avg_succ / makespan
+    # succ_per_s_lower = 1e9 * succ_prob_lower / makespan
+    # succ_per_s_upper = 1e9 * succ_prob_upper / makespan
+
+    # data_points.append(
+    #     DataPoint(
+    #         t2=t2,
+    #         use_deadlines=use_deadlines,
+    #         latency_factor=latency_factor,
+    #         busy_factor=busy_factor,
+    #         const_period=const_period,
+    #         succ_prob=avg_succ,
+    #         succ_prob_lower=succ_prob_lower,
+    #         succ_prob_upper=succ_prob_upper,
+    #         makespan=makespan,
+    #         succ_per_s=succ_per_s,
+    #         succ_per_s_lower=succ_per_s_lower,
+    #         succ_per_s_upper=succ_per_s_upper,
+    #     )
+    # )
+
+    end_time = time.time()
+    sim_duration = end_time - start_time
+    print(f"total duration: {sim_duration}s")
+
+    # meta = DataMeta(
+    #     timestamp=timestamp,
+    #     sim_duration=sim_duration,
+    #     latency_factors=latency_factors,
+    #     determ=determ,
+    #     use_deadlines=use_deadlines,
+    #     num_iterations=num_iterations,
+    # )
+    # data = Data(meta=meta, data_points=data_points)
+
+    # json_data = asdict(data)
+
+    # abs_dir = relative_to_cwd(f"data/{output_dir}")
+    # Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    # last_path = os.path.join(abs_dir, f"LAST.json")
+    # timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+    # with open(last_path, "w") as datafile:
+    #     json.dump(json_data, datafile)
+    # with open(timestamp_path, "w") as datafile:
+    #     json.dump(json_data, datafile)
+
+
 def run(deadlines: bool, output_dir: str):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("classical_multitasking.log")
-    # LogManager.enable_task_logger(True)
-    # LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
+    LogManager.enable_task_logger(True)
+    LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -312,99 +402,31 @@ def run(deadlines: bool, output_dir: str):
 
     determ = True
     use_deadlines = deadlines
-    arrival_rate = 0
 
-    num_iterations = 5
-    # latency_factors = [0.01, 0.05, 0.1, 0.2]
-    latency_factors = [0.01]
-    # busy_factors = [0.1, 0.2, 0.5, 1, 2]
-    # busy_factors = [0.01, 0.1, 1]
-    busy_factors = [1]
+    cc_latency = 1e8
+
+    num_iterations = 10
+    num_const_tasks = 50
+    const_period = 20_000_000
+    busy_duration = 10_000_000
+
+    for _ in range(1):
+        succ_prob = get_metrics(
+            start_time=start_time,
+            t1=t1,
+            t2=t2,
+            determ=determ,
+            use_deadlines=use_deadlines,
+            cc_latency=cc_latency,
+            num_iterations=num_iterations,
+            num_const_tasks=num_const_tasks,
+            const_period=const_period,
+            busy_duration=busy_duration,
+        )
+        print(f"succ prob: {succ_prob}")
 
     data_points: List[DataPoint] = []
 
-    print(f"use deadlines: {use_deadlines}")
-    for latency_factor in latency_factors:
-        for busy_factor in busy_factors:
-            cc = latency_factor * t2
-            busy = busy_factor * cc
-            makespan = 0
-
-            successes: List[bool] = []
-            qpu_waits: List[List[float]] = []
-            result = run_apps(
-                num_iterations=num_iterations,
-                t1=t1,
-                t2=t2,
-                cc_latency=cc,
-                busy_duration=busy,
-                determ_sched=determ,
-                deadlines=use_deadlines,
-                arrival_rate=arrival_rate,
-            )
-            program_results = result.bob_results.results
-            outcomes = [result.values["outcome"] for result in program_results]
-            assert len(outcomes) == num_iterations
-            successes = [outcome == 1 for outcome in outcomes]
-            qpu_waits.append(result.qpu_waits)
-            makespan += result.total_duration
-            # print(f"cc = {cc}: {outcomes}")
-            avg_succ = len([s for s in successes if s]) / len(successes)
-            curr_time = round(time.time() - start_time, 3)
-            print(
-                f"{curr_time}s: latency factor: {latency_factor}, busy factor: {busy_factor}, succ_prob: {avg_succ}, makespan: {makespan}"
-            )
-
-            succ_prob_lower, succ_prob_upper = wilson_score_interval(
-                p_hat=avg_succ, n=len(successes), z=1.96
-            )
-            succ_per_s = 1e9 * avg_succ / makespan
-            succ_per_s_lower = 1e9 * succ_prob_lower / makespan
-            succ_per_s_upper = 1e9 * succ_prob_upper / makespan
-
-            data_points.append(
-                DataPoint(
-                    t2=t2,
-                    use_deadlines=use_deadlines,
-                    latency_factor=latency_factor,
-                    busy_factor=busy_factor,
-                    arrival_rate=arrival_rate,
-                    succ_prob=avg_succ,
-                    succ_prob_lower=succ_prob_lower,
-                    succ_prob_upper=succ_prob_upper,
-                    makespan=makespan,
-                    succ_per_s=succ_per_s,
-                    succ_per_s_lower=succ_per_s_lower,
-                    succ_per_s_upper=succ_per_s_upper,
-                )
-            )
-
-    end_time = time.time()
-    sim_duration = end_time - start_time
-    print(f"total duration: {sim_duration}s")
-
-    meta = DataMeta(
-        timestamp=timestamp,
-        sim_duration=sim_duration,
-        latency_factors=latency_factors,
-        determ=determ,
-        use_deadlines=use_deadlines,
-        num_iterations=num_iterations,
-    )
-    data = Data(meta=meta, data_points=data_points)
-
-    json_data = asdict(data)
-
-    abs_dir = relative_to_cwd(f"data/{output_dir}")
-    Path(abs_dir).mkdir(parents=True, exist_ok=True)
-    last_path = os.path.join(abs_dir, f"LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
-    with open(last_path, "w") as datafile:
-        json.dump(json_data, datafile)
-    with open(timestamp_path, "w") as datafile:
-        json.dump(json_data, datafile)
-
 
 if __name__ == "__main__":
-    run(deadlines=False, output_dir="no_deadlines")
-    # run(deadlines=True, output_dir="with_deadlines")
+    run(deadlines=True, output_dir="with_deadlines")
