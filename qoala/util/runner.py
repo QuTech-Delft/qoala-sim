@@ -123,7 +123,10 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
     const_prog_node2: QoalaProgram,
     const_prog_node2_inputs: Dict[str, List[ProgramInput]],
     const_period: int,
+    const_start: int,
     network_cfg: ProcNodeNetworkConfig,
+    fcfs: bool,
+    no_tasks: bool,
     linear: bool = False,
 ) -> AppResult:
     ns.sim_reset()
@@ -177,14 +180,20 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
 
     tasks_const = procnode2.scheduler.get_tasks_to_schedule_for(batch_const.batch_id)
     merged_const = TaskGraphBuilder.merge_linear(tasks_const)
-    start = 0
+    start = const_start
     for tid, tinfo in merged_const.get_tasks().items():
         merged_const.get_tinfo(tid).start_time = start
-        merged_const.get_tinfo(tid).deadline = start
+        if fcfs:
+            # Force the busy tasks to start earlier by setting their start times as deadlines
+            merged_const.get_tinfo(tid).deadline = start
         start += const_period
     # for tid, tinfo in merged_const.get_tasks().items():
     # print(f"tid: {tid}, tinfo: {tinfo}")
-    merged_with_const = TaskGraphBuilder.merge([merged2, merged_const])
+    if no_tasks:
+        assert not fcfs
+        merged_with_const = TaskGraphBuilder.merge_linear([merged2, merged_const])
+    else:
+        merged_with_const = TaskGraphBuilder.merge([merged2, merged_const])
 
     procnode2.scheduler.upload_task_graph(merged_with_const)
 

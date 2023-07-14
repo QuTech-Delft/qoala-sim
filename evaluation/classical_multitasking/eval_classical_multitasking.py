@@ -34,8 +34,6 @@ from qoala.util.logging import LogManager
 from qoala.util.runner import (
     AppResult,
     create_batch,
-    run_two_node_app,
-    run_two_node_app_separate_inputs,
     run_two_node_app_separate_inputs_plus_constant_tasks,
 )
 
@@ -167,7 +165,6 @@ class ProgResult:
 
 
 def run_apps(
-    num_iterations: int,
     num_const_tasks: int,
     t1: float,
     t2: float,
@@ -176,6 +173,10 @@ def run_apps(
     determ_sched: bool,
     deadlines: bool,
     const_period: int,
+    const_start: int,
+    state: int,
+    fcfs: bool,
+    no_tasks: bool,
 ) -> ProgResult:
     ns.sim_reset()
 
@@ -199,7 +200,7 @@ def run_apps(
     bob_program = load_program("programs/interactive_quantum.iqoala")
     busy_program = load_program("programs/cpu_busy.iqoala")
 
-    alice_inputs = [ProgramInput({"bob_id": bob_id}) for i in range(num_iterations)]
+    alice_inputs = [ProgramInput({"bob_id": bob_id})]
 
     def measure_state(prepare_state: int) -> int:
         return {0: 1, 1: 0, 2: 3, 3: 2, 4: 5, 5: 4}[prepare_state]
@@ -208,11 +209,10 @@ def run_apps(
         ProgramInput(
             {
                 "alice_id": alice_id,
-                "prepare_state": i % 6,
-                "measure_state": measure_state(i % 6),
+                "prepare_state": state,
+                "measure_state": measure_state(state),
             },
         )
-        for i in range(num_iterations)
     ]
 
     busy_inputs = [
@@ -220,7 +220,7 @@ def run_apps(
     ]
 
     app_result = run_two_node_app_separate_inputs_plus_constant_tasks(
-        num_iterations=num_iterations,
+        num_iterations=1,
         num_const_tasks=num_const_tasks,
         node1="alice",
         node2="bob",
@@ -231,7 +231,10 @@ def run_apps(
         const_prog_node2=busy_program,
         const_prog_node2_inputs=busy_inputs,
         const_period=const_period,
+        const_start=const_start,
         network_cfg=network_cfg,
+        fcfs=fcfs,
+        no_tasks=no_tasks,
         linear=True,
     )
 
@@ -246,26 +249,22 @@ def run_apps(
 @dataclass
 class DataPoint:
     t2: float
-    use_deadlines: bool
+    fcfs: bool
+    no_tasks: bool
     latency_factor: float
+    num_const_tasks: int
+    const_period_factor: int
     busy_factor: float
-    const_period: int
     succ_prob: float
     succ_prob_lower: float
     succ_prob_upper: float
     makespan: float
-    succ_per_s: float
-    succ_per_s_lower: float
-    succ_per_s_upper: float
 
 
 @dataclass
 class DataMeta:
     timestamp: str
     sim_duration: float
-    latency_factors: List[float]
-    determ: bool
-    use_deadlines: bool
     num_iterations: int
 
 
@@ -303,18 +302,17 @@ def get_metrics(
     determ: bool,
     use_deadlines: bool,
     cc_latency: int,
-    num_iterations: int,
     num_const_tasks: int,
     const_period: int,
+    const_start: int,
     busy_duration: int,
+    state: int,
+    fcfs: bool,
+    no_tasks: bool,
 ) -> float:
-    print(f"use deadlines: {use_deadlines}")
-    makespan = 0
-
     successes: List[bool] = []
     qpu_waits: List[List[float]] = []
     result = run_apps(
-        num_iterations=num_iterations,
         num_const_tasks=num_const_tasks,
         t1=t1,
         t2=t2,
@@ -323,75 +321,28 @@ def get_metrics(
         determ_sched=determ,
         deadlines=use_deadlines,
         const_period=const_period,
+        const_start=const_start,
+        state=state,
+        fcfs=fcfs,
+        no_tasks=no_tasks,
     )
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
-    assert len(outcomes) == num_iterations
+    assert len(outcomes) == 1
     successes = [outcome == 1 for outcome in outcomes]
     qpu_waits.append(result.qpu_waits)
-    makespan += result.total_duration
-    # print(f"cc = {cc}: {outcomes}")
+    makespan = result.total_duration
     avg_succ = len([s for s in successes if s]) / len(successes)
     curr_time = round(time.time() - start_time, 3)
-    # print(f"{curr_time}s: succ_prob: {avg_succ}, makespan: {makespan}")
 
-    return avg_succ
-
-    # succ_prob_lower, succ_prob_upper = wilson_score_interval(
-    #     p_hat=avg_succ, n=len(successes), z=1.96
-    # )
-    # succ_per_s = 1e9 * avg_succ / makespan
-    # succ_per_s_lower = 1e9 * succ_prob_lower / makespan
-    # succ_per_s_upper = 1e9 * succ_prob_upper / makespan
-
-    # data_points.append(
-    #     DataPoint(
-    #         t2=t2,
-    #         use_deadlines=use_deadlines,
-    #         latency_factor=latency_factor,
-    #         busy_factor=busy_factor,
-    #         const_period=const_period,
-    #         succ_prob=avg_succ,
-    #         succ_prob_lower=succ_prob_lower,
-    #         succ_prob_upper=succ_prob_upper,
-    #         makespan=makespan,
-    #         succ_per_s=succ_per_s,
-    #         succ_per_s_lower=succ_per_s_lower,
-    #         succ_per_s_upper=succ_per_s_upper,
-    #     )
-    # )
-
-    end_time = time.time()
-    sim_duration = end_time - start_time
-    print(f"total duration: {sim_duration}s")
-
-    # meta = DataMeta(
-    #     timestamp=timestamp,
-    #     sim_duration=sim_duration,
-    #     latency_factors=latency_factors,
-    #     determ=determ,
-    #     use_deadlines=use_deadlines,
-    #     num_iterations=num_iterations,
-    # )
-    # data = Data(meta=meta, data_points=data_points)
-
-    # json_data = asdict(data)
-
-    # abs_dir = relative_to_cwd(f"data/{output_dir}")
-    # Path(abs_dir).mkdir(parents=True, exist_ok=True)
-    # last_path = os.path.join(abs_dir, f"LAST.json")
-    # timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
-    # with open(last_path, "w") as datafile:
-    #     json.dump(json_data, datafile)
-    # with open(timestamp_path, "w") as datafile:
-    #     json.dump(json_data, datafile)
+    return avg_succ, makespan
 
 
 def run(deadlines: bool, output_dir: str):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("classical_multitasking.log")
-    LogManager.enable_task_logger(True)
-    LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
+    # LogManager.enable_task_logger(True)
+    # LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -403,30 +354,90 @@ def run(deadlines: bool, output_dir: str):
     determ = True
     use_deadlines = deadlines
 
-    cc_latency = 1e8
+    latency_factor = 0.1
 
-    num_iterations = 100
-    num_const_tasks = 500
-    const_period = 1_000_000_000
-    busy_duration = 1_000_000_000
+    num_const_tasks = 10
+    const_period_factor = 1 / 3
+    busy_factor = 10.2
 
-    for _ in range(1):
-        succ_prob = get_metrics(
-            start_time=start_time,
-            t1=t1,
-            t2=t2,
-            determ=determ,
-            use_deadlines=use_deadlines,
-            cc_latency=cc_latency,
-            num_iterations=num_iterations,
-            num_const_tasks=num_const_tasks,
-            const_period=const_period,
-            busy_duration=busy_duration,
-        )
-        print(f"succ prob: {succ_prob}")
+    num_iterations = 1000
+    succ_probs: List[float] = []
+    makespans: List[float] = []
+    fcfs = False
+    no_tasks = False
 
     data_points: List[DataPoint] = []
 
+    for (fcfs, no_tasks) in [(False, False), (True, False), (False, True)]:
+        for i in range(num_iterations):
+            print(i)
+            cc_latency = latency_factor * t2
+            const_period = const_period_factor * cc_latency
+            const_start = cc_latency
+            busy_duration = busy_factor * const_period
+            succ_prob, makespan = get_metrics(
+                start_time=start_time,
+                t1=t1,
+                t2=t2,
+                determ=determ,
+                use_deadlines=use_deadlines,
+                cc_latency=cc_latency,
+                num_const_tasks=num_const_tasks,
+                const_period=const_period,
+                const_start=const_start,
+                busy_duration=busy_duration,
+                state=i % 6,
+                fcfs=fcfs,
+                no_tasks=no_tasks,
+            )
+            succ_probs.append(succ_prob)
+            makespans.append(makespan)
+
+        avg_succ_prob = sum(succ_probs) / len(succ_probs)
+        print(f"succ prob: {avg_succ_prob}")
+        succ_prob_lower, succ_prob_upper = wilson_score_interval(
+            p_hat=avg_succ_prob, n=len(succ_probs), z=1.96
+        )
+        print(succ_prob_lower, succ_prob_upper)
+
+        data_points.append(
+            DataPoint(
+                t2=t2,
+                fcfs=fcfs,
+                no_tasks=no_tasks,
+                latency_factor=latency_factor,
+                num_const_tasks=num_const_tasks,
+                const_period_factor=const_period,
+                busy_factor=busy_factor,
+                succ_prob=avg_succ_prob,
+                succ_prob_lower=succ_prob_lower,
+                succ_prob_upper=succ_prob_upper,
+                makespan=makespan,
+            )
+        )
+
+        end_time = time.time()
+        sim_duration = end_time - start_time
+        print(f"total duration: {sim_duration}s")
+
+    meta = DataMeta(
+        timestamp=timestamp,
+        sim_duration=sim_duration,
+        num_iterations=num_iterations,
+    )
+    data = Data(meta=meta, data_points=data_points)
+
+    json_data = asdict(data)
+
+    abs_dir = relative_to_cwd(f"data/{output_dir}")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, f"LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)
+
 
 if __name__ == "__main__":
-    run(deadlines=True, output_dir="with_deadlines")
+    run(deadlines=True, output_dir="data")
