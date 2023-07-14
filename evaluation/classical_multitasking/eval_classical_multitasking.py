@@ -405,10 +405,10 @@ def run(deadlines: bool, output_dir: str):
 
     cc_latency = 1e8
 
-    num_iterations = 10
-    num_const_tasks = 50
-    const_period = 20_000_000
-    busy_duration = 10_000_000
+    num_iterations = 100
+    num_const_tasks = 500
+    const_period = 1_000_000_000
+    busy_duration = 1_000_000_000
 
     for _ in range(1):
         succ_prob = get_metrics(

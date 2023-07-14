@@ -724,11 +724,16 @@ class CpuEdfScheduler(EdfScheduler):
         ]
         for r in ready:
             if tg.get_tinfo(r).start_time is None:
-                if self.name in ["bob_cpu", "bob_qpu"]:
-                    self._task_logger.info(f"task {r}: set deadline to {now}")
-                tg.get_tinfo(r).deadline = now
+                if not tg.get_tinfo(r).deadline_set:
+                    if self.name in ["bob_cpu", "bob_qpu"]:
+                        self._task_logger.warning(
+                            f"task {r}: set deadline to now ({now})"
+                        )
+                    tg.get_tinfo(r).deadline = 0
+                    tg.get_tinfo(r).deadline_set = True
 
         if len(ready) > 0:
+            # self._task_logger.warning(f"ready tasks: {ready}")
             # From the readily executable tasks, choose which one to execute
             with_deadline = [t for t in ready if tg.get_tinfo(t).deadline is not None]
             if not self._use_deadlines:
@@ -741,7 +746,7 @@ class CpuEdfScheduler(EdfScheduler):
                 deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
                 sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
                 if self.name in ["bob_cpu", "bob_qpu"]:
-                    self._task_logger.info(
+                    self._task_logger.warning(
                         f"tasks with deadlines: {sorted_by_deadline}"
                     )
                 to_return = sorted_by_deadline[0][0]
