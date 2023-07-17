@@ -11,7 +11,6 @@ from typing import List
 
 import netsquid as ns
 from matplotlib import use
-from netqasm.lang.instr.flavour import NVFlavour
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
@@ -32,15 +31,14 @@ from qoala.util.runner import run_1_server_n_clients
 def create_procnode_cfg(
     name: str, id: int, t1: float, t2: float, determ: bool, deadlines: bool
 ) -> ProcNodeConfig:
-    nv_params = NvParams()
-    nv_params.comm_t1 = t1
-    nv_params.comm_t2 = t2
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.from_nv_params(num_qubits=5, params=nv_params),
+        topology=TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
+            5, t1, t2
+        ),
         latencies=LatenciesConfig(qnos_instr_time=1000, host_instr_time=1000),
-        ntf=NtfConfig.from_cls_name("NvNtf"),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=determ,
         use_deadlines=deadlines,
     )
@@ -50,7 +48,7 @@ def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return QoalaParser(text, flavour=NVFlavour()).parse()
+    return QoalaParser(text).parse()
 
 
 @dataclass
@@ -60,39 +58,23 @@ class TeleportResult:
     total_duration: float
 
 
-class TeleportBasis(Enum):
-    X0 = 0
-    X1 = 1
-    Y0 = 2
-    Y1 = 3
-    Z0 = 4
-    Z1 = 5
-
-
-def run_teleport(
+def run_apps(
+    num_iterations: int,
     num_clients: int,
-    alice_bases: List[TeleportBasis],
-    bob_bases: List[TeleportBasis],
     t1: float,
     t2: float,
     cc_latency: float,
-    determ_sched: bool,
-    deadlines: bool,
 ) -> TeleportResult:
     ns.sim_reset()
 
-    num_qubits = 3
-    alice_id = 1
     bob_id = 0
 
     alice_node_cfgs = [
-        create_procnode_cfg(
-            f"alice_{i}", i, t1, t2, determ=determ_sched, deadlines=deadlines
-        )
+        create_procnode_cfg(f"alice_{i}", i, t1, t2, determ=True, deadlines=True)
         for i in range(1, num_clients + 1)
     ]
     bob_node_cfg = create_procnode_cfg(
-        "bob", bob_id, t1, t2, determ=determ_sched, deadlines=deadlines
+        "bob", bob_id, t1, t2, determ=True, deadlines=True
     )
 
     cconns = [
@@ -105,15 +87,17 @@ def run_teleport(
     )
     network_cfg.cconns = cconns
 
-    alice_program = load_program("teleport_nv_alice.iqoala")
-    bob_program = load_program("teleport_nv_bob.iqoala")
+    alice_program = load_program("programs/teleport_alice.iqoala")
+    bob_program = load_program("programs/teleport_bob.iqoala")
+
+    states = [i % 6 for i in range(num_iterations)]
 
     alice_inputs = {
-        f"alice_{i}": [ProgramInput({"bob_id": 0, "state": alice_bases[i - 1].value})]
+        f"alice_{i}": [ProgramInput({"bob_id": 0, "state": states[i]})]
         for i in range(1, num_clients + 1)
     }
     bob_inputs = [
-        ProgramInput({"alice_id": i, "state": bob_bases[i - 1].value})
+        ProgramInput({"alice_id": i, "state": states[i]})
         for i in range(1, num_clients + 1)
     ]
 
@@ -138,10 +122,7 @@ def run_teleport(
 @dataclass
 class DataPoint:
     t2: float
-    use_deadlines: bool
-    latency_factor: float
-    busy_factor: float
-    hog_prob: float
+    cc_latency: float
     succ_prob: float
     succ_prob_lower: float
     succ_prob_upper: float
@@ -180,7 +161,54 @@ def wilson_score_interval(p_hat, n, z):
     return (lower_bound, upper_bound)
 
 
-def test_rsp():
+def get_metrics(
+    num_iterations: int,
+    num_clients: int,
+    t1: int,
+    t2: int,
+    latency_factor: float,
+) -> DataPoint:
+    successes: List[bool] = []
+    makespans: List[float] = []
+
+    cc_latency = latency_factor * t2
+
+    for i in range(num_iterations):
+        result = run_apps(
+            num_iterations=num_iterations,
+            num_clients=num_clients,
+            t1=t1,
+            t2=t2,
+            cc_latency=cc_latency,
+        )
+        program_results = result.bob_results.results
+        outcomes = [result.values["outcome"] for result in program_results]
+        assert len(outcomes) == 1
+        successes.append(outcomes[0] == 0)
+        makespans.append(result.total_duration)
+
+    avg_succ_prob = sum([s for s in successes if s]) / len(successes)
+    succ_prob_lower, succ_prob_upper = wilson_score_interval(
+        p_hat=avg_succ_prob, n=len(successes), z=1.96
+    )
+    lower_rounded = round(succ_prob_lower, 3)
+    upper_rounded = round(succ_prob_upper, 3)
+    succprob_rounded = round(avg_succ_prob, 3)
+    print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
+
+    total_makespan = sum(makespans)
+
+    return DataPoint(
+        t2=t2,
+        cc_latency=cc_latency,
+        succ_prob=avg_succ_prob,
+        succ_prob_lower=succ_prob_lower,
+        succ_prob_upper=succ_prob_upper,
+        makespan=total_makespan,
+    )
+
+
+def run():
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("quantum_multitasking.log")
     LogManager.enable_task_logger(True)
@@ -191,34 +219,24 @@ def test_rsp():
     t1 = 1e10
     t2 = 1e8
 
-    determ = False
-    use_deadlines = False
-    cc = 1e8
-
-    num_clients = 2
+    num_clients = 1
+    num_iterations = 1
+    latency_factor = 0.1
 
     data_points: List[DataPoint] = []
 
-    print(f"use deadlines: {use_deadlines}")
-
-    alice_bases = [TeleportBasis.Y0 for _ in range(num_clients)]
-    bob_bases = [TeleportBasis.Y1 for _ in range(num_clients)]
-    result = run_teleport(
+    data_point = get_metrics(
+        num_iterations=num_iterations,
         num_clients=num_clients,
-        alice_bases=alice_bases,
-        bob_bases=bob_bases,
         t1=t1,
         t2=t2,
-        cc_latency=cc,
-        determ_sched=determ,
-        deadlines=use_deadlines,
+        latency_factor=latency_factor,
     )
-    program_results = result.bob_results.results
-    outcomes = [result.values["outcome"] for result in program_results]
+    data_points.append(data_points)
 
     end_time = time.time()
     print(f"total duration: {end_time - start_time}s")
 
 
 if __name__ == "__main__":
-    test_rsp()
+    run()
