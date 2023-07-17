@@ -1,7 +1,9 @@
+import gc
 import os
 import random
 from copy import deepcopy
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Dict, List
 
 import netsquid as ns
@@ -15,6 +17,12 @@ from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import QoalaTask, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.util.logging import LogManager
+
+
+class SchedulerType(Enum):
+    NO_SCHED = 0
+    FCFS = auto()
+    QOALA = auto()
 
 
 @dataclass
@@ -125,8 +133,7 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
     const_period: int,
     const_start: int,
     network_cfg: ProcNodeNetworkConfig,
-    fcfs: bool,
-    no_tasks: bool,
+    sched_typ: SchedulerType,
     linear: bool = False,
 ) -> AppResult:
     ns.sim_reset()
@@ -183,14 +190,13 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
     start = const_start
     for tid, tinfo in merged_const.get_tasks().items():
         merged_const.get_tinfo(tid).start_time = start
-        if fcfs:
+        if sched_typ == SchedulerType.FCFS:
             # Force the busy tasks to start earlier by setting their start times as deadlines
             merged_const.get_tinfo(tid).deadline = start
         start += const_period
     # for tid, tinfo in merged_const.get_tasks().items():
-    # print(f"tid: {tid}, tinfo: {tinfo}")
-    if no_tasks:
-        assert not fcfs
+    #     print(f"tid: {tid}, tinfo: {tinfo}")
+    if sched_typ == SchedulerType.NO_SCHED:
         merged_with_const = TaskGraphBuilder.merge_linear([merged2, merged_const])
     else:
         merged_with_const = TaskGraphBuilder.merge([merged2, merged_const])
@@ -210,6 +216,7 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
     statistics[node2] = procnode2.scheduler.get_statistics()
 
     total_duration = ns.sim_time()
+
     return AppResult(results, statistics, total_duration)
 
 

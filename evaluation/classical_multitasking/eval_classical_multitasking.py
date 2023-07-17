@@ -1,136 +1,32 @@
 from __future__ import annotations
 
-import gc
 import json
 import math
 import os
-import random
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import netsquid as ns
-from netqasm.lang.instr.flavour import NVFlavour
 
-from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
     NtfConfig,
-    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import QoalaGraphFromProgramBuilder, TaskGraphBuilder
-from qoala.sim.build import build_network_from_config
+from qoala.runtime.program import BatchResult, ProgramInput
 from qoala.util.logging import LogManager
 from qoala.util.runner import (
-    AppResult,
-    create_batch,
+    SchedulerType,
     run_two_node_app_separate_inputs_plus_constant_tasks,
 )
-
-
-def run_two_node_app_separate_inputs_plus_3rd_program(
-    num_iterations: int,
-    programs: Dict[str, QoalaProgram],
-    program_inputs: Dict[str, List[ProgramInput]],
-    third_program: QoalaProgram,
-    third_program_input: ProgramInput,
-    network_cfg: ProcNodeNetworkConfig,
-    hog_prob: float,
-    linear: bool = False,
-) -> AppResult:
-    ns.sim_reset()
-    ns.set_qstate_formalism(ns.QFormalism.DM)
-    seed = random.randint(0, 1000)
-    ns.set_random_state(seed=seed)
-
-    network = build_network_from_config(network_cfg)
-
-    names = list(programs.keys())
-    assert len(names) == 2
-    other_name = {names[0]: names[1], names[1]: names[0]}
-    batches: Dict[str, ProgramBatch] = {}  # node -> batch
-
-    for name in names:
-        procnode = network.nodes[name]
-        program = programs[name]
-        inputs = program_inputs[name]
-
-        unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
-        batch_info = create_batch(program, unit_module, inputs, num_iterations)
-        batches[name] = procnode.submit_batch(batch_info)
-
-    # 3rd program goes on second node
-    procnode = network.nodes[names[1]]
-    unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
-    inputs = [third_program_input]
-    batch_info = create_batch(third_program, unit_module, inputs, 1)
-    procnode.submit_batch(batch_info)
-
-    for name in names:
-        procnode = network.nodes[name]
-
-        remote_batch = batches[other_name[name]]
-        remote_pids = {remote_batch.batch_id: [p.pid for p in remote_batch.instances]}
-        if name == names[1]:
-            remote_pids[1] = [0]
-        procnode.initialize_processes(remote_pids)
-
-        # Only linearize the actual app, not the "3rd program"
-        if name == names[1] and linear:  # 2nd node
-            to_linearize = procnode.scheduler.get_tasks_to_schedule_for(0)
-            linearized = TaskGraphBuilder.merge_linear(to_linearize)
-            third_prog_tasks = procnode.scheduler.get_tasks_to_schedule_for(1)
-            hogging_task_id = third_prog_tasks[0].get_roots()[0]
-            hogging_task = third_prog_tasks[0].get_tinfo(hogging_task_id).task
-            # all_tasks = third_prog_tasks + [linearized]
-            all_tasks = [linearized]
-            merged = TaskGraphBuilder.merge(all_tasks)
-        elif linear:  # first node
-            tasks = procnode.scheduler.get_tasks_to_schedule()
-            merged = TaskGraphBuilder.merge_linear(tasks)
-        else:  # not linear
-            tasks = procnode.scheduler.get_tasks_to_schedule()
-            merged = TaskGraphBuilder.merge(tasks)
-        procnode.scheduler.upload_task_graph(merged)
-
-        logger = LogManager.get_stack_logger()
-        for batch_id, prog_batch in procnode.scheduler.get_batches().items():
-            task_graph = prog_batch.instances[0].task_graph
-            num = len(prog_batch.instances)
-            logger.info(f"batch {batch_id}: {num} instances each with task graph:")
-            logger.info(task_graph)
-
-    procnode = network.nodes[names[1]]
-    procnode.scheduler.cpu_scheduler.set_hogging_task(hogging_task, 1000, hog_prob)
-
-    network.start()
-    ns.sim_run()
-
-    results: Dict[str, BatchResult] = {}
-    statistics: Dict[str, SchedulerStatistics] = {}
-
-    for name in names:
-        procnode = network.nodes[name]
-        # only one batch (ID = 0), so get value at index 0
-        results[name] = procnode.scheduler.get_batch_results()[0]
-        statistics[name] = procnode.scheduler.get_statistics()
-
-    total_duration = ns.sim_time()
-
-    del network
-    gc.collect()
-
-    return AppResult(results, statistics, total_duration)
 
 
 def create_procnode_cfg(
@@ -165,18 +61,15 @@ class ProgResult:
 
 
 def run_apps(
-    num_const_tasks: int,
+    state: int,
     t1: float,
     t2: float,
     cc_latency: float,
+    num_const_tasks: int,
     busy_duration: float,
-    determ_sched: bool,
-    deadlines: bool,
-    const_period: int,
+    const_period: float,
     const_start: int,
-    state: int,
-    fcfs: bool,
-    no_tasks: bool,
+    sched_typ: SchedulerType,
 ) -> ProgResult:
     ns.sim_reset()
 
@@ -184,10 +77,10 @@ def run_apps(
     bob_id = 0
 
     alice_node_cfg = create_procnode_cfg(
-        "alice", alice_id, t1, t2, determ=determ_sched, deadlines=deadlines
+        "alice", alice_id, t1, t2, determ=True, deadlines=True
     )
     bob_node_cfg = create_procnode_cfg(
-        "bob", bob_id, t1, t2, determ=determ_sched, deadlines=deadlines
+        "bob", bob_id, t1, t2, determ=True, deadlines=True
     )
 
     cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, cc_latency)
@@ -233,8 +126,7 @@ def run_apps(
         const_period=const_period,
         const_start=const_start,
         network_cfg=network_cfg,
-        fcfs=fcfs,
-        no_tasks=no_tasks,
+        sched_typ=sched_typ,
         linear=True,
     )
 
@@ -249,11 +141,10 @@ def run_apps(
 @dataclass
 class DataPoint:
     t2: float
-    fcfs: bool
-    no_tasks: bool
+    sched_typ: str
     latency_factor: float
     num_const_tasks: int
-    const_period_factor: int
+    const_rate_factor: float
     busy_factor: float
     succ_prob: float
     succ_prob_lower: float
@@ -265,6 +156,7 @@ class DataPoint:
 class DataMeta:
     timestamp: str
     sim_duration: float
+    const_rate_factors: List[float]
     num_iterations: int
 
 
@@ -296,49 +188,67 @@ def wilson_score_interval(p_hat, n, z):
 
 
 def get_metrics(
-    start_time: float,
+    num_iterations: int,
     t1: int,
     t2: int,
-    determ: bool,
-    use_deadlines: bool,
-    cc_latency: int,
+    latency_factor: float,
     num_const_tasks: int,
-    const_period: int,
-    const_start: int,
-    busy_duration: int,
-    state: int,
-    fcfs: bool,
-    no_tasks: bool,
+    const_rate_factor: float,
+    busy_factor: float,
+    sched_typ: SchedulerType,
 ) -> float:
     successes: List[bool] = []
-    qpu_waits: List[List[float]] = []
-    result = run_apps(
-        num_const_tasks=num_const_tasks,
-        t1=t1,
-        t2=t2,
-        cc_latency=cc_latency,
-        busy_duration=busy_duration,
-        determ_sched=determ,
-        deadlines=use_deadlines,
-        const_period=const_period,
-        const_start=const_start,
-        state=state,
-        fcfs=fcfs,
-        no_tasks=no_tasks,
+    makespans: List[float] = []
+
+    cc_latency = latency_factor * t2
+    const_period = cc_latency / const_rate_factor
+    const_start = cc_latency
+    busy_duration = busy_factor * cc_latency
+
+    for i in range(num_iterations):
+        result = run_apps(
+            state=i % 6,
+            t1=t1,
+            t2=t2,
+            cc_latency=cc_latency,
+            num_const_tasks=num_const_tasks,
+            busy_duration=busy_duration,
+            const_period=const_period,
+            const_start=const_start,
+            sched_typ=sched_typ,
+        )
+        program_results = result.bob_results.results
+        outcomes = [result.values["outcome"] for result in program_results]
+        assert len(outcomes) == 1
+        successes.append(outcomes[0] == 1)
+        makespans.append(result.total_duration)
+
+    avg_succ_prob = sum([s for s in successes if s]) / len(successes)
+    succ_prob_lower, succ_prob_upper = wilson_score_interval(
+        p_hat=avg_succ_prob, n=len(successes), z=1.96
     )
-    program_results = result.bob_results.results
-    outcomes = [result.values["outcome"] for result in program_results]
-    assert len(outcomes) == 1
-    successes = [outcome == 1 for outcome in outcomes]
-    qpu_waits.append(result.qpu_waits)
-    makespan = result.total_duration
-    avg_succ = len([s for s in successes if s]) / len(successes)
-    curr_time = round(time.time() - start_time, 3)
+    lower_rounded = round(succ_prob_lower, 3)
+    upper_rounded = round(succ_prob_upper, 3)
+    succprob_rounded = round(avg_succ_prob, 3)
+    print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
 
-    return avg_succ, makespan
+    total_makespan = sum(makespans)
+
+    return DataPoint(
+        t2=t2,
+        sched_typ=sched_typ.name,
+        latency_factor=latency_factor,
+        num_const_tasks=num_const_tasks,
+        const_rate_factor=const_rate_factor,
+        busy_factor=busy_factor,
+        succ_prob=avg_succ_prob,
+        succ_prob_lower=succ_prob_lower,
+        succ_prob_upper=succ_prob_upper,
+        makespan=total_makespan,
+    )
 
 
-def run(deadlines: bool, output_dir: str):
+def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("classical_multitasking.log")
     # LogManager.enable_task_logger(True)
@@ -348,73 +258,32 @@ def run(deadlines: bool, output_dir: str):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     print(timestamp)
 
-    t1 = 1e10
-    t2 = 1e8
-
-    determ = True
-    use_deadlines = deadlines
-
-    latency_factor = 0.1
-
-    num_const_tasks = 10
-    const_period_factor = 1 / 3
-    busy_factor = 10.2
-
-    num_iterations = 1000
-    succ_probs: List[float] = []
-    makespans: List[float] = []
-    fcfs = False
-    no_tasks = False
-
     data_points: List[DataPoint] = []
 
-    for (fcfs, no_tasks) in [(False, False), (True, False), (False, True)]:
-        for i in range(num_iterations):
-            print(i)
-            cc_latency = latency_factor * t2
-            const_period = const_period_factor * cc_latency
-            const_start = cc_latency
-            busy_duration = busy_factor * const_period
-            succ_prob, makespan = get_metrics(
-                start_time=start_time,
+    # Constants
+    t1 = 1e10
+    t2 = 1e8
+    latency_factor = 0.1
+    num_const_tasks = 100
+    busy_factor = 0.4  # fraction of cc_latency
+
+    # Variables
+    const_rate_factors = [2, 5, 10, 20]
+
+    for sched_typ in sched_types:
+        for const_rate_factor in const_rate_factors:
+            data_point = get_metrics(
+                num_iterations=num_iterations,
                 t1=t1,
                 t2=t2,
-                determ=determ,
-                use_deadlines=use_deadlines,
-                cc_latency=cc_latency,
-                num_const_tasks=num_const_tasks,
-                const_period=const_period,
-                const_start=const_start,
-                busy_duration=busy_duration,
-                state=i % 6,
-                fcfs=fcfs,
-                no_tasks=no_tasks,
-            )
-            succ_probs.append(succ_prob)
-            makespans.append(makespan)
-
-        avg_succ_prob = sum(succ_probs) / len(succ_probs)
-        print(f"succ prob: {avg_succ_prob}")
-        succ_prob_lower, succ_prob_upper = wilson_score_interval(
-            p_hat=avg_succ_prob, n=len(succ_probs), z=1.96
-        )
-        print(succ_prob_lower, succ_prob_upper)
-
-        data_points.append(
-            DataPoint(
-                t2=t2,
-                fcfs=fcfs,
-                no_tasks=no_tasks,
                 latency_factor=latency_factor,
                 num_const_tasks=num_const_tasks,
-                const_period_factor=const_period,
+                const_rate_factor=const_rate_factor,
                 busy_factor=busy_factor,
-                succ_prob=avg_succ_prob,
-                succ_prob_lower=succ_prob_lower,
-                succ_prob_upper=succ_prob_upper,
-                makespan=makespan,
+                sched_typ=sched_typ,
             )
-        )
+
+            data_points.append(data_point)
 
         end_time = time.time()
         sim_duration = end_time - start_time
@@ -423,6 +292,7 @@ def run(deadlines: bool, output_dir: str):
     meta = DataMeta(
         timestamp=timestamp,
         sim_duration=sim_duration,
+        const_rate_factors=const_rate_factors,
         num_iterations=num_iterations,
     )
     data = Data(meta=meta, data_points=data_points)
@@ -440,4 +310,19 @@ def run(deadlines: bool, output_dir: str):
 
 
 if __name__ == "__main__":
-    run(deadlines=True, output_dir="data")
+    num_iterations = 100
+    run(
+        output_dir="no_sched",
+        sched_types=[SchedulerType.NO_SCHED],
+        num_iterations=num_iterations,
+    )
+    run(
+        output_dir="fcfs",
+        sched_types=[SchedulerType.FCFS],
+        num_iterations=num_iterations,
+    )
+    run(
+        output_dir="qoala",
+        sched_types=[SchedulerType.QOALA],
+        num_iterations=num_iterations,
+    )

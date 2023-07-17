@@ -716,6 +716,7 @@ class CpuEdfScheduler(EdfScheduler):
                 with_future_start.items(), key=lambda item: item[1]
             )
             wait_for_start = sorted_by_start[0]
+        self._task_logger.warning(f"wait_for_start: {wait_for_start}")
 
         ready = [
             tid
