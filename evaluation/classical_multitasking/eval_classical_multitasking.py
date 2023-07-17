@@ -1,4 +1,5 @@
 from __future__ import annotations
+from argparse import ArgumentParser
 
 import json
 import math
@@ -158,6 +159,11 @@ class DataMeta:
     sim_duration: float
     const_rate_factors: List[float]
     num_iterations: int
+    t1: float
+    t2: float
+    latency_factor: float
+    num_const_tasks: int
+    busy_factor: float
 
 
 @dataclass
@@ -264,11 +270,11 @@ def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
     t1 = 1e10
     t2 = 1e8
     latency_factor = 0.1
-    num_const_tasks = 100
-    busy_factor = 0.4  # fraction of cc_latency
+    num_const_tasks = 50
+    busy_factor = 0.1  # fraction of cc_latency
 
     # Variables
-    const_rate_factors = [2, 5, 10, 20]
+    const_rate_factors = [10, 20, 50, 100, 200]
 
     for sched_typ in sched_types:
         for const_rate_factor in const_rate_factors:
@@ -294,6 +300,11 @@ def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
         sim_duration=sim_duration,
         const_rate_factors=const_rate_factors,
         num_iterations=num_iterations,
+        t1=t1,
+        t2=t2,
+        latency_factor=latency_factor,
+        num_const_tasks=num_const_tasks,
+        busy_factor=busy_factor,
     )
     data = Data(meta=meta, data_points=data_points)
 
@@ -310,19 +321,37 @@ def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
 
 
 if __name__ == "__main__":
-    num_iterations = 100
-    run(
-        output_dir="no_sched",
-        sched_types=[SchedulerType.NO_SCHED],
-        num_iterations=num_iterations,
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--scheduler",
+        "-s",
+        type=str,
+        choices=["no_sched", "fcfs", "qoala"],
+        required=True,
     )
-    run(
-        output_dir="fcfs",
-        sched_types=[SchedulerType.FCFS],
-        num_iterations=num_iterations,
-    )
-    run(
-        output_dir="qoala",
-        sched_types=[SchedulerType.QOALA],
-        num_iterations=num_iterations,
-    )
+    parser.add_argument("--num_iterations", "-n", type=int, required=True)
+
+    args = parser.parse_args()
+
+    num_iterations = args.num_iterations
+
+    print(f"scheduler: {args.scheduler}, num_iterations: {args.num_iterations}")
+
+    if args.scheduler == "no_sched":
+        run(
+            output_dir="no_sched",
+            sched_types=[SchedulerType.NO_SCHED],
+            num_iterations=num_iterations,
+        )
+    elif args.scheduler == "fcfs":
+        run(
+            output_dir="fcfs",
+            sched_types=[SchedulerType.FCFS],
+            num_iterations=num_iterations,
+        )
+    elif args.scheduler == "qoala":
+        run(
+            output_dir="qoala",
+            sched_types=[SchedulerType.QOALA],
+            num_iterations=num_iterations,
+        )

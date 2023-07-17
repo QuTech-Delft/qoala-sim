@@ -1,6 +1,7 @@
+from datetime import datetime
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List
 
@@ -30,6 +31,11 @@ class DataMeta:
     sim_duration: float
     const_rate_factors: List[float]
     num_iterations: int
+    t1: float
+    t2: float
+    latency_factor: float
+    num_const_tasks: int
+    busy_factor: float
 
 
 @dataclass
@@ -50,6 +56,18 @@ def create_png(filename: str):
     print(f"plot written to {output_path}")
 
 
+def create_meta(filename: str, no_sched: Data, fcfs: Data, qoala: Data):
+    output_dir = relative_to_cwd("plots")
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    output_path = os.path.join(output_dir, f"{filename}.json")
+    meta = {}
+    meta["no_sched"] = no_sched.meta.timestamp
+    meta["fcfs"] = fcfs.meta.timestamp
+    meta["qoala"] = qoala.meta.timestamp
+    with open(output_path, "w") as metafile:
+        json.dump(meta, metafile)
+
+
 def load_data(path: str) -> Data:
     with open(relative_to_cwd(path), "r") as f:
         all_data = json.load(f)
@@ -60,7 +78,7 @@ def load_data(path: str) -> Data:
 
 
 def plot_sweep_const_rate(
-    no_sched_data: Data, fcfs_data: Data, qoala_data: Data
+    timestamp: str, no_sched_data: Data, fcfs_data: Data, qoala_data: Data
 ) -> None:
     fig, ax = plt.subplots()
 
@@ -68,11 +86,15 @@ def plot_sweep_const_rate(
     ax.set_xlabel("CPU heaviness")
     ax.set_ylabel("Success probability")
 
+    ax2 = ax.twinx()
+
     for data in [no_sched_data, fcfs_data, qoala_data]:
         crf = [p.const_rate_factor for p in data.data_points]
         succ_probs = [p.succ_prob for p in data.data_points]
         error_plus = [p.succ_prob_upper - p.succ_prob for p in data.data_points]
+        error_plus = [max(0, e) for e in error_plus]
         error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
+        error_minus = [max(0, e) for e in error_minus]
         errors = [error_plus, error_minus]
         ax.set_xscale("log")
         ax.errorbar(
@@ -80,8 +102,18 @@ def plot_sweep_const_rate(
             y=succ_probs,
             yerr=errors,
             # fmt=FORMATS[version],
-            # label=VERSION_LABELS_1[version],
+            label=data.data_points[0].sched_typ,
         )
+
+        makespans = [p.makespan for p in data.data_points]
+        ax2.errorbar(
+            x=crf,
+            y=makespans,
+            # yerr=errors,
+            # fmt=FORMATS[version],
+            label=f"makespan {data.data_points[0].sched_typ}",
+        )
+        # ax2.set_yscale("log")
 
     ax.set_title(
         "Success probability vs CPU heaviness",
@@ -89,16 +121,22 @@ def plot_sweep_const_rate(
     )
 
     # ax.set_ylim(0.75, 0.9)
-    # ax.legend(loc="upper left")
+    ax.legend(loc="upper left")
 
-    create_png("theplot")
+    create_png("LAST")
+    create_png(timestamp)
 
 
 def sweep_const_period():
     no_sched_data = load_data("data/no_sched/LAST.json")
     fcfs_data = load_data("data/fcfs/LAST.json")
     qoala_data = load_data("data/qoala/LAST.json")
-    plot_sweep_const_rate(no_sched_data, fcfs_data, qoala_data)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    create_meta("LAST_meta.json", no_sched_data, fcfs_data, qoala_data)
+    create_meta(f"{timestamp}_meta.json", no_sched_data, fcfs_data, qoala_data)
+    plot_sweep_const_rate(timestamp, no_sched_data, fcfs_data, qoala_data)
 
 
 if __name__ == "__main__":
