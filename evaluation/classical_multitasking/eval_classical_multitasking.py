@@ -157,13 +157,13 @@ class DataPoint:
 class DataMeta:
     timestamp: str
     sim_duration: float
-    const_rate_factors: List[float]
+    const_rate_factor: float
     num_iterations: int
     t1: float
     t2: float
     latency_factor: float
     num_const_tasks: int
-    busy_factor: float
+    busy_factors: List[float]
 
 
 @dataclass
@@ -254,11 +254,16 @@ def get_metrics(
     )
 
 
-def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
+def run(
+    output_dir: str,
+    sched_types: List[SchedulerType],
+    num_iterations: int,
+    save: bool = True,
+):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("classical_multitasking.log")
-    # LogManager.enable_task_logger(True)
-    # LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
+    LogManager.enable_task_logger(True)
+    LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -270,14 +275,28 @@ def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
     t1 = 1e10
     t2 = 1e8
     latency_factor = 0.1
-    num_const_tasks = 50
-    busy_factor = 0.1  # fraction of cc_latency
+    num_const_tasks = 100
+    const_rate_factor = 10
 
     # Variables
-    const_rate_factors = [10, 20, 50, 100, 200]
+    busy_factors = [
+        0.05,
+        0.1,
+        0.15,
+        0.2,
+        0.3,
+        0.5,
+        1,
+        2,
+        5,
+        10,
+    ]  # fraction of cc_latency
+
+    busy_factors = [0.05]
 
     for sched_typ in sched_types:
-        for const_rate_factor in const_rate_factors:
+        # for const_rate_factor in const_rate_factors:
+        for busy_factor in busy_factors:
             data_point = get_metrics(
                 num_iterations=num_iterations,
                 t1=t1,
@@ -295,16 +314,19 @@ def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
         sim_duration = end_time - start_time
         print(f"total duration: {sim_duration}s")
 
+    if not save:
+        return
+
     meta = DataMeta(
         timestamp=timestamp,
         sim_duration=sim_duration,
-        const_rate_factors=const_rate_factors,
+        const_rate_factor=const_rate_factor,
         num_iterations=num_iterations,
         t1=t1,
         t2=t2,
         latency_factor=latency_factor,
         num_const_tasks=num_const_tasks,
-        busy_factor=busy_factor,
+        busy_factors=busy_factors,
     )
     data = Data(meta=meta, data_points=data_points)
 
@@ -319,6 +341,8 @@ def run(output_dir: str, sched_types: List[SchedulerType], num_iterations: int):
     with open(timestamp_path, "w") as datafile:
         json.dump(json_data, datafile)
 
+    print(f"data written to {timestamp_path} and {last_path}")
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -330,28 +354,35 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument("--num_iterations", "-n", type=int, required=True)
+    parser.add_argument("--dump", "-d", action="store_true")
 
     args = parser.parse_args()
 
     num_iterations = args.num_iterations
+    save = args.dump
 
-    print(f"scheduler: {args.scheduler}, num_iterations: {args.num_iterations}")
+    print(
+        f"scheduler: {args.scheduler}, num_iterations: {args.num_iterations}, dump: {args.dump}"
+    )
 
     if args.scheduler == "no_sched":
         run(
             output_dir="no_sched",
             sched_types=[SchedulerType.NO_SCHED],
             num_iterations=num_iterations,
+            save=save,
         )
     elif args.scheduler == "fcfs":
         run(
             output_dir="fcfs",
             sched_types=[SchedulerType.FCFS],
             num_iterations=num_iterations,
+            save=save,
         )
     elif args.scheduler == "qoala":
         run(
             output_dir="qoala",
             sched_types=[SchedulerType.QOALA],
             num_iterations=num_iterations,
+            save=save,
         )

@@ -29,13 +29,13 @@ class DataPoint:
 class DataMeta:
     timestamp: str
     sim_duration: float
-    const_rate_factors: List[float]
+    const_rate_factor: float
     num_iterations: int
     t1: float
     t2: float
     latency_factor: float
     num_const_tasks: int
-    busy_factor: float
+    busy_factors: List[float]
 
 
 @dataclass
@@ -127,6 +127,69 @@ def plot_sweep_const_rate(
     create_png(timestamp)
 
 
+def plot_sweep_busy_factor(
+    timestamp: str, no_sched_data: Data, fcfs_data: Data, qoala_data: Data
+) -> None:
+    fig, ax = plt.subplots()
+
+    ax.grid()
+    ax.set_xlabel("CPU heaviness")
+    ax.set_ylabel("Success probability")
+
+    ax2 = ax.twinx()
+
+    for data in [no_sched_data, fcfs_data, qoala_data]:
+        bf = [p.busy_factor for p in data.data_points]
+        succ_probs = [p.succ_prob for p in data.data_points]
+        error_plus = [p.succ_prob_upper - p.succ_prob for p in data.data_points]
+        error_plus = [max(0, e) for e in error_plus]
+        error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
+        error_minus = [max(0, e) for e in error_minus]
+        errors = [error_plus, error_minus]
+        ax.set_xscale("log")
+        ax.errorbar(
+            x=bf,
+            y=succ_probs,
+            yerr=errors,
+            # fmt=FORMATS[version],
+            label=data.data_points[0].sched_typ,
+        )
+
+        # makespans = [p.makespan for p in data.data_points]
+        # ax2.errorbar(
+        #     x=bf,
+        #     y=makespans,
+        #     # yerr=errors,
+        #     # fmt=FORMATS[version],
+        #     label=f"makespan {data.data_points[0].sched_typ}",
+        # )
+        # ax2.set_yscale("log")
+
+    makespan_improvements = [
+        p2.makespan / p1.makespan
+        for p1, p2 in zip(no_sched_data.data_points, qoala_data.data_points)
+    ]
+    ax2.errorbar(
+        x=bf,
+        y=makespan_improvements,
+        # yerr=errors,
+        fmt="o-r",
+        label=f"makespan {data.data_points[0].sched_typ}",
+    )
+    # ax2.set_yscale("log")
+
+    ax.set_title(
+        "Success probability vs CPU heaviness",
+        wrap=True,
+    )
+
+    # ax.set_ylim(0.75, 0.9)
+    ax.legend(loc="upper left")
+
+    create_png("LAST")
+    create_png(timestamp)
+
+
 def sweep_const_period():
     no_sched_data = load_data("data/no_sched/LAST.json")
     fcfs_data = load_data("data/fcfs/LAST.json")
@@ -139,5 +202,18 @@ def sweep_const_period():
     plot_sweep_const_rate(timestamp, no_sched_data, fcfs_data, qoala_data)
 
 
+def sweep_busy_factor():
+    no_sched_data = load_data("data/no_sched/LAST.json")
+    fcfs_data = load_data("data/fcfs/LAST.json")
+    qoala_data = load_data("data/qoala/LAST.json")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    create_meta("LAST_meta.json", no_sched_data, fcfs_data, qoala_data)
+    create_meta(f"{timestamp}_meta.json", no_sched_data, fcfs_data, qoala_data)
+    plot_sweep_busy_factor(timestamp, no_sched_data, fcfs_data, qoala_data)
+
+
 if __name__ == "__main__":
-    sweep_const_period()
+    # sweep_const_period()
+    sweep_busy_factor()
