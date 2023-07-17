@@ -262,8 +262,8 @@ def run(
 ):
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("classical_multitasking.log")
-    LogManager.enable_task_logger(True)
-    LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
+    # LogManager.enable_task_logger(True)
+    # LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -291,8 +291,6 @@ def run(
         5,
         10,
     ]  # fraction of cc_latency
-
-    busy_factors = [0.05]
 
     for sched_typ in sched_types:
         # for const_rate_factor in const_rate_factors:

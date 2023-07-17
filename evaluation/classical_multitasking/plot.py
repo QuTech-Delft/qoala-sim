@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import math
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -7,6 +8,7 @@ from typing import Dict, List
 
 import dacite
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 from qoala.util.runner import SchedulerType
 
@@ -83,7 +85,7 @@ def plot_sweep_const_rate(
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("CPU heaviness")
+    ax.set_xlabel("Fraction of CC latency")
     ax.set_ylabel("Success probability")
 
     ax2 = ax.twinx()
@@ -116,7 +118,7 @@ def plot_sweep_const_rate(
         # ax2.set_yscale("log")
 
     ax.set_title(
-        "Success probability vs CPU heaviness",
+        "Success probability vs Fraction of CC latency",
         wrap=True,
     )
 
@@ -133,10 +135,14 @@ def plot_sweep_busy_factor(
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("CPU heaviness")
+    ax.set_xlabel("Fraction of CC latency")
     ax.set_ylabel("Success probability")
+    ax.set_xscale("log")
 
     ax2 = ax.twinx()
+    ax2.set_ylabel("Makespan improvement factor")
+
+    lines = []
 
     for data in [no_sched_data, fcfs_data, qoala_data]:
         bf = [p.busy_factor for p in data.data_points]
@@ -146,14 +152,15 @@ def plot_sweep_busy_factor(
         error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
         error_minus = [max(0, e) for e in error_minus]
         errors = [error_plus, error_minus]
-        ax.set_xscale("log")
-        ax.errorbar(
+        line = ax.errorbar(
             x=bf,
             y=succ_probs,
             yerr=errors,
             # fmt=FORMATS[version],
             label=data.data_points[0].sched_typ,
         )
+
+        lines.append(line)
 
         # makespans = [p.makespan for p in data.data_points]
         # ax2.errorbar(
@@ -169,22 +176,41 @@ def plot_sweep_busy_factor(
         p2.makespan / p1.makespan
         for p1, p2 in zip(no_sched_data.data_points, qoala_data.data_points)
     ]
-    ax2.errorbar(
-        x=bf,
-        y=makespan_improvements,
-        # yerr=errors,
-        fmt="o-r",
-        label=f"makespan {data.data_points[0].sched_typ}",
+    bf = [p.busy_factor for p in no_sched_data.data_points]
+    print(bf)
+    lines.append(
+        ax2.errorbar(
+            x=bf,
+            y=makespan_improvements,
+            # yerr=errors,
+            fmt="o-r",
+            label=f"Makespan improvement",
+        )
     )
+
+    def format_func(value, tick_number):
+        # return f"{10.0**value:.1f}"
+        return f"{value}"
+
+    # Create a FuncFormatter object using the format function
+    formatter = ticker.FuncFormatter(format_func)
+
+    # Set the x-axis formatter
+    ax.xaxis.set_major_formatter(formatter)
+    ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0))
+    ax.xaxis.set_minor_locator(ticker.FixedLocator([0.1, 1, 10]))
+
     # ax2.set_yscale("log")
+    labels = [l.get_label() for l in lines]
+
+    ax.legend(lines, labels, loc="lower center")
 
     ax.set_title(
-        "Success probability vs CPU heaviness",
+        "Success probability vs busy task duration",
         wrap=True,
     )
 
     # ax.set_ylim(0.75, 0.9)
-    ax.legend(loc="upper left")
 
     create_png("LAST")
     create_png(timestamp)
