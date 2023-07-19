@@ -4,9 +4,10 @@ import random
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import netsquid as ns
+from pyparsing import line
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
@@ -60,7 +61,11 @@ def run_two_node_app_separate_inputs(
     program_inputs: Dict[str, List[ProgramInput]],
     network_cfg: ProcNodeNetworkConfig,
     linear: bool = False,
+    linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
+    if linear_for is None:
+        linear_for = {name: False for name in programs.keys()}
+
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
     seed = random.randint(0, 1000)
@@ -93,7 +98,10 @@ def run_two_node_app_separate_inputs(
         if linear:
             merged = TaskGraphBuilder.merge_linear(tasks)
         else:
-            merged = TaskGraphBuilder.merge(tasks)
+            if linear_for[name]:
+                merged = TaskGraphBuilder.merge_linear(tasks)
+            else:
+                merged = TaskGraphBuilder.merge(tasks)
         procnode.scheduler.upload_task_graph(merged)
 
         logger = LogManager.get_stack_logger()

@@ -53,7 +53,7 @@ class NetstackProcessor:
     ) -> Generator[EventExpression, None, bool]:
         self._interface.send_entdist_msg(Message(-1, -1, request))
         result = yield from self._interface.receive_entdist_msg()
-        self._logger.warning(f"got result {result}")
+        self._logger.info(f"got result {result}")
         return result.content is not None
 
     def _allocate_for_pair(

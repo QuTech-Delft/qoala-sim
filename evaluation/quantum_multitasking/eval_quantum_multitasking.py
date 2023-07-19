@@ -4,19 +4,17 @@ import json
 import math
 import os
 import time
-from audioop import avg
 from dataclasses import asdict, dataclass
-from enum import Enum
 from typing import List
 
 import netsquid as ns
-from matplotlib import use
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
+    NetworkScheduleConfig,
     NtfConfig,
     NvParams,
     ProcNodeConfig,
@@ -25,17 +23,23 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchResult, ProgramInput
 from qoala.util.logging import LogManager
-from qoala.util.runner import run_1_server_n_clients
+from qoala.util.runner import run_1_server_n_clients, run_two_node_app_separate_inputs
 
 
 def create_procnode_cfg(
-    name: str, id: int, t1: float, t2: float, determ: bool, deadlines: bool
+    name: str,
+    id: int,
+    t1: float,
+    t2: float,
+    determ: bool,
+    deadlines: bool,
+    num_qubits: int,
 ) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
         topology=TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
-            5, t1, t2
+            num_qubits, t1, t2
         ),
         latencies=LatenciesConfig(qnos_instr_time=1000, host_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
@@ -60,60 +64,57 @@ class TeleportResult:
 
 def run_apps(
     num_iterations: int,
-    num_clients: int,
     t1: float,
     t2: float,
     cc_latency: float,
+    network_bin_len: int,
+    network_period: int,
 ) -> TeleportResult:
     ns.sim_reset()
 
+    alice_id = 1
     bob_id = 0
 
-    alice_node_cfgs = [
-        create_procnode_cfg(f"alice_{i}", i, t1, t2, determ=True, deadlines=True)
-        for i in range(1, num_clients + 1)
-    ]
+    alice_node_cfg = create_procnode_cfg(
+        "alice", alice_id, t1, t2, determ=True, deadlines=True, num_qubits=6
+    )
     bob_node_cfg = create_procnode_cfg(
-        "bob", bob_id, t1, t2, determ=True, deadlines=True
+        "bob", bob_id, t1, t2, determ=True, deadlines=True, num_qubits=3
     )
 
-    cconns = [
-        ClassicalConnectionConfig.from_nodes(i, bob_id, cc_latency)
-        for i in range(1, num_clients + 1)
-    ]
-    node_cfgs = alice_node_cfgs + [bob_node_cfg]
+    cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, cc_latency)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        nodes=node_cfgs, link_duration=1000
+        nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
-    network_cfg.cconns = cconns
+    pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
+    network_cfg.netschedule = NetworkScheduleConfig(
+        bin_length=network_bin_len,
+        first_bin=0,
+        bin_pattern=pattern,
+        repeat_period=network_period,
+    )
+    network_cfg.cconns = [cconn]
 
     alice_program = load_program("programs/teleport_alice.iqoala")
     bob_program = load_program("programs/teleport_bob.iqoala")
 
-    states = [i % 6 for i in range(num_iterations)]
-
-    alice_inputs = {
-        f"alice_{i}": [ProgramInput({"bob_id": 0, "state": states[i]})]
-        for i in range(1, num_clients + 1)
-    }
+    alice_inputs = [
+        ProgramInput({"bob_id": bob_id, "state": i % 6}) for i in range(num_iterations)
+    ]
     bob_inputs = [
-        ProgramInput({"alice_id": i, "state": states[i]})
-        for i in range(1, num_clients + 1)
+        ProgramInput({"alice_id": alice_id, "state": i % 6})
+        for i in range(num_iterations)
     ]
 
-    app_result = run_1_server_n_clients(
-        client_names=[f"alice_{i}" for i in range(1, num_clients + 1)],
-        client_program=alice_program,
-        client_inputs=alice_inputs,
-        server_name="bob",
-        server_program=bob_program,
-        server_inputs=bob_inputs,
+    app_result = run_two_node_app_separate_inputs(
+        num_iterations=num_iterations,
+        programs={"alice": alice_program, "bob": bob_program},
+        program_inputs={"alice": alice_inputs, "bob": bob_inputs},
         network_cfg=network_cfg,
+        linear_for={"alice": True, "bob": False},
     )
 
-    alice_results = [
-        app_result.batch_results[f"alice_{i}"] for i in range(1, num_clients + 1)
-    ]
+    alice_results = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
 
     return TeleportResult(alice_results, bob_result, app_result.total_duration)
@@ -163,29 +164,28 @@ def wilson_score_interval(p_hat, n, z):
 
 def get_metrics(
     num_iterations: int,
-    num_clients: int,
     t1: int,
     t2: int,
     latency_factor: float,
+    network_bin_len: int,
+    network_period: int,
 ) -> DataPoint:
     successes: List[bool] = []
-    makespans: List[float] = []
 
     cc_latency = latency_factor * t2
 
-    for i in range(num_iterations):
-        result = run_apps(
-            num_iterations=num_iterations,
-            num_clients=num_clients,
-            t1=t1,
-            t2=t2,
-            cc_latency=cc_latency,
-        )
-        program_results = result.bob_results.results
-        outcomes = [result.values["outcome"] for result in program_results]
-        assert len(outcomes) == 1
-        successes.append(outcomes[0] == 0)
-        makespans.append(result.total_duration)
+    result = run_apps(
+        num_iterations=num_iterations,
+        t1=t1,
+        t2=t2,
+        cc_latency=cc_latency,
+        network_period=network_period,
+        network_bin_len=network_bin_len,
+    )
+    program_results = result.bob_results.results
+    outcomes = [result.values["outcome"] for result in program_results]
+    assert len(outcomes) == num_iterations
+    successes.extend([outcomes[i] == 0 for i in range(num_iterations)])
 
     avg_succ_prob = sum([s for s in successes if s]) / len(successes)
     succ_prob_lower, succ_prob_upper = wilson_score_interval(
@@ -194,9 +194,11 @@ def get_metrics(
     lower_rounded = round(succ_prob_lower, 3)
     upper_rounded = round(succ_prob_upper, 3)
     succprob_rounded = round(avg_succ_prob, 3)
-    print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
 
-    total_makespan = sum(makespans)
+    makespan = result.total_duration
+
+    print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
+    print(f"makespan: {makespan:_}")
 
     return DataPoint(
         t2=t2,
@@ -204,13 +206,13 @@ def get_metrics(
         succ_prob=avg_succ_prob,
         succ_prob_lower=succ_prob_lower,
         succ_prob_upper=succ_prob_upper,
-        makespan=total_makespan,
+        makespan=makespan,
     )
 
 
 def run():
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("quantum_multitasking.log")
+    LogManager.set_log_level("INFO")
+    LogManager.log_to_file("quantum_multitasking.log")
     LogManager.enable_task_logger(True)
     LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
 
@@ -219,23 +221,31 @@ def run():
     t1 = 1e10
     t2 = 1e8
 
-    num_clients = 1
-    num_iterations = 1
+    num_iterations = 40
     latency_factor = 0.1
+    net_period_factor = 10
+    network_period = int(latency_factor * t2 * net_period_factor)
+    network_bin_len = int(0.5 * network_period / num_iterations)
+    # network_period = 200_000
 
     data_points: List[DataPoint] = []
 
     data_point = get_metrics(
         num_iterations=num_iterations,
-        num_clients=num_clients,
         t1=t1,
         t2=t2,
         latency_factor=latency_factor,
+        network_bin_len=network_bin_len,
+        network_period=network_period,
     )
     data_points.append(data_points)
 
     end_time = time.time()
-    print(f"total duration: {end_time - start_time}s")
+    # print(f"total duration: {end_time - start_time}s")
+
+    print(f"cc latency: {latency_factor * t2:_}")
+    print(f"network period: {network_period:_}")
+    print(f"network bin len: {network_bin_len:_}")
 
 
 if __name__ == "__main__":

@@ -95,6 +95,6 @@ class LogManager:
     @classmethod
     def enable_task_logger(cls, enable: bool) -> None:
         if enable:
-            cls.get_task_logger().setLevel(logging.WARNING)
+            cls.get_task_logger().setLevel(logging.INFO)
         else:
             cls.get_task_logger().setLevel(logging.CRITICAL + 1)

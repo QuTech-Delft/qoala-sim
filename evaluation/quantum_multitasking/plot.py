@@ -1,49 +1,36 @@
 import json
 import os
-from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
-from platform import release
 from typing import Dict, List
 
 import dacite
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
-from evaluation.classical_multitasking.eval_classical_multitasking import (
-    Data,
-    DataPoint,
-)
 
-COMPILE_VERSIONS = ["meas_epr_first", "meas_epr_last"]
-FORMATS = {
-    "meas_epr_first": "-rs",
-    "meas_epr_last": "-bo",
-}
-FORMATS_2 = {
-    "meas_epr_first": "--gs",
-    "meas_epr_last": "--yo",
-}
+@dataclass
+class DataPoint:
+    t2: float
+    cc_latency: float
+    succ_prob: float
+    succ_prob_lower: float
+    succ_prob_upper: float
+    makespan: float
 
-VERSION_LABELS = {
-    "meas_epr_first": "Unit modules",
-    "meas_epr_last": "No unit modules",
-}
-VERSION_LABELS_1 = {
-    "meas_epr_first": "Unit modules (fidelity)",
-    "meas_epr_last": "No unit modules (fidelity)",
-}
-VERSION_LABELS_2 = {
-    "meas_epr_first": "Unit modules (execution time)",
-    "meas_epr_last": "No unit modules (execution time)",
-}
 
-X_LABELS = {
-    "fidelity": "Fidelity",
-    "rate": "Success probability per entanglement attempt",
-    "t2": "T2 (ns)",
-    "gate_noise": "2-qubit gate depolarising probability",
-    "gate_time": "2-qubit gate duration (ms)",
-    "latency": "Host <-> QNodeOS latency (ms)",
-}
+@dataclass
+class DataMeta:
+    latency_factor: float
+    num_const_tasks: int
+    busy_factors: List[float]
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
 
 
 def relative_to_cwd(file: str) -> str:
@@ -58,6 +45,18 @@ def create_png(filename: str):
     print(f"plot written to {output_path}")
 
 
+def create_meta(filename: str, no_sched: Data, fcfs: Data, qoala: Data):
+    output_dir = relative_to_cwd("plots")
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    output_path = os.path.join(output_dir, f"{filename}.json")
+    meta = {}
+    meta["no_sched"] = no_sched.meta.timestamp
+    meta["fcfs"] = fcfs.meta.timestamp
+    meta["qoala"] = qoala.meta.timestamp
+    with open(output_path, "w") as metafile:
+        json.dump(meta, metafile)
+
+
 def load_data(path: str) -> Data:
     with open(relative_to_cwd(path), "r") as f:
         all_data = json.load(f)
@@ -67,279 +66,167 @@ def load_data(path: str) -> Data:
     return dacite.from_dict(Data, all_data)
 
 
-def sweep_busy_factor(data: Data) -> None:
-    fig, ax = plt.subplots()
-
-    ax.grid()
-    ax.set_xlabel("CPU heaviness")
-    ax.set_ylabel("Success probability")
-
-    # Data per latency factor
-    lf_data: Dict[float, List[DataPoint]] = {}
-
-    for lf in data.meta.latency_factors:
-        lf_data[lf] = [p for p in data.data_points if p.latency_factor == lf]
-
-    for lf, points in lf_data.items():
-        busy_factor = [p.busy_factor for p in points]
-        succ_probs = [p.succ_prob for p in points]
-        error_plus = [p.succ_prob_upper - p.succ_prob for p in points]
-        error_minus = [p.succ_prob - p.succ_prob_lower for p in points]
-        errors = [error_plus, error_minus]
-        ax.set_xscale("log")
-        ax.errorbar(
-            x=busy_factor,
-            y=succ_probs,
-            yerr=errors,
-            # fmt=FORMATS[version],
-            # label=VERSION_LABELS_1[version],
-        )
-
-    ax.set_title(
-        "Success probability vs CPU heaviness",
-        wrap=True,
-    )
-
-    # ax.set_ylim(0.75, 0.9)
-    # ax.legend(loc="upper left")
-
-    create_png("theplot")
-
-
-def sweep_busy_factor_plot_succ_prob_per_sec(data: Data) -> None:
-    fig, ax = plt.subplots()
-
-    ax.grid()
-    ax.set_xlabel("CPU heaviness")
-    ax.set_ylabel("Success probability / s")
-
-    # Data per latency factor
-    lf_data: Dict[float, List[DataPoint]] = {}
-
-    for lf in data.meta.latency_factors:
-        lf_data[lf] = [p for p in data.data_points if p.latency_factor == lf]
-
-    for lf, points in lf_data.items():
-        busy_factor = [p.busy_factor for p in points]
-        succ_prob_per_sec = [1e9 * p.succ_prob / p.makespan for p in points]
-        makespan = [p.makespan for p in points]
-        # succ_probs = [p.succ_prob for p in points]
-        # error_plus = [p.succ_prob_upper - p.succ_prob for p in points]
-        # error_minus = [p.succ_prob - p.succ_prob_lower for p in points]
-        error_plus = [
-            1e9 * (p.succ_prob_upper - p.succ_prob) / p.makespan for p in points
-        ]
-        error_minus = [
-            1e9 * (p.succ_prob - p.succ_prob_lower) / p.makespan for p in points
-        ]
-        error_plus = [max(e, 0) for e in error_plus]
-        # error_minus = [max(e, 0) for e in error_minus]
-        errors = [error_plus, error_minus]
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.errorbar(
-            x=busy_factor,
-            y=succ_prob_per_sec,
-            yerr=errors,
-            # fmt=FORMATS[version],
-            # label=VERSION_LABELS_1[version],
-        )
-
-    ax.set_title(
-        "Success probability per second vs CPU heaviness",
-        wrap=True,
-    )
-
-    # ax.set_ylim(0.75, 0.9)
-    # ax.legend(loc="upper left")
-
-    create_png("themakespan")
-
-
-def sweep_hog_prob(data: Data) -> None:
-    fig, ax = plt.subplots()
-
-    ax.grid()
-    ax.set_xlabel("CPU heaviness")
-    ax.set_ylabel("Success probability")
-
-    # Data per latency factor
-    lf_data: Dict[float, List[DataPoint]] = {}
-
-    for lf in data.meta.latency_factors:
-        lf_data[lf] = [p for p in data.data_points if p.latency_factor == lf]
-
-    for lf, points in lf_data.items():
-        hog_prob = [p.hog_prob for p in points]
-        succ_probs = [p.succ_prob for p in points]
-        error_plus = [p.succ_prob_upper - p.succ_prob for p in points]
-        error_minus = [p.succ_prob - p.succ_prob_lower for p in points]
-        errors = [error_plus, error_minus]
-        ax.set_xscale("log")
-        ax.errorbar(
-            x=hog_prob,
-            y=succ_probs,
-            yerr=errors,
-            # fmt=FORMATS[version],
-            # label=VERSION_LABELS_1[version],
-        )
-
-    ax.set_title(
-        "Success probability vs CPU heaviness",
-        wrap=True,
-    )
-
-    # ax.set_ylim(0.75, 0.9)
-    # ax.legend(loc="upper left")
-
-    create_png("theplot")
-
-
-def plot_improvement_factor(with_deadlines: Data, without_deadlines: Data) -> None:
-    fig, ax = plt.subplots()
-
-    ax.grid()
-    ax.set_xlabel("CPU heaviness")
-    ax.set_ylabel("Success probability")
-
-    # Data per latency factor
-    lf_data_with_deadlines: Dict[float, List[DataPoint]] = {}
-    lf_data_without_deadlines: Dict[float, List[DataPoint]] = {}
-
-    assert with_deadlines.meta.latency_factors == without_deadlines.meta.latency_factors
-
-    for lf in with_deadlines.meta.latency_factors:
-        lf_data_with_deadlines[lf] = [
-            p for p in with_deadlines.data_points if p.latency_factor == lf
-        ]
-        lf_data_without_deadlines[lf] = [
-            p for p in without_deadlines.data_points if p.latency_factor == lf
-        ]
-
-    for lf in lf_data_with_deadlines.keys():
-        points_with = lf_data_with_deadlines[lf]
-        points_without = lf_data_without_deadlines[lf]
-        busy_factor_with = [p.busy_factor for p in points_with]
-        busy_factor_without = [p.busy_factor for p in points_without]
-        assert busy_factor_with == busy_factor_without
-        improv_factor = [
-            p_with.succ_prob / p_without.succ_prob
-            for p_with, p_without in zip(points_with, points_without)
-        ]
-        # succ_probs = [p.succ_prob for p in points]
-        # error_plus = [p.succ_prob_upper - p.succ_prob for p in points]
-        # error_minus = [p.succ_prob - p.succ_prob_lower for p in points]
-        # errors = [error_plus, error_minus]
-        ax.set_xscale("log")
-        ax.errorbar(
-            x=busy_factor_with,
-            y=improv_factor,
-            # yerr=errors,
-            # fmt=FORMATS[version],
-            # label=VERSION_LABELS_1[version],
-        )
-
-    ax.set_title(
-        "Success probability vs CPU heaviness",
-        wrap=True,
-    )
-
-    # ax.set_ylim(0.75, 0.9)
-    # ax.legend(loc="upper left")
-
-    create_png("theimprovement")
-
-
-def plot_improvement_factor_per_sec(
-    with_deadlines: Data, without_deadlines: Data
+def plot_sweep_const_rate(
+    timestamp: str, no_sched_data: Data, fcfs_data: Data, qoala_data: Data
 ) -> None:
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("CPU heaviness")
-    ax.set_ylabel("Improvement factor")
+    ax.set_xlabel("Fraction of CC latency")
+    ax.set_ylabel("Success probability")
 
-    # Data per latency factor
-    lf_data_with_deadlines: Dict[float, List[DataPoint]] = {}
-    lf_data_without_deadlines: Dict[float, List[DataPoint]] = {}
+    ax2 = ax.twinx()
 
-    assert with_deadlines.meta.latency_factors == without_deadlines.meta.latency_factors
-
-    for lf in with_deadlines.meta.latency_factors:
-        lf_data_with_deadlines[lf] = [
-            p for p in with_deadlines.data_points if p.latency_factor == lf
-        ]
-        lf_data_without_deadlines[lf] = [
-            p for p in without_deadlines.data_points if p.latency_factor == lf
-        ]
-
-    for lf in lf_data_with_deadlines.keys():
-        points_with = lf_data_with_deadlines[lf]
-        points_without = lf_data_without_deadlines[lf]
-        busy_factor_with = [p.busy_factor for p in points_with]
-        busy_factor_without = [p.busy_factor for p in points_without]
-        assert busy_factor_with == busy_factor_without
-        improv_factor = [
-            (p_with.succ_prob / p_with.makespan)
-            / (p_without.succ_prob / p_without.makespan)
-            for p_with, p_without in zip(points_with, points_without)
-        ]
-        # succ_probs = [p.succ_prob for p in points]
-        # error_plus = [p.succ_prob_upper - p.succ_prob for p in points]
-        # error_minus = [p.succ_prob - p.succ_prob_lower for p in points]
-        # errors = [error_plus, error_minus]
+    for data in [no_sched_data, fcfs_data, qoala_data]:
+        crf = [p.const_rate_factor for p in data.data_points]
+        succ_probs = [p.succ_prob for p in data.data_points]
+        error_plus = [p.succ_prob_upper - p.succ_prob for p in data.data_points]
+        error_plus = [max(0, e) for e in error_plus]
+        error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
+        error_minus = [max(0, e) for e in error_minus]
+        errors = [error_plus, error_minus]
         ax.set_xscale("log")
         ax.errorbar(
-            x=busy_factor_with,
-            y=improv_factor,
-            # yerr=errors,
+            x=crf,
+            y=succ_probs,
+            yerr=errors,
             # fmt=FORMATS[version],
-            # label=VERSION_LABELS_1[version],
+            label=data.data_points[0].sched_typ,
         )
 
+        makespans = [p.makespan for p in data.data_points]
+        ax2.errorbar(
+            x=crf,
+            y=makespans,
+            # yerr=errors,
+            # fmt=FORMATS[version],
+            label=f"makespan {data.data_points[0].sched_typ}",
+        )
+        # ax2.set_yscale("log")
+
     ax.set_title(
-        "Success/s improvement factor of using deadlines)",
+        "Success probability vs Fraction of CC latency",
         wrap=True,
     )
 
     # ax.set_ylim(0.75, 0.9)
-    # ax.legend(loc="upper left")
+    ax.legend(loc="upper left")
 
-    create_png("theimprovement")
-
-
-def run():
-    data = load_data("data.json")
-    sweep_busy_factor(data)
+    create_png("LAST")
+    create_png(timestamp)
 
 
-def makespan():
-    data = load_data("data.json")
-    sweep_busy_factor_plot_succ_prob_per_sec(data)
+def plot_sweep_busy_factor(
+    timestamp: str, no_sched_data: Data, fcfs_data: Data, qoala_data: Data
+) -> None:
+    fig, ax = plt.subplots()
 
+    ax.grid()
+    ax.set_xlabel("Fraction of CC latency")
+    ax.set_ylabel("Success probability")
+    ax.set_xscale("log")
 
-def run_hog_prob():
-    data = load_data("data.json")
-    sweep_hog_prob(data)
+    ax2 = ax.twinx()
+    ax2.set_ylabel("Makespan improvement factor")
 
+    lines = []
 
-def run_improvement():
-    with_deadlines = load_data("results/sweep_hog_duration_with_deadlines/data.json")
-    without_deadlines = load_data(
-        "results/sweep_hog_duration_without_deadlines/data.json"
+    for data in [no_sched_data, fcfs_data, qoala_data]:
+        bf = [p.busy_factor for p in data.data_points]
+        succ_probs = [p.succ_prob for p in data.data_points]
+        error_plus = [p.succ_prob_upper - p.succ_prob for p in data.data_points]
+        error_plus = [max(0, e) for e in error_plus]
+        error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
+        error_minus = [max(0, e) for e in error_minus]
+        errors = [error_plus, error_minus]
+        line = ax.errorbar(
+            x=bf,
+            y=succ_probs,
+            yerr=errors,
+            # fmt=FORMATS[version],
+            label=data.data_points[0].sched_typ,
+        )
+
+        lines.append(line)
+
+        # makespans = [p.makespan for p in data.data_points]
+        # ax2.errorbar(
+        #     x=bf,
+        #     y=makespans,
+        #     # yerr=errors,
+        #     # fmt=FORMATS[version],
+        #     label=f"makespan {data.data_points[0].sched_typ}",
+        # )
+        # ax2.set_yscale("log")
+
+    makespan_improvements = [
+        p2.makespan / p1.makespan
+        for p1, p2 in zip(no_sched_data.data_points, qoala_data.data_points)
+    ]
+    bf = [p.busy_factor for p in no_sched_data.data_points]
+    print(bf)
+    lines.append(
+        ax2.errorbar(
+            x=bf,
+            y=makespan_improvements,
+            # yerr=errors,
+            fmt="o-r",
+            label=f"Makespan improvement",
+        )
     )
-    plot_improvement_factor(with_deadlines, without_deadlines)
 
+    def format_func(value, tick_number):
+        # return f"{10.0**value:.1f}"
+        return f"{value}"
 
-def run_improvement_per_sec():
-    with_deadlines = load_data("results/succ_prob_per_sec_with_deadlines/data.json")
-    without_deadlines = load_data(
-        "results/succ_prob_per_sec_without_deadlines/data.json"
+    # Create a FuncFormatter object using the format function
+    formatter = ticker.FuncFormatter(format_func)
+
+    # Set the x-axis formatter
+    ax.xaxis.set_major_formatter(formatter)
+    ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0))
+    ax.xaxis.set_minor_locator(ticker.FixedLocator([0.1, 1, 10]))
+
+    # ax2.set_yscale("log")
+    labels = [l.get_label() for l in lines]
+
+    ax.legend(lines, labels, loc="lower center")
+
+    ax.set_title(
+        "Success probability vs busy task duration",
+        wrap=True,
     )
-    plot_improvement_factor_per_sec(with_deadlines, without_deadlines)
+
+    # ax.set_ylim(0.75, 0.9)
+
+    create_png("LAST")
+    create_png(timestamp)
+
+
+def sweep_const_period():
+    no_sched_data = load_data("data/no_sched/LAST.json")
+    fcfs_data = load_data("data/fcfs/LAST.json")
+    qoala_data = load_data("data/qoala/LAST.json")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    create_meta("LAST_meta.json", no_sched_data, fcfs_data, qoala_data)
+    create_meta(f"{timestamp}_meta.json", no_sched_data, fcfs_data, qoala_data)
+    plot_sweep_const_rate(timestamp, no_sched_data, fcfs_data, qoala_data)
+
+
+def sweep_busy_factor():
+    no_sched_data = load_data("data/no_sched/LAST.json")
+    fcfs_data = load_data("data/fcfs/LAST.json")
+    qoala_data = load_data("data/qoala/LAST.json")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    create_meta("LAST_meta.json", no_sched_data, fcfs_data, qoala_data)
+    create_meta(f"{timestamp}_meta.json", no_sched_data, fcfs_data, qoala_data)
+    plot_sweep_busy_factor(timestamp, no_sched_data, fcfs_data, qoala_data)
 
 
 if __name__ == "__main__":
-    # makespan()
-    # run_improvement()
-    run_improvement_per_sec()
+    # sweep_const_period()
+    sweep_busy_factor()

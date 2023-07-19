@@ -40,7 +40,10 @@ class QoalaTask:
         self._duration = duration
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}(pid={self.pid}, tid={self.task_id})"
+        s = f"{self.__class__.__name__}(pid={self.pid}, tid={self.task_id})"
+        if not self.is_epr_task():
+            s += f"block={self.block_name}"
+        return s
 
     @property
     def task_id(self) -> int:

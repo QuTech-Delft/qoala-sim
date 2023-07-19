@@ -605,13 +605,11 @@ class EdfScheduler(ProcessorScheduler):
         start_time = self._task_graph.get_tinfo(task.task_id).start_time
         is_busy_task = start_time is not None
         self._logger.info(f"executing task {task}")
-        if self.name == "bob_cpu" or self.name == "bob_qpu":
-            if is_busy_task:
-                self._task_logger.warning(
-                    f"BUSY start  {task} (start time: {start_time})"
-                )
-            else:
-                self._task_logger.warning(f"start  {task}")
+        if is_busy_task:
+            self._task_logger.warning(f"BUSY start  {task} (start time: {start_time})")
+        else:
+            self._task_logger.warning(f"start  {task}")
+        self._task_logger.warning(f"start  {task}")
         self._task_starts[task.task_id] = before
         self.record_start_timestamp(task.pid, before)
 
@@ -628,11 +626,10 @@ class EdfScheduler(ProcessorScheduler):
             self._finished_tasks.append(task.task_id)
             self.send_signal(SIGNAL_TASK_COMPLETED)
             self._logger.info(f"finished task {task}")
-            if self.name == "bob_cpu" or self.name == "bob_qpu":
-                if is_busy_task:
-                    self._task_logger.warning(f"BUSY finish {task}")
-                else:
-                    self._task_logger.warning(f"finish {task}")
+            if is_busy_task:
+                self._task_logger.warning(f"BUSY finish {task}")
+            else:
+                self._task_logger.warning(f"finish {task}")
 
             self._tasks_executed[task.task_id] = task
             self._task_ends[task.task_id] = after
@@ -702,6 +699,7 @@ class CpuEdfScheduler(EdfScheduler):
         event_blocked_on_message = [
             tid for tid in event_no_predecessors if not self.is_message_available(tid)
         ]
+        self._task_logger.info(f"event_blocked_on_message: {event_blocked_on_message}")
 
         now = ns.sim_time()
         with_future_start: Dict[int, float] = {
@@ -794,6 +792,7 @@ class CpuEdfScheduler(EdfScheduler):
             if isinstance(status, StatusGraphEmpty):
                 break
             elif isinstance(status, StatusBlockedOnOtherCore):
+                self._task_logger.info("Blocked on other core")
                 self._task_logger.debug("waiting for TASK_COMPLETED signal")
                 yield self.await_signal(
                     sender=self._other_scheduler,
@@ -815,7 +814,7 @@ class CpuEdfScheduler(EdfScheduler):
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
                 yield ev_other_core | ev_start_time
             elif isinstance(status, StatusBlockedOnMessage):
-                self._task_logger.debug("blocked, waiting for message...")
+                self._task_logger.info("Blocked on message...")
                 yield from self._host_interface.wait_for_any_msg()
                 self._task_logger.debug("message arrived")
                 self.update_external_predcessors()
@@ -826,6 +825,7 @@ class CpuEdfScheduler(EdfScheduler):
                     f"Blocked on message or start time (delta = {delta})"
                 )
                 ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
+                assert ev_msg_arrived is not None
 
                 self._schedule_after(delta, EVENT_WAIT)
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
@@ -838,9 +838,10 @@ class CpuEdfScheduler(EdfScheduler):
                     yield from self._host_interface.handle_msg_evexpr(union.first_term)
 
             elif isinstance(status, StatusBlockedOnMessageOrOtherCore):
-                self._task_logger.debug("blocked, waiting for message OR other core...")
+                self._task_logger.info("Blocked on message OR other core...")
 
                 ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
+                assert ev_msg_arrived is not None
 
                 ev_other_core = self.await_signal(
                     sender=self._other_scheduler,
@@ -849,6 +850,7 @@ class CpuEdfScheduler(EdfScheduler):
                 union = ev_msg_arrived | ev_other_core
 
                 yield union
+                self._task_logger.info("Unblocked")
                 if len(union.first_term.triggered_events) > 0:
                     # It was "ev_msg_arrived" that triggered.
                     # Need to process this event (flushing potential other messages)
@@ -860,6 +862,7 @@ class CpuEdfScheduler(EdfScheduler):
                     f"Blocked on message or other core or start time (delta = {delta})"
                 )
                 ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
+                assert ev_msg_arrived is not None
 
                 ev_other_core = self.await_signal(
                     sender=self._other_scheduler,
@@ -1051,6 +1054,7 @@ class QpuEdfScheduler(EdfScheduler):
         epr_non_zero_delta = {
             tid: delta for tid, delta in time_until_bin.items() if delta > 0
         }
+        self._task_logger.info(f"epr_non_zero_delta: {epr_non_zero_delta}")
         if len(epr_non_zero_delta) > 0:
             sorted_by_delta = sorted(
                 epr_non_zero_delta.items(), key=lambda item: item[1]
