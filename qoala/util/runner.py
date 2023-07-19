@@ -14,7 +14,8 @@ from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramI
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
-from qoala.util.logging import LogManager
+
+# from qoala.util.logging import LogManager
 
 
 @dataclass
@@ -79,21 +80,14 @@ def run_two_node_app_separate_inputs(
 
         remote_batch = batches[other_name[name]]
         remote_pids = {remote_batch.batch_id: [p.pid for p in remote_batch.instances]}
-        procnode.initialize_processes(remote_pids)
+        procnode.initialize_processes(remote_pids, linear=linear)
 
-        tasks = procnode.scheduler.get_tasks_to_schedule()
-        if linear:
-            merged = TaskGraphBuilder.merge_linear(tasks)
-        else:
-            merged = TaskGraphBuilder.merge(tasks)
-        procnode.scheduler.upload_task_graph(merged)
-
-        logger = LogManager.get_stack_logger()
-        for batch_id, prog_batch in procnode.scheduler.get_batches().items():
-            task_graph = prog_batch.instances[0].task_graph
-            num = len(prog_batch.instances)
-            logger.info(f"batch {batch_id}: {num} instances each with task graph:")
-            logger.info(task_graph)
+        # logger = LogManager.get_stack_logger()
+        # for batch_id, prog_batch in procnode.scheduler.get_batches().items():
+        #     task_graph = prog_batch.instances[0].task_graph
+        #     num = len(prog_batch.instances)
+        #     logger.info(f"batch {batch_id}: {num} instances each with task graph:")
+        #     logger.info(task_graph)
 
     network.start()
     ns.sim_run()
@@ -184,7 +178,6 @@ def run_two_node_app(
     network_cfg: ProcNodeNetworkConfig,
     linear: bool = False,
 ) -> AppResult:
-    new_inputs: Dict[str, List[ProgramInput]] = {}
 
     names = list(programs.keys())
     new_inputs = {
@@ -217,21 +210,14 @@ def run_single_node_app_separate_inputs(
     batch_info = create_batch(program, unit_module, program_input, num_iterations)
     procnode.submit_batch(batch_info)
 
-    procnode.initialize_processes()
+    procnode.initialize_processes(linear=linear)
 
-    tasks = procnode.scheduler.get_tasks_to_schedule()
-    if linear:
-        merged = TaskGraphBuilder.merge_linear(tasks)
-    else:
-        merged = TaskGraphBuilder.merge(tasks)
-    procnode.scheduler.upload_task_graph(merged)
-
-    logger = LogManager.get_stack_logger()
-    for batch_id, prog_batch in procnode.scheduler.get_batches().items():
-        task_graph = prog_batch.instances[0].task_graph
-        num = len(prog_batch.instances)
-        logger.info(f"batch {batch_id}: {num} instances each with task graph:")
-        logger.info(task_graph)
+    # logger = LogManager.get_stack_logger()
+    # for batch_id, prog_batch in procnode.scheduler.get_batches().items():
+    #     task_graph = prog_batch.instances[0].task_graph
+    #     num = len(prog_batch.instances)
+    #     logger.info(f"batch {batch_id}: {num} instances each with task graph:")
+    #     logger.info(task_graph)
 
     network.start()
     ns.sim_run()

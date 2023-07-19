@@ -12,7 +12,6 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.task import TaskGraph
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.memmgr import AllocError, MemoryManager
@@ -86,7 +85,6 @@ def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 

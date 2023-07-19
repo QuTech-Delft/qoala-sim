@@ -243,9 +243,11 @@ class ProcNode(Protocol):
 
     def initialize_processes(
         self,
-        remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+        remote_pids: Optional[Dict[int, List[int]]] = None,
+        linear: bool = False
+        # batch ID -> PID list
     ) -> None:
-        self.scheduler.create_processes_for_batches(remote_pids)
+        self.scheduler.create_processes_for_batches(remote_pids, linear)
 
     def add_process(self, process: QoalaProcess) -> None:
         self.memmgr.add_process(process)

@@ -45,7 +45,7 @@ class HostProcessor:
     ) -> Generator[EventExpression, None, None]:
         program = process.prog_instance.program
         instr = program.instructions[instr_idx]
-        yield from self.assign_instr(process, instr, process.pid)
+        yield from self.assign_instr(process, instr)
 
     def assign_block(
         self, process: QoalaProcess, block_name: str
@@ -78,7 +78,7 @@ class HostProcessor:
         self._interface.program_instance_jumps[pid] = -1
         self._logger.debug(f"Interpreting LHR instruction {instr}")
         if isinstance(instr, hostlang.AssignCValueOp):
-
+            yield from self._interface.wait(first_half)
             value = instr.attributes[0]
             assert isinstance(value, int)
             loc = instr.results[0]  # type: ignore

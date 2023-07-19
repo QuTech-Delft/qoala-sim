@@ -17,7 +17,6 @@ from qoala.runtime.message import Message
 from qoala.runtime.ntf import NvNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
-from qoala.runtime.task import TaskGraph
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
@@ -109,7 +108,6 @@ def create_process(
         program=program,
         inputs=inputs,
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 

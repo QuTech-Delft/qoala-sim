@@ -1,12 +1,12 @@
 import os
-from typing import Optional
+from typing import Dict, List, Optional
 
 import netsquid as ns
 import pytest
 from netqasm.lang.instr import core
 
 from qoala.lang.ehi import EhiNodeInfo, UnitModule
-from qoala.lang.hostlang import BasicBlockType
+from qoala.lang.hostlang import BasicBlock, BasicBlockType
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.lhi import (
@@ -19,13 +19,12 @@ from qoala.runtime.lhi import (
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.task import (
-    HostEventTask,
     HostLocalTask,
     LocalRoutineTask,
-    MultiPairTask,
     PostCallTask,
     PreCallTask,
     TaskGraphBuilder,
+    TaskInfo,
 )
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
@@ -140,7 +139,7 @@ def test_cpu_scheduler():
     pid = 0
     instance = ObjectBuilder.simple_program_instance(program, pid)
 
-    procnode.scheduler.submit_program_instance(instance)
+    procnode.scheduler.submit_program_instance_new(instance)
 
     tasks_with_start_times = [
         (HostLocalTask(0, 0, "b0"), 0),
@@ -173,17 +172,19 @@ def test_cpu_scheduler_no_time():
     pid = 0
     instance = ObjectBuilder.simple_program_instance(program, pid)
 
-    procnode.scheduler.submit_program_instance(instance)
+    procnode.scheduler.submit_program_instance_new(instance)
 
     tasks = [HostLocalTask(0, 0, "b0"), HostLocalTask(1, 0, "b1")]
-    graph = TaskGraphBuilder.linear_tasks(tasks)
+    tinfos: Dict[int, TaskInfo] = {
+        task.task_id: TaskInfo.only_task(task) for task in tasks
+    }
 
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     scheduler = CpuEdfScheduler(
         "alice", driver, procnode.memmgr, procnode.host.interface
     )
-    scheduler.upload_task_graph(graph)
+    scheduler.add_tasks(tinfos)
 
     ns.sim_reset()
     scheduler.start()
@@ -205,8 +206,8 @@ def test_cpu_scheduler_2_processes():
     instance0 = ObjectBuilder.simple_program_instance(program, pid0)
     instance1 = ObjectBuilder.simple_program_instance(program, pid1)
 
-    procnode.scheduler.submit_program_instance(instance0)
-    procnode.scheduler.submit_program_instance(instance1)
+    procnode.scheduler.submit_program_instance_new(instance0)
+    procnode.scheduler.submit_program_instance_new(instance1)
 
     tasks_with_start_times = [
         (HostLocalTask(0, pid0, "b0"), 0),
@@ -249,7 +250,7 @@ def test_qpu_scheduler():
     pid = 0
     instance = ObjectBuilder.simple_program_instance(program, pid)
 
-    procnode.scheduler.submit_program_instance(instance)
+    procnode.scheduler.submit_program_instance_new(instance)
 
     shared_ptr = 0
 
@@ -311,8 +312,8 @@ def test_qpu_scheduler_2_processes():
     instance0 = ObjectBuilder.simple_program_instance(program, pid0)
     instance1 = ObjectBuilder.simple_program_instance(program, pid1)
 
-    procnode.scheduler.submit_program_instance(instance0)
-    procnode.scheduler.submit_program_instance(instance1)
+    procnode.scheduler.submit_program_instance_new(instance0)
+    procnode.scheduler.submit_program_instance_new(instance1)
 
     shared_ptr_pid0 = 0
     shared_ptr_pid1 = 1
@@ -370,6 +371,7 @@ def test_qpu_scheduler_2_processes():
 
 
 def test_host_program():
+
     network = setup_network()
     alice = network.nodes["alice"]
     bob = network.nodes["bob"]
@@ -378,17 +380,17 @@ def test_host_program():
     pid = 0
     instance = instantiate(program, alice.local_ehi, pid)
 
-    alice.scheduler.submit_program_instance(instance, remote_pid=0)
-    bob.scheduler.submit_program_instance(instance, remote_pid=0)
+    used_blocks = {"blk_host0", "blk_host1"}
 
-    tasks = [
-        HostLocalTask(0, pid, "blk_host0"),
-        HostLocalTask(1, pid, "blk_host1"),
-    ]
-    graph = TaskGraphBuilder.linear_tasks(tasks)
+    new_blocks: List[BasicBlock] = []
+    for block in instance.program.blocks:
+        if block.name in used_blocks:
+            new_blocks.append(block)
 
-    alice.scheduler.upload_task_graph(graph)
-    bob.scheduler.upload_task_graph(graph)
+    instance.program.blocks = new_blocks
+
+    alice.scheduler.submit_program_instance_new(instance, remote_pid=0)
+    bob.scheduler.submit_program_instance_new(instance, remote_pid=0)
 
     ns.sim_reset()
     network.start()
@@ -408,24 +410,17 @@ def test_lr_program():
     pid = 0
     instance = instantiate(program, alice.local_ehi, pid)
 
-    alice.scheduler.submit_program_instance(instance, remote_pid=0)
-    bob.scheduler.submit_program_instance(instance, remote_pid=0)
+    used_blocks = {"blk_host2", "blk_add_one"}
 
-    host_instr_time = alice.local_ehi.latencies.host_instr_time
+    new_blocks = []
+    for block in instance.program.blocks:
+        if block.name in used_blocks:
+            new_blocks.append(block)
 
-    shared_ptr = 0
-    tasks = [
-        HostLocalTask(0, pid, "blk_host2"),
-        PreCallTask(1, pid, "blk_add_one", shared_ptr),
-        LocalRoutineTask(2, pid, "blk_add_one", shared_ptr),
-        PostCallTask(3, pid, "blk_add_one", shared_ptr),
-    ]
-    graph = TaskGraphBuilder.linear_tasks(tasks)
+    instance.program.blocks = new_blocks
 
-    LogManager.set_log_level("DEBUG")
-    alice.scheduler.upload_task_graph(graph)
-    bob.scheduler.upload_task_graph(graph)
-    print(graph)
+    alice.scheduler.submit_program_instance_new(instance, remote_pid=0)
+    bob.scheduler.submit_program_instance_new(instance, remote_pid=0)
 
     ns.sim_reset()
     network.start()
@@ -452,18 +447,24 @@ def test_epr_md_1():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
+    used_blocks_alice = {"blk_epr_md_1"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
 
-    shared_ptr = 0
-    tasks = [
-        PreCallTask(0, pid, "blk_epr_md_1", shared_ptr),
-        MultiPairTask(1, pid, shared_ptr),
-        PostCallTask(2, pid, "blk_epr_md_1", shared_ptr),
-    ]
-    graph = TaskGraphBuilder.linear_tasks(tasks)
-    alice.scheduler.upload_task_graph(graph)
-    bob.scheduler.upload_task_graph(graph)
+    instance_alice.program.blocks = new_blocks_alice
+
+    used_blocks_bob = {"blk_epr_md_1"}
+    new_blocks_bob = []
+    for block in instance_bob.program.blocks:
+        if block.name in used_blocks_bob:
+            new_blocks_bob.append(block)
+
+    instance_bob.program.blocks = new_blocks_bob
+
+    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -490,18 +491,24 @@ def test_epr_md_2():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
+    used_blocks_alice = {"blk_epr_md_2"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
 
-    shared_ptr = 0
-    tasks = [
-        PreCallTask(0, pid, "blk_epr_md_2", shared_ptr),
-        MultiPairTask(1, pid, shared_ptr),
-        PostCallTask(2, pid, "blk_epr_md_2", shared_ptr),
-    ]
-    graph = TaskGraphBuilder.linear_tasks(tasks)
-    alice.scheduler.upload_task_graph(graph)
-    bob.scheduler.upload_task_graph(graph)
+    instance_alice.program.blocks = new_blocks_alice
+
+    used_blocks_bob = {"blk_epr_md_2"}
+    new_blocks_bob = []
+    for block in instance_bob.program.blocks:
+        if block.name in used_blocks_bob:
+            new_blocks_bob.append(block)
+
+    instance_bob.program.blocks = new_blocks_bob
+
+    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -530,22 +537,24 @@ def test_epr_ck_1():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
+    used_blocks_alice = {"blk_epr_ck_1", "blk_meas_q0"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
 
-    shared_ptr0 = 0
-    shared_ptr1 = 1
-    tasks = [
-        PreCallTask(0, pid, "blk_epr_ck_1", shared_ptr0),
-        MultiPairTask(1, pid, shared_ptr0),
-        PostCallTask(2, pid, "blk_epr_ck_1", shared_ptr0),
-        PreCallTask(3, pid, "blk_meas_q0", shared_ptr1),
-        LocalRoutineTask(4, pid, "blk_meas_q0", shared_ptr1),
-        PostCallTask(5, pid, "blk_meas_q0", shared_ptr1),
-    ]
-    graph = TaskGraphBuilder.linear_tasks(tasks)
-    alice.scheduler.upload_task_graph(graph)
-    bob.scheduler.upload_task_graph(graph)
+    instance_alice.program.blocks = new_blocks_alice
+
+    used_blocks_bob = {"blk_epr_ck_1", "blk_meas_q0"}
+    new_blocks_bob = []
+    for block in instance_bob.program.blocks:
+        if block.name in used_blocks_bob:
+            new_blocks_bob.append(block)
+
+    instance_bob.program.blocks = new_blocks_bob
+
+    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -577,22 +586,24 @@ def test_epr_ck_2():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
+    used_blocks_alice = {"blk_epr_ck_2", "blk_meas_q0_q1"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
 
-    shared_ptr0 = 0
-    shared_ptr1 = 1
-    tasks = [
-        PreCallTask(0, pid, "blk_epr_ck_2", shared_ptr0),
-        MultiPairTask(1, pid, shared_ptr0),
-        PostCallTask(2, pid, "blk_epr_ck_2", shared_ptr0),
-        PreCallTask(3, pid, "blk_meas_q0_q1", shared_ptr1),
-        LocalRoutineTask(4, pid, "blk_meas_q0_q1", shared_ptr1),
-        PostCallTask(5, pid, "blk_meas_q0_q1", shared_ptr1),
-    ]
-    graph = TaskGraphBuilder.linear_tasks(tasks)
-    alice.scheduler.upload_task_graph(graph)
-    bob.scheduler.upload_task_graph(graph)
+    instance_alice.program.blocks = new_blocks_alice
+
+    used_blocks_bob = {"blk_epr_ck_2", "blk_meas_q0_q1"}
+    new_blocks_bob = []
+    for block in instance_bob.program.blocks:
+        if block.name in used_blocks_bob:
+            new_blocks_bob.append(block)
+
+    instance_bob.program.blocks = new_blocks_bob
+
+    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -626,26 +637,29 @@ def test_cc():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
+    # TODO: add start times ?
+
+    used_blocks_alice = {"blk_prep_cc", "blk_send", "blk_host1"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    used_blocks_bob = {"blk_prep_cc", "blk_recv", "blk_host1"}
+    new_blocks_bob = []
+    for block in instance_bob.program.blocks:
+        if block.name in used_blocks_bob:
+            new_blocks_bob.append(block)
+
+    instance_bob.program.blocks = new_blocks_bob
+
+    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
 
     assert alice.local_ehi.latencies.host_peer_latency == 3000
     assert alice.local_ehi.latencies.host_instr_time == 1000
-
-    tasks_alice = [
-        (HostLocalTask(0, pid, "blk_prep_cc"), 0),
-        (HostLocalTask(1, pid, "blk_send"), 2000),
-        (HostLocalTask(2, pid, "blk_host1"), 10000),
-    ]
-    graph_alice = TaskGraphBuilder.linear_tasks_with_start_times(tasks_alice)
-    tasks_bob = [
-        (HostLocalTask(4, pid, "blk_prep_cc"), 0),
-        (HostEventTask(5, pid, "blk_recv"), 3000),
-        (HostLocalTask(6, pid, "blk_host1"), 10000),
-    ]
-    graph_bob = TaskGraphBuilder.linear_tasks_with_start_times(tasks_bob)
-    alice.scheduler.upload_cpu_task_graph(graph_alice)
-    bob.scheduler.upload_cpu_task_graph(graph_bob)
 
     ns.sim_reset()
     network.start()
@@ -660,43 +674,6 @@ def test_cc():
 
 
 def test_full_program():
-    network = setup_network()
-    alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
-
-    program_alice = load_program("test_scheduling_alice.iqoala")
-    program_bob = load_program("test_scheduling_bob.iqoala")
-    pid = 0
-    inputs_alice = ProgramInput({"bob_id": 1})
-    inputs_bob = ProgramInput({"alice_id": 0})
-    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
-    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
-
-    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
-
-    tasks_alice = TaskGraphBuilder.from_program(
-        program_alice, pid, alice.local_ehi, alice.network_ehi
-    )
-    tasks_bob = TaskGraphBuilder.from_program(
-        program_bob, pid, bob.local_ehi, bob.network_ehi
-    )
-
-    alice.scheduler.upload_task_graph(tasks_alice)
-    bob.scheduler.upload_task_graph(tasks_bob)
-
-    ns.sim_reset()
-    network.start()
-    ns.sim_run()
-
-    alice_mem = alice.memmgr.get_process(pid).host_mem
-    bob_mem = bob.memmgr.get_process(pid).host_mem
-    alice_outcomes = [alice_mem.read("p0"), alice_mem.read("p1")]
-    bob_outcomes = [bob_mem.read("p0"), bob_mem.read("p1")]
-    assert alice_outcomes == bob_outcomes
-
-
-def test_new_scheduler_full_program():
     network = setup_network()
     alice = network.nodes["alice"]
     bob = network.nodes["bob"]
@@ -751,3 +728,4 @@ if __name__ == "__main__":
     test_epr_ck_2()
     test_cc()
     test_full_program()
+    test_jump_instructions()

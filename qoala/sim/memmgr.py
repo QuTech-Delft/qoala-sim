@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from qoala.lang.ehi import EhiNodeInfo, UnitModule
 from qoala.sim.process import QoalaProcess
@@ -80,6 +80,9 @@ class MemoryManager:
 
     def get_process(self, pid: int) -> QoalaProcess:
         return self._processes[pid]
+
+    def get_all_program_ids(self) -> List[int]:
+        return list(self._processes.keys())
 
     def allocate(self, pid: int, virt_id: int) -> int:
         vmap = self._process_mappings[pid]

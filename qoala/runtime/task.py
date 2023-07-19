@@ -753,12 +753,12 @@ class TaskDurationEstimator:
 
 class TaskGraphFromBlockBuilder:
     def __init__(self):
-        self._task_id_counter = 0
+        self._task_id_counter: int = 0
 
     def unique_id(self) -> int:
-        id = self._task_id_counter
+        task_id = self._task_id_counter
         self._task_id_counter += 1
-        return id
+        return task_id
 
     def build(
         self,

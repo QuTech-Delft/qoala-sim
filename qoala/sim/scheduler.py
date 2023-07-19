@@ -30,7 +30,6 @@ from qoala.runtime.task import (
     QoalaTask,
     SinglePairTask,
     TaskGraph,
-    TaskGraphBuilder,
     TaskGraphFromBlockBuilder,
     TaskInfo,
 )
@@ -130,11 +129,11 @@ class NodeScheduler(Protocol):
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
         self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
 
-        self._program_instances: Dict[
-            int, ProgramInstance
-        ] = {}  # program ID -> program instance
         self._current_block_index: Dict[int, int] = {}  # program ID -> block index
         self._task_from_block_builder = TaskGraphFromBlockBuilder()
+        self._prog_instance_dependency: Dict[
+            int, int
+        ] = {}  # program ID -> dependent program ID
 
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
@@ -204,22 +203,12 @@ class NodeScheduler(Protocol):
 
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
-            tasks = TaskGraphBuilder.from_program(
-                batch_info.program,
-                pid,
-                self._local_ehi,
-                self._network_ehi,
-                first_task_id=self._task_counter,
-                prog_input=batch_info.inputs[i].values,
-            )
-            self._task_counter += len(tasks.get_tasks())
 
             instance = ProgramInstance(
                 pid=pid,
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 unit_module=batch_info.unit_module,
-                task_graph=tasks,
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -269,7 +258,9 @@ class NodeScheduler(Protocol):
     def create_processes_for_batches(
         self,
         remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+        linear: bool = False,
     ) -> None:
+        prev_prog_instance_id = -1
         for batch_id, batch in self._batches.items():
             for i, prog_instance in enumerate(batch.instances):
                 if remote_pids is not None:
@@ -280,6 +271,14 @@ class NodeScheduler(Protocol):
 
                 self.memmgr.add_process(process)
                 self.initialize_process(process)
+                self._current_block_index[prog_instance.pid] = 0
+                if linear:
+                    self._prog_instance_dependency[
+                        prog_instance.pid
+                    ] = prev_prog_instance_id
+                    prev_prog_instance_id = prog_instance.pid
+                else:
+                    self._prog_instance_dependency[prog_instance.pid] = -1
 
     def collect_timestamps(self, batch_id: int) -> List[Optional[Tuple[float, float]]]:
         batch = self._batches[batch_id]
@@ -359,13 +358,28 @@ class NodeScheduler(Protocol):
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             self.schedule()
-            yield self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
+            ev_expr = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
+            ev_expr = ev_expr | self.await_signal(
+                self._qpu_scheduler, SIGNAL_TASK_COMPLETED
+            )
+            yield ev_expr
 
     def schedule(self) -> None:
-        print("Scheduling")
         new_cpu_tasks: Dict[int, TaskInfo] = {}
         new_qpu_tasks: Dict[int, TaskInfo] = {}
-        for pid in self._program_instances:
+
+        for pid in self.memmgr.get_all_program_ids():
+
+            # If there is a dependency, check if it is finished
+            dependency_pid = self._prog_instance_dependency[pid]
+            if dependency_pid != -1:
+                dep_cur_index = self._current_block_index[dependency_pid]
+                dep_block_length = len(
+                    self.memmgr.get_process(dependency_pid).prog_instance.program.blocks
+                )
+                if dep_cur_index < dep_block_length:
+                    continue
+
             # If there is a jump, jump to that block
             if (
                 pid in self.host.interface.program_instance_jumps
@@ -377,7 +391,7 @@ class NodeScheduler(Protocol):
                 self.host.interface.program_instance_jumps[pid] = -1
 
             current_block_index = self._current_block_index[pid]
-            prog_instance = self._program_instances[pid]
+            prog_instance = self.memmgr.get_process(pid).prog_instance
             blocks = prog_instance.program.blocks
 
             # If it is not in range or cpu is not done with tasks with this pid
@@ -400,7 +414,6 @@ class NodeScheduler(Protocol):
                 new_cpu_tasks.update(graph.get_tasks())
 
                 self._current_block_index[pid] += 1
-                print(f"Block assigned <{block.name}>")
             elif not self.qpu_scheduler.is_task_for_pid_exist(pid):
                 # Note that we know that cpu does not have any tasks for this pid
                 graph = self._task_from_block_builder.build(
@@ -410,7 +423,6 @@ class NodeScheduler(Protocol):
                 new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
 
                 self._current_block_index[pid] += 1
-                print(f"Block assigned <{block.name}>")
 
             # If scheduler does not have any task send a message to wake it up
             if len(self.cpu_scheduler._task_graph.get_tasks()) == 0:
@@ -426,8 +438,8 @@ class NodeScheduler(Protocol):
         process = self.create_process(prog_instance, remote_pid)
         self.memmgr.add_process(process)
         self.initialize_process(process)
-        self._program_instances[prog_instance.pid] = prog_instance
         self._current_block_index[prog_instance.pid] = 0
+        self._prog_instance_dependency[prog_instance.pid] = -1
 
     def submit_program_instance(
         self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
@@ -439,18 +451,18 @@ class NodeScheduler(Protocol):
     def get_tasks_to_schedule(self) -> List[TaskGraph]:
         all_tasks: List[TaskGraph] = []
 
-        for batch in self._batches.values():
-            for inst in batch.instances:
-                all_tasks.append(inst.task_graph)
+        # for batch in self._batches.values():
+        #     for inst in batch.instances:
+        #         all_tasks.append(inst.task_graph)
 
         return all_tasks
 
     def get_tasks_to_schedule_for(self, batch_id: int) -> List[TaskGraph]:
         all_tasks: List[TaskGraph] = []
 
-        batch = self._batches[batch_id]
-        for inst in batch.instances:
-            all_tasks.append(inst.task_graph)
+        # batch = self._batches[batch_id]
+        # for inst in batch.instances:
+        #     all_tasks.append(inst.task_graph)
 
         return all_tasks
 

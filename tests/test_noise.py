@@ -33,7 +33,6 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
-from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import QoalaProcess
@@ -113,7 +112,6 @@ def create_process(
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 
@@ -429,10 +427,10 @@ def test_two_gate_noise():
 
 
 if __name__ == "__main__":
-    # test_depolarizing_decoherence()
-    # test_depolarizing_decoherence_qprocessor()
-    # test_depolarizing_decoherence_qprocessor_2()
-    # test_t1t2_decoherence_qprocessor()
-    # test_decoherence_in_subroutine()
-    # test_gate_noise()
+    test_depolarizing_decoherence()
+    test_depolarizing_decoherence_qprocessor()
+    test_depolarizing_decoherence_qprocessor_2()
+    test_t1t2_decoherence_qprocessor()
+    test_decoherence_in_subroutine()
+    test_gate_noise()
     test_two_gate_noise()
