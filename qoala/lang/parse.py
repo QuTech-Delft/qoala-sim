@@ -32,6 +32,11 @@ LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
         hl.RunRequestOp,
         hl.ReturnResultOp,
         hl.BusyOp,
+        hl.JumpOp,
+        hl.BranchIfEqualOp,
+        hl.BranchIfNotEqualOp,
+        hl.BranchIfLessThanOp,
+        hl.BranchIfGreaterThanOp,
     ]
 }
 

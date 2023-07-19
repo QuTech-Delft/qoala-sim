@@ -25,7 +25,6 @@ from qoala.runtime.task import (
     MultiPairTask,
     PostCallTask,
     PreCallTask,
-    TaskGraph,
     TaskGraphBuilder,
 )
 from qoala.sim.build import build_network_from_lhi
@@ -131,7 +130,6 @@ def instantiate(
         program,
         inputs,
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
 
 
@@ -696,6 +694,47 @@ def test_full_program():
     alice_outcomes = [alice_mem.read("p0"), alice_mem.read("p1")]
     bob_outcomes = [bob_mem.read("p0"), bob_mem.read("p1")]
     assert alice_outcomes == bob_outcomes
+
+
+def test_new_scheduler_full_program():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_scheduling_alice.iqoala")
+    program_bob = load_program("test_scheduling_bob.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    inputs_bob = ProgramInput({"alice_id": 0})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
+
+    ns.sim_reset()
+    network.start()
+    ns.sim_run()
+
+
+def test_jump_instructions():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_new_scheduler.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    ns.sim_reset()
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
 
 
 if __name__ == "__main__":

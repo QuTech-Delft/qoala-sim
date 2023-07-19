@@ -6,12 +6,14 @@ from typing import Dict, Generator, List, Optional, Set, Tuple
 
 import netsquid as ns
 from netqasm.lang.operand import Template
+from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkSchedule, EhiNodeInfo
-from qoala.lang.hostlang import ReceiveCMsgOp
+from qoala.lang.hostlang import BasicBlockType, ReceiveCMsgOp
 from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.message import Message
 from qoala.runtime.program import (
     BatchInfo,
     BatchResult,
@@ -29,6 +31,8 @@ from qoala.runtime.task import (
     SinglePairTask,
     TaskGraph,
     TaskGraphBuilder,
+    TaskGraphFromBlockBuilder,
+    TaskInfo,
 )
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
@@ -41,6 +45,50 @@ from qoala.sim.netstack import Netstack
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qnos import Qnos
 from qoala.util.logging import LogManager
+
+
+class NodeSchedulerComponent(Component):
+    def __init__(
+        self,
+        name,
+        cpu_scheduler: ProcessorScheduler,
+        qpu_scheduler: ProcessorScheduler,
+    ):
+        super().__init__(name=name)
+        self.add_ports(["cpu_scheduler_out", "cpu_scheduler_in"])
+        self.add_ports(["qpu_scheduler_out", "qpu_scheduler_in"])
+        self.add_ports(["host_out"])
+
+        self.ports["cpu_scheduler_out"].connect(cpu_scheduler.node_scheduler_out_port)
+        self.ports["cpu_scheduler_in"].connect(cpu_scheduler.node_scheduler_in_port)
+        self.ports["qpu_scheduler_out"].connect(qpu_scheduler.node_scheduler_out_port)
+        self.ports["qpu_scheduler_in"].connect(qpu_scheduler.node_scheduler_in_port)
+
+    @property
+    def cpu_scheduler_out_port(self) -> Port:
+        return self.ports["cpu_scheduler_out"]
+
+    @property
+    def cpu_scheduler_in_port(self) -> Port:
+        return self.ports["cpu_scheduler_in"]
+
+    @property
+    def qpu_scheduler_out_port(self) -> Port:
+        return self.ports["qpu_scheduler_out"]
+
+    @property
+    def qpu_scheduler_in_port(self) -> Port:
+        return self.ports["qpu_scheduler_in"]
+
+    @property
+    def host_out_port(self) -> Port:
+        return self.ports["host_out"]
+
+    def send_cpu_scheduler_message(self, msg: Message) -> None:
+        self.cpu_scheduler_out_port.tx_output(msg)
+
+    def send_qpu_scheduler_message(self, msg: Message) -> None:
+        self.qpu_scheduler_out_port.tx_output(msg)
 
 
 class NodeScheduler(Protocol):
@@ -82,6 +130,12 @@ class NodeScheduler(Protocol):
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
         self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
 
+        self._program_instances: Dict[
+            int, ProgramInstance
+        ] = {}  # program ID -> program instance
+        self._current_block_index: Dict[int, int] = {}  # program ID -> block index
+        self._task_from_block_builder = TaskGraphFromBlockBuilder()
+
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
 
@@ -110,6 +164,12 @@ class NodeScheduler(Protocol):
             netschedule,
             deterministic,
             use_deadlines,
+        )
+
+        self._comp = NodeSchedulerComponent(
+            f"{node_name}_scheduler",
+            self._cpu_scheduler,
+            self._qpu_scheduler,
         )
 
         self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
@@ -296,6 +356,79 @@ class NodeScheduler(Protocol):
         self._cpu_scheduler.stop()
         super().stop()
 
+    def run(self) -> Generator[EventExpression, None, None]:
+        while True:
+            self.schedule()
+            yield self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
+
+    def schedule(self) -> None:
+        print("Scheduling")
+        new_cpu_tasks: Dict[int, TaskInfo] = {}
+        new_qpu_tasks: Dict[int, TaskInfo] = {}
+        for pid in self._program_instances:
+            # If there is a jump, jump to that block
+            if (
+                pid in self.host.interface.program_instance_jumps
+                and self.host.interface.program_instance_jumps[pid] != -1
+            ):
+                self._current_block_index[
+                    pid
+                ] = self.host.interface.program_instance_jumps[pid]
+                self.host.interface.program_instance_jumps[pid] = -1
+
+            current_block_index = self._current_block_index[pid]
+            prog_instance = self._program_instances[pid]
+            blocks = prog_instance.program.blocks
+
+            # If it is not in range or cpu is not done with tasks with this pid
+            # We cannot add any more tasks because all block types have cpu tasks
+            if len(
+                blocks
+            ) <= current_block_index or self.cpu_scheduler.is_task_for_pid_exist(pid):
+                continue
+
+            block = prog_instance.program.blocks[current_block_index]
+
+            # If it is CL or CC it will only have tasks in CPU but others will have tasks in both
+            if block.typ in {
+                BasicBlockType.CL,
+                BasicBlockType.CC,
+            }:
+                graph = self._task_from_block_builder.build(
+                    prog_instance, current_block_index, self._network_ehi
+                )
+                new_cpu_tasks.update(graph.get_tasks())
+
+                self._current_block_index[pid] += 1
+                print(f"Block assigned <{block.name}>")
+            elif not self.qpu_scheduler.is_task_for_pid_exist(pid):
+                # Note that we know that cpu does not have any tasks for this pid
+                graph = self._task_from_block_builder.build(
+                    prog_instance, current_block_index, self._network_ehi
+                )
+                new_cpu_tasks.update(graph.partial_graph(ProcessorType.CPU).get_tasks())
+                new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
+
+                self._current_block_index[pid] += 1
+                print(f"Block assigned <{block.name}>")
+
+            # If scheduler does not have any task send a message to wake it up
+            if len(self.cpu_scheduler._task_graph.get_tasks()) == 0:
+                self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+            if len(self.qpu_scheduler._task_graph.get_tasks()) == 0:
+                self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
+            self._cpu_scheduler.add_tasks(new_cpu_tasks)
+            self._qpu_scheduler.add_tasks(new_qpu_tasks)
+
+    def submit_program_instance_new(
+        self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
+    ) -> None:
+        process = self.create_process(prog_instance, remote_pid)
+        self.memmgr.add_process(process)
+        self.initialize_process(process)
+        self._program_instances[prog_instance.pid] = prog_instance
+        self._current_block_index[prog_instance.pid] = 0
+
     def submit_program_instance(
         self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
     ) -> None:
@@ -332,6 +465,20 @@ class NodeScheduler(Protocol):
         )
 
 
+class ProcessorSchedulerComponent(Component):
+    def __init__(self, name):
+        super().__init__(name=name)
+        self.add_ports(["node_scheduler_out", "node_scheduler_in"])
+
+    @property
+    def node_scheduler_out_port(self) -> Port:
+        return self.ports["node_scheduler_out"]
+
+    @property
+    def node_scheduler_in_port(self) -> Port:
+        return self.ports["node_scheduler_in"]
+
+
 class ProcessorScheduler(Protocol):
     def __init__(
         self,
@@ -354,7 +501,7 @@ class ProcessorScheduler(Protocol):
         self._deterministic = deterministic
         self._use_deadlines = use_deadlines
 
-        self._task_graph: Optional[TaskGraph] = None
+        self._task_graph: TaskGraph = TaskGraph()
         self._finished_tasks: List[int] = []
 
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
@@ -364,9 +511,25 @@ class ProcessorScheduler(Protocol):
         self._task_starts: Dict[int, float] = {}
         self._task_ends: Dict[int, float] = {}
 
+        self._comp = ProcessorSchedulerComponent(name + "_comp")
+
+    @property
+    def node_scheduler_out_port(self) -> Port:
+        return self._comp.node_scheduler_out_port
+
+    @property
+    def node_scheduler_in_port(self) -> Port:
+        return self._comp.node_scheduler_in_port
+
     @property
     def driver(self) -> Driver:
         return self._driver
+
+    def is_task_for_pid_exist(self, pid: int) -> bool:
+        return self._task_graph.is_task_for_pid_exist(pid)
+
+    def add_tasks(self, tasks: Dict[int, TaskInfo]) -> None:
+        self._task_graph.get_tasks().update(tasks)
 
     def upload_task_graph(self, graph: TaskGraph) -> None:
         self._task_graph = graph
@@ -534,10 +697,10 @@ class EdfScheduler(ProcessorScheduler):
         self.record_start_timestamp(task.pid, before)
 
         # Execute the task
+        print(f"executing task {task}", self.name)
         yield from self._driver.handle_task(task)
 
         after = ns.sim_time()
-
         self.record_end_timestamp(task.pid, after)
         duration = after - before
         self._task_graph.decrease_deadlines(duration)
@@ -699,7 +862,7 @@ class CpuEdfScheduler(EdfScheduler):
             status = self.update_status()
             self._task_logger.debug(f"status: {status}")
             if isinstance(status, StatusGraphEmpty):
-                break
+                yield self.await_port_input(self.node_scheduler_out_port)
             elif isinstance(status, StatusBlockedOnOtherCore):
                 self._task_logger.debug("waiting for TASK_COMPLETED signal")
                 yield self.await_signal(
@@ -955,7 +1118,7 @@ class QpuEdfScheduler(EdfScheduler):
         while True:
             status = self.update_status()
             if isinstance(status, StatusGraphEmpty):
-                break
+                yield self.await_port_input(self.node_scheduler_out_port)
             elif isinstance(status, StatusBlockedOnOtherCore):
                 self._task_logger.debug("waiting for TASK_COMPLETED signal")
                 yield self.await_signal(

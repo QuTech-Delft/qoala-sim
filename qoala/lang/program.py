@@ -80,6 +80,9 @@ class QoalaProgram:
     def get_block(self, name: str) -> BasicBlock:
         return self._block_mapping[name]
 
+    def get_block_id(self, name: str) -> int:
+        return self._blocks.index(self._block_mapping[name])
+
     @property
     def instructions(self) -> List[ClassicalIqoalaOp]:
         instrs = []

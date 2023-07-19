@@ -1,0 +1,82 @@
+META_START
+    name: alice
+    parameters:
+    csockets: 0 -> bob
+    epr_sockets: 0 -> bob
+META_END
+
+^blk_host0 {type = CL}:
+    var_x = assign_cval() : 3
+    var_y = assign_cval() : 5
+    bne(var_x, var_y) : blk_host3
+    jump() : blk_host4
+
+^blk_host2 {type = CL}:
+    var_x = assign_cval() : 3
+    var_y = assign_cval() : 3
+    beq(var_x, var_y) : blk_host4
+
+^blk_host3 {type = CL}:
+    var_z = assign_cval() : 9
+    jump() : blk_host2
+
+^blk_prep_cc {type = CL}:
+    csocket = assign_cval() : 0
+    to_send = assign_cval() : 1
+
+^blk_send {type = CL}:
+    send_cmsg(csocket, to_send)
+
+^blk_host4 {type = CL}:
+    x = assign_cval() : 3
+    var_x = assign_cval() : 7
+    bgt(var_x, x) : blk_host5
+
+^blk_add_one {type = QL}:
+    tuple<y> = run_subroutine(tuple<x>) : add_one
+
+^blk_epr_ck_1 {type = QC}:
+    run_request(tuple<>) : epr_ck_1
+
+^blk_host5 {type = CL}:
+    var_x = assign_cval() : 6
+    var_y = assign_cval() : 7
+    blt(var_x, var_y) : blk_host6
+
+
+^blk_host6 {type = CL}:
+    var_x = assign_cval() : 1
+    var_y = assign_cval() : 1
+
+
+
+^blk_host7 {type = CL}:
+    var_x = assign_cval() : 2
+    var_y = assign_cval() : 2
+
+SUBROUTINE add_one
+    params: x
+    returns: y
+    uses:
+    keeps:
+    request:
+  NETQASM_START
+    set C15 0
+    load C0 @input[C15]
+    set C1 1
+    add R0 C0 C1
+    store R0 @output[C15]
+  NETQASM_END
+
+REQUEST epr_ck_1
+  callback_type: wait_all
+  callback:
+  return_vars:
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
