@@ -5,6 +5,8 @@ import math
 import os
 import time
 from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import List
 
 import netsquid as ns
@@ -132,7 +134,10 @@ class DataPoint:
 
 @dataclass
 class DataMeta:
-    latency_factors: List[float]
+    timestamp: str
+    num_iterations: int
+    latency_factor: float
+    net_period_factors: List[float]
 
 
 @dataclass
@@ -210,35 +215,44 @@ def get_metrics(
     )
 
 
-def run():
-    LogManager.set_log_level("INFO")
-    LogManager.log_to_file("quantum_multitasking.log")
-    LogManager.enable_task_logger(True)
-    LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
+def run(output_dir: str, save: bool = True):
+    # LogManager.set_log_level("INFO")
+    # LogManager.log_to_file("quantum_multitasking.log")
+    # LogManager.enable_task_logger(True)
+    # LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
 
     start_time = time.time()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     t1 = 1e10
     t2 = 1e8
 
     num_iterations = 40
     latency_factor = 0.1
-    net_period_factor = 10
-    network_period = int(latency_factor * t2 * net_period_factor)
-    network_bin_len = int(0.5 * network_period / num_iterations)
-    # network_period = 200_000
+    net_period_factors = [0.01, 0.1, 1, 10, 100, 1000]
 
     data_points: List[DataPoint] = []
 
-    data_point = get_metrics(
+    for net_period_factor in net_period_factors:
+        network_period = int(latency_factor * t2 * net_period_factor)
+        network_bin_len = int(0.5 * network_period / num_iterations)
+
+        data_point = get_metrics(
+            num_iterations=num_iterations,
+            t1=t1,
+            t2=t2,
+            latency_factor=latency_factor,
+            network_bin_len=network_bin_len,
+            network_period=network_period,
+        )
+        data_points.append(data_point)
+
+    meta = DataMeta(
+        timestamp=timestamp,
         num_iterations=num_iterations,
-        t1=t1,
-        t2=t2,
         latency_factor=latency_factor,
-        network_bin_len=network_bin_len,
-        network_period=network_period,
+        net_period_factors=net_period_factors,
     )
-    data_points.append(data_points)
 
     end_time = time.time()
     # print(f"total duration: {end_time - start_time}s")
@@ -247,6 +261,19 @@ def run():
     print(f"network period: {network_period:_}")
     print(f"network bin len: {network_bin_len:_}")
 
+    data = Data(meta=meta, data_points=data_points)
+
+    json_data = asdict(data)
+
+    abs_dir = relative_to_cwd(f"data/{output_dir}")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, f"LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)
+
 
 if __name__ == "__main__":
-    run()
+    run("net_period")

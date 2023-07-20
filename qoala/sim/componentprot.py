@@ -90,8 +90,6 @@ class PortListener(Protocol):
 
             # Only after having yielded on all current events, we can schedule a
             # notification event, so that its reactor can handle all inputs at once.
-            if self._signal_label == "EvHostHostMsg_alice":
-                print("hello")
             self.send_signal(self._signal_label)
 
 

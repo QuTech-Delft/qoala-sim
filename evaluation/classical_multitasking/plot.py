@@ -1,8 +1,8 @@
-from datetime import datetime
 import json
 import math
 import os
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
@@ -97,7 +97,7 @@ def plot_sweep_const_rate(
         error_plus = [max(0, e) for e in error_plus]
         error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
         error_minus = [max(0, e) for e in error_minus]
-        errors = [error_plus, error_minus]
+        errors = [error_minus, error_plus]
         ax.set_xscale("log")
         ax.errorbar(
             x=crf,
@@ -151,7 +151,7 @@ def plot_sweep_busy_factor(
         error_plus = [max(0, e) for e in error_plus]
         error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
         error_minus = [max(0, e) for e in error_minus]
-        errors = [error_plus, error_minus]
+        errors = [error_minus, error_plus]
         line = ax.errorbar(
             x=bf,
             y=succ_probs,
