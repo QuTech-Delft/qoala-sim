@@ -1,4 +1,3 @@
-# type: ignore
 from __future__ import annotations
 
 import itertools
@@ -1540,8 +1539,8 @@ class ProcNodeNetworkConfig(BaseModel):
             cls, nodes: List[ProcNodeConfig],
             prob_max_mixed: float,
             attempt_success_prob: float,
-            attempt_duration: int,
-            state_delay: int
+            attempt_duration: float,
+            state_delay: float
     ) -> ProcNodeNetworkConfig:
         links: List[LinkBetweenNodesConfig] = []
 
