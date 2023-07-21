@@ -1534,3 +1534,28 @@ class ProcNodeNetworkConfig(BaseModel):
                 )
             )
         return ProcNodeNetworkConfig(nodes=nodes, links=links)
+
+    @classmethod
+    def from_nodes_depolarising_noise(
+            cls, nodes: List[ProcNodeConfig],
+            prob_max_mixed: float,
+            attempt_success_prob: float,
+            attempt_duration: int,
+            state_delay: int
+    ) -> ProcNodeNetworkConfig:
+        links: List[LinkBetweenNodesConfig] = []
+
+        for node1, node2 in itertools.combinations(nodes, 2):
+            links.append(
+                LinkBetweenNodesConfig(
+                    node_id1=node1.node_id,
+                    node_id2=node2.node_id,
+                    link_config=LinkConfig.depolarise_config(
+                        prob_max_mixed=prob_max_mixed,
+                        attempt_success_prob=attempt_success_prob,
+                        attempt_duration=attempt_duration,
+                        state_delay=state_delay)
+                )
+            )
+        return ProcNodeNetworkConfig(nodes=nodes, links=links)
+
