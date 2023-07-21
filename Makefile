@@ -44,7 +44,7 @@ mypy:
 	@$(PYTHON3) -m mypy ${SOURCEDIR}
 
 all-tests:
-	coverage run -m pytest tests
+	coverage run -m pytest tests -n 4
 
 unit-tests:
 	coverage run -m pytest tests --ignore=tests/integration

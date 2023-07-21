@@ -6,7 +6,7 @@ from pydynaa import EventExpression
 from qoala.runtime.task import ProcessorType, QoalaTask, TaskGraph
 from qoala.sim.driver import Driver
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.scheduler import CpuEdfScheduler, StatusNextTask
+from qoala.sim.scheduler import CpuEdfScheduler, Status
 from qoala.util.logging import LogManager
 
 
@@ -41,7 +41,9 @@ def test_update_status_one_root():
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
-    assert scheduler.update_status() == StatusNextTask(0)
+    scheduler.update_status()
+    assert scheduler.status.status == {Status.NEXT_TASK}
+    assert scheduler.status.params == {"task_id": 0}
 
 
 def test_update_status_two_roots():
@@ -51,7 +53,9 @@ def test_update_status_two_roots():
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
-    assert scheduler.update_status() == StatusNextTask(1)
+    scheduler.update_status()
+    assert scheduler.status.status == {Status.NEXT_TASK}
+    assert scheduler.status.params == {"task_id": 1}
 
 
 def test_edf_1():
