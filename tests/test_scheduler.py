@@ -150,7 +150,7 @@ def test_cpu_scheduler():
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     scheduler = CpuEdfScheduler(
-        "alice", driver, procnode.memmgr, procnode.host.interface
+        "alice", 0, driver, procnode.memmgr, procnode.host.interface
     )
     scheduler.upload_task_graph(graph)
 
@@ -182,7 +182,7 @@ def test_cpu_scheduler_no_time():
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     scheduler = CpuEdfScheduler(
-        "alice", driver, procnode.memmgr, procnode.host.interface
+        "alice", 0, driver, procnode.memmgr, procnode.host.interface
     )
     scheduler.add_tasks(tinfos)
 
@@ -220,7 +220,7 @@ def test_cpu_scheduler_2_processes():
     mem = SharedSchedulerMemory()
     driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     scheduler = CpuEdfScheduler(
-        "alice", driver, procnode.memmgr, procnode.host.interface
+        "alice", 0, driver, procnode.memmgr, procnode.host.interface
     )
     scheduler.upload_task_graph(graph)
 
@@ -274,7 +274,7 @@ def test_qpu_scheduler():
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     cpu_scheduler = CpuEdfScheduler(
-        "alice", cpu_driver, procnode.memmgr, procnode.host.interface
+        "alice", 0, cpu_driver, procnode.memmgr, procnode.host.interface
     )
     cpu_scheduler.upload_task_graph(cpu_graph)
 
@@ -286,7 +286,7 @@ def test_qpu_scheduler():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = QpuEdfScheduler("alice", qpu_driver, procnode.memmgr, None)
+    qpu_scheduler = QpuEdfScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)
@@ -304,6 +304,8 @@ def test_qpu_scheduler():
 
 
 def test_qpu_scheduler_2_processes():
+    LogManager.enable_task_logger(True)
+
     procnode = ObjectBuilder.simple_procnode("alice", 1)
     program = get_lr_program()
 
@@ -328,8 +330,8 @@ def test_qpu_scheduler_2_processes():
     ]
     cpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(cpu_tasks)
     qpu_tasks = [
-        (LocalRoutineTask(6, pid0, "b1", shared_ptr_pid0), 2000),
-        (LocalRoutineTask(7, pid1, "b1", shared_ptr_pid1), 2000),
+        (LocalRoutineTask(6, pid0, "b1", shared_ptr_pid0), 1000),
+        (LocalRoutineTask(7, pid1, "b1", shared_ptr_pid1), 1000),
     ]
     qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(qpu_tasks)
 
@@ -341,7 +343,7 @@ def test_qpu_scheduler_2_processes():
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
     cpu_scheduler = CpuEdfScheduler(
-        "alice", cpu_driver, procnode.memmgr, procnode.host.interface
+        "alice", 0, cpu_driver, procnode.memmgr, procnode.host.interface
     )
     cpu_scheduler.upload_task_graph(cpu_graph)
 
@@ -353,7 +355,7 @@ def test_qpu_scheduler_2_processes():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = QpuEdfScheduler("alice", qpu_driver, procnode.memmgr, None)
+    qpu_scheduler = QpuEdfScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
     qpu_scheduler.upload_task_graph(qpu_graph)
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)
@@ -367,7 +369,7 @@ def test_qpu_scheduler_2_processes():
     assert procnode.memmgr.get_process(pid0).host_mem.read("y") == 4
     assert procnode.memmgr.get_process(pid1).host_mem.read("y") == 4
 
-    assert ns.sim_time() == 2000
+    assert ns.sim_time() == 1000
 
 
 def test_host_program():

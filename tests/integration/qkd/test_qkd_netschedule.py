@@ -60,8 +60,9 @@ def run_qkd(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
+    pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
     network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_000, first_bin=0, bin_period=5_000
+        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=20_000
     )
 
     alice_program = load_program(alice_file)
@@ -90,7 +91,8 @@ def run_qkd(
 
 def qkd_1pair_md():
     ns.sim_reset()
-    LogManager.enable_task_logger(True)
+    # LogManager.enable_task_logger(True)
+    LogManager.set_log_level("WARNING")
 
     num_iterations = 10
     alice_file = "qkd_1pair_MD_alice.iqoala"
@@ -105,6 +107,8 @@ def qkd_1pair_md():
 
     alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
     bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
+
+    print(alice_outcomes)
 
     for alice, bob in zip(alice_outcomes, bob_outcomes):
         assert alice["m0"] == bob["m0"]
@@ -141,4 +145,4 @@ def test_qkd_1pair_ck():
 
 if __name__ == "__main__":
     test_qkd_1pair_md()
-    test_qkd_1pair_ck()
+    # test_qkd_1pair_ck()

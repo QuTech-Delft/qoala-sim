@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Generator, List, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
 from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
@@ -48,6 +48,13 @@ class MessageBuffer:
             if len(buf) > 0:
                 return buf.pop(0)
         raise RuntimeError
+
+    def pop_all(self) -> List[Message]:
+        messages = []
+        for buf in self._messages.values():
+            messages.extend(buf)
+            buf.clear()
+        return messages
 
 
 class PortListener(Protocol):
@@ -123,16 +130,26 @@ class ComponentProtocol(Protocol):
                 return listener.buffer.pop_any()
         raise RuntimeError
 
-    def _wait_for_msg_any_source(
+    def _pop_all_messages(self, listener_names: List[str]) -> List[Message]:
+        messages = []
+        for listener_name in listener_names:
+            listener = self._listeners[listener_name]
+            if listener.buffer.has_any():
+                messages.extend(listener.buffer.pop_all())
+        return messages
+
+    def _get_evexpr_for_any_msg(
         self, listener_names: List[str], wake_up_signals: List[str]
-    ) -> Generator[EventExpression, None, None]:
+    ) -> Optional[EventExpression]:
+        # Returns None if there are already messages and no event expression is needed.
+
         # TODO rewrite two separate lists as function arguments
 
         # First check if there is any listener with messages in their buffer.
         for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
             listener = self._listeners[listener_name]
             if listener.buffer.has_any():
-                return
+                return None
 
         # Else, get an EventExpression for each listener.
         expressions: List[EventExpression] = []
@@ -143,20 +160,21 @@ class ComponentProtocol(Protocol):
             ev_expr = self.await_signal(sender=listener, signal_label=wake_up_signal)
             expressions.append(ev_expr)
 
-        # Create a union of all expressoins.
+        # Create a union of all expressions.
         assert len(expressions) > 0
         union = expressions[0]
         for i in range(1, len(expressions)):
             union = union | expressions[i]  # type: ignore
 
-        # Yield until at least one of the listeners got a message.
-        yield union
+        return union
 
-        # OLD: Count the messages in listener's buffers.
+    def _handle_msg_evexpr(
+        self, evexpr: EventExpression, listener_names: List[str]
+    ) -> Generator[EventExpression, None, None]:
         # Count the number of listeners that has messages in their buffers.
         # This number is equal to the number of events that have fired.
         ev_count = 0
-        for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
+        for listener_name in listener_names:
             listener = self._listeners[listener_name]
 
             if listener.buffer.has_any():
@@ -167,7 +185,23 @@ class ComponentProtocol(Protocol):
         # "Flush away" the events that were also in the union.
         # We already yielded on one (above), but need to yield on the rest.
         for _ in range(ev_count - 1):
-            yield union
+            yield evexpr
+
+    def _wait_for_msg_any_source(
+        self, listener_names: List[str], wake_up_signals: List[str]
+    ) -> Generator[EventExpression, None, None]:
+        # Get an event expression for any one of the listeners getting a message.
+        evexpr = self._get_evexpr_for_any_msg(listener_names, wake_up_signals)
+
+        # If None, there are already messages available.
+        if evexpr is None:
+            return
+
+        # Wait until at least one of the events in the evexpr happens.
+        # (i.e. wait until at least one message arrives)
+        yield evexpr
+
+        yield from self._handle_msg_evexpr(evexpr, listener_names)
 
     def start(self) -> None:
         super().start()

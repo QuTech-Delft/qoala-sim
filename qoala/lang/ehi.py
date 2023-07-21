@@ -3,14 +3,13 @@ from __future__ import annotations
 import copy
 import itertools
 from dataclasses import dataclass
-from math import ceil
-from typing import Dict, FrozenSet, List, Optional, Type
+from math import ceil, floor
+from typing import Dict, FrozenSet, List, Optional, Tuple, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
 
 from qoala.lang.common import MultiQubit
-from qoala.runtime.config import NetworkScheduleConfig  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -293,22 +292,62 @@ class UnitModule:
 
 
 @dataclass
+class EhiNetworkTimebin:
+    nodes: FrozenSet[int]
+    pids: Dict[int, int]  # node ID -> PID
+
+
+@dataclass
 class EhiNetworkSchedule:
     bin_length: int
     first_bin: int
-    bin_period: int
 
-    def next_bin(self, time: int) -> int:
-        offset = time - self.first_bin
-        next_bin_index = ceil(offset / self.bin_period)
-        next_bin_start = next_bin_index * self.bin_period + self.first_bin
-        return next_bin_start
+    bin_pattern: List[EhiNetworkTimebin]
+    repeat_period: int
 
-    @classmethod
-    def from_config(cls, config: NetworkScheduleConfig) -> EhiNetworkSchedule:
-        return EhiNetworkSchedule(
-            config.bin_length, config.first_bin, config.bin_period
-        )
+    def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
+        global_offset = time - self.first_bin
+
+        # Get the start of the current iteration of the repeating pattern.
+        curr_pattern_index = floor(global_offset / self.repeat_period)
+        curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
+
+        # Get relative time within the pattern.
+        time_since_pattern_start = global_offset - curr_pattern_start
+
+        # Get the index of the next bin within the pattern.
+        # It could be that we're already in the last bin. Then the next bin
+        # is the first bin of the next pattern repetition.
+        next_bin_index = ceil(time_since_pattern_start / self.bin_length)
+
+        if next_bin_index >= len(self.bin_pattern):
+            next_bin_start = curr_pattern_start + self.repeat_period
+            next_bin = self.bin_pattern[0]
+        else:
+            next_bin_start = next_bin_index * self.bin_length + curr_pattern_start
+            next_bin = self.bin_pattern[next_bin_index]
+        return next_bin_start, next_bin
+
+    def next_specific_bin(self, time: int, bin: EhiNetworkTimebin) -> int:
+        bin_index: Optional[int] = None
+
+        for i, pat_bin in enumerate(self.bin_pattern):
+            if bin == pat_bin:
+                bin_index = i
+        if bin_index is None:
+            raise ValueError
+
+        bin_rel_to_pat_start = bin_index * self.bin_length
+
+        # TODO: merge below code with that in the `next_bin()` method
+        global_offset = time - self.first_bin
+        curr_pattern_index = floor(global_offset / self.repeat_period)
+        curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
+        time_since_pattern_start = global_offset - curr_pattern_start
+        if bin_rel_to_pat_start >= time_since_pattern_start:
+            return bin_rel_to_pat_start - time_since_pattern_start
+        else:
+            return self.repeat_period - time_since_pattern_start + bin_rel_to_pat_start
 
 
 @dataclass

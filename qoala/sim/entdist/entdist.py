@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, Generator, List, Optional, Tuple
 
+import netsquid as ns
 from netsquid.nodes import Node
 from netsquid.protocols import Protocol
 from netsquid.qubits import qubitapi
@@ -16,7 +17,7 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import EhiNetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkTimebin
 from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -30,8 +31,24 @@ class EntDistRequest:
     local_node_id: int
     remote_node_id: int
     local_qubit_id: int
-    local_pids: List[int]
-    remote_pids: List[int]
+    local_pid: int
+    remote_pid: int
+
+    def is_opposite(self, req: EntDistRequest) -> bool:
+        return (
+            self.local_node_id == req.remote_node_id
+            and self.remote_node_id == req.local_node_id
+            and self.local_pid == req.remote_pid
+            and self.remote_pid == req.local_pid
+        )
+
+    def matches_timebin(self, bin: EhiNetworkTimebin) -> bool:
+        if frozenset({self.local_node_id, self.remote_node_id}) != bin.nodes:
+            return False
+        return (
+            bin.pids[self.local_node_id] == self.local_pid
+            and bin.pids[self.remote_node_id] == self.remote_pid
+        )
 
 
 @dataclass(frozen=True)
@@ -75,6 +92,7 @@ class EntDist(Protocol):
         # References to objects.
         self._ehi_network = ehi_network
         self._comp = comp
+        self._netschedule = ehi_network.network_schedule
 
         # Owned objects.
         self._interface = EntDistInterface(comp, ehi_network)
@@ -97,6 +115,9 @@ class EntDist(Protocol):
     @property
     def comp(self) -> EntDistComponent:
         return self._comp
+
+    def clear_requests(self) -> None:
+        self._requests = {id: [] for id in self._nodes.keys()}
 
     def _add_sampler(
         self,
@@ -180,6 +201,8 @@ class EntDist(Protocol):
         event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
         yield event_expr
 
+        self._logger.info("pair delivered")
+
         node1_mem.put(qubits=epr[0], positions=node1_phys_id)
         node2_mem.put(qubits=epr[1], positions=node2_phys_id)
 
@@ -213,11 +236,8 @@ class EntDist(Protocol):
     def pop_request(self, node_id: int, index: int) -> EntDistRequest:
         return self._requests[node_id].pop(index)
 
-    def get_remote_request_for(
-        self, local_request: EntDistRequest
-    ) -> Optional[Tuple[int, int, int]]:
-        """Return (index, local_pid, remote_pid) where index is the
-        index in the request list of the remote node."""
+    def get_remote_request_for(self, local_request: EntDistRequest) -> Optional[int]:
+        """Return index in the request list of the remote node."""
 
         try:
             remote_requests = self._requests[local_request.remote_node_id]
@@ -231,15 +251,8 @@ class EntDist(Protocol):
 
         for i, req in enumerate(remote_requests):
             # Find the remote request that corresponds to the local request.
-            if req.remote_node_id != local_request.local_node_id:
-                continue
-
-            for (lpid, rpid) in zip(
-                local_request.local_pids, local_request.remote_pids
-            ):
-                for (remote_lpid, remote_rpid) in zip(req.local_pids, req.remote_pids):
-                    if (lpid == remote_rpid) and (rpid == remote_lpid):
-                        return (i, lpid, rpid)
+            if local_request.is_opposite(req):
+                return i
 
         return None
 
@@ -248,9 +261,8 @@ class EntDist(Protocol):
             if len(local_requests) == 0:
                 continue
             local_request = local_requests.pop(0)
-            matching_request = self.get_remote_request_for(local_request)
-            if matching_request is not None:
-                (remote_request_id, lpid, rpid) = matching_request
+            remote_request_id = self.get_remote_request_for(local_request)
+            if remote_request_id is not None:
                 remote_id = local_request.remote_node_id
                 remote_request = self._requests[remote_id].pop(remote_request_id)
                 return JointRequest(
@@ -258,8 +270,8 @@ class EntDist(Protocol):
                     remote_request.local_node_id,
                     local_request.local_qubit_id,
                     remote_request.local_qubit_id,
-                    lpid,
-                    rpid,
+                    local_request.local_pid,
+                    local_request.remote_pid,
                 )
             else:
                 # Put local request back
@@ -281,15 +293,8 @@ class EntDist(Protocol):
         )
 
     def serve_all_requests(self) -> Generator[EventExpression, None, None]:
-        while request := self.get_next_joint_request():
-            yield from self.deliver(
-                node1_id=request.node1_id,
-                node1_phys_id=request.node1_qubit_id,
-                node2_id=request.node2_id,
-                node2_phys_id=request.node2_qubit_id,
-                node1_pid=request.node1_pid,
-                node2_pid=request.node2_pid,
-            )
+        while (request := self.get_next_joint_request()) is not None:
+            yield from self.serve_request(request)
 
     def start(self) -> None:
         assert self._interface is not None
@@ -300,8 +305,48 @@ class EntDist(Protocol):
         self._interface.stop()
         super().stop()
 
-    def run(self) -> Generator[EventExpression, None, None]:
-        # Loop forever acting on messages from the nodes.
+    def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
+        assert self._netschedule is not None
+
+        while True:
+            # Wait until a message arrives.
+            yield from self._interface.wait_for_any_msg()
+
+            # Wait until the next time bin.
+            now = ns.sim_time()
+            next_slot_time, next_slot = self._netschedule.next_bin(now)
+
+            if next_slot_time - now > 0:
+                yield from self._interface.wait(next_slot_time - now + 1)
+            elif next_slot_time - now < 0:
+                raise RuntimeError()
+
+            messages = self._interface.pop_all_messages()
+
+            requesting_nodes: List[int] = []
+            for msg in messages:
+                self._logger.info(f"received new msg from node: {msg}")
+                request: EntDistRequest = msg.content
+                requesting_nodes.append(request.local_node_id)
+
+                if request.matches_timebin(next_slot):
+                    self._logger.warning(f"putting request: {request}")
+                    self.put_request(request)
+                else:
+                    self._logger.warning(f"not handling msg {msg} (wrong timebin)")
+            joint_request = self.get_next_joint_request()
+            if joint_request is not None:
+                self._logger.warning("serving request")
+                yield from self.serve_request(joint_request)
+                self._logger.warning("served request")
+            else:
+                for node_id in requesting_nodes:
+                    node = self._interface.remote_id_to_peer_name(node_id)
+                    self._interface.send_node_msg(node, Message(-1, -1, None))
+            self.clear_requests()
+            yield from self._interface.wait(1)
+
+    def _run_without_netschedule(self) -> Generator[EventExpression, None, None]:
         while True:
             # Wait for a new message.
             msg = yield from self._interface.receive_msg()
@@ -309,3 +354,9 @@ class EntDist(Protocol):
             request: EntDistRequest = msg.content
             self.put_request(request)
             yield from self.serve_all_requests()
+
+    def run(self) -> Generator[EventExpression, None, None]:
+        if self._netschedule is None:
+            yield from self._run_without_netschedule()
+        else:
+            yield from self._run_with_netschedule()

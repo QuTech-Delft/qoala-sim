@@ -30,6 +30,7 @@ from qoala.sim.netstack.netstack import Netstack
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
+from qoala.util.logging import LogManager
 from qoala.util.math import B00_DENS, has_multi_state
 
 
@@ -77,19 +78,15 @@ def create_request(
     node1_id: int,
     node2_id: int,
     local_qubit_id: int = 0,
-    lpids: Optional[List[int]] = None,
-    rpids: Optional[List[int]] = None,
+    lpid: Optional[int] = 0,
+    rpid: Optional[int] = 0,
 ) -> EntDistRequest:
-    if lpids is None:
-        lpids = []
-    if rpids is None:
-        rpids = []
     return EntDistRequest(
         local_node_id=node1_id,
         remote_node_id=node2_id,
         local_qubit_id=local_qubit_id,
-        local_pids=lpids,
-        remote_pids=rpids,
+        local_pid=lpid,
+        remote_pid=rpid,
     )
 
 
@@ -136,8 +133,8 @@ def test_single_pair_only_netstack_interface():
     alice_id = alice_comp.node.ID
     bob_id = bob_comp.node.ID
 
-    request_alice = create_request(alice_id, bob_id, 0, [0], [0])
-    request_bob = create_request(bob_id, alice_id, 0, [0], [0])
+    request_alice = create_request(alice_id, bob_id, 0, 0, 0)
+    request_bob = create_request(bob_id, alice_id, 0, 0, 0)
 
     alice_intf = AliceNetstackInterface(
         alice_comp, ehi_network, alice_qdevice, requests=[request_alice]
@@ -179,14 +176,14 @@ def test_multiple_pairs_only_netstack_interface():
     bob_id = bob_comp.node.ID
 
     requests_alice = [
-        create_request(alice_id, bob_id, 0, [0], [0]),
-        create_request(alice_id, bob_id, 1, [0], [0]),
-        create_request(alice_id, bob_id, 2, [0], [0]),
+        create_request(alice_id, bob_id, 0, 0, 0),
+        create_request(alice_id, bob_id, 1, 0, 0),
+        create_request(alice_id, bob_id, 2, 0, 0),
     ]
     requests_bob = [
-        create_request(bob_id, alice_id, 1, [0], [0]),
-        create_request(bob_id, alice_id, 2, [0], [0]),
-        create_request(bob_id, alice_id, 0, [0], [0]),
+        create_request(bob_id, alice_id, 1, 0, 0),
+        create_request(bob_id, alice_id, 2, 0, 0),
+        create_request(bob_id, alice_id, 0, 0, 0),
     ]
 
     alice_intf = AliceNetstackInterface(
@@ -277,8 +274,8 @@ def test_single_pair_full_netstack():
     alice_id = 0
     bob_id = 1
 
-    request_alice = create_request(alice_id, bob_id, 0, [0], [0])
-    request_bob = create_request(bob_id, alice_id, 0, [0], [0])
+    request_alice = create_request(alice_id, bob_id, 0, 0, 0)
+    request_bob = create_request(bob_id, alice_id, 0, 0, 0)
 
     class AliceNetstack(Netstack):
         def run(self) -> Generator[EventExpression, None, None]:
@@ -313,12 +310,12 @@ def test_multiple_pairs_full_netstack():
     bob_id = 1
 
     requests_alice = [
-        create_request(alice_id, bob_id, 0, [0], [0]),
-        create_request(alice_id, bob_id, 1, [1], [1]),
+        create_request(alice_id, bob_id, 0, 0, 0),
+        create_request(alice_id, bob_id, 1, 1, 1),
     ]
     requests_bob = [
-        create_request(bob_id, alice_id, 0, [0], [0]),
-        create_request(bob_id, alice_id, 2, [1], [1]),
+        create_request(bob_id, alice_id, 0, 0, 0),
+        create_request(bob_id, alice_id, 2, 1, 1),
     ]
 
     class AliceNetstack(Netstack):
@@ -346,61 +343,6 @@ def test_multiple_pairs_full_netstack():
     bq2 = bob_netstack.qdevice.get_local_qubit(2)
     assert has_multi_state([aq0, bq0], B00_DENS)
     assert has_multi_state([aq1, bq2], B00_DENS)
-
-
-def test_multiple_pairs_as_group():
-    ns.sim_reset()
-
-    alice_id = 0
-    bob_id = 1
-
-    request_alice = create_request(alice_id, bob_id, 0, [0, 1], [0, 2])
-    request_bob = create_request(bob_id, alice_id, 0, [2, 0], [1, 0])
-
-    class AliceNetstack(Netstack):
-        def run(self) -> Generator[EventExpression, None, None]:
-            pid = yield from self.processor._execute_entdist_request_group(
-                request_alice
-            )
-            if pid == 0:
-                new_request_alice = create_request(alice_id, bob_id, 1, [1], [2])
-            else:
-                assert pid == 1
-                new_request_alice = create_request(alice_id, bob_id, 1, [0], [0])
-            yield from self.processor._execute_entdist_request_group(new_request_alice)
-
-    class BobNetstack(Netstack):
-        def run(self) -> Generator[EventExpression, None, None]:
-            pid = yield from self.processor._execute_entdist_request_group(request_bob)
-            if pid == 2:
-                new_request_bob = create_request(bob_id, alice_id, 2, [0], [0])
-            else:
-                assert pid == 0
-                new_request_bob = create_request(bob_id, alice_id, 2, [2], [1])
-            yield from self.processor._execute_entdist_request_group(new_request_bob)
-
-    alice_netstack, bob_netstack, entdist = setup_components_full_netstack(
-        3, alice_id, bob_id, AliceNetstack, BobNetstack
-    )
-
-    ns.sim_reset()
-    assert ns.sim_time() == 0
-    alice_netstack.start()
-    bob_netstack.start()
-    entdist.start()
-    ns.sim_run()
-
-    assert ns.sim_time() == 2000  # 2 pairs, 1000 ns each
-
-    aq0 = alice_netstack.qdevice.get_local_qubit(0)
-    bq0 = bob_netstack.qdevice.get_local_qubit(0)
-    aq1 = alice_netstack.qdevice.get_local_qubit(1)
-    bq2 = bob_netstack.qdevice.get_local_qubit(2)
-    assert has_multi_state([aq0, bq0], B00_DENS)
-    assert has_multi_state([aq1, bq2], B00_DENS)
-
-    assert not has_multi_state([aq0, bq2], B00_DENS)
-    assert not has_multi_state([aq1, bq0], B00_DENS)
 
 
 def create_simple_request(
@@ -492,8 +434,8 @@ def test_single_pair_qoala_ck_request_only_alice():
     )
 
     requests_bob = [
-        create_request(bob_id, alice_id, 0, [0], [0]),
-        create_request(bob_id, alice_id, 1, [0], [0]),
+        create_request(bob_id, alice_id, 0, 0, 0),
+        create_request(bob_id, alice_id, 1, 0, 0),
     ]
     epr_socket = EprSocket(0, bob_id, 0, 0, 1.0)
     process_alice = create_process(
@@ -754,12 +696,12 @@ def test_single_pair_qoala_md_request_same_virt_ids():
 
 
 if __name__ == "__main__":
-    test_single_pair_only_netstack_interface()
+    # test_single_pair_only_netstack_interface()
+    LogManager.set_log_level("INFO")
     test_multiple_pairs_only_netstack_interface()
-    test_single_pair_full_netstack()
-    test_multiple_pairs_full_netstack()
-    test_multiple_pairs_as_group()
-    test_single_pair_qoala_ck_request_only_alice()
-    test_single_pair_qoala_ck_request()
-    test_single_pair_qoala_md_request_different_virt_ids()
-    test_single_pair_qoala_md_request_same_virt_ids()
+    # test_single_pair_full_netstack()
+    # test_multiple_pairs_full_netstack()
+    # test_single_pair_qoala_ck_request_only_alice()
+    # test_single_pair_qoala_ck_request()
+    # test_single_pair_qoala_md_request_different_virt_ids()
+    # test_single_pair_qoala_md_request_same_virt_ids()

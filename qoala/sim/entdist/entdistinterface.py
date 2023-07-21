@@ -7,7 +7,7 @@ from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
 from qoala.sim.entdist.entdistcomp import EntDistComponent
-from qoala.sim.events import SIGNAL_NSTK_ENTD_MSG
+from qoala.sim.events import EVENT_WAIT, SIGNAL_NSTK_ENTD_MSG
 
 
 class EntDistInterface(ComponentProtocol):
@@ -40,6 +40,12 @@ class EntDistInterface(ComponentProtocol):
         yield from self._wait_for_msg(f"node_{node}", f"{SIGNAL_NSTK_ENTD_MSG}_{node}")
         return self._pop_any_msg(f"node_{node}")
 
+    def wait_for_any_msg(self) -> Generator[EventExpression, None, None]:
+        yield from self._wait_for_msg_any_source(
+            [f"node_{node}" for node in self._all_node_names],
+            [f"{SIGNAL_NSTK_ENTD_MSG}_{node}" for node in self._all_node_names],
+        )
+
     def receive_msg(self) -> Generator[EventExpression, None, Message]:
         yield from self._wait_for_msg_any_source(
             [f"node_{node}" for node in self._all_node_names],
@@ -48,3 +54,11 @@ class EntDistInterface(ComponentProtocol):
         return self._pop_any_msg_any_source(
             [f"node_{node}" for node in self._all_node_names]
         )
+
+    def pop_all_messages(self) -> List[Message]:
+        return self._pop_all_messages([f"node_{node}" for node in self._all_node_names])
+
+    def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
+        self._schedule_after(delta_time, EVENT_WAIT)
+        event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
+        yield event_expr

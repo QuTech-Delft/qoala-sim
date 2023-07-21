@@ -12,6 +12,7 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
+    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -51,7 +52,7 @@ class TeleportResult:
 def run_teleport(num_iterations: int, different_inputs: bool = False) -> TeleportResult:
     ns.sim_reset()
 
-    num_qubits = 10
+    num_qubits = 4
     alice_id = 1
     bob_id = 0
 
@@ -63,6 +64,10 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
     network_cfg.cconns = [cconn]
+    pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
+    network_cfg.netschedule = NetworkScheduleConfig(
+        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=20_000
+    )
 
     alice_program = load_program("teleport_alice.iqoala")
     bob_program = load_program("teleport_bob.iqoala")
@@ -103,8 +108,11 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
 
 
 def test_teleport():
-    # LogManager.set_log_level("INFO")
-    num_iterations = 10
+    LogManager.set_log_level("DEBUG")
+    LogManager.enable_task_logger(True)
+    LogManager.log_to_file("teleport.log")
+    LogManager.log_tasks_to_file("teleport_tasks.log")
+    num_iterations = 2
 
     result = run_teleport(num_iterations=num_iterations)
 
@@ -127,5 +135,5 @@ def test_teleport_different_inputs():
 
 
 if __name__ == "__main__":
-    # test_teleport()
+    test_teleport()
     test_teleport_different_inputs()

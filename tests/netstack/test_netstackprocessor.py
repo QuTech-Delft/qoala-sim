@@ -180,8 +180,8 @@ def test__create_entdist_request():
         local_node_id=interface.node_id,
         remote_node_id=1,
         local_qubit_id=phys_id,
-        local_pids=[0],
-        remote_pids=[42],
+        local_pid=0,
+        remote_pid=42,
     )
 
 

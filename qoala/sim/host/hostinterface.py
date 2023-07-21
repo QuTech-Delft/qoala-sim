@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Generator, List, Tuple
+
+from typing import Dict, Generator, List, Optional, Tuple
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
@@ -91,6 +92,14 @@ class HostInterface(ComponentProtocol):
         yield from self._wait_for_msg_any_source(
             self._listener_names, self._signal_names
         )
+
+    def get_evexpr_for_any_msg(self) -> Optional[EventExpression]:
+        return self._get_evexpr_for_any_msg(self._listener_names, self._signal_names)
+
+    def handle_msg_evexpr(
+        self, evexpr: EventExpression
+    ) -> Generator[EventExpression, None, None]:
+        yield from self._handle_msg_evexpr(evexpr, self._listener_names)
 
     def pop_msg(self, peer: str, src_pid: int, dst_pid: int) -> Message:
         return self._pop_msg(f"peer_{peer}", src_pid, dst_pid)
