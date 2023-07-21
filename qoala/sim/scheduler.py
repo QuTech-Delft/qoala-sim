@@ -597,160 +597,14 @@ class Status(Enum):
     WAITING_OTHER_CORE = auto()
     WAITING_MSG = auto()
     WAITING_START_TIME = auto()
+    WAITING_RESOURCES = auto()
+    WAITING_TIME_BIN = auto()
 
 
 @dataclass
-class SchedulerStatusNew:
+class SchedulerStatus:
     status: Set[Status]
     params: Dict[str, Any]
-
-
-class SchedulerStatus:
-    pass
-
-
-class StatusGraphEmpty(SchedulerStatus):
-    pass
-
-
-class StatusEprGen(SchedulerStatus):
-    def __init__(self, task_id: int) -> None:
-        self._task_id = task_id
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, StatusEprGen):
-            raise NotImplementedError
-        return self.task_id == other.task_id
-
-
-class StatusNextTask(SchedulerStatus):
-    def __init__(self, task_id: int) -> None:
-        self._task_id = task_id
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, StatusNextTask):
-            raise NotImplementedError
-        return self.task_id == other.task_id
-
-
-class StatusBlockedOnMessage(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnMessageOrStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnOtherCore(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnOtherCoreOrStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnMessageOrOtherCore(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnMessageOrOtherCoreOrStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnResource(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnResourceOrOtherCore(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
-
-
-class StatusBlockedOnOtherCoreOrTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
-
-
-class StatusBlockedOnResourceOrTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
-
-
-class StatusBlockedOnOtherCoreorResourceOrTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
 
 
 class EdfScheduler(ProcessorScheduler):
@@ -771,10 +625,10 @@ class EdfScheduler(ProcessorScheduler):
             deterministic=deterministic,
             use_deadlines=use_deadlines,
         )
-        self._status: SchedulerStatusNew = SchedulerStatusNew(status=set(), params={})
+        self._status: SchedulerStatus = SchedulerStatus(status=set(), params={})
 
     @property
-    def status(self) -> SchedulerStatusNew:
+    def status(self) -> SchedulerStatus:
         return self._status
 
     def update_external_predcessors(self) -> None:
@@ -873,7 +727,7 @@ class CpuEdfScheduler(EdfScheduler):
         tg = self._task_graph
 
         if tg is None or len(tg.get_tasks()) == 0:
-            self._status = SchedulerStatusNew(status={Status.GRAPH_EMPTY}, params={})
+            self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
             return
 
         # All tasks that have no predecessors, internal nor external.
@@ -937,7 +791,7 @@ class CpuEdfScheduler(EdfScheduler):
                     to_return = ready[index]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
-            self._status = SchedulerStatusNew(
+            self._status = SchedulerStatus(
                 status={Status.NEXT_TASK}, params={"task_id": to_return}
             )
             return
@@ -957,12 +811,11 @@ class CpuEdfScheduler(EdfScheduler):
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             self._task_logger.debug("updating status...")
-            self._status = SchedulerStatusNew(status=set(), params={})
+            self._status = SchedulerStatus(status=set(), params={})
             self.update_status()
             self._task_logger.debug(f"status: {self.status.status}")
             if Status.NEXT_TASK in self.status.status:
                 task_id = self.status.params["task_id"]
-                print("StatusNextTask", task_id)
                 yield from self.handle_task(task_id)
                 self.update_external_predcessors()
             else:
@@ -1108,11 +961,12 @@ class QpuEdfScheduler(EdfScheduler):
             # resources so they can always return `True` here.
             return True
 
-    def update_status(self) -> SchedulerStatus:
+    def update_status(self) -> None:
         tg = self._task_graph
 
         if tg is None or len(tg.get_tasks()) == 0:
-            return StatusGraphEmpty()
+            self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
+            return
 
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
@@ -1181,7 +1035,9 @@ class QpuEdfScheduler(EdfScheduler):
 
         if len(epr_ready) > 0:
             self._task_logger.info(f"epr_ready: {epr_ready}")
-            return StatusEprGen(epr_ready[0])
+            self._status = SchedulerStatus(
+                status={Status.EPR_GEN}, params={"task_id": epr_ready[0]}
+            )
         elif len(non_epr_ready) > 0:
             with_deadline = [
                 t for t in non_epr_ready if tg.get_tinfo(t).deadline is not None
@@ -1195,7 +1051,9 @@ class QpuEdfScheduler(EdfScheduler):
                 to_return = sorted_by_deadline[0][0]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
-                return StatusNextTask(to_return)
+                self._status = SchedulerStatus(
+                    status={Status.NEXT_TASK}, params={"task_id": to_return}
+                )
             else:
                 # No deadlines
                 if self._deterministic:
@@ -1205,132 +1063,53 @@ class QpuEdfScheduler(EdfScheduler):
                 to_return = non_epr_ready[index]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
-                return StatusNextTask(to_return)
+                self._status = SchedulerStatus(
+                    status={Status.NEXT_TASK}, params={"task_id": to_return}
+                )
         else:
-            # No tasks ready to execute. Check what is/are the cause(s).
             if len(blocked_on_other_core) > 0:
-                if len(blocked_on_resources) > 0:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnOtherCoreorResourceOrTimebin(
-                            task_id, delta
-                        )
-                    else:
-                        return StatusBlockedOnResourceOrOtherCore()
-                else:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnOtherCoreOrTimebin(task_id, delta)
-                    else:
-                        return StatusBlockedOnOtherCore()
-            else:
-                if len(blocked_on_resources) > 0:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnResourceOrTimebin(task_id, delta)
-                    else:
-                        return StatusBlockedOnResource()
-                else:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnTimebin(task_id, delta)
-                    else:
-                        raise RuntimeError
+                self._status.status.add(Status.WAITING_OTHER_CORE)
+            if len(blocked_on_resources) > 0:
+                self._status.status.add(Status.WAITING_RESOURCES)
+            if epr_wait_for_bin is not None:
+                task_id, delta = epr_wait_for_bin
+                self._status.status.add(Status.WAITING_TIME_BIN)
+                self._status.params["delta"] = delta
+
+            if len(self.status.status) == 0:
+                raise RuntimeError
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
+            self._task_logger.debug("updating status...")
+            self._status = SchedulerStatus(status=set(), params={})
+            self.update_status()
+            self._task_logger.debug(f"status: {self.status.status}")
+            if Status.EPR_GEN in self.status.status:
+                task_id = self.status.params["task_id"]
+                yield from self.handle_task(task_id)
+                self.update_external_predcessors()
+            elif Status.NEXT_TASK in self.status.status:
+                task_id = self.status.params["task_id"]
+                yield from self.handle_task(task_id)
+                self.update_external_predcessors()
 
-            status = self.update_status()
-            new_task_ev_exp = self.await_port_input(self.node_scheduler_out_port)
-            if isinstance(status, StatusGraphEmpty):
-                yield new_task_ev_exp
-            elif isinstance(status, StatusBlockedOnOtherCore):
-                self._task_logger.info("waiting for TASK_COMPLETED signal")
-                yield self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                ) | new_task_ev_exp
-                self._task_logger.debug("got TASK_COMPLETED signal")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnResource):
-                self._task_logger.info(
-                    "blocked on resource: waiting for MEMORY_FREED signal"
-                )
-                yield self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                ) | new_task_ev_exp
-                self._task_logger.debug("blocked on resource: got MEMORY_FREED signal")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnResourceOrOtherCore):
-                self._task_logger.info(
-                    "blocked on resource and other core: "
-                    "waiting for MEMORY_FREED signal OR TASK_COMPLETED signal"
-                )
-                ev_mem_freed = self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                )
-                ev_task_completed = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                yield ev_mem_freed | ev_task_completed | new_task_ev_exp
-
-                self.update_external_predcessors()
-            elif isinstance(status, StatusEprGen):
-                print(self.name.upper(), "EPR GEN")
-                self._task_logger.info(f"handling EPR task {status.task_id}")
-                yield from self.handle_task(status.task_id)
-                self.update_external_predcessors()
-            elif isinstance(status, StatusNextTask):
-                self._task_logger.info(f"handling task {status.task_id}")
-                yield from self.handle_task(status.task_id)
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnTimebin):
-                self._task_logger.info(f"Blocked on timebin (delta = {status.delta})")
-                yield from self.wait(status.delta)
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnOtherCoreOrTimebin):
-                self._task_logger.info(
-                    f"Blocked on other core or timebin (delta = {status.delta})"
-                )
-                self._schedule_after(status.delta, EVENT_WAIT)
-                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
-                ev_task_completed = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                yield ev_timebin | ev_task_completed | new_task_ev_exp
-                self._task_logger.info("unblocked")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnResourceOrTimebin):
-                self._task_logger.info(
-                    f"Blocked on resource or timebin (delta = {status.delta})"
-                )
-                self._schedule_after(status.delta, EVENT_WAIT)
-                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
-                ev_mem_freed = self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                )
-                yield ev_timebin | ev_mem_freed | new_task_ev_exp
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnOtherCoreorResourceOrTimebin):
-                self._task_logger.info(
-                    f"Blocked on other core or resource or timebin (delta = {status.delta})"
-                )
-                ev_task_completed = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                self._schedule_after(status.delta, EVENT_WAIT)
-                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
-                ev_mem_freed = self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                )
-                yield ev_task_completed | ev_timebin | ev_mem_freed | new_task_ev_exp
-                self.update_external_predcessors()
             else:
-                raise RuntimeError()
+                ev_expr = self.await_port_input(self.node_scheduler_out_port)
+                if Status.WAITING_OTHER_CORE in self.status.status:
+                    ev_expr = ev_expr | self.await_signal(
+                        sender=self._other_scheduler,
+                        signal_label=SIGNAL_TASK_COMPLETED,
+                    )
+                if Status.WAITING_RESOURCES in self.status.status:
+                    ev_expr = ev_expr | self.await_signal(
+                        sender=self._memmgr,
+                        signal_label=SIGNAL_MEMORY_FREED,
+                    )
+                if Status.WAITING_TIME_BIN in self.status.status:
+                    delta = self.status.params["delta"]
+                    self._schedule_after(delta, EVENT_WAIT)
+                    ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
+                    ev_expr = ev_expr | ev_timebin
+                yield ev_expr
+                self.update_external_predcessors()
