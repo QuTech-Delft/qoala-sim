@@ -77,6 +77,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
             programs={"alice": alice_program, "bob": bob_program},
             program_inputs={"alice": alice_inputs, "bob": bob_inputs},
             network_cfg=network_cfg,
+            linear=True,
         )
     else:
         # state = 5 -> teleport |1> state
@@ -89,6 +90,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
             programs={"alice": alice_program, "bob": bob_program},
             program_inputs={"alice": alice_input, "bob": bob_input},
             network_cfg=network_cfg,
+            linear=True,
         )
 
     alice_result = app_result.batch_results["alice"]

@@ -480,6 +480,13 @@ class TaskGraph:
                 if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) == 0
             ]
 
+    def get_tasks_blocked_only_on_external(self) -> List[int]:
+        return [
+            i
+            for i, tinfo in self._tasks.items()
+            if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) > 0
+        ]
+
     def get_epr_roots(self, ignore_external: bool = False) -> List[int]:
         roots = self.get_roots(ignore_external)
         return [r for r in roots if self.get_tinfo(r).task.is_epr_task()]

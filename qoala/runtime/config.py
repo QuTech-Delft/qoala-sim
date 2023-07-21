@@ -4,7 +4,7 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import yaml
 from netsquid.components.instructions import (
@@ -41,6 +41,8 @@ from qoala.runtime.lhi import (
     LhiGateConfigInterface,
     LhiLatenciesConfigInterface,
     LhiLinkConfigInterface,
+    LhiNetworkScheduleConfigInterface,
+    LhiNetworkTimebin,
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
@@ -1472,10 +1474,11 @@ class ClassicalConnectionConfig(BaseModel):
         )
 
 
-class NetworkScheduleConfig(BaseModel):
+class NetworkScheduleConfig(BaseModel, LhiNetworkScheduleConfigInterface):
     bin_length: int
     first_bin: int
-    bin_period: int
+    bin_pattern: List[Tuple[int, int, int, int]]
+    repeat_period: int
 
     @classmethod
     def from_file(cls, path: str) -> NetworkScheduleConfig:
@@ -1486,8 +1489,25 @@ class NetworkScheduleConfig(BaseModel):
         return NetworkScheduleConfig(
             bin_length=dict["bin_length"],
             first_bin=dict["first_bin"],
-            bin_period=dict["bin_period"],
+            bin_pattern=dict["bin_pattern"],
+            repeat_period=dict["repeat_period"],
         )
+
+    def to_bin_length(self) -> int:
+        return self.bin_length
+
+    def to_first_bin(self) -> int:
+        return self.first_bin
+
+    def to_bin_pattern(self) -> List[LhiNetworkTimebin]:
+        pattern = [
+            LhiNetworkTimebin(frozenset({node1, node2}), {node1: pid1, node2: pid2})
+            for (node1, pid1, node2, pid2) in self.bin_pattern
+        ]
+        return pattern
+
+    def to_repeat_period(self) -> int:
+        return self.repeat_period
 
 
 class ProcNodeNetworkConfig(BaseModel):

@@ -402,6 +402,24 @@ class LhiLinkConfigInterface(ABC):
         raise NotImplementedError
 
 
+class LhiNetworkScheduleConfigInterface(ABC):
+    @abstractmethod
+    def to_bin_length(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_first_bin(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_bin_pattern(self) -> List[LhiNetworkTimebin]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def to_repeat_period(self) -> int:
+        raise NotImplementedError
+
+
 @dataclass
 class LhiLinkInfo:
     sampler_factory: Type[IStateDeliverySamplerFactory]
@@ -480,6 +498,31 @@ class LhiNetworkInfo:
             raise ValueError(
                 f"There is no link between nodes {node_id1} and {node_id2} in the network"
             )
+
+
+@dataclass
+class LhiNetworkTimebin:
+    nodes: FrozenSet[int]
+    pids: Dict[int, int]  # node ID -> PID
+
+
+@dataclass
+class LhiNetworkSchedule:
+    bin_length: int
+    first_bin: int
+    bin_pattern: List[LhiNetworkTimebin]
+    repeat_period: int
+
+    @classmethod
+    def from_config(
+        cls, config: LhiNetworkScheduleConfigInterface
+    ) -> LhiNetworkSchedule:
+        return LhiNetworkSchedule(
+            config.to_bin_length(),
+            config.to_first_bin(),
+            config.to_bin_pattern(),
+            config.to_repeat_period(),
+        )
 
 
 @dataclass

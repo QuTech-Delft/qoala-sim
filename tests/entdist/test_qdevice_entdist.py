@@ -45,19 +45,15 @@ def create_request(
     node1_id: int,
     node2_id: int,
     local_qubit_id: int = 0,
-    lpids: Optional[List[int]] = None,
-    rpids: Optional[List[int]] = None,
+    lpid: Optional[int] = 0,
+    rpid: Optional[int] = 0,
 ) -> EntDistRequest:
-    if lpids is None:
-        lpids = []
-    if rpids is None:
-        rpids = []
     return EntDistRequest(
         local_node_id=node1_id,
         remote_node_id=node2_id,
         local_qubit_id=local_qubit_id,
-        local_pids=lpids,
-        remote_pids=rpids,
+        local_pid=lpid,
+        remote_pid=rpid,
     )
 
 
@@ -66,26 +62,22 @@ def create_request_pair(
     node2_id: int,
     node1_qubit_id: int = 0,
     node2_qubit_id: int = 0,
-    lpids: Optional[List[int]] = None,
-    rpids: Optional[List[int]] = None,
+    lpid: Optional[int] = 0,
+    rpid: Optional[int] = 0,
 ) -> Tuple[EntDistRequest]:
-    if lpids is None:
-        lpids = []
-    if rpids is None:
-        rpids = []
     req1 = EntDistRequest(
         local_node_id=node1_id,
         remote_node_id=node2_id,
         local_qubit_id=node1_qubit_id,
-        local_pids=lpids,
-        remote_pids=rpids,
+        local_pid=lpid,
+        remote_pid=rpid,
     )
     req2 = EntDistRequest(
         local_node_id=node2_id,
         remote_node_id=node1_id,
         local_qubit_id=node2_qubit_id,
-        local_pids=rpids,
-        remote_pids=lpids,
+        local_pid=rpid,
+        remote_pid=lpid,
     )
     return req1, req2
 
