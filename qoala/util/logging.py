@@ -73,6 +73,11 @@ class LogManager:
         return cls.get_stack_logger().level
 
     @classmethod
+    def set_task_log_level(cls, level: Union[int, str]) -> None:
+        logger = cls.get_task_logger()
+        logger.setLevel(level)
+
+    @classmethod
     def log_to_file(cls, path: str) -> None:
         file_handler = logging.FileHandler(path, mode="w")
         formatter = logging.Formatter(
@@ -91,10 +96,3 @@ class LogManager:
         file_handler.setFormatter(formatter)
         file_handler.addFilter(SimTimeFilter())
         cls.get_task_logger().addHandler(file_handler)
-
-    @classmethod
-    def enable_task_logger(cls, enable: bool) -> None:
-        if enable:
-            cls.get_task_logger().setLevel(logging.INFO)
-        else:
-            cls.get_task_logger().setLevel(logging.CRITICAL + 1)

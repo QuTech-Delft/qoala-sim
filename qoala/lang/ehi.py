@@ -313,7 +313,7 @@ class EhiNetworkSchedule:
         curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
 
         # Get relative time within the pattern.
-        time_since_pattern_start = global_offset - curr_pattern_start
+        time_since_pattern_start = time - curr_pattern_start
 
         # Get the index of the next bin within the pattern.
         # It could be that we're already in the last bin. Then the next bin
@@ -343,7 +343,7 @@ class EhiNetworkSchedule:
         global_offset = time - self.first_bin
         curr_pattern_index = floor(global_offset / self.repeat_period)
         curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
-        time_since_pattern_start = global_offset - curr_pattern_start
+        time_since_pattern_start = time - curr_pattern_start
         if bin_rel_to_pat_start >= time_since_pattern_start:
             return bin_rel_to_pat_start - time_since_pattern_start
         else:

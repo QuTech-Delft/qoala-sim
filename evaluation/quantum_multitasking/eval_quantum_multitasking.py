@@ -71,6 +71,7 @@ def run_apps(
     cc_latency: float,
     network_bin_len: int,
     network_period: int,
+    network_first_bin: int,
 ) -> TeleportResult:
     ns.sim_reset()
 
@@ -91,7 +92,7 @@ def run_apps(
     pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
     network_cfg.netschedule = NetworkScheduleConfig(
         bin_length=network_bin_len,
-        first_bin=0,
+        first_bin=network_first_bin,
         bin_pattern=pattern,
         repeat_period=network_period,
     )
@@ -174,6 +175,7 @@ def get_metrics(
     latency_factor: float,
     network_bin_len: int,
     network_period: int,
+    network_first_bin: int,
 ) -> DataPoint:
     successes: List[bool] = []
 
@@ -186,6 +188,7 @@ def get_metrics(
         cc_latency=cc_latency,
         network_period=network_period,
         network_bin_len=network_bin_len,
+        network_first_bin=network_first_bin,
     )
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
@@ -218,8 +221,8 @@ def get_metrics(
 def run(output_dir: str, save: bool = True):
     # LogManager.set_log_level("INFO")
     # LogManager.log_to_file("quantum_multitasking.log")
-    # LogManager.enable_task_logger(True)
-    # LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
+    LogManager.set_task_log_level("INFO")
+    LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -227,25 +230,26 @@ def run(output_dir: str, save: bool = True):
     t1 = 1e10
     t2 = 1e8
 
-    num_iterations = 40
-    latency_factor = 0.1
+    num_iterations = 4
+    latency_factor = 0.1  # CC = 10_000_000
     net_period_factors = [0.01, 0.1, 1, 10, 100, 1000]
+    network_bin_len = int((latency_factor * t2) / 5)  # 2_000_000
+    network_first_bin = 1_000_000
 
     data_points: List[DataPoint] = []
 
-    for net_period_factor in net_period_factors:
-        network_period = int(latency_factor * t2 * net_period_factor)
-        network_bin_len = int(0.5 * network_period / num_iterations)
+    network_period = num_iterations * network_bin_len
 
-        data_point = get_metrics(
-            num_iterations=num_iterations,
-            t1=t1,
-            t2=t2,
-            latency_factor=latency_factor,
-            network_bin_len=network_bin_len,
-            network_period=network_period,
-        )
-        data_points.append(data_point)
+    data_point = get_metrics(
+        num_iterations=num_iterations,
+        t1=t1,
+        t2=t2,
+        latency_factor=latency_factor,
+        network_bin_len=network_bin_len,
+        network_period=network_period,
+        network_first_bin=network_first_bin,
+    )
+    data_points.append(data_point)
 
     meta = DataMeta(
         timestamp=timestamp,
