@@ -61,15 +61,17 @@ def run_qkd(
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
-    link_cfg = LinkConfig.depolarise_config(
-        prob_max_mixed, attempt_success_prob, attempt_duration, state_delay
-    )
-    link_between_cfg = LinkBetweenNodesConfig(
-        node_id1=alice_id, node_id2=bob_id, link_config=link_cfg
-    )
-    network_cfg = ProcNodeNetworkConfig(
-        nodes=[alice_node_cfg, bob_node_cfg], links=[link_between_cfg]
-    )
+    # link_cfg = LinkConfig.depolarise_config(
+    #     prob_max_mixed, attempt_success_prob, attempt_duration, state_delay
+    # )
+    # link_between_cfg = LinkBetweenNodesConfig(
+    #     node_id1=alice_id, node_id2=bob_id, link_config=link_cfg
+    # )
+    # network_cfg = ProcNodeNetworkConfig(
+    #     nodes=[alice_node_cfg, bob_node_cfg], links=[link_between_cfg]
+    # )
+
+    network_cfg = ProcNodeNetworkConfig.from_nodes_depolarising_noise([alice_node_cfg, bob_node_cfg], prob_max_mixed, attempt_success_prob, attempt_duration, state_delay)
 
     alice_program = load_program(alice_file)
     bob_program = load_program(bob_file)
