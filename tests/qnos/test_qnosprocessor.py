@@ -224,7 +224,7 @@ def setup_components(
     unit_module = UnitModule.from_full_ehi(ehi)
     interface = MockQnosInterface(qdevice)
     processor = QnosProcessor(interface, latencies)
-    return (processor, unit_module)
+    return processor, unit_module
 
 
 def uniform_topology(num_qubits: int) -> LhiTopology:

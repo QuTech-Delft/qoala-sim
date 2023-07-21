@@ -467,7 +467,7 @@ class TaskGraph:
         assert id in self._tasks
         return self._tasks[id]
 
-    def is_task_for_pid_exist(self, pid: int) -> bool:
+    def task_exists_for_pid(self, pid: int) -> bool:
         for tid, tinfo in self._tasks.items():
             if tinfo.task.pid == pid:
                 return True

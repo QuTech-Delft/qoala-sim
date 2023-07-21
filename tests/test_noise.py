@@ -90,7 +90,7 @@ def setup_noisy_components(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
     processor = GenericProcessor(interface, latencies=QnosLatencies.all_zero())
-    return (processor, unit_module)
+    return processor, unit_module
 
 
 def create_program(

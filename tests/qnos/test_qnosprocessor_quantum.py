@@ -246,7 +246,7 @@ def setup_components_generic(
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
     processor = GenericProcessor(interface, latencies)
-    return (processor, unit_module)
+    return processor, unit_module
 
 
 def setup_components_nv_star(
@@ -259,7 +259,7 @@ def setup_components_nv_star(
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
     processor = NVProcessor(interface, latencies)
-    return (processor, unit_module)
+    return processor, unit_module
 
 
 def test_init_qubit():

@@ -61,7 +61,6 @@ class NodeSchedulerComponent(Component):
         super().__init__(name=name)
         self.add_ports(["cpu_scheduler_out", "cpu_scheduler_in"])
         self.add_ports(["qpu_scheduler_out", "qpu_scheduler_in"])
-        self.add_ports(["host_out"])
 
         self.ports["cpu_scheduler_out"].connect(cpu_scheduler.node_scheduler_out_port)
         self.ports["cpu_scheduler_in"].connect(cpu_scheduler.node_scheduler_in_port)
@@ -83,10 +82,6 @@ class NodeSchedulerComponent(Component):
     @property
     def qpu_scheduler_in_port(self) -> Port:
         return self.ports["qpu_scheduler_in"]
-
-    @property
-    def host_out_port(self) -> Port:
-        return self.ports["host_out"]
 
     def send_cpu_scheduler_message(self, msg: Message) -> None:
         self.cpu_scheduler_out_port.tx_output(msg)
@@ -379,7 +374,6 @@ class NodeScheduler(Protocol):
         new_qpu_tasks: Dict[int, TaskInfo] = {}
 
         for pid in self.memmgr.get_all_program_ids():
-
             # If there is a dependency, check if it is finished
             dependency_pid = self._prog_instance_dependency[pid]
             if dependency_pid != -1:
@@ -408,7 +402,7 @@ class NodeScheduler(Protocol):
             # We cannot add any more tasks because all block types have cpu tasks
             if len(
                 blocks
-            ) <= current_block_index or self.cpu_scheduler.is_task_for_pid_exist(pid):
+            ) <= current_block_index or self.cpu_scheduler.task_exists_for_pid(pid):
                 continue
 
             block = prog_instance.program.blocks[current_block_index]
@@ -424,7 +418,9 @@ class NodeScheduler(Protocol):
                 new_cpu_tasks.update(graph.get_tasks())
 
                 self._current_block_index[pid] += 1
-            elif not self.qpu_scheduler.is_task_for_pid_exist(pid):
+                # If scheduler does not have any task send a message to wake it up
+                self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+            elif not self.qpu_scheduler.task_exists_for_pid(pid):
                 # Note that we know that cpu does not have any tasks for this pid
                 graph = self._task_from_block_builder.build(
                     prog_instance, current_block_index, self._network_ehi
@@ -433,14 +429,13 @@ class NodeScheduler(Protocol):
                 new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
 
                 self._current_block_index[pid] += 1
-
-            # If scheduler does not have any task send a message to wake it up
-            if len(self.cpu_scheduler._task_graph.get_tasks()) == 0:
+                # If scheduler does not have any task send a message to wake it up
                 self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
-            if len(self.qpu_scheduler._task_graph.get_tasks()) == 0:
                 self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
-            self._cpu_scheduler.add_tasks(new_cpu_tasks)
-            self._qpu_scheduler.add_tasks(new_qpu_tasks)
+        assigned_cpu_task = [f"Task {task.task} " for task in new_cpu_tasks.values()]
+        assigned_qpu_task = [f"Task {task.task} " for task in new_qpu_tasks.values()]
+        self._cpu_scheduler.add_tasks(new_cpu_tasks)
+        self._qpu_scheduler.add_tasks(new_qpu_tasks)
 
     def submit_program_instance_new(
         self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
@@ -549,8 +544,8 @@ class ProcessorScheduler(Protocol):
     def driver(self) -> Driver:
         return self._driver
 
-    def is_task_for_pid_exist(self, pid: int) -> bool:
-        return self._task_graph.is_task_for_pid_exist(pid)
+    def task_exists_for_pid(self, pid: int) -> bool:
+        return self._task_graph.task_exists_for_pid(pid)
 
     def add_tasks(self, tasks: Dict[int, TaskInfo]) -> None:
         self._task_graph.get_tasks().update(tasks)
@@ -768,6 +763,7 @@ class EdfScheduler(ProcessorScheduler):
         assert self._task_graph is not None
 
         tg = self._task_graph
+
         for r in tg.get_roots(ignore_external=True):
             ext_preds = tg.get_tinfo(r).ext_predecessors
             new_ext_preds = {
@@ -790,7 +786,6 @@ class EdfScheduler(ProcessorScheduler):
         self.record_start_timestamp(task.pid, before)
 
         # Execute the task
-
         success = yield from self._driver.handle_task(task)
         if success:
             after = ns.sim_time()
@@ -956,14 +951,15 @@ class CpuEdfScheduler(EdfScheduler):
             self._task_logger.debug("updating status...")
             status = self.update_status()
             self._task_logger.debug(f"status: {status}")
+            new_task_ev_exp = self.await_port_input(self.node_scheduler_out_port)
             if isinstance(status, StatusGraphEmpty):
-                yield self.await_port_input(self.node_scheduler_out_port)
+                yield new_task_ev_exp
             elif isinstance(status, StatusBlockedOnOtherCore):
                 self._task_logger.debug("waiting for TASK_COMPLETED signal")
                 yield self.await_signal(
                     sender=self._other_scheduler,
                     signal_label=SIGNAL_TASK_COMPLETED,
-                )
+                ) | new_task_ev_exp
                 self._task_logger.debug("got TASK_COMPLETED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnOtherCoreOrStartTime):
@@ -978,10 +974,13 @@ class CpuEdfScheduler(EdfScheduler):
                 )
                 self._schedule_after(delta, EVENT_WAIT)
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
-                yield ev_other_core | ev_start_time
+                yield ev_other_core | ev_start_time | new_task_ev_exp
+                self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnMessage):
-                self._task_logger.info("blocked, waiting for message...")
-                yield from self._host_interface.wait_for_any_msg()
+
+                self._task_logger.debug("blocked, waiting for message...")
+                ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
+                yield ev_msg_arrived | new_task_ev_exp
                 self._task_logger.debug("message arrived")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnStartTime):
@@ -992,7 +991,7 @@ class CpuEdfScheduler(EdfScheduler):
                 )
                 self._schedule_after(delta, EVENT_WAIT)
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
-                yield ev_start_time
+                yield ev_start_time | new_task_ev_exp
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnMessageOrStartTime):
                 now = ns.sim_time()
@@ -1007,12 +1006,13 @@ class CpuEdfScheduler(EdfScheduler):
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
                 union = ev_msg_arrived | ev_start_time  # type: ignore
 
-                yield union
+                yield union | new_task_ev_exp
                 if len(union.first_term.triggered_events) > 0:
                     # It was "ev_msg_arrived" that triggered.
                     # Need to process this event (flushing potential other messages)
+                    assert ev_msg_arrived is not None
                     yield from self._host_interface.handle_msg_evexpr(union.first_term)
-
+                self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnMessageOrOtherCore):
                 self._task_logger.debug("blocked, waiting for message OR other core...")
 
@@ -1022,7 +1022,7 @@ class CpuEdfScheduler(EdfScheduler):
                     sender=self._other_scheduler,
                     signal_label=SIGNAL_TASK_COMPLETED,
                 )
-                union = ev_msg_arrived | ev_other_core
+                union = ev_msg_arrived | (ev_other_core | new_task_ev_exp)  # type: ignore
 
                 yield union
                 self._task_logger.info("Unblocked")
@@ -1030,6 +1030,7 @@ class CpuEdfScheduler(EdfScheduler):
                     # It was "ev_msg_arrived" that triggered.
                     # Need to process this event (flushing potential other messages)
                     yield from self._host_interface.handle_msg_evexpr(union.first_term)
+                self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnMessageOrOtherCoreOrStartTime):
                 now = ns.sim_time()
                 delta = status.start_time - now
@@ -1046,12 +1047,13 @@ class CpuEdfScheduler(EdfScheduler):
                 self._schedule_after(delta, EVENT_WAIT)
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
 
-                union = ev_msg_arrived | ev_other_core | ev_start_time
+                union = ev_msg_arrived | ev_other_core | ev_start_time | new_task_ev_exp
                 yield union
                 if len(union.first_term.triggered_events) > 0:
                     # It was "ev_msg_arrived" that triggered.
                     # Need to process this event (flushing potential other messages)
                     yield from self._host_interface.handle_msg_evexpr(union.first_term)
+                self.update_external_predcessors()
             elif isinstance(status, StatusNextTask):
                 yield from self.handle_task(status.task_id)
                 self.update_external_predcessors()
@@ -1109,8 +1111,10 @@ class QpuEdfScheduler(EdfScheduler):
 
             # Get virt ID which would be need to be allocated
             virt_id = routine.request.virt_ids.get_id(task.pair_index)
+
             # Check if virt ID is available by trying to allocate
             # (without actually allocating)
+
             try:
                 self._memmgr.allocate(task.pid, virt_id)
                 self._memmgr.free(task.pid, virt_id)
@@ -1298,15 +1302,17 @@ class QpuEdfScheduler(EdfScheduler):
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
+
             status = self.update_status()
+            new_task_ev_exp = self.await_port_input(self.node_scheduler_out_port)
             if isinstance(status, StatusGraphEmpty):
-                yield self.await_port_input(self.node_scheduler_out_port)
+                yield new_task_ev_exp
             elif isinstance(status, StatusBlockedOnOtherCore):
                 self._task_logger.info("waiting for TASK_COMPLETED signal")
                 yield self.await_signal(
                     sender=self._other_scheduler,
                     signal_label=SIGNAL_TASK_COMPLETED,
-                )
+                ) | new_task_ev_exp
                 self._task_logger.debug("got TASK_COMPLETED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnResource):
@@ -1316,7 +1322,7 @@ class QpuEdfScheduler(EdfScheduler):
                 yield self.await_signal(
                     sender=self._memmgr,
                     signal_label=SIGNAL_MEMORY_FREED,
-                )
+                ) | new_task_ev_exp
                 self._task_logger.debug("blocked on resource: got MEMORY_FREED signal")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnResourceOrOtherCore):
@@ -1332,12 +1338,14 @@ class QpuEdfScheduler(EdfScheduler):
                     sender=self._other_scheduler,
                     signal_label=SIGNAL_TASK_COMPLETED,
                 )
-                yield ev_mem_freed | ev_task_completed
+                yield ev_mem_freed | ev_task_completed | new_task_ev_exp
 
                 self.update_external_predcessors()
             elif isinstance(status, StatusEprGen):
+                print(self.name.upper(), "EPR GEN")
                 self._task_logger.info(f"handling EPR task {status.task_id}")
                 yield from self.handle_task(status.task_id)
+                self.update_external_predcessors()
             elif isinstance(status, StatusNextTask):
                 self._task_logger.info(f"handling task {status.task_id}")
                 yield from self.handle_task(status.task_id)
@@ -1345,6 +1353,7 @@ class QpuEdfScheduler(EdfScheduler):
             elif isinstance(status, StatusBlockedOnTimebin):
                 self._task_logger.info(f"Blocked on timebin (delta = {status.delta})")
                 yield from self.wait(status.delta)
+                self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnOtherCoreOrTimebin):
                 self._task_logger.info(
                     f"Blocked on other core or timebin (delta = {status.delta})"
@@ -1355,7 +1364,7 @@ class QpuEdfScheduler(EdfScheduler):
                     sender=self._other_scheduler,
                     signal_label=SIGNAL_TASK_COMPLETED,
                 )
-                yield ev_timebin | ev_task_completed
+                yield ev_timebin | ev_task_completed | new_task_ev_exp
                 self._task_logger.info("unblocked")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnResourceOrTimebin):
@@ -1368,7 +1377,7 @@ class QpuEdfScheduler(EdfScheduler):
                     sender=self._memmgr,
                     signal_label=SIGNAL_MEMORY_FREED,
                 )
-                yield ev_timebin | ev_mem_freed
+                yield ev_timebin | ev_mem_freed | new_task_ev_exp
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnOtherCoreorResourceOrTimebin):
                 self._task_logger.info(
@@ -1384,7 +1393,7 @@ class QpuEdfScheduler(EdfScheduler):
                     sender=self._memmgr,
                     signal_label=SIGNAL_MEMORY_FREED,
                 )
-                yield ev_task_completed | ev_timebin | ev_mem_freed
+                yield ev_task_completed | ev_timebin | ev_mem_freed | new_task_ev_exp
                 self.update_external_predcessors()
             else:
                 raise RuntimeError()
