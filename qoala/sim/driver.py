@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Dict, Generator, List
+from typing import Dict, Generator
 
 from netsquid.protocols import Protocol
 

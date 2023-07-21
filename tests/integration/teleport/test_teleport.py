@@ -52,7 +52,7 @@ class TeleportResult:
 def run_teleport(num_iterations: int, different_inputs: bool = False) -> TeleportResult:
     ns.sim_reset()
 
-    num_qubits = 2
+    num_qubits = 4
     alice_id = 1
     bob_id = 0
 
@@ -134,4 +134,4 @@ def test_teleport_different_inputs():
 
 if __name__ == "__main__":
     test_teleport()
-    # test_teleport_different_inputs()
+    test_teleport_different_inputs()

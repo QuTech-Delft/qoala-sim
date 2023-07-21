@@ -6,7 +6,6 @@ from typing import Optional
 
 import netsquid as ns
 
-from qoala.lang.ehi import EhiNetworkTimebin
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (

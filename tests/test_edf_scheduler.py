@@ -7,6 +7,7 @@ from qoala.runtime.task import ProcessorType, QoalaTask, TaskGraph
 from qoala.sim.driver import Driver
 from qoala.sim.events import EVENT_WAIT
 from qoala.sim.scheduler import CpuEdfScheduler, StatusNextTask
+from qoala.util.logging import LogManager
 
 
 class SimpleTask(QoalaTask):
@@ -28,7 +29,7 @@ class MockDriver(Driver):
         now = ns.sim_time()
         self._executed_tasks[task.task_id] = now
         yield from self.wait(task.duration)
-        return None
+        return True
         yield
 
 
@@ -38,7 +39,7 @@ def test_update_status_one_root():
     graph.add_precedences([(0, 1)])
     graph.add_rel_deadlines([((0, 1), 100)])
 
-    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
+    scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
     assert scheduler.update_status() == StatusNextTask(0)
 
@@ -48,18 +49,19 @@ def test_update_status_two_roots():
     graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
     graph.add_deadlines([(0, 1000), (1, 500)])
 
-    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
+    scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
     assert scheduler.update_status() == StatusNextTask(1)
 
 
 def test_edf_1():
+    LogManager.enable_task_logger(True)
     graph = TaskGraph()
     graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
     graph.add_precedences([(0, 1)])
     graph.add_rel_deadlines([((0, 1), 100)])
 
-    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
+    scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()
@@ -77,7 +79,7 @@ def test_edf_2():
     graph.add_precedences([(1, 2), (1, 3), (2, 4)])
     graph.add_rel_deadlines([((1, 2), 200), ((1, 3), 400), ((2, 4), 100)])
 
-    scheduler = CpuEdfScheduler("sched", MockDriver(), None, None)
+    scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
     scheduler.upload_task_graph(graph)
 
     ns.sim_reset()

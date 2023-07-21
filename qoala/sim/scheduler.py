@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
-from inspect import isbuiltin
-from typing import Dict, Generator, List, Optional, Set, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
 import netsquid as ns
 from netqasm.lang.operand import Template
@@ -36,7 +35,6 @@ from qoala.runtime.task import (
     TaskGraph,
     TaskGraphBuilder,
 )
-from qoala.sim import eprsocket
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.events import EVENT_WAIT, SIGNAL_MEMORY_FREED, SIGNAL_TASK_COMPLETED
@@ -471,6 +469,15 @@ class StatusBlockedOnMessageOrStartTime(SchedulerStatus):
         return self._start_time
 
 
+class StatusBlockedOnStartTime(SchedulerStatus):
+    def __init__(self, start_time: float) -> None:
+        self._start_time = start_time
+
+    @property
+    def start_time(self) -> float:
+        return self._start_time
+
+
 class StatusBlockedOnOtherCore(SchedulerStatus):
     pass
 
@@ -593,7 +600,7 @@ class EdfScheduler(ProcessorScheduler):
             }
             tg.get_tinfo(r).ext_predecessors = new_ext_preds
 
-    def handle_task(self, task_id: int) -> Generator[EventExpression, None, bool]:
+    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
         assert self._task_graph is not None
         tinfo = self._task_graph.get_tinfo(task_id)
         task = tinfo.task
@@ -634,7 +641,7 @@ class EdfScheduler(ProcessorScheduler):
             self._tasks_executed[task.task_id] = task
             self._task_ends[task.task_id] = after
         else:
-            self._task_logger.info(f"task failed")
+            self._task_logger.info("task failed")
 
 
 class CpuEdfScheduler(EdfScheduler):
@@ -703,7 +710,7 @@ class CpuEdfScheduler(EdfScheduler):
 
         now = ns.sim_time()
         with_future_start: Dict[int, float] = {
-            tid: tg.get_tinfo(tid).start_time
+            tid: tg.get_tinfo(tid).start_time  # type: ignore
             for tid in no_predecessors
             if tg.get_tinfo(tid).start_time is not None
             and tg.get_tinfo(tid).start_time > now
@@ -714,22 +721,13 @@ class CpuEdfScheduler(EdfScheduler):
                 with_future_start.items(), key=lambda item: item[1]
             )
             wait_for_start = sorted_by_start[0]
-        self._task_logger.warning(f"wait_for_start: {wait_for_start}")
+        self._task_logger.info(f"wait_for_start: {wait_for_start}")
 
         ready = [
             tid
             for tid in no_predecessors
             if tid not in event_blocked_on_message and tid not in with_future_start
         ]
-        for r in ready:
-            if tg.get_tinfo(r).start_time is None:
-                if not tg.get_tinfo(r).deadline_set:
-                    if self.name in ["bob_cpu", "bob_qpu"]:
-                        self._task_logger.warning(
-                            f"task {r}: set deadline to now ({now})"
-                        )
-                    tg.get_tinfo(r).deadline = 0
-                    tg.get_tinfo(r).deadline_set = True
 
         if len(ready) > 0:
             # self._task_logger.warning(f"ready tasks: {ready}")
@@ -778,11 +776,18 @@ class CpuEdfScheduler(EdfScheduler):
                     else:
                         return StatusBlockedOnOtherCore()
             else:
-                if wait_for_start is not None:
-                    _, start = wait_for_start
-                    return StatusBlockedOnMessageOrStartTime(start)
+                if len(event_blocked_on_message) > 0:
+                    if wait_for_start is not None:
+                        _, start = wait_for_start
+                        return StatusBlockedOnMessageOrStartTime(start)
+                    else:
+                        return StatusBlockedOnMessage()
                 else:
-                    return StatusBlockedOnMessage()
+                    if wait_for_start is not None:
+                        _, start = wait_for_start
+                        return StatusBlockedOnStartTime(start)
+                    else:
+                        raise RuntimeError
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
@@ -814,9 +819,19 @@ class CpuEdfScheduler(EdfScheduler):
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
                 yield ev_other_core | ev_start_time
             elif isinstance(status, StatusBlockedOnMessage):
-                self._task_logger.info("Blocked on message...")
+                self._task_logger.info("blocked, waiting for message...")
                 yield from self._host_interface.wait_for_any_msg()
                 self._task_logger.debug("message arrived")
+                self.update_external_predcessors()
+            elif isinstance(status, StatusBlockedOnStartTime):
+                now = ns.sim_time()
+                delta = status.start_time - now
+                self._task_logger.info(
+                    f"blocked, waiting for start time (delta = {delta})"
+                )
+                self._schedule_after(delta, EVENT_WAIT)
+                ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
+                yield ev_start_time
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnMessageOrStartTime):
                 now = ns.sim_time()
@@ -829,7 +844,7 @@ class CpuEdfScheduler(EdfScheduler):
 
                 self._schedule_after(delta, EVENT_WAIT)
                 ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
-                union = ev_msg_arrived | ev_start_time
+                union = ev_msg_arrived | ev_start_time  # type: ignore
 
                 yield union
                 if len(union.first_term.triggered_events) > 0:
@@ -1183,7 +1198,7 @@ class QpuEdfScheduler(EdfScheduler):
                     signal_label=SIGNAL_TASK_COMPLETED,
                 )
                 yield ev_timebin | ev_task_completed
-                self._task_logger.info(f"unblocked")
+                self._task_logger.info("unblocked")
                 self.update_external_predcessors()
             elif isinstance(status, StatusBlockedOnResourceOrTimebin):
                 self._task_logger.info(

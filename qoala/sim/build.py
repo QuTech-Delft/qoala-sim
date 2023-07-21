@@ -7,7 +7,7 @@ from netsquid.components.models.qerrormodels import QuantumErrorModel
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
 from netsquid.nodes.connections import Connection
 
-from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo, EhiNetworkSchedule
+from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
 
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import ProcNodeConfig, ProcNodeNetworkConfig  # type: ignore
