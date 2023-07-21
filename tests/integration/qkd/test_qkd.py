@@ -10,7 +10,6 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
-    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,

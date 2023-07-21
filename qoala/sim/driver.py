@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Dict, Generator, List
+from typing import Dict, Generator
 
 from netsquid.protocols import Protocol
 
@@ -231,7 +231,7 @@ class QpuDriver(Driver):
         result = yield from self._netstackprocessor.handle_multi_pair(
             process, rrcall.routine_name
         )
-        self._logger.warning(f"Driver result: {result}")
+        self._logger.info(f"Driver result: {result}")
         return result
 
     def _handle_multi_pair_callback(
@@ -262,7 +262,7 @@ class QpuDriver(Driver):
         result = yield from self._netstackprocessor.handle_single_pair(
             process, rrcall.routine_name, task.pair_index
         )
-        self._logger.warning(f"Driver result: {result}")
+        self._logger.info(f"Driver result: {result}")
         return result
 
     def _handle_single_pair_callback(

@@ -201,7 +201,7 @@ class EntDist(Protocol):
         event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
         yield event_expr
 
-        self._logger.info(f"pair delivered")
+        self._logger.info("pair delivered")
 
         node1_mem.put(qubits=epr[0], positions=node1_phys_id)
         node2_mem.put(qubits=epr[1], positions=node2_phys_id)
@@ -306,6 +306,8 @@ class EntDist(Protocol):
         super().stop()
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
+        assert self._netschedule is not None
+
         while True:
             # Wait until a message arrives.
             yield from self._interface.wait_for_any_msg()
