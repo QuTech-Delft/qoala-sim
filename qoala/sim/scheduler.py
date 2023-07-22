@@ -137,6 +137,9 @@ class NodeScheduler(Protocol):
             int, int
         ] = {}  # program ID -> dependent program ID
 
+        self._last_cpu_task_pid = -1
+        self._last_qpu_task_pid = -1
+
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
 
@@ -356,6 +359,7 @@ class NodeScheduler(Protocol):
         super().start()
         self._cpu_scheduler.start()
         self._qpu_scheduler.start()
+        self.schedule_all()
 
     def stop(self) -> None:
         self._qpu_scheduler.stop()
@@ -364,14 +368,92 @@ class NodeScheduler(Protocol):
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
-            self.schedule()
+            if (
+                self._last_cpu_task_pid != -1
+                and self.is_program_instance_finished(self._last_cpu_task_pid)
+            ) or (
+                self._last_qpu_task_pid != -1
+                and self.is_program_instance_finished(self._last_qpu_task_pid)
+            ):
+                self.schedule_all()
             ev_expr = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
             ev_expr = ev_expr | self.await_signal(
                 self._qpu_scheduler, SIGNAL_TASK_COMPLETED
             )
             yield ev_expr
 
-    def schedule(self) -> None:
+            now = ns.sim_time()
+            self._last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(
+                now
+            )
+            if self._last_cpu_task_pid != -1:
+                self.schedule_next_for(self._last_cpu_task_pid)
+            self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
+                now
+            )
+            if (
+                self._last_qpu_task_pid != -1
+                and self._last_qpu_task_pid != self._last_cpu_task_pid
+            ):
+                self.schedule_next_for(self._last_qpu_task_pid)
+
+    def schedule_next_for(self, pid: int) -> None:
+        new_cpu_tasks: Dict[int, TaskInfo] = {}
+        new_qpu_tasks: Dict[int, TaskInfo] = {}
+
+        # If there is a jump, jump to that block
+        if (
+            pid in self.host.interface.program_instance_jumps
+            and self.host.interface.program_instance_jumps[pid] != -1
+        ):
+            self._current_block_index[pid] = self.host.interface.program_instance_jumps[
+                pid
+            ]
+            self.host.interface.program_instance_jumps[pid] = -1
+
+        current_block_index = self._current_block_index[pid]
+        prog_instance = self.memmgr.get_process(pid).prog_instance
+        blocks = prog_instance.program.blocks
+
+        # If it is not in range or cpu is not done with tasks with this pid
+        # We cannot add any more tasks because all block types have cpu tasks
+        if len(blocks) <= current_block_index or self.cpu_scheduler.task_exists_for_pid(
+            pid
+        ):
+            return
+
+        block = prog_instance.program.blocks[current_block_index]
+
+        # If it is CL or CC it will only have tasks in CPU but others will have tasks in both
+        if block.typ in {
+            BasicBlockType.CL,
+            BasicBlockType.CC,
+        }:
+            graph = self._task_from_block_builder.build(
+                prog_instance, current_block_index, self._network_ehi
+            )
+            new_cpu_tasks.update(graph.get_tasks())
+
+            self._current_block_index[pid] += 1
+            # If scheduler does not have any task send a message to wake it up
+            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+        elif not self.qpu_scheduler.task_exists_for_pid(pid):
+            # Note that we know that cpu does not have any tasks for this pid
+            graph = self._task_from_block_builder.build(
+                prog_instance, current_block_index, self._network_ehi
+            )
+            new_cpu_tasks.update(graph.partial_graph(ProcessorType.CPU).get_tasks())
+            new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
+
+            self._current_block_index[pid] += 1
+            # If scheduler does not have any task send a message to wake it up
+            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+            self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
+
+        self._cpu_scheduler.add_tasks(new_cpu_tasks)
+        self._qpu_scheduler.add_tasks(new_qpu_tasks)
+
+    def schedule_all(self) -> None:
         new_cpu_tasks: Dict[int, TaskInfo] = {}
         new_qpu_tasks: Dict[int, TaskInfo] = {}
 
@@ -398,13 +480,12 @@ class NodeScheduler(Protocol):
 
             current_block_index = self._current_block_index[pid]
             prog_instance = self.memmgr.get_process(pid).prog_instance
-            blocks = prog_instance.program.blocks
 
             # If it is not in range or cpu is not done with tasks with this pid
             # We cannot add any more tasks because all block types have cpu tasks
-            if len(
-                blocks
-            ) <= current_block_index or self.cpu_scheduler.task_exists_for_pid(pid):
+            if self.is_program_instance_finished(
+                pid
+            ) or self.cpu_scheduler.task_exists_for_pid(pid):
                 continue
 
             block = prog_instance.program.blocks[current_block_index]
@@ -436,6 +517,11 @@ class NodeScheduler(Protocol):
                 self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
         self._cpu_scheduler.add_tasks(new_cpu_tasks)
         self._qpu_scheduler.add_tasks(new_qpu_tasks)
+
+    def is_program_instance_finished(self, pid: int) -> bool:
+        return self._current_block_index[pid] >= len(
+            self.memmgr.get_process(pid).prog_instance.program.blocks
+        )
 
     def submit_program_instance_new(
         self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
@@ -529,6 +615,7 @@ class ProcessorScheduler(Protocol):
         self._tasks_executed: Dict[int, QoalaTask] = {}
         self._task_starts: Dict[int, float] = {}
         self._task_ends: Dict[int, float] = {}
+        self.last_finished_task_pid: Tuple[int, int] = (-1, -1)  # (pid, end_time)
 
         self._comp = ProcessorSchedulerComponent(name + "_comp")
 
@@ -543,6 +630,12 @@ class ProcessorScheduler(Protocol):
     @property
     def driver(self) -> Driver:
         return self._driver
+
+    def get_last_finished_task_pid_at(self, time: float) -> int:
+        if self.last_finished_task_pid[1] == time:
+            return self.last_finished_task_pid[0]
+        else:
+            return -1
 
     def task_exists_for_pid(self, pid: int) -> bool:
         return self._task_graph.task_exists_for_pid(pid)
@@ -665,6 +758,7 @@ class EdfScheduler(ProcessorScheduler):
             after = ns.sim_time()
 
             self.record_end_timestamp(task.pid, after)
+            self.last_finished_task_pid = (task.pid, after)
             duration = after - before
             self._task_graph.decrease_deadlines(duration)
             self._task_graph.remove_task(task_id)

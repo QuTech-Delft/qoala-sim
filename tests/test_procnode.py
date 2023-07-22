@@ -214,9 +214,14 @@ class MockScheduler(NodeScheduler):
         self._cpu_scheduler = scheduler.cpu_scheduler
         self._qpu_scheduler = scheduler.qpu_scheduler
         self._host = scheduler.host
+        self._last_cpu_task_pid = -1
+        self._last_qpu_task_pid = -1
         pass
 
-    def schedule(self) -> None:
+    def schedule_next_for(self, pid: int) -> None:
+        pass
+
+    def schedule_all(self) -> None:
         pass
 
 
