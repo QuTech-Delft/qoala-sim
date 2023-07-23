@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 from typing import Dict, Generator, List, Optional, Union
 
+import netsquid
 from netqasm.lang.operand import Template
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
+from qoala.lang.hostlang import ClassicalIqoalaOp
 from qoala.lang.request import CallbackType
 from qoala.runtime.message import LrCallTuple, RrCallTuple
 from qoala.runtime.sharedmem import MemAddr
@@ -60,6 +62,7 @@ class HostProcessor:
     def assign_instr(
         self, process: QoalaProcess, instr: hostlang.ClassicalIqoalaOp
     ) -> Generator[EventExpression, None, None]:
+        print("assign_instr", instr, netsquid.sim_time())
         csockets = process.csockets
         host_mem = process.prog_memory.host_mem
         pid = process.pid
@@ -160,6 +163,7 @@ class HostProcessor:
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.ReturnResultOp):
+            yield from self._interface.wait(first_half)
             assert isinstance(instr.arguments[0], str)
             loc = instr.arguments[0]
             # TODO: improve this
@@ -180,63 +184,34 @@ class HostProcessor:
             self._interface.program_instance_jumps[pid] = block_id
             yield from self._interface.wait(second_half)
         elif isinstance(instr, hostlang.BranchIfEqualOp):
-            yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.arguments[1], str)
-            value0 = host_mem.read(instr.arguments[0])
-            value1 = host_mem.read(instr.arguments[1])
-            assert isinstance(instr.attributes[0], str)
-            block_name = instr.attributes[0]
-            self._logger.debug(
-                f"branching to block {block_name} if {value0} == {value1}"
-            )
-            if value0 == value1:
-                block_id = process.prog_instance.program.get_block_id(block_name)
-                self._interface.program_instance_jumps[pid] = block_id
-            yield from self._interface.wait(second_half)
+            yield from self._branch(process, instr, "__eq__")
         elif isinstance(instr, hostlang.BranchIfNotEqualOp):
-            yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.arguments[1], str)
-            value0 = host_mem.read(instr.arguments[0])
-            value1 = host_mem.read(instr.arguments[1])
-            assert isinstance(instr.attributes[0], str)
-            block_name = instr.attributes[0]
-            self._logger.debug(
-                f"branching to block {block_name} if {value0} != {value1}"
-            )
-            if value0 != value1:
-                block_id = process.prog_instance.program.get_block_id(block_name)
-                self._interface.program_instance_jumps[pid] = block_id
-            yield from self._interface.wait(second_half)
+            yield from self._branch(process, instr, "__ne__")
         elif isinstance(instr, hostlang.BranchIfLessThanOp):
-            yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.arguments[1], str)
-            value0 = host_mem.read(instr.arguments[0])
-            value1 = host_mem.read(instr.arguments[1])
-            assert isinstance(instr.attributes[0], str)
-            block_name = instr.attributes[0]
-            self._logger.debug(
-                f"branching to block {block_name} if {value0} < {value1}"
-            )
-            if value0 < value1:
-                block_id = process.prog_instance.program.get_block_id(block_name)
-                self._interface.program_instance_jumps[pid] = block_id
-            yield from self._interface.wait(second_half)
+            yield from self._branch(process, instr, "__lt__")
         elif isinstance(instr, hostlang.BranchIfGreaterThanOp):
-            yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.arguments[1], str)
-            value0 = host_mem.read(instr.arguments[0])
-            value1 = host_mem.read(instr.arguments[1])
-            assert isinstance(instr.attributes[0], str)
-            block_name = instr.attributes[0]
-            self._logger.debug(f"branching to block {block_name} if {value0}> {value1}")
-            if value0 > value1:
-                block_id = process.prog_instance.program.get_block_id(block_name)
-                self._interface.program_instance_jumps[pid] = block_id
-            yield from self._interface.wait(second_half)
+            yield from self._branch(process, instr, "__gt__")
+
+    def _branch(
+        self, process: QoalaProcess, instr: ClassicalIqoalaOp, comparison_op: str
+    ) -> Generator[EventExpression, None, None]:
+        instr_time = self._latencies.host_instr_time
+        first_half = instr_time / 2
+        second_half = instr_time - first_half  # just to make it adds up
+        yield from self._interface.wait(first_half)
+        assert isinstance(instr.arguments[0], str)
+        assert isinstance(instr.arguments[1], str)
+        host_mem = process.prog_memory.host_mem
+        pid = process.pid
+
+        value0 = host_mem.read(instr.arguments[0])
+        value1 = host_mem.read(instr.arguments[1])
+        assert isinstance(instr.attributes[0], str)
+        block_name = instr.attributes[0]
+        if getattr(value0, comparison_op)(value1):
+            block_id = process.prog_instance.program.get_block_id(block_name)
+            self._interface.program_instance_jumps[pid] = block_id
+        yield from self._interface.wait(second_half)
 
     def prepare_lr_call(
         self, process: QoalaProcess, instr: hostlang.RunSubroutineOp

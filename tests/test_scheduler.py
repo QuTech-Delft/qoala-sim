@@ -697,12 +697,12 @@ def test_full_program():
     ns.sim_run()
 
 
-def test_jump_instructions():
+def test_jump_instruction():
     network = setup_network()
     alice = network.nodes["alice"]
     bob = network.nodes["bob"]
 
-    program_alice = load_program("test_new_scheduler.iqoala")
+    program_alice = load_program("test_jumping_and_branching.iqoala")
 
     pid = 0
     inputs_alice = ProgramInput({"bob_id": 1})
@@ -710,10 +710,306 @@ def test_jump_instructions():
 
     alice.scheduler.submit_program_instance_new(instance_alice, 0)
 
+    used_blocks_alice = {"blk_jump", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
     ns.sim_reset()
+    assert ns.sim_time() == 0
     network.start()
     bob.scheduler.stop()
     ns.sim_run()
+
+    assert ns.sim_time() == 5000  # 5 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 0
+    assert alice_mem.read("var_y") == 1
+
+
+def test_beq_instruction_1():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_beq_1", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 5000  # 5 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 1
+    assert alice_mem.read("var_y") == 1
+
+
+def test_beq_instruction_2():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_beq_2", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 7000  # 7 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 9
+    assert alice_mem.read("var_y") == 9
+
+
+def test_bne_instruction_1():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_bne_1", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 5000  # 5 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 2
+    assert alice_mem.read("var_y") == 3
+
+
+def test_bne_instruction_2():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_bne_2", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 7000  # 7 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 9
+    assert alice_mem.read("var_y") == 9
+
+
+def test_bgt_instruction_1():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_bgt_1", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 5000  # 5 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 5
+    assert alice_mem.read("var_y") == 4
+
+
+def test_bgt_instruction_2():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_bgt_2", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 7000  # 7 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 9
+    assert alice_mem.read("var_y") == 9
+
+
+def test_blt_instruction_1():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_blt_1", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 5000  # 5 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 6
+    assert alice_mem.read("var_y") == 7
+
+
+def test_blt_instruction_2():
+    network = setup_network()
+    alice = network.nodes["alice"]
+    bob = network.nodes["bob"]
+
+    program_alice = load_program("test_jumping_and_branching.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+
+    used_blocks_alice = {"blk_blt_2", "blk_temp", "blk_last"}
+    new_blocks_alice = []
+    for block in instance_alice.program.blocks:
+        if block.name in used_blocks_alice:
+            new_blocks_alice.append(block)
+
+    instance_alice.program.blocks = new_blocks_alice
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    bob.scheduler.stop()
+    ns.sim_run()
+
+    assert ns.sim_time() == 7000  # 7 * 1000
+
+    # assert ns.sim_time() == expected_duration
+    alice_mem = alice.memmgr.get_process(pid).host_mem
+    assert alice_mem.read("var_x") == 9
+    assert alice_mem.read("var_y") == 9
 
 
 if __name__ == "__main__":
@@ -730,4 +1026,12 @@ if __name__ == "__main__":
     test_epr_ck_2()
     test_cc()
     test_full_program()
-    test_jump_instructions()
+    test_jump_instruction()
+    test_beq_instruction_1()
+    test_beq_instruction_2()
+    test_bne_instruction_1()
+    test_bne_instruction_2()
+    test_bgt_instruction_1()
+    test_bgt_instruction_2()
+    test_blt_instruction_1()
+    test_blt_instruction_2()
