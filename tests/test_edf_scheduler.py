@@ -38,9 +38,10 @@ def test_update_status_one_root():
     graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
     graph.add_precedences([(0, 1)])
     graph.add_rel_deadlines([((0, 1), 100)])
+    graph.get_tasks()
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
-    scheduler.upload_task_graph(graph)
+    scheduler.add_tasks(graph.get_tasks())
     scheduler.update_status()
     assert scheduler.status.status == {Status.NEXT_TASK}
     assert scheduler.status.params == {"task_id": 0}
@@ -52,7 +53,7 @@ def test_update_status_two_roots():
     graph.add_deadlines([(0, 1000), (1, 500)])
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
-    scheduler.upload_task_graph(graph)
+    scheduler.add_tasks(graph.get_tasks())
     scheduler.update_status()
     assert scheduler.status.status == {Status.NEXT_TASK}
     assert scheduler.status.params == {"task_id": 1}
@@ -66,7 +67,7 @@ def test_edf_1():
     graph.add_rel_deadlines([((0, 1), 100)])
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
-    scheduler.upload_task_graph(graph)
+    scheduler.add_tasks(graph.get_tasks())
 
     ns.sim_reset()
     scheduler.start()
@@ -84,7 +85,7 @@ def test_edf_2():
     graph.add_rel_deadlines([((1, 2), 200), ((1, 3), 400), ((2, 4), 100)])
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
-    scheduler.upload_task_graph(graph)
+    scheduler.add_tasks(graph.get_tasks())
 
     ns.sim_reset()
     scheduler.start()

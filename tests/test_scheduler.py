@@ -139,7 +139,7 @@ def test_cpu_scheduler():
     pid = 0
     instance = ObjectBuilder.simple_program_instance(program, pid)
 
-    procnode.scheduler.submit_program_instance_new(instance)
+    procnode.scheduler.submit_program_instance(instance)
 
     tasks_with_start_times = [
         (HostLocalTask(0, 0, "b0"), 0),
@@ -152,7 +152,7 @@ def test_cpu_scheduler():
     scheduler = CpuEdfScheduler(
         "alice", 0, driver, procnode.memmgr, procnode.host.interface
     )
-    scheduler.upload_task_graph(graph)
+    scheduler.add_tasks(graph.get_tasks())
 
     ns.sim_reset()
     scheduler.start()
@@ -172,7 +172,7 @@ def test_cpu_scheduler_no_time():
     pid = 0
     instance = ObjectBuilder.simple_program_instance(program, pid)
 
-    procnode.scheduler.submit_program_instance_new(instance)
+    procnode.scheduler.submit_program_instance(instance)
 
     tasks = [HostLocalTask(0, 0, "b0"), HostLocalTask(1, 0, "b1")]
     tinfos: Dict[int, TaskInfo] = {
@@ -206,8 +206,8 @@ def test_cpu_scheduler_2_processes():
     instance0 = ObjectBuilder.simple_program_instance(program, pid0)
     instance1 = ObjectBuilder.simple_program_instance(program, pid1)
 
-    procnode.scheduler.submit_program_instance_new(instance0)
-    procnode.scheduler.submit_program_instance_new(instance1)
+    procnode.scheduler.submit_program_instance(instance0)
+    procnode.scheduler.submit_program_instance(instance1)
 
     tasks_with_start_times = [
         (HostLocalTask(0, pid0, "b0"), 0),
@@ -222,7 +222,7 @@ def test_cpu_scheduler_2_processes():
     scheduler = CpuEdfScheduler(
         "alice", 0, driver, procnode.memmgr, procnode.host.interface
     )
-    scheduler.upload_task_graph(graph)
+    scheduler.add_tasks(graph.get_tasks())
 
     ns.sim_reset()
     scheduler.start()
@@ -250,7 +250,7 @@ def test_qpu_scheduler():
     pid = 0
     instance = ObjectBuilder.simple_program_instance(program, pid)
 
-    procnode.scheduler.submit_program_instance_new(instance)
+    procnode.scheduler.submit_program_instance(instance)
 
     shared_ptr = 0
 
@@ -276,7 +276,7 @@ def test_qpu_scheduler():
     cpu_scheduler = CpuEdfScheduler(
         "alice", 0, cpu_driver, procnode.memmgr, procnode.host.interface
     )
-    cpu_scheduler.upload_task_graph(cpu_graph)
+    cpu_scheduler.add_tasks(cpu_graph.get_tasks())
 
     qpu_driver = QpuDriver(
         "alice",
@@ -287,7 +287,7 @@ def test_qpu_scheduler():
         procnode.memmgr,
     )
     qpu_scheduler = QpuEdfScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
-    qpu_scheduler.upload_task_graph(qpu_graph)
+    qpu_scheduler.add_tasks(qpu_graph.get_tasks())
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)
     qpu_scheduler.set_other_scheduler(cpu_scheduler)
@@ -314,8 +314,8 @@ def test_qpu_scheduler_2_processes():
     instance0 = ObjectBuilder.simple_program_instance(program, pid0)
     instance1 = ObjectBuilder.simple_program_instance(program, pid1)
 
-    procnode.scheduler.submit_program_instance_new(instance0)
-    procnode.scheduler.submit_program_instance_new(instance1)
+    procnode.scheduler.submit_program_instance(instance0)
+    procnode.scheduler.submit_program_instance(instance1)
 
     shared_ptr_pid0 = 0
     shared_ptr_pid1 = 1
@@ -345,7 +345,7 @@ def test_qpu_scheduler_2_processes():
     cpu_scheduler = CpuEdfScheduler(
         "alice", 0, cpu_driver, procnode.memmgr, procnode.host.interface
     )
-    cpu_scheduler.upload_task_graph(cpu_graph)
+    cpu_scheduler.add_tasks(cpu_graph.get_tasks())
 
     qpu_driver = QpuDriver(
         "alice",
@@ -356,7 +356,7 @@ def test_qpu_scheduler_2_processes():
         procnode.memmgr,
     )
     qpu_scheduler = QpuEdfScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
-    qpu_scheduler.upload_task_graph(qpu_graph)
+    qpu_scheduler.add_tasks(qpu_graph.get_tasks())
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)
     qpu_scheduler.set_other_scheduler(cpu_scheduler)
@@ -391,8 +391,8 @@ def test_host_program():
 
     instance.program.blocks = new_blocks
 
-    alice.scheduler.submit_program_instance_new(instance, remote_pid=0)
-    bob.scheduler.submit_program_instance_new(instance, remote_pid=0)
+    alice.scheduler.submit_program_instance(instance, remote_pid=0)
+    bob.scheduler.submit_program_instance(instance, remote_pid=0)
 
     ns.sim_reset()
     network.start()
@@ -421,8 +421,8 @@ def test_lr_program():
 
     instance.program.blocks = new_blocks
 
-    alice.scheduler.submit_program_instance_new(instance, remote_pid=0)
-    bob.scheduler.submit_program_instance_new(instance, remote_pid=0)
+    alice.scheduler.submit_program_instance(instance, remote_pid=0)
+    bob.scheduler.submit_program_instance(instance, remote_pid=0)
 
     ns.sim_reset()
     network.start()
@@ -465,8 +465,8 @@ def test_epr_md_1():
 
     instance_bob.program.blocks = new_blocks_bob
 
-    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -509,8 +509,8 @@ def test_epr_md_2():
 
     instance_bob.program.blocks = new_blocks_bob
 
-    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -555,8 +555,8 @@ def test_epr_ck_1():
 
     instance_bob.program.blocks = new_blocks_bob
 
-    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -604,8 +604,8 @@ def test_epr_ck_2():
 
     instance_bob.program.blocks = new_blocks_bob
 
-    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -657,8 +657,8 @@ def test_cc():
 
     instance_bob.program.blocks = new_blocks_bob
 
-    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     assert alice.local_ehi.latencies.host_peer_latency == 3000
     assert alice.local_ehi.latencies.host_instr_time == 1000
@@ -689,8 +689,8 @@ def test_full_program():
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
     instance_bob = instantiate(program_bob, bob.local_ehi, pid, inputs_bob)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, instance_bob.pid)
-    bob.scheduler.submit_program_instance_new(instance_bob, instance_alice.pid)
+    alice.scheduler.submit_program_instance(instance_alice, instance_bob.pid)
+    bob.scheduler.submit_program_instance(instance_bob, instance_alice.pid)
 
     ns.sim_reset()
     network.start()
@@ -708,7 +708,7 @@ def test_jump_instruction():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_jump", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -726,7 +726,6 @@ def test_jump_instruction():
 
     assert ns.sim_time() == 5000  # 5 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 0
     assert alice_mem.read("var_y") == 1
@@ -743,7 +742,7 @@ def test_beq_instruction_1():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_beq_1", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -761,7 +760,6 @@ def test_beq_instruction_1():
 
     assert ns.sim_time() == 5000  # 5 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 1
     assert alice_mem.read("var_y") == 1
@@ -778,7 +776,7 @@ def test_beq_instruction_2():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_beq_2", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -796,7 +794,6 @@ def test_beq_instruction_2():
 
     assert ns.sim_time() == 7000  # 7 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 9
     assert alice_mem.read("var_y") == 9
@@ -813,7 +810,7 @@ def test_bne_instruction_1():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_bne_1", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -831,7 +828,6 @@ def test_bne_instruction_1():
 
     assert ns.sim_time() == 5000  # 5 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 2
     assert alice_mem.read("var_y") == 3
@@ -848,7 +844,7 @@ def test_bne_instruction_2():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_bne_2", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -866,7 +862,6 @@ def test_bne_instruction_2():
 
     assert ns.sim_time() == 7000  # 7 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 9
     assert alice_mem.read("var_y") == 9
@@ -883,7 +878,7 @@ def test_bgt_instruction_1():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_bgt_1", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -901,7 +896,6 @@ def test_bgt_instruction_1():
 
     assert ns.sim_time() == 5000  # 5 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 5
     assert alice_mem.read("var_y") == 4
@@ -918,7 +912,7 @@ def test_bgt_instruction_2():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_bgt_2", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -936,7 +930,6 @@ def test_bgt_instruction_2():
 
     assert ns.sim_time() == 7000  # 7 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 9
     assert alice_mem.read("var_y") == 9
@@ -953,7 +946,7 @@ def test_blt_instruction_1():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_blt_1", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -971,7 +964,6 @@ def test_blt_instruction_1():
 
     assert ns.sim_time() == 5000  # 5 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 6
     assert alice_mem.read("var_y") == 7
@@ -988,7 +980,7 @@ def test_blt_instruction_2():
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
 
-    alice.scheduler.submit_program_instance_new(instance_alice, 0)
+    alice.scheduler.submit_program_instance(instance_alice, 0)
 
     used_blocks_alice = {"blk_blt_2", "blk_temp", "blk_last"}
     new_blocks_alice = []
@@ -1006,7 +998,6 @@ def test_blt_instruction_2():
 
     assert ns.sim_time() == 7000  # 7 * 1000
 
-    # assert ns.sim_time() == expected_duration
     alice_mem = alice.memmgr.get_process(pid).host_mem
     assert alice_mem.read("var_x") == 9
     assert alice_mem.read("var_y") == 9

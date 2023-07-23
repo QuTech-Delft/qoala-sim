@@ -342,19 +342,6 @@ class NodeScheduler(Protocol):
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
 
-    def upload_cpu_task_graph(self, graph: TaskGraph) -> None:
-        self._cpu_scheduler.upload_task_graph(graph)
-
-    def upload_qpu_task_graph(self, graph: TaskGraph) -> None:
-        self._qpu_scheduler.upload_task_graph(graph)
-
-    def upload_task_graph(self, graph: TaskGraph) -> None:
-        self._task_graph = graph
-        cpu_graph = graph.partial_graph(ProcessorType.CPU)
-        qpu_graph = graph.partial_graph(ProcessorType.QPU)
-        self._cpu_scheduler.upload_task_graph(cpu_graph)
-        self._qpu_scheduler.upload_task_graph(qpu_graph)
-
     def start(self) -> None:
         super().start()
         self._cpu_scheduler.start()
@@ -398,6 +385,7 @@ class NodeScheduler(Protocol):
                 self.schedule_next_for(self._last_qpu_task_pid)
 
     def schedule_next_for(self, pid: int) -> None:
+
         new_cpu_tasks: Dict[int, TaskInfo] = {}
         new_qpu_tasks: Dict[int, TaskInfo] = {}
 
@@ -523,7 +511,7 @@ class NodeScheduler(Protocol):
             self.memmgr.get_process(pid).prog_instance.program.blocks
         )
 
-    def submit_program_instance_new(
+    def submit_program_instance(
         self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
     ) -> None:
         process = self.create_process(prog_instance, remote_pid)
@@ -531,31 +519,6 @@ class NodeScheduler(Protocol):
         self.initialize_process(process)
         self._current_block_index[prog_instance.pid] = 0
         self._prog_instance_dependency[prog_instance.pid] = -1
-
-    def submit_program_instance(
-        self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
-    ) -> None:
-        process = self.create_process(prog_instance, remote_pid)
-        self.memmgr.add_process(process)
-        self.initialize_process(process)
-
-    def get_tasks_to_schedule(self) -> List[TaskGraph]:
-        all_tasks: List[TaskGraph] = []
-
-        # for batch in self._batches.values():
-        #     for inst in batch.instances:
-        #         all_tasks.append(inst.task_graph)
-
-        return all_tasks
-
-    def get_tasks_to_schedule_for(self, batch_id: int) -> List[TaskGraph]:
-        all_tasks: List[TaskGraph] = []
-
-        # batch = self._batches[batch_id]
-        # for inst in batch.instances:
-        #     all_tasks.append(inst.task_graph)
-
-        return all_tasks
 
     def get_statistics(self) -> SchedulerStatistics:
         return SchedulerStatistics(
@@ -642,9 +605,6 @@ class ProcessorScheduler(Protocol):
 
     def add_tasks(self, tasks: Dict[int, TaskInfo]) -> None:
         self._task_graph.get_tasks().update(tasks)
-
-    def upload_task_graph(self, graph: TaskGraph) -> None:
-        self._task_graph = graph
 
     def has_finished(self, task_id: int) -> bool:
         return task_id in self._finished_tasks
@@ -891,11 +851,17 @@ class CpuEdfScheduler(EdfScheduler):
             return
         else:
             if len(blocked_on_other_core) > 0:
+                self._logger.debug("Waiting other core")
+                self._task_logger.debug("Waiting other core")
                 self._status.status.add(Status.WAITING_OTHER_CORE)
             if len(event_blocked_on_message) > 0:
+                self._logger.debug("Waiting message")
+                self._task_logger.debug("Waiting message")
                 self._status.status.add(Status.WAITING_MSG)
             if wait_for_start is not None:
                 _, start = wait_for_start
+                self._logger.debug("Waiting Start Time")
+                self._task_logger.debug("Waiting Start Time")
                 self._status.status.add(Status.WAITING_START_TIME)
                 self._status.params["start_time"] = start
 
@@ -906,12 +872,12 @@ class CpuEdfScheduler(EdfScheduler):
         while True:
             self._task_logger.debug("updating status...")
             self._status = SchedulerStatus(status=set(), params={})
+            self.update_external_predcessors()
             self.update_status()
             self._task_logger.debug(f"status: {self.status.status}")
             if Status.NEXT_TASK in self.status.status:
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
-                self.update_external_predcessors()
             else:
                 ev_expr = self.await_port_input(self.node_scheduler_out_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
@@ -940,7 +906,6 @@ class CpuEdfScheduler(EdfScheduler):
                         )
                 else:
                     yield ev_expr
-                self.update_external_predcessors()
 
 
 class QpuEdfScheduler(EdfScheduler):
@@ -1162,10 +1127,16 @@ class QpuEdfScheduler(EdfScheduler):
                 )
         else:
             if len(blocked_on_other_core) > 0:
+                self._logger.debug("Waiting other core")
+                self._task_logger.debug("Waiting other core")
                 self._status.status.add(Status.WAITING_OTHER_CORE)
             if len(blocked_on_resources) > 0:
+                self._logger.debug("Waiting resources")
+                self._task_logger.debug("Waiting resources")
                 self._status.status.add(Status.WAITING_RESOURCES)
             if epr_wait_for_bin is not None:
+                self._logger.debug("Waiting time bin")
+                self._task_logger.debug("Waiting time bin")
                 task_id, delta = epr_wait_for_bin
                 self._status.status.add(Status.WAITING_TIME_BIN)
                 self._status.params["delta"] = delta
@@ -1177,17 +1148,15 @@ class QpuEdfScheduler(EdfScheduler):
         while True:
             self._task_logger.debug("updating status...")
             self._status = SchedulerStatus(status=set(), params={})
+            self.update_external_predcessors()
             self.update_status()
             self._task_logger.debug(f"status: {self.status.status}")
             if Status.EPR_GEN in self.status.status:
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
-                self.update_external_predcessors()
             elif Status.NEXT_TASK in self.status.status:
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
-                self.update_external_predcessors()
-
             else:
                 ev_expr = self.await_port_input(self.node_scheduler_out_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
@@ -1206,4 +1175,3 @@ class QpuEdfScheduler(EdfScheduler):
                     ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
                     ev_expr = ev_expr | ev_timebin
                 yield ev_expr
-                self.update_external_predcessors()

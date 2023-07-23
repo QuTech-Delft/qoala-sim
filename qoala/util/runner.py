@@ -12,7 +12,6 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 
 # from qoala.util.logging import LogManager
@@ -141,15 +140,11 @@ def run_1_server_n_clients(
         server_pids[client_name] = batch.instances[0].pid
 
     for client_name in client_names:
-        procnode.initialize_processes({0: [server_pids[client_name]]})
-        tasks = procnode.scheduler.get_tasks_to_schedule()
-        merged = TaskGraphBuilder.merge(tasks)
-        procnode.scheduler.upload_task_graph(merged)
+        procnode.initialize_processes({0: [server_pids[client_name]]}, linear=False)
 
-    server_procnode.initialize_processes({i: [0] for i in range(len(client_names))})
-    server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
-    server_merged = TaskGraphBuilder.merge(server_tasks)
-    server_procnode.scheduler.upload_task_graph(server_merged)
+    server_procnode.initialize_processes(
+        {i: [0] for i in range(len(client_names))}, linear=False
+    )
 
     network.start()
     ns.sim_run()

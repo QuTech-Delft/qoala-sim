@@ -106,10 +106,10 @@ def run_bqc(
         client_program, client_procnode.local_ehi, 0, client_input
     )
 
-    client_procnode.scheduler.submit_program_instance_new(
+    client_procnode.scheduler.submit_program_instance(
         client_instance, remote_pid=server_instance.pid
     )
-    server_procnode.scheduler.submit_program_instance_new(
+    server_procnode.scheduler.submit_program_instance(
         server_instance, remote_pid=client_instance.pid
     )
 
