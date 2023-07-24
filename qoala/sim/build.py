@@ -7,7 +7,7 @@ from netsquid.components.models.qerrormodels import QuantumErrorModel
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
 from netsquid.nodes.connections import Connection
 
-from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
+from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo, EhiNetworkSchedule
 
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import ProcNodeConfig, ProcNodeNetworkConfig  # type: ignore
@@ -182,6 +182,69 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         chan_en.ports["recv"].connect(procnode.node.entdist_in_port)
 
     return ProcNodeNetwork(procnodes, entdist)
+
+def build_network_from_config_netschedule(config: ProcNodeNetworkConfig, netschedule:EhiNetworkSchedule | None = None) -> ProcNodeNetwork:
+    procnodes: Dict[str, ProcNode] = {}
+
+    ehi_links: Dict[FrozenSet[int], EhiLinkInfo] = {}
+    for link_between_nodes in config.links:
+        lhi_link = LhiLinkInfo.from_config(link_between_nodes.link_config)
+        ehi_link = LhiConverter.link_info_to_ehi(lhi_link)
+        ids = (link_between_nodes.node_id1, link_between_nodes.node_id2)
+        node_link = frozenset(ids)
+        ehi_links[node_link] = ehi_link
+    nodes = {cfg.node_id: cfg.node_name for cfg in config.nodes}
+
+    if netschedule is not None:
+        network_ehi = EhiNetworkInfo(nodes, ehi_links, netschedule)
+
+    elif config.netschedule is not None:
+        lhi_netschedule = LhiNetworkSchedule.from_config(config.netschedule)
+        ehi_netschedule = LhiConverter.netschedule_to_ehi(lhi_netschedule)
+        network_ehi = EhiNetworkInfo(nodes, ehi_links, ehi_netschedule)
+    else:
+        network_ehi = EhiNetworkInfo(nodes, ehi_links)
+
+    for cfg in config.nodes:
+        procnodes[cfg.node_name] = build_procnode_from_config(cfg, network_ehi)
+
+    ns_nodes = [procnode.node for procnode in procnodes.values()]
+    entdistcomp = EntDistComponent(network_ehi)
+    entdist = EntDist(nodes=ns_nodes, ehi_network=network_ehi, comp=entdistcomp)
+
+    for link_between_nodes in config.links:
+        link = LhiLinkInfo.from_config(link_between_nodes.link_config)
+        n1 = link_between_nodes.node_id1
+        n2 = link_between_nodes.node_id2
+        entdist.add_sampler(n1, n2, link)
+
+    def get_latency(node1: int, node2: int) -> float:
+        if config.cconns is None:
+            return 0.0
+        for cconn in config.cconns:
+            if (cconn.node_id1 == node1 and cconn.node_id2 == node2) or (
+                cconn.node_id1 == node1 and cconn.node_id2 == node2
+            ):
+                return cconn.latency  # type: ignore
+        return 0.0
+
+    for s1, s2 in itertools.combinations(procnodes.values(), 2):
+        latency = get_latency(s1.node.node_id, s2.node.node_id)
+        s1.connect_to(s2, latency)
+
+    # TODO: make this configurable
+    node_entdist_latency = 0
+    for name, procnode in procnodes.items():
+        chan_ne = ClassicalChannel(f"chan_{name}_entdist", delay=node_entdist_latency)
+        procnode.node.entdist_out_port.connect(chan_ne.ports["send"])
+        chan_ne.ports["recv"].connect(entdistcomp.node_in_port(name))
+
+        chan_en = ClassicalChannel(f"chan_entdist_{name}", delay=node_entdist_latency)
+        entdistcomp.node_out_port(name).connect(chan_en.ports["send"])
+        chan_en.ports["recv"].connect(procnode.node.entdist_in_port)
+
+    return ProcNodeNetwork(procnodes, entdist)
+
 
 
 def build_procnode_from_lhi(

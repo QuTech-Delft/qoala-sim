@@ -5,15 +5,16 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 import netsquid as ns
+from rich import print as rprint
 
-from qoala.lang.ehi import UnitModule
+from qoala.lang.ehi import UnitModule, EhiNetworkSchedule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import TaskGraphBuilder
-from qoala.sim.build import build_network_from_config
+from qoala.runtime.task import TaskGraph, TaskGraphBuilder
+from qoala.sim.build import build_network_from_config, build_network_from_config_netschedule
 from qoala.util.logging import LogManager
 
 
@@ -44,6 +45,7 @@ def create_batch(
         num_iterations=num_iterations,
         deadline=0,
     )
+
 
 
 def run_two_node_app_separate_inputs(
@@ -109,6 +111,83 @@ def run_two_node_app_separate_inputs(
 
     total_duration = ns.sim_time()
     return AppResult(results, statistics, total_duration)
+
+def run_two_node_app_separate_inputs_netschedule(
+    num_iterations: int,
+    programs: Dict[str, QoalaProgram],
+    program_inputs: Dict[str, List[ProgramInput]],
+    network_cfg: ProcNodeNetworkConfig,
+    linear: bool = False,
+    netschedule: EhiNetworkSchedule | None = None,
+) -> AppResult:
+    ns.sim_reset()
+    ns.set_qstate_formalism(ns.QFormalism.DM)
+    seed = random.randint(0, 1000)
+    ns.set_random_state(seed=seed)
+
+    if netschedule is None:
+        network = build_network_from_config(network_cfg)
+    else:
+        network = build_network_from_config_netschedule(network_cfg, netschedule)
+
+
+
+    names = list(programs.keys())
+    assert len(names) == 2
+    other_name = {names[0]: names[1], names[1]: names[0]}
+    batches: Dict[str, ProgramBatch] = {}  # node -> batch
+
+    for name in names:
+        procnode = network.nodes[name]
+        program = programs[name]
+        inputs = program_inputs[name]
+
+        unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
+        batch_info = create_batch(program, unit_module, inputs, num_iterations)
+        batches[name] = procnode.submit_batch(batch_info)
+
+    for name in names:
+        procnode = network.nodes[name]
+
+        remote_batch = batches[other_name[name]]
+        remote_pids = {remote_batch.batch_id: [p.pid for p in remote_batch.instances]}
+        procnode.initialize_processes(remote_pids)
+
+        tasks = procnode.scheduler.get_tasks_to_schedule()
+        # rprint(tasks)
+        if linear:
+            merged = TaskGraphBuilder.merge_linear(tasks)
+        else:
+            merged = TaskGraphBuilder.merge(tasks)
+        procnode.scheduler.upload_task_graph(merged)
+
+        merged: TaskGraph
+
+        for id, task in merged.get_tasks().items():
+            rprint(name+str(id), task.__dict__["task"], task.__dict__["task"].duration)
+
+        logger = LogManager.get_stack_logger()
+        for batch_id, prog_batch in procnode.scheduler.get_batches().items():
+            task_graph = prog_batch.instances[0].task_graph
+            num = len(prog_batch.instances)
+            logger.info(f"batch {batch_id}: {num} instances each with task graph:")
+            logger.info(task_graph)
+
+    network.start()
+    ns.sim_run()
+
+    results: Dict[str, BatchResult] = {}
+    statistics: Dict[str, SchedulerStatistics] = {}
+
+    for name in names:
+        procnode = network.nodes[name]
+        # only one batch (ID = 0), so get value at index 0
+        results[name] = procnode.scheduler.get_batch_results()[0]
+        statistics[name] = procnode.scheduler.get_statistics()
+
+    total_duration = ns.sim_time()
+    return AppResult(results, statistics, total_duration)
+
 
 
 def run_1_server_n_clients(
@@ -183,6 +262,7 @@ def run_two_node_app(
     program_inputs: Dict[str, ProgramInput],
     network_cfg: ProcNodeNetworkConfig,
     linear: bool = False,
+    netschedule: EhiNetworkSchedule | None = None,
 ) -> AppResult:
     new_inputs: Dict[str, List[ProgramInput]] = {}
 
@@ -190,10 +270,14 @@ def run_two_node_app(
     new_inputs = {
         name: [program_inputs[name] for _ in range(num_iterations)] for name in names
     }
-
-    return run_two_node_app_separate_inputs(
-        num_iterations, programs, new_inputs, network_cfg, linear
-    )
+    if netschedule is not None:
+        return run_two_node_app_separate_inputs_netschedule(
+            num_iterations, programs, new_inputs, network_cfg, linear, netschedule
+        )
+    else:
+        return run_two_node_app_separate_inputs(
+            num_iterations, programs, new_inputs, network_cfg, linear
+        )
 
 
 def run_single_node_app_separate_inputs(
