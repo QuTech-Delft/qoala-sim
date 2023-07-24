@@ -79,7 +79,7 @@ def run_apps(
     bob_id = 0
 
     alice_node_cfg = create_procnode_cfg(
-        "alice", alice_id, t1, t2, determ=True, deadlines=True, num_qubits=6
+        "alice", alice_id, t1, t2, determ=True, deadlines=True, num_qubits=10
     )
     bob_node_cfg = create_procnode_cfg(
         "bob", bob_id, t1, t2, determ=True, deadlines=True, num_qubits=3
@@ -114,7 +114,7 @@ def run_apps(
         programs={"alice": alice_program, "bob": bob_program},
         program_inputs={"alice": alice_inputs, "bob": bob_inputs},
         network_cfg=network_cfg,
-        linear_for={"alice": True, "bob": False},
+        linear_for={"alice": False, "bob": False},
     )
 
     alice_results = app_result.batch_results["alice"]
@@ -238,7 +238,7 @@ def run(output_dir: str, save: bool = True):
 
     data_points: List[DataPoint] = []
 
-    network_period = num_iterations * network_bin_len
+    network_period = (num_iterations + 1) * network_bin_len
 
     data_point = get_metrics(
         num_iterations=num_iterations,
@@ -259,11 +259,15 @@ def run(output_dir: str, save: bool = True):
     )
 
     end_time = time.time()
+    makespan = data_point.makespan
+    num_bins = makespan / network_bin_len
     # print(f"total duration: {end_time - start_time}s")
 
     print(f"cc latency: {latency_factor * t2:_}")
     print(f"network period: {network_period:_}")
     print(f"network bin len: {network_bin_len:_}")
+    print(f"makespan: {makespan}")
+    print(f"num bins: {num_bins}")
 
     data = Data(meta=meta, data_points=data_points)
 
