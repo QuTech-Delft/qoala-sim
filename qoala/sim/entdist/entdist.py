@@ -224,6 +224,9 @@ class EntDist(Protocol):
         node2_pid: int,
         cutoff: float | None = None,
     ) -> Generator[EventExpression, None, None]:
+        """
+        Will return a failure if the length of time it would take to generate an entangled link is longer than the time allowed by cutoff. If cutoff is None, then will attempt to get the cutoff from the network schedule.
+        """
         timed_sampler = self.get_sampler(node1_id, node2_id)
         sample = self.sample_state(timed_sampler.sampler)
         epr = self.create_epr_pair_with_state(sample.state)
@@ -232,11 +235,22 @@ class EntDist(Protocol):
         self._logger.info(f"total duration: {timed_sampler.delay}")
         total_delay = sample.duration + timed_sampler.delay
 
+        if cutoff is None and self._netschedule.length_of_QC_blocks is not None:
+            try:
+                cutoff = self._netschedule.length_of_QC_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
+                self._logger.warning(
+                    f"Set max QC length to {cutoff}")
+            except KeyError:
+                cutoff = None
+                self._logger.warning(f"No known QC length for session {(node1_id, node1_pid, node2_id, node2_pid)}, defaulting to None")
 
 
         if cutoff is not None:
             if total_delay > cutoff:
-                self._schedule_after(total_delay, EPR_DELIVERY) # TODO:Can I still use EPR_Delivery here???
+                self._schedule_after(cutoff-1, EPR_DELIVERY) # TODO:Can I still use EPR_Delivery here???
+                #  Cutoff-1 to stop off-by-one errors once it tries to request the next entanglement.
+                event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
+                yield event_expr
 
                 node1 = self._interface.remote_id_to_peer_name(node1_id)
                 node2 = self._interface.remote_id_to_peer_name(node2_id)
@@ -359,7 +373,6 @@ class EntDist(Protocol):
             node2_phys_id=request.node2_qubit_id,
             node1_pid=request.node1_pid,
             node2_pid=request.node2_pid,
-            cutoff=100.0,
         )
 
     def serve_all_requests(self) -> Generator[EventExpression, None, None]:
