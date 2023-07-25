@@ -305,6 +305,12 @@ class EhiNetworkSchedule:
     bin_pattern: List[EhiNetworkTimebin]
     repeat_period: int
 
+    length_of_QC_blocks: Dict[Tuple[int, int, int, int], float] | None = None
+        # (node_id1, pid1, node_id2, pid2) -> float (length of QC / PGA)
+        # TODO: Allow for session PGA/QC to change lengths during the schedule?
+        # TODO: Is the key the correct format here, or better to use EhiNetworkTimebin?
+
+
     def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
         global_offset = time - self.first_bin
 
