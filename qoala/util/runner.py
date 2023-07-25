@@ -163,8 +163,6 @@ def run_two_node_app_separate_inputs_netschedule(
 
         merged: TaskGraph
 
-        for id, task in merged.get_tasks().items():
-            rprint(name+str(id), task.__dict__["task"], task.__dict__["task"].duration)
 
         logger = LogManager.get_stack_logger()
         for batch_id, prog_batch in procnode.scheduler.get_batches().items():
