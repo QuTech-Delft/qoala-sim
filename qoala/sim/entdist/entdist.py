@@ -213,6 +213,75 @@ class EntDist(Protocol):
         self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
         self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
 
+
+    def deliver_with_failure(
+        self,
+        node1_id: int,
+        node1_phys_id: int,
+        node2_id: int,
+        node2_phys_id: int,
+        node1_pid: int,
+        node2_pid: int,
+        cutoff: float | None = None,
+    ) -> Generator[EventExpression, None, None]:
+        timed_sampler = self.get_sampler(node1_id, node2_id)
+        sample = self.sample_state(timed_sampler.sampler)
+        epr = self.create_epr_pair_with_state(sample.state)
+
+        self._logger.info(f"sample duration: {sample.duration}")
+        self._logger.info(f"total duration: {timed_sampler.delay}")
+        total_delay = sample.duration + timed_sampler.delay
+
+
+
+        if cutoff is not None:
+            if total_delay > cutoff:
+                self._schedule_after(total_delay, EPR_DELIVERY) # TODO:Can I still use EPR_Delivery here???
+
+                node1 = self._interface.remote_id_to_peer_name(node1_id)
+                node2 = self._interface.remote_id_to_peer_name(node2_id)
+                # TODO: use PIDs??
+                self._interface.send_node_msg(node1, Message(-1, -1, None))
+                self._interface.send_node_msg(node2, Message(-1, -1, None))
+
+                self._logger. warning("Entanglement Generation Failed")
+
+
+
+                return
+
+        node1_mem = self._nodes[node1_id].qmemory
+        node2_mem = self._nodes[node2_id].qmemory
+
+        if not (0 <= node1_phys_id < node1_mem.num_positions):
+            raise ValueError(
+                f"qubit location id of {node1_phys_id} is not present in \
+                    quantum memory of node ID {node1_id}."
+            )
+        if not (0 <= node2_phys_id < node2_mem.num_positions):
+            raise ValueError(
+                f"qubit location id of {node2_phys_id} is not present in \
+                    quantum memory of node ID {node2_id}."
+            )
+        node1_mem.mem_positions[node1_phys_id].in_use = True
+        node2_mem.mem_positions[node2_phys_id].in_use = True
+
+        self._schedule_after(total_delay, EPR_DELIVERY)
+        event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
+        yield event_expr
+
+        self._logger.warning("pair delivered")
+
+        node1_mem.put(qubits=epr[0], positions=node1_phys_id)
+        node2_mem.put(qubits=epr[1], positions=node2_phys_id)
+
+        # Send messages to the nodes indictating a request has been delivered.
+        node1 = self._interface.remote_id_to_peer_name(node1_id)
+        node2 = self._interface.remote_id_to_peer_name(node2_id)
+        # TODO: use PIDs??
+        self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
+        self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
+
     def put_request(self, request: EntDistRequest) -> None:
         if request.local_node_id not in self._nodes:
             raise ValueError(
@@ -283,13 +352,14 @@ class EntDist(Protocol):
     def serve_request(
         self, request: JointRequest
     ) -> Generator[EventExpression, None, None]:
-        yield from self.deliver(
+        yield from self.deliver_with_failure(
             node1_id=request.node1_id,
             node1_phys_id=request.node1_qubit_id,
             node2_id=request.node2_id,
             node2_phys_id=request.node2_qubit_id,
             node1_pid=request.node1_pid,
             node2_pid=request.node2_pid,
+            cutoff=100.0,
         )
 
     def serve_all_requests(self) -> Generator[EventExpression, None, None]:
