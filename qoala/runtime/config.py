@@ -1255,6 +1255,7 @@ class ProcNodeConfig(BaseModel):
     ntf: NtfConfig
     determ_sched: bool = True
     use_deadlines: bool = True
+    prio_epr: bool = False
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:

@@ -14,9 +14,12 @@ import matplotlib.ticker as ticker
 class DataPoint:
     t2: float
     cc_latency: float
-    succ_prob: float
-    succ_prob_lower: float
-    succ_prob_upper: float
+    tel_succ_prob: float
+    tel_succ_prob_lower: float
+    tel_succ_prob_upper: float
+    loc_succ_prob: float
+    loc_succ_prob_lower: float
+    loc_succ_prob_upper: float
     makespan: float
 
 
@@ -25,7 +28,7 @@ class DataMeta:
     timestamp: str
     num_iterations: int
     latency_factor: float
-    net_period_factors: List[float]
+    net_bin_factors: List[float]
 
 
 @dataclass
@@ -69,8 +72,8 @@ def plot_sweep_network_period(timestamp: str, data: Data) -> None:
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("Network period factor")
-    ax.set_ylabel("Success probability")
+    ax.set_xlabel("Network bin factor")
+    ax.set_ylabel("Makespan")
 
     npf = [npf for npf in data.meta.net_period_factors]
     succ_probs = [p.succ_prob for p in data.data_points]
@@ -99,6 +102,48 @@ def plot_sweep_network_period(timestamp: str, data: Data) -> None:
     create_png(timestamp)
 
 
+def plot_sweep_net_bin_period(timestamp: str, data: Data) -> None:
+    fig, ax = plt.subplots()
+
+    ax.grid()
+    ax.set_xlabel("Network period factor")
+    ax.set_ylabel("Makespan")
+
+    ax2 = ax.twinx()
+
+    nbf = [npf for npf in data.meta.net_bin_factors]
+    makespans = [p.makespan for p in data.data_points]
+    succ_probs = [p.tel_succ_prob for p in data.data_points]
+    error_plus = [p.tel_succ_prob_upper - p.tel_succ_prob for p in data.data_points]
+    error_plus = [max(0, e) for e in error_plus]
+    error_minus = [p.tel_succ_prob - p.tel_succ_prob_lower for p in data.data_points]
+    error_minus = [max(0, e) for e in error_minus]
+    errors = [error_minus, error_plus]
+    # ax.set_xscale("log")
+    ax.errorbar(
+        x=nbf,
+        y=makespans,
+        fmt="o-r",
+    )
+    # ax2.errorbar(
+    #     x=nbf,
+    #     y=succ_probs,
+    #     yerr=errors,
+    #     fmt="o-b",
+    # )
+
+    ax.set_title(
+        "Makespan vs Network bin factor",
+        wrap=True,
+    )
+
+    # ax.set_ylim(0.75, 0.9)
+    ax.legend(loc="upper left")
+
+    create_png("LAST")
+    create_png(timestamp)
+
+
 def sweep_network_period():
     data = load_data("data/net_period/LAST.json")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -108,5 +153,25 @@ def sweep_network_period():
     plot_sweep_network_period(timestamp, data)
 
 
+def sweep_net_bin_factor():
+    data = load_data("data/net_bin_factor/LAST.json")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    create_meta("LAST_meta", data)
+    create_meta(f"{timestamp}_meta", data)
+    plot_sweep_net_bin_period(timestamp, data)
+
+
+def sweep_net_bin_factor_prio_epr():
+    data = load_data("data/net_bin_factor_prio_epr/LAST.json")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    create_meta("LAST_meta", data)
+    create_meta(f"{timestamp}_meta", data)
+    plot_sweep_net_bin_period(timestamp, data)
+
+
 if __name__ == "__main__":
-    sweep_network_period()
+    # sweep_network_period()
+    # sweep_net_bin_factor()
+    sweep_net_bin_factor_prio_epr()

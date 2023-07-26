@@ -6,7 +6,7 @@ import netsquid as ns
 
 class SimTimeFilter(logging.Filter):
     def filter(self, record):
-        record.simtime = ns.sim_time()
+        record.simtime = f"{ns.sim_time():_}"
         return True
 
 

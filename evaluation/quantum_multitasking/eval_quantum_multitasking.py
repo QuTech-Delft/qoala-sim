@@ -1,4 +1,5 @@
 from __future__ import annotations
+import numpy as np
 
 import json
 import math
@@ -40,17 +41,25 @@ def create_procnode_cfg(
     determ: bool,
     deadlines: bool,
     num_qubits: int,
+    prio_epr: bool,
 ) -> ProcNodeConfig:
+    topology = TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
+        num_qubits, t1, t2
+    )
+    if name == "alice":
+        latencies = LatenciesConfig(qnos_instr_time=1000, host_instr_time=1000)
+    elif name == "bob":
+        latencies = LatenciesConfig(qnos_instr_time=100_000, host_instr_time=1000)
+
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
-            num_qubits, t1, t2
-        ),
-        latencies=LatenciesConfig(qnos_instr_time=1000, host_instr_time=1000),
+        topology=topology,
+        latencies=latencies,
         ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=determ,
         use_deadlines=deadlines,
+        prio_epr=prio_epr,
     )
 
 
@@ -79,6 +88,8 @@ def run_apps(
     network_bin_len: int,
     network_period: int,
     network_first_bin: int,
+    local_busy_duration: int,
+    prio_epr: bool,
 ) -> TeleportResult:
     ns.sim_reset()
 
@@ -86,10 +97,24 @@ def run_apps(
     bob_id = 0
 
     alice_node_cfg = create_procnode_cfg(
-        "alice", alice_id, t1, t2, determ=True, deadlines=True, num_qubits=10
+        "alice",
+        alice_id,
+        t1,
+        t2,
+        determ=True,
+        deadlines=True,
+        num_qubits=20,
+        prio_epr=prio_epr,
     )
     bob_node_cfg = create_procnode_cfg(
-        "bob", bob_id, t1, t2, determ=True, deadlines=True, num_qubits=num_qubits_bob
+        "bob",
+        bob_id,
+        t1,
+        t2,
+        determ=True,
+        deadlines=True,
+        num_qubits=num_qubits_bob,
+        prio_epr=prio_epr,
     )
 
     cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, cc_latency)
@@ -116,6 +141,10 @@ def run_apps(
         ProgramInput({"alice_id": alice_id, "state": i % 6})
         for i in range(num_iterations)
     ]
+    local_inputs = [
+        ProgramInput({"duration": local_busy_duration})
+        for _ in range(num_local_iterations)
+    ]
 
     app_result = run_two_node_app_separate_inputs_plus_local_program(
         num_iterations=num_iterations,
@@ -127,17 +156,15 @@ def run_apps(
         prog_node2=bob_program,
         prog_node2_inputs=bob_inputs,
         local_prog_node2=local_program,
-        local_prog_node2_inputs=[
-            ProgramInput.empty() for _ in range(num_local_iterations)
-        ],
+        local_prog_node2_inputs=local_inputs,
         network_cfg=network_cfg,
-        linear_for={"alice": True, "bob": False},
+        linear_for={"alice": False, "bob": False},
     )
 
     alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
     local_result = app_result.batch_results["local"]
-    print(local_result)
+    # print(local_result)
 
     return TeleportResult(
         alice_result, bob_result, local_result, app_result.total_duration
@@ -162,7 +189,8 @@ class DataMeta:
     timestamp: str
     num_iterations: int
     latency_factor: float
-    net_period_factors: List[float]
+    net_bin_factors: List[float]
+    prio_epr: bool
 
 
 @dataclass
@@ -193,6 +221,7 @@ def wilson_score_interval(p_hat, n, z):
 
 
 def get_metrics(
+    num_runs: int,
     num_iterations: int,
     num_local_iterations: int,
     num_qubits_bob: int,
@@ -202,32 +231,40 @@ def get_metrics(
     network_bin_len: int,
     network_period: int,
     network_first_bin: int,
-) -> DataPoint:
+    local_busy_duration: int,
+    prio_epr: bool,
+) -> List[DataPoint]:
     teleport_successes: List[bool] = []
     local_successes: List[bool] = []
+    makespans: List[float] = []
 
-    cc_latency = latency_factor * t2
+    for _ in range(num_runs):
+        cc_latency = latency_factor * t2
 
-    result = run_apps(
-        num_iterations=num_iterations,
-        num_local_iterations=num_local_iterations,
-        num_qubits_bob=num_qubits_bob,
-        t1=t1,
-        t2=t2,
-        cc_latency=cc_latency,
-        network_period=network_period,
-        network_bin_len=network_bin_len,
-        network_first_bin=network_first_bin,
-    )
-    teleport_results = result.bob_result.results
-    outcomes = [result.values["outcome"] for result in teleport_results]
-    assert len(outcomes) == num_iterations
-    teleport_successes.extend([outcomes[i] == 0 for i in range(num_iterations)])
+        result = run_apps(
+            num_iterations=num_iterations,
+            num_local_iterations=num_local_iterations,
+            num_qubits_bob=num_qubits_bob,
+            t1=t1,
+            t2=t2,
+            cc_latency=cc_latency,
+            network_period=network_period,
+            network_bin_len=network_bin_len,
+            network_first_bin=network_first_bin,
+            local_busy_duration=local_busy_duration,
+            prio_epr=prio_epr,
+        )
+        teleport_results = result.bob_result.results
+        outcomes = [result.values["outcome"] for result in teleport_results]
+        assert len(outcomes) == num_iterations
+        teleport_successes.extend([outcomes[i] == 0 for i in range(num_iterations)])
 
-    local_results = result.local_result.results
-    outcomes = [result.values["outcome"] for result in local_results]
-    assert len(outcomes) == num_local_iterations
-    local_successes.extend([outcomes[i] == 1 for i in range(num_local_iterations)])
+        local_results = result.local_result.results
+        outcomes = [result.values["outcome"] for result in local_results]
+        assert len(outcomes) == num_local_iterations
+        local_successes.extend([outcomes[i] == 1 for i in range(num_local_iterations)])
+
+        makespans.append(result.total_duration)
 
     tel_avg_succ_prob = sum([s for s in teleport_successes if s]) / len(
         teleport_successes
@@ -239,15 +276,25 @@ def get_metrics(
     tel_upper_rounded = round(tel_succ_prob_upper, 3)
     tel_succprob_rounded = round(tel_avg_succ_prob, 3)
 
-    loc_avg_succ_prob = sum([s for s in local_successes if s]) / len(local_successes)
-    loc_succ_prob_lower, loc_succ_prob_upper = wilson_score_interval(
-        p_hat=loc_avg_succ_prob, n=len(local_successes), z=1.96
-    )
-    loc_lower_rounded = round(loc_succ_prob_lower, 3)
-    loc_upper_rounded = round(loc_succ_prob_upper, 3)
-    loc_succprob_rounded = round(loc_avg_succ_prob, 3)
+    if len(local_successes) > 0:
+        loc_avg_succ_prob = sum([s for s in local_successes if s]) / len(
+            local_successes
+        )
+        loc_succ_prob_lower, loc_succ_prob_upper = wilson_score_interval(
+            p_hat=loc_avg_succ_prob, n=len(local_successes), z=1.96
+        )
+        loc_lower_rounded = round(loc_succ_prob_lower, 3)
+        loc_upper_rounded = round(loc_succ_prob_upper, 3)
+        loc_succprob_rounded = round(loc_avg_succ_prob, 3)
+    else:
+        loc_avg_succ_prob = 0
+        loc_succ_prob_lower = 0
+        loc_succ_prob_upper = 0
+        loc_lower_rounded = 0
+        loc_upper_rounded = 0
+        loc_succprob_rounded = 0
 
-    makespan = result.total_duration
+    makespan = sum(makespans) / len(makespans)
 
     print(
         f"teleport succ prob: {tel_succprob_rounded} ({tel_lower_rounded}, {tel_upper_rounded})"
@@ -270,10 +317,11 @@ def get_metrics(
     )
 
 
-def run(output_dir: str, save: bool = True):
+def run(output_dir: str, prio_epr: bool, save: bool = True):
     # LogManager.set_log_level("INFO")
     # LogManager.log_to_file("quantum_multitasking.log")
     # LogManager.set_task_log_level("INFO")
+    # LogManager.set_task_log_level("WARNING")
     # LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
 
     start_time = time.time()
@@ -282,51 +330,61 @@ def run(output_dir: str, save: bool = True):
     t1 = 1e10
     t2 = 1e8
 
-    num_iterations = 100
-    num_local_iterations = 1000
-    num_qubits_bob = 50
-    latency_factor = 1.0  # CC = 10_000_000
-    net_period_factors = [0.01, 0.1, 1, 10, 100, 1000]
-    network_bin_len = int((latency_factor * t2) / 5)  # 2_000_000
-    network_first_bin = 1_000_000
+    num_runs = 1
+
+    num_iterations = 5
+    num_local_iterations = 0
+    num_qubits_bob = 10
+    latency_factor = 0.1  # CC = 10_000_000
+    # net_bin_factors = [0.4, 0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6]
+    net_bin_factors = list(np.linspace(0.2, 0.8, 61))
+    net_bin_factors = [round(f, 2) for f in net_bin_factors]
+    local_busy_duration = 1_000_000
+    network_gap = 0
 
     data_points: List[DataPoint] = []
 
-    network_period = (num_iterations + 1) * network_bin_len
+    for bin_factor in net_bin_factors:
+        network_bin_len = int((latency_factor * t2) * bin_factor)
+        network_first_bin = int(network_bin_len / 2)
+        network_period = (num_iterations + network_gap) * network_bin_len
 
-    data_point = get_metrics(
-        num_iterations=num_iterations,
-        num_local_iterations=num_local_iterations,
-        num_qubits_bob=num_qubits_bob,
-        t1=t1,
-        t2=t2,
-        latency_factor=latency_factor,
-        network_bin_len=network_bin_len,
-        network_period=network_period,
-        network_first_bin=network_first_bin,
-    )
-    data_points.append(data_point)
+        data_point = get_metrics(
+            num_runs=num_runs,
+            num_iterations=num_iterations,
+            num_local_iterations=num_local_iterations,
+            num_qubits_bob=num_qubits_bob,
+            t1=t1,
+            t2=t2,
+            latency_factor=latency_factor,
+            network_bin_len=network_bin_len,
+            network_period=network_period,
+            network_first_bin=network_first_bin,
+            local_busy_duration=local_busy_duration,
+            prio_epr=prio_epr,
+        )
+        makespan = data_point.makespan
+        num_bins = math.ceil(makespan / network_bin_len)
+        # print(f"total duration: {end_time - start_time}s")
 
-    meta = DataMeta(
-        timestamp=timestamp,
-        num_iterations=num_iterations,
-        latency_factor=latency_factor,
-        net_period_factors=net_period_factors,
-    )
+        print(f"cc latency: {latency_factor * t2:_}")
+        print(f"network period: {network_period:_}")
+        print(f"network bin len: {network_bin_len:_}")
+        print(f"makespan: {makespan}")
+        print(f"num bins: {num_bins}")
 
+        meta = DataMeta(
+            timestamp=timestamp,
+            num_iterations=num_iterations,
+            latency_factor=latency_factor,
+            net_bin_factors=net_bin_factors,
+            prio_epr=prio_epr,
+        )
+
+        data_points.append(data_point)
     end_time = time.time()
-    makespan = data_point.makespan
-    num_bins = makespan / network_bin_len
-    # print(f"total duration: {end_time - start_time}s")
-
-    print(f"cc latency: {latency_factor * t2:_}")
-    print(f"network period: {network_period:_}")
-    print(f"network bin len: {network_bin_len:_}")
-    print(f"makespan: {makespan}")
-    print(f"num bins: {num_bins}")
 
     data = Data(meta=meta, data_points=data_points)
-
     json_data = asdict(data)
 
     abs_dir = relative_to_cwd(f"data/{output_dir}")
@@ -340,4 +398,5 @@ def run(output_dir: str, save: bool = True):
 
 
 if __name__ == "__main__":
-    run("net_period")
+    run("net_bin_factor_prio_epr", prio_epr=True)
+    # run("net_bin_factor", prio_epr=False)

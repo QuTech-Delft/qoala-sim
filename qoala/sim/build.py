@@ -114,6 +114,7 @@ def build_procnode_from_config(
         network_ehi=network_ehi,
         deterministic_scheduler=cfg.determ_sched,
         use_deadlines=cfg.use_deadlines,
+        prio_epr=cfg.prio_epr,
     )
 
     # TODO: refactor this hack

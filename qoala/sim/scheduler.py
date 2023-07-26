@@ -60,6 +60,7 @@ class NodeScheduler(Protocol):
         network_ehi: EhiNetworkInfo,
         deterministic: bool = True,
         use_deadlines: bool = True,
+        prio_epr: bool = False,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
@@ -120,6 +121,7 @@ class NodeScheduler(Protocol):
             netschedule,
             deterministic,
             use_deadlines,
+            prio_epr,
         )
 
         self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
@@ -613,10 +615,14 @@ class EdfScheduler(ProcessorScheduler):
         is_busy_task = start_time is not None
         self._logger.info(f"executing task {task}")
         if is_busy_task:
-            self._task_logger.warning(f"BUSY start  {task} (start time: {start_time})")
+            self._task_logger.info(f"BUSY start  {task} (start time: {start_time})")
         else:
+            self._task_logger.info(f"start  {task}")
+        if self.name == "bob_qpu":
             self._task_logger.warning(f"start  {task}")
-        self._task_logger.warning(f"start  {task}")
+        elif self.name == "bob_cpu":
+            if isinstance(task, HostEventTask):
+                self._task_logger.warning(f"start  {task}")
         self._task_starts[task.task_id] = before
         self.record_start_timestamp(task.pid, before)
 
@@ -634,8 +640,10 @@ class EdfScheduler(ProcessorScheduler):
             self.send_signal(SIGNAL_TASK_COMPLETED)
             self._logger.info(f"finished task {task}")
             if is_busy_task:
-                self._task_logger.warning(f"BUSY finish {task}")
+                self._task_logger.info(f"BUSY finish {task}")
             else:
+                self._task_logger.info(f"finish {task}")
+            if self.name == "bob_qpu":
                 self._task_logger.warning(f"finish {task}")
 
             self._tasks_executed[task.task_id] = task
@@ -743,7 +751,7 @@ class CpuEdfScheduler(EdfScheduler):
                 deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
                 sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
                 if self.name in ["bob_cpu", "bob_qpu"]:
-                    self._task_logger.warning(
+                    self._task_logger.info(
                         f"tasks with deadlines: {sorted_by_deadline}"
                     )
                 to_return = sorted_by_deadline[0][0]
@@ -907,6 +915,7 @@ class QpuEdfScheduler(EdfScheduler):
         network_schedule: Optional[EhiNetworkSchedule] = None,
         deterministic: bool = True,
         use_deadlines: bool = True,
+        prio_epr: bool = False,
     ) -> None:
         super().__init__(
             name=name,
@@ -917,6 +926,7 @@ class QpuEdfScheduler(EdfScheduler):
             use_deadlines=use_deadlines,
         )
         self._network_schedule = network_schedule
+        self._prio_epr = prio_epr
 
     def timebin_for_task(self, tid: int) -> EhiNetworkTimebin:
         assert self._task_graph is not None
@@ -1086,26 +1096,57 @@ class QpuEdfScheduler(EdfScheduler):
             with_deadline = [
                 t for t in non_epr_ready if tg.get_tinfo(t).deadline is not None
             ]
+
+            next_task_id: int
+
             if not self._use_deadlines:
                 with_deadline = []
             if len(with_deadline) > 0:
                 # Sort them by deadline and return the one with the earliest deadline
                 deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
                 sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
-                to_return = sorted_by_deadline[0][0]
-                self._logger.debug(f"Return task {to_return}")
-                self._task_logger.debug(f"Return task {to_return}")
-                return StatusNextTask(to_return)
+                next_task_id = sorted_by_deadline[0][0]
             else:
                 # No deadlines
                 if self._deterministic:
                     index = 0
                 else:
                     index = random.randint(0, len(non_epr_ready) - 1)
-                to_return = non_epr_ready[index]
-                self._logger.debug(f"Return task {to_return}")
-                self._task_logger.debug(f"Return task {to_return}")
-                return StatusNextTask(to_return)
+                next_task_id = non_epr_ready[index]
+
+            if self._prio_epr:
+                duration = tg.get_tinfo(next_task_id).task.duration
+                if tg.get_tinfo(next_task_id).task.block_name == "prepare":
+                    # duration = 1e6
+                    pass
+
+                # We selected a task that could be executed right now (next_task_id).
+                # This task would finish at "end" with "end = now + duration".
+                # If there is an EPR task that can start before "end", it is better to
+                # just wait for its start time and execute the EPR task first.
+                self._task_logger.info(
+                    f"considering local task with duration {duration}"
+                )
+                # if self.name == "bob_qpu":
+                #     self._task_logger.warning(
+                #         f"considering local task with duration {duration}"
+                #     )
+
+                if epr_wait_for_bin is not None:
+                    epr_task_id, delta = epr_wait_for_bin
+                    if delta < duration:
+                        self._task_logger.info(
+                            f"don't execute local task; wait for next timebin"
+                        )
+                        # if self.name == "bob_qpu":
+                        #     self._task_logger.warning(
+                        #         f"don't execute local task; wait for next timebin"
+                        #     )
+                        return StatusBlockedOnTimebin(epr_task_id, delta)
+
+            self._logger.debug(f"Return task {next_task_id}")
+            self._task_logger.debug(f"Return task {next_task_id}")
+            return StatusNextTask(next_task_id)
         else:
             # No tasks ready to execute. Check what is/are the cause(s).
             if len(blocked_on_other_core) > 0:

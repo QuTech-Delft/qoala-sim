@@ -1,12 +1,15 @@
 META_START
-    name: bob
-    parameters: 
+    name: local
+    parameters: busy_duration
     csockets: 
     epr_sockets: 
 META_END
 
-^b0 {type = QL}:
+^prepare {type = QL}:
     tuple<> = run_subroutine(tuple<>) : prepare
+
+^b0 {type = CL}:
+    busy() : duration
 
 ^b1 {type = QL}:
     tuple<outcome> = run_subroutine(tuple<>) : measure
@@ -21,6 +24,13 @@ SUBROUTINE prepare
     keeps: 0
     request: 
   NETQASM_START
+    set C0 0
+    set C1 1
+    set C2 999
+    add C0 C0 C1
+    bge C2 C0 -1
+    
+  
     set Q0 0
     init Q0
 
