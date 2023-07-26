@@ -25,7 +25,11 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchResult, ProgramInput
 from qoala.util.logging import LogManager
-from qoala.util.runner import run_1_server_n_clients, run_two_node_app_separate_inputs
+from qoala.util.runner import (
+    run_1_server_n_clients,
+    run_two_node_app_separate_inputs,
+    run_two_node_app_separate_inputs_plus_local_program,
+)
 
 
 def create_procnode_cfg(
@@ -59,13 +63,16 @@ def load_program(path: str) -> QoalaProgram:
 
 @dataclass
 class TeleportResult:
-    alice_results: List[BatchResult]
-    bob_results: BatchResult
+    alice_result: BatchResult
+    bob_result: BatchResult
+    local_result: BatchResult
     total_duration: float
 
 
 def run_apps(
     num_iterations: int,
+    num_local_iterations: int,
+    num_qubits_bob: int,
     t1: float,
     t2: float,
     cc_latency: float,
@@ -82,7 +89,7 @@ def run_apps(
         "alice", alice_id, t1, t2, determ=True, deadlines=True, num_qubits=10
     )
     bob_node_cfg = create_procnode_cfg(
-        "bob", bob_id, t1, t2, determ=True, deadlines=True, num_qubits=3
+        "bob", bob_id, t1, t2, determ=True, deadlines=True, num_qubits=num_qubits_bob
     )
 
     cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, cc_latency)
@@ -100,6 +107,7 @@ def run_apps(
 
     alice_program = load_program("programs/teleport_alice.iqoala")
     bob_program = load_program("programs/teleport_bob.iqoala")
+    local_program = load_program("programs/local_quantum.iqoala")
 
     alice_inputs = [
         ProgramInput({"bob_id": bob_id, "state": i % 6}) for i in range(num_iterations)
@@ -109,27 +117,43 @@ def run_apps(
         for i in range(num_iterations)
     ]
 
-    app_result = run_two_node_app_separate_inputs(
+    app_result = run_two_node_app_separate_inputs_plus_local_program(
         num_iterations=num_iterations,
-        programs={"alice": alice_program, "bob": bob_program},
-        program_inputs={"alice": alice_inputs, "bob": bob_inputs},
+        num_local_iterations=num_local_iterations,
+        node1="alice",
+        node2="bob",
+        prog_node1=alice_program,
+        prog_node1_inputs=alice_inputs,
+        prog_node2=bob_program,
+        prog_node2_inputs=bob_inputs,
+        local_prog_node2=local_program,
+        local_prog_node2_inputs=[
+            ProgramInput.empty() for _ in range(num_local_iterations)
+        ],
         network_cfg=network_cfg,
-        linear_for={"alice": False, "bob": False},
+        linear_for={"alice": True, "bob": False},
     )
 
-    alice_results = app_result.batch_results["alice"]
+    alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
+    local_result = app_result.batch_results["local"]
+    print(local_result)
 
-    return TeleportResult(alice_results, bob_result, app_result.total_duration)
+    return TeleportResult(
+        alice_result, bob_result, local_result, app_result.total_duration
+    )
 
 
 @dataclass
 class DataPoint:
     t2: float
     cc_latency: float
-    succ_prob: float
-    succ_prob_lower: float
-    succ_prob_upper: float
+    tel_succ_prob: float
+    tel_succ_prob_lower: float
+    tel_succ_prob_upper: float
+    loc_succ_prob: float
+    loc_succ_prob_lower: float
+    loc_succ_prob_upper: float
     makespan: float
 
 
@@ -170,6 +194,8 @@ def wilson_score_interval(p_hat, n, z):
 
 def get_metrics(
     num_iterations: int,
+    num_local_iterations: int,
+    num_qubits_bob: int,
     t1: int,
     t2: int,
     latency_factor: float,
@@ -177,12 +203,15 @@ def get_metrics(
     network_period: int,
     network_first_bin: int,
 ) -> DataPoint:
-    successes: List[bool] = []
+    teleport_successes: List[bool] = []
+    local_successes: List[bool] = []
 
     cc_latency = latency_factor * t2
 
     result = run_apps(
         num_iterations=num_iterations,
+        num_local_iterations=num_local_iterations,
+        num_qubits_bob=num_qubits_bob,
         t1=t1,
         t2=t2,
         cc_latency=cc_latency,
@@ -190,30 +219,53 @@ def get_metrics(
         network_bin_len=network_bin_len,
         network_first_bin=network_first_bin,
     )
-    program_results = result.bob_results.results
-    outcomes = [result.values["outcome"] for result in program_results]
+    teleport_results = result.bob_result.results
+    outcomes = [result.values["outcome"] for result in teleport_results]
     assert len(outcomes) == num_iterations
-    successes.extend([outcomes[i] == 0 for i in range(num_iterations)])
+    teleport_successes.extend([outcomes[i] == 0 for i in range(num_iterations)])
 
-    avg_succ_prob = sum([s for s in successes if s]) / len(successes)
-    succ_prob_lower, succ_prob_upper = wilson_score_interval(
-        p_hat=avg_succ_prob, n=len(successes), z=1.96
+    local_results = result.local_result.results
+    outcomes = [result.values["outcome"] for result in local_results]
+    assert len(outcomes) == num_local_iterations
+    local_successes.extend([outcomes[i] == 1 for i in range(num_local_iterations)])
+
+    tel_avg_succ_prob = sum([s for s in teleport_successes if s]) / len(
+        teleport_successes
     )
-    lower_rounded = round(succ_prob_lower, 3)
-    upper_rounded = round(succ_prob_upper, 3)
-    succprob_rounded = round(avg_succ_prob, 3)
+    tel_succ_prob_lower, tel_succ_prob_upper = wilson_score_interval(
+        p_hat=tel_avg_succ_prob, n=len(teleport_successes), z=1.96
+    )
+    tel_lower_rounded = round(tel_succ_prob_lower, 3)
+    tel_upper_rounded = round(tel_succ_prob_upper, 3)
+    tel_succprob_rounded = round(tel_avg_succ_prob, 3)
+
+    loc_avg_succ_prob = sum([s for s in local_successes if s]) / len(local_successes)
+    loc_succ_prob_lower, loc_succ_prob_upper = wilson_score_interval(
+        p_hat=loc_avg_succ_prob, n=len(local_successes), z=1.96
+    )
+    loc_lower_rounded = round(loc_succ_prob_lower, 3)
+    loc_upper_rounded = round(loc_succ_prob_upper, 3)
+    loc_succprob_rounded = round(loc_avg_succ_prob, 3)
 
     makespan = result.total_duration
 
-    print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
+    print(
+        f"teleport succ prob: {tel_succprob_rounded} ({tel_lower_rounded}, {tel_upper_rounded})"
+    )
+    print(
+        f"local succ prob: {loc_succprob_rounded} ({loc_lower_rounded}, {loc_upper_rounded})"
+    )
     print(f"makespan: {makespan:_}")
 
     return DataPoint(
         t2=t2,
         cc_latency=cc_latency,
-        succ_prob=avg_succ_prob,
-        succ_prob_lower=succ_prob_lower,
-        succ_prob_upper=succ_prob_upper,
+        tel_succ_prob=tel_avg_succ_prob,
+        tel_succ_prob_lower=tel_succ_prob_lower,
+        tel_succ_prob_upper=tel_succ_prob_upper,
+        loc_succ_prob=loc_avg_succ_prob,
+        loc_succ_prob_lower=loc_succ_prob_lower,
+        loc_succ_prob_upper=loc_succ_prob_upper,
         makespan=makespan,
     )
 
@@ -221,8 +273,8 @@ def get_metrics(
 def run(output_dir: str, save: bool = True):
     # LogManager.set_log_level("INFO")
     # LogManager.log_to_file("quantum_multitasking.log")
-    LogManager.set_task_log_level("INFO")
-    LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
+    # LogManager.set_task_log_level("INFO")
+    # LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -230,8 +282,10 @@ def run(output_dir: str, save: bool = True):
     t1 = 1e10
     t2 = 1e8
 
-    num_iterations = 4
-    latency_factor = 0.1  # CC = 10_000_000
+    num_iterations = 100
+    num_local_iterations = 1000
+    num_qubits_bob = 50
+    latency_factor = 1.0  # CC = 10_000_000
     net_period_factors = [0.01, 0.1, 1, 10, 100, 1000]
     network_bin_len = int((latency_factor * t2) / 5)  # 2_000_000
     network_first_bin = 1_000_000
@@ -242,6 +296,8 @@ def run(output_dir: str, save: bool = True):
 
     data_point = get_metrics(
         num_iterations=num_iterations,
+        num_local_iterations=num_local_iterations,
+        num_qubits_bob=num_qubits_bob,
         t1=t1,
         t2=t2,
         latency_factor=latency_factor,

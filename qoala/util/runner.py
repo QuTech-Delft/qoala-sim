@@ -137,7 +137,7 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
     prog_node2: QoalaProgram,
     prog_node2_inputs: Dict[str, List[ProgramInput]],
     const_prog_node2: QoalaProgram,
-    const_prog_node2_inputs: Dict[str, List[ProgramInput]],
+    const_prog_node2_inputs: List[ProgramInput],
     const_period: int,
     const_start: int,
     network_cfg: ProcNodeNetworkConfig,
@@ -220,6 +220,97 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
     # only one batch (ID = 0), so get value at index 0
     results[node1] = procnode1.scheduler.get_batch_results()[0]
     results[node2] = procnode2.scheduler.get_batch_results()[0]
+    statistics[node1] = procnode1.scheduler.get_statistics()
+    statistics[node2] = procnode2.scheduler.get_statistics()
+
+    total_duration = ns.sim_time()
+
+    return AppResult(results, statistics, total_duration)
+
+
+def run_two_node_app_separate_inputs_plus_local_program(
+    num_iterations: int,
+    num_local_iterations: int,
+    node1: str,
+    node2: str,
+    prog_node1: QoalaProgram,
+    prog_node1_inputs: Dict[str, List[ProgramInput]],
+    prog_node2: QoalaProgram,
+    prog_node2_inputs: Dict[str, List[ProgramInput]],
+    local_prog_node2: QoalaProgram,
+    local_prog_node2_inputs: List[ProgramInput],
+    network_cfg: ProcNodeNetworkConfig,
+    linear: bool = False,
+    linear_for: Optional[Dict[str, bool]] = None,
+) -> AppResult:
+    if linear_for is None:
+        linear_for = {node1: False, node2: False}
+
+    ns.sim_reset()
+    ns.set_qstate_formalism(ns.QFormalism.DM)
+    seed = random.randint(0, 1000)
+    ns.set_random_state(seed=seed)
+
+    network = build_network_from_config(network_cfg)
+
+    procnode1 = network.nodes[node1]
+    unit_module1 = UnitModule.from_full_ehi(procnode1.memmgr.get_ehi())
+    batch_info1 = create_batch(
+        prog_node1, unit_module1, prog_node1_inputs, num_iterations
+    )
+    batch_node1 = procnode1.submit_batch(batch_info1)
+
+    procnode2 = network.nodes[node2]
+    unit_module2 = UnitModule.from_full_ehi(procnode2.memmgr.get_ehi())
+    batch_info2 = create_batch(
+        prog_node2, unit_module2, prog_node2_inputs, num_iterations
+    )
+    batch_node2 = procnode2.submit_batch(batch_info2)
+
+    batch_info_local = create_batch(
+        local_prog_node2, unit_module2, local_prog_node2_inputs, num_local_iterations
+    )
+    batch_local = procnode2.submit_batch(batch_info_local)
+
+    # Init
+
+    remote_pids1 = {batch_node2.batch_id: [p.pid for p in batch_node2.instances]}
+    procnode1.initialize_processes(remote_pids1)
+
+    remote_pids2 = {batch_node1.batch_id: [p.pid for p in batch_node1.instances]}
+    procnode2.initialize_processes(remote_pids2)
+
+    # Upload tasks
+
+    tasks1 = procnode1.scheduler.get_tasks_to_schedule()
+    if linear or linear_for[node1]:
+        merged1 = TaskGraphBuilder.merge_linear(tasks1)
+    else:
+        merged1 = TaskGraphBuilder.merge(tasks1)
+    procnode1.scheduler.upload_task_graph(merged1)
+
+    tasks2 = procnode2.scheduler.get_tasks_to_schedule_for(batch_node2.batch_id)
+    if linear or linear_for[node2]:
+        merged2 = TaskGraphBuilder.merge_linear(tasks2)
+    else:
+        merged2 = TaskGraphBuilder.merge(tasks2)
+
+    tasks_local = procnode2.scheduler.get_tasks_to_schedule_for(batch_local.batch_id)
+    merged_local = TaskGraphBuilder.merge_linear(tasks_local)
+    merged_with_local = TaskGraphBuilder.merge([merged2, merged_local])
+
+    procnode2.scheduler.upload_task_graph(merged_with_local)
+
+    network.start()
+    ns.sim_run()
+
+    results: Dict[str, BatchResult] = {}
+    statistics: Dict[str, SchedulerStatistics] = {}
+
+    # only one batch (ID = 0), so get value at index 0
+    results[node1] = procnode1.scheduler.get_batch_results()[0]
+    results[node2] = procnode2.scheduler.get_batch_results()[0]
+    results["local"] = procnode2.scheduler.get_batch_results()[1]
     statistics[node1] = procnode1.scheduler.get_statistics()
     statistics[node2] = procnode2.scheduler.get_statistics()
 

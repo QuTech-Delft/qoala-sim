@@ -5,22 +5,40 @@ META_START
     epr_sockets: 
 META_END
 
-^b1 {type = QL}:
-    tuple<> = run_subroutine(tuple<>) : prepare_meas
+^b0 {type = QL}:
+    tuple<> = run_subroutine(tuple<>) : prepare
 
-^b2 {type = CL, deadlines = [b0: 1]}:
+^b1 {type = QL}:
+    tuple<outcome> = run_subroutine(tuple<>) : measure
+
+^b2 {type = CL}:
     return_result(outcome)
 
-SUBROUTINE prepare_meas
+SUBROUTINE prepare
+    params:
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    set Q0 0
+    init Q0
+
+    // hadamard
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+
+    // rotate to |->
+    rot_z Q0 16 4
+  NETQASM_END
+
+SUBROUTINE measure
     params:
     returns: m
     uses: 0
     keeps: 
     request: 
   NETQASM_START
-    set Q0 0
-    init Q0
-
     // hadamard
     rot_y Q0 8 4
     rot_x Q0 16 4
