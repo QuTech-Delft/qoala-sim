@@ -305,11 +305,10 @@ class EhiNetworkSchedule:
     bin_pattern: List[EhiNetworkTimebin]
     repeat_period: int
 
-    length_of_QC_blocks: Dict[Tuple[int, int, int, int], float] | None = None
+    length_of_qc_blocks: Dict[Tuple[int, int, int, int], float] | None = None
         # (node_id1, pid1, node_id2, pid2) -> float (length of QC / PGA)
         # TODO: Allow for session PGA/QC to change lengths during the schedule?
         # TODO: Is the key the correct format here, or better to use EhiNetworkTimebin?
-
 
     def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
         global_offset = time - self.first_bin
@@ -336,12 +335,23 @@ class EhiNetworkSchedule:
 
     def next_specific_bin(self, time: int, bin: EhiNetworkTimebin) -> int:
         bin_index: Optional[int] = None
+        first_bin_index: Optional[int] = None
+
+        current_bin_index = (time % self.repeat_period) // self.bin_length # Gets the bin index currently in
 
         for i, pat_bin in enumerate(self.bin_pattern):
             if bin == pat_bin:
-                bin_index = i
+                if first_bin_index is None:
+                    first_bin_index = i
+                if bin_index is None and i >= current_bin_index:
+                    bin_index = i
+                    break  # Breaks after the first bin found in the future/present
+
         if bin_index is None:
-            raise ValueError
+            if first_bin_index is not None:
+                bin_index = first_bin_index  # If found a bin in the past / next period then take that as the bin index
+            else:
+                raise ValueError
 
         bin_rel_to_pat_start = bin_index * self.bin_length
 
