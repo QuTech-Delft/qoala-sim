@@ -55,8 +55,8 @@ from qoala.util.logging import LogManager
 
 class NodeSchedulerComponent(Component):
     """
-    NetSquid component representing for the NodeScheduler.
-    It is used to send messages from node scheduler to processor schedulers.
+    NetSquid component representing for a node scheduler.
+    It is used to send messages from the node scheduler to processor schedulers.
 
     :param name: Name of the component
     :param cpu_scheduler: CPU scheduler that node scheduler will send messages to.
@@ -415,7 +415,7 @@ class NodeScheduler(Protocol):
     def schedule_next_for(self, pid: int) -> None:
         """
         Schedule the tasks of the next block for program instance with given pid
-        by assigning respective tasks to CPU and QPU schedulers and sends a message
+        by assigning respective tasks to CPU and QPU schedulers and send a message
         to schedulers for informing them about the newly assigned tasks.
 
         :param pid: program instance id
@@ -442,7 +442,7 @@ class NodeScheduler(Protocol):
         A program instance is considered available if it meets two conditions:
         1. It is not finished.
         2. It does not have any dependencies on an unfinished program instance
-        which is the case if the batch of program instances are submitted to run linearly.
+        (it can have such dependencies if the batch of program instances are submitted to run linearly).
 
         :return: None
         """
