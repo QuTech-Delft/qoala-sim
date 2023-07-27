@@ -1,4 +1,5 @@
 from __future__ import annotations
+from argparse import ArgumentParser
 import numpy as np
 
 import json
@@ -8,7 +9,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import netsquid as ns
 
@@ -175,6 +176,7 @@ def run_apps(
 class DataPoint:
     t2: float
     cc_latency: float
+    num_qubits_bob: int
     tel_succ_prob: float
     tel_succ_prob_lower: float
     tel_succ_prob_upper: float
@@ -191,6 +193,7 @@ class DataMeta:
     latency_factor: float
     net_bin_factors: List[float]
     prio_epr: bool
+    bob_qubit_nums: List[int]
 
 
 @dataclass
@@ -307,6 +310,7 @@ def get_metrics(
     return DataPoint(
         t2=t2,
         cc_latency=cc_latency,
+        num_qubits_bob=num_qubits_bob,
         tel_succ_prob=tel_avg_succ_prob,
         tel_succ_prob_lower=tel_succ_prob_lower,
         tel_succ_prob_upper=tel_succ_prob_upper,
@@ -317,7 +321,12 @@ def get_metrics(
     )
 
 
-def run(output_dir: str, prio_epr: bool, save: bool = True):
+def run(
+    output_dir: str,
+    prio_epr: bool,
+    num_runs: int,
+    num_qubits: Optional[int] = None,
+):
     # LogManager.set_log_level("INFO")
     # LogManager.log_to_file("quantum_multitasking.log")
     # LogManager.set_task_log_level("INFO")
@@ -330,59 +339,66 @@ def run(output_dir: str, prio_epr: bool, save: bool = True):
     t1 = 1e10
     t2 = 1e8
 
-    num_runs = 1
-
     num_iterations = 5
     num_local_iterations = 0
-    num_qubits_bob = 10
+    # num_qubits_bob = 10
+    if num_qubits is not None:
+        bob_qubit_nums = [num_qubits]
+    else:
+        bob_qubit_nums = [1, 2, 5]
     latency_factor = 0.1  # CC = 10_000_000
     # net_bin_factors = [0.4, 0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6]
-    net_bin_factors = list(np.linspace(0.2, 0.8, 61))
+    # net_bin_factors = list(np.linspace(0.2, 0.8, 11))
+    net_bin_factors = list(np.linspace(0.2, 0.8, 1))
     net_bin_factors = [round(f, 2) for f in net_bin_factors]
     local_busy_duration = 1_000_000
     network_gap = 0
 
     data_points: List[DataPoint] = []
 
-    for bin_factor in net_bin_factors:
-        network_bin_len = int((latency_factor * t2) * bin_factor)
-        network_first_bin = int(network_bin_len / 2)
-        network_period = (num_iterations + network_gap) * network_bin_len
+    for num_qubits_bob in bob_qubit_nums:
+        for bin_factor in net_bin_factors:
+            network_bin_len = int((latency_factor * t2) * bin_factor)
+            network_first_bin = int(network_bin_len / 2)
+            network_period = (num_iterations + network_gap) * network_bin_len
 
-        data_point = get_metrics(
-            num_runs=num_runs,
-            num_iterations=num_iterations,
-            num_local_iterations=num_local_iterations,
-            num_qubits_bob=num_qubits_bob,
-            t1=t1,
-            t2=t2,
-            latency_factor=latency_factor,
-            network_bin_len=network_bin_len,
-            network_period=network_period,
-            network_first_bin=network_first_bin,
-            local_busy_duration=local_busy_duration,
-            prio_epr=prio_epr,
-        )
-        makespan = data_point.makespan
-        num_bins = math.ceil(makespan / network_bin_len)
-        # print(f"total duration: {end_time - start_time}s")
+            data_point = get_metrics(
+                num_runs=num_runs,
+                num_iterations=num_iterations,
+                num_local_iterations=num_local_iterations,
+                num_qubits_bob=num_qubits_bob,
+                t1=t1,
+                t2=t2,
+                latency_factor=latency_factor,
+                network_bin_len=network_bin_len,
+                network_period=network_period,
+                network_first_bin=network_first_bin,
+                local_busy_duration=local_busy_duration,
+                prio_epr=prio_epr,
+            )
+            makespan = data_point.makespan
+            num_bins = math.ceil(makespan / network_bin_len)
+            # print(f"total duration: {end_time - start_time}s")
 
-        print(f"cc latency: {latency_factor * t2:_}")
-        print(f"network period: {network_period:_}")
-        print(f"network bin len: {network_bin_len:_}")
-        print(f"makespan: {makespan}")
-        print(f"num bins: {num_bins}")
+            print(f"cc latency: {latency_factor * t2:_}")
+            print(f"network period: {network_period:_}")
+            print(f"network bin len: {network_bin_len:_}")
+            print(f"makespan: {makespan}")
+            print(f"num bins: {num_bins}")
 
-        meta = DataMeta(
-            timestamp=timestamp,
-            num_iterations=num_iterations,
-            latency_factor=latency_factor,
-            net_bin_factors=net_bin_factors,
-            prio_epr=prio_epr,
-        )
+            data_points.append(data_point)
 
-        data_points.append(data_point)
+    meta = DataMeta(
+        timestamp=timestamp,
+        num_iterations=num_iterations,
+        latency_factor=latency_factor,
+        net_bin_factors=net_bin_factors,
+        prio_epr=prio_epr,
+        bob_qubit_nums=bob_qubit_nums,
+    )
+
     end_time = time.time()
+    print(f"simulation took {end_time - start_time}s")
 
     data = Data(meta=meta, data_points=data_points)
     json_data = asdict(data)
@@ -398,5 +414,18 @@ def run(output_dir: str, prio_epr: bool, save: bool = True):
 
 
 if __name__ == "__main__":
-    run("net_bin_factor_prio_epr", prio_epr=True)
-    # run("net_bin_factor", prio_epr=False)
+    parser = ArgumentParser()
+    parser.add_argument("--num_qubits", "-q", type=int, required=True)
+    parser.add_argument("--num_runs", "-n", type=int, required=True)
+
+    args = parser.parse_args()
+
+    num_qubits = args.num_qubits
+    num_runs = args.num_runs
+
+    run(
+        "net_bin_factor_per_qubit_num",
+        prio_epr=False,
+        num_runs=num_runs,
+        num_qubits=num_qubits,
+    )

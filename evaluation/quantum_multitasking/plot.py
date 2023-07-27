@@ -14,6 +14,7 @@ import matplotlib.ticker as ticker
 class DataPoint:
     t2: float
     cc_latency: float
+    num_qubits_bob: int
     tel_succ_prob: float
     tel_succ_prob_lower: float
     tel_succ_prob_upper: float
@@ -29,6 +30,7 @@ class DataMeta:
     num_iterations: int
     latency_factor: float
     net_bin_factors: List[float]
+    bob_qubit_nums: List[int]
 
 
 @dataclass
@@ -106,34 +108,39 @@ def plot_sweep_net_bin_period(timestamp: str, data: Data) -> None:
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("Network period factor")
-    ax.set_ylabel("Makespan")
+    ax.set_xlabel("Time bin length as fraction of node-node communication latency")
+    ax.set_ylabel("Makespan (ms)")
 
     ax2 = ax.twinx()
 
-    nbf = [npf for npf in data.meta.net_bin_factors]
-    makespans = [p.makespan for p in data.data_points]
-    succ_probs = [p.tel_succ_prob for p in data.data_points]
-    error_plus = [p.tel_succ_prob_upper - p.tel_succ_prob for p in data.data_points]
-    error_plus = [max(0, e) for e in error_plus]
-    error_minus = [p.tel_succ_prob - p.tel_succ_prob_lower for p in data.data_points]
-    error_minus = [max(0, e) for e in error_minus]
-    errors = [error_minus, error_plus]
-    # ax.set_xscale("log")
-    ax.errorbar(
-        x=nbf,
-        y=makespans,
-        fmt="o-r",
-    )
-    # ax2.errorbar(
-    #     x=nbf,
-    #     y=succ_probs,
-    #     yerr=errors,
-    #     fmt="o-b",
-    # )
+    fmts = ["o-b", "o-r", "o-k"]
+    # fmts = [".-b", ".-r", ".-k"]
+    # fmts = ["-b", "-r", "-k"]
+    labels = ["1 qubit", "2 qubits", "5 qubits"]
+
+    nbf = [nbf for nbf in data.meta.net_bin_factors]
+    for num_qubits, fmt, label in zip(data.meta.bob_qubit_nums, fmts, labels):
+        points = [p for p in data.data_points if p.num_qubits_bob == num_qubits]
+        makespans = [p.makespan / 1e6 for p in points]
+        succ_probs = [p.tel_succ_prob for p in data.data_points]
+        error_plus = [p.tel_succ_prob_upper - p.tel_succ_prob for p in data.data_points]
+        error_plus = [max(0, e) for e in error_plus]
+        error_minus = [
+            p.tel_succ_prob - p.tel_succ_prob_lower for p in data.data_points
+        ]
+        error_minus = [max(0, e) for e in error_minus]
+        errors = [error_minus, error_plus]
+        # ax.set_xscale("log")
+        ax.errorbar(x=nbf, y=makespans, fmt=fmt, label=label)
+        # ax2.errorbar(
+        #     x=nbf,
+        #     y=succ_probs,
+        #     yerr=errors,
+        #     fmt="o-b",
+        # )
 
     ax.set_title(
-        "Makespan vs Network bin factor",
+        "Teleportation makespan vs time bin length in network schedule",
         wrap=True,
     )
 
@@ -173,5 +180,5 @@ def sweep_net_bin_factor_prio_epr():
 
 if __name__ == "__main__":
     # sweep_network_period()
-    # sweep_net_bin_factor()
-    sweep_net_bin_factor_prio_epr()
+    sweep_net_bin_factor()
+    # sweep_net_bin_factor_prio_epr()
