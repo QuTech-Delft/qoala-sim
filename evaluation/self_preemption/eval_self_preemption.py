@@ -42,6 +42,7 @@ def create_procnode_cfg(
     determ: bool,
     deadlines: bool,
     num_qubits: int,
+    prio_epr: bool,
 ) -> ProcNodeConfig:
     topology = TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
         num_qubits, t1, t2
@@ -59,6 +60,7 @@ def create_procnode_cfg(
         ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=determ,
         use_deadlines=deadlines,
+        prio_epr=prio_epr,
     )
 
 
@@ -88,6 +90,7 @@ def run_apps(
     network_period: int,
     network_first_bin: int,
     local_busy_duration: int,
+    prio_epr: bool,
 ) -> TeleportResult:
     ns.sim_reset()
 
@@ -102,6 +105,7 @@ def run_apps(
         determ=True,
         deadlines=True,
         num_qubits=20,
+        prio_epr=prio_epr,
     )
     bob_node_cfg = create_procnode_cfg(
         "bob",
@@ -111,6 +115,7 @@ def run_apps(
         determ=True,
         deadlines=True,
         num_qubits=num_qubits_bob,
+        prio_epr=prio_epr,
     )
 
     cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, cc_latency)
@@ -155,7 +160,6 @@ def run_apps(
         local_prog_node2_inputs=local_inputs,
         network_cfg=network_cfg,
         linear_for={"alice": False, "bob": False},
-        linear_local=False,
     )
 
     alice_result = app_result.batch_results["alice"]
@@ -186,9 +190,10 @@ class DataPoint:
 class DataMeta:
     timestamp: str
     num_iterations: int
-    num_local_iterations: int
-    num_runs: int
     latency_factor: float
+    net_bin_factors: List[float]
+    prio_epr: bool
+    bob_qubit_nums: List[int]
 
 
 @dataclass
@@ -230,14 +235,13 @@ def get_metrics(
     network_period: int,
     network_first_bin: int,
     local_busy_duration: int,
+    prio_epr: bool,
 ) -> DataPoint:
     teleport_successes: List[bool] = []
     local_successes: List[bool] = []
     makespans: List[float] = []
 
-    for i in range(num_runs):
-        print(f"run {i}/{num_runs}", end="\r")
-
+    for _ in range(num_runs):
         cc_latency = latency_factor * t2
 
         result = run_apps(
@@ -251,6 +255,7 @@ def get_metrics(
             network_bin_len=network_bin_len,
             network_first_bin=network_first_bin,
             local_busy_duration=local_busy_duration,
+            prio_epr=prio_epr,
         )
         teleport_results = result.bob_result.results
         outcomes = [result.values["outcome"] for result in teleport_results]
@@ -317,7 +322,10 @@ def get_metrics(
 
 
 def run(
-    output_dir: str, num_runs: int, num_teleport: int, num_local: int, dump: bool = True
+    output_dir: str,
+    prio_epr: bool,
+    num_runs: int,
+    num_qubits: Optional[int] = None,
 ):
     # LogManager.set_log_level("INFO")
     # LogManager.log_to_file("quantum_multitasking.log")
@@ -329,77 +337,95 @@ def run(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     t1 = 1e10
-    t2 = 1e7
+    t2 = 1e8
 
-    num_iterations = num_teleport
-    num_local_iterations = num_local
-    latency_factor = 0.01  # CC = 100_000
-    local_busy_duration = 0
-
-    network_bin_len = 100_000
-    network_period = num_iterations * network_bin_len
-    network_first_bin = 0
+    num_iterations = 5
+    num_local_iterations = 0
+    # num_qubits_bob = 10
+    if num_qubits is not None:
+        bob_qubit_nums = [num_qubits]
+    else:
+        bob_qubit_nums = [1, 2, 5]
+    latency_factor = 0.1  # CC = 10_000_000
+    # net_bin_factors = [0.4, 0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6]
+    # net_bin_factors = list(np.linspace(0.2, 0.8, 11))
+    net_bin_factors = list(np.linspace(0.2, 0.8, 1))
+    net_bin_factors = [round(f, 2) for f in net_bin_factors]
+    local_busy_duration = 1_000_000
+    network_gap = 0
 
     data_points: List[DataPoint] = []
 
-    data_point = get_metrics(
-        num_runs=num_runs,
-        num_iterations=num_iterations,
-        num_local_iterations=num_local_iterations,
-        num_qubits_bob=10,
-        t1=t1,
-        t2=t2,
-        latency_factor=latency_factor,
-        network_bin_len=network_bin_len,
-        network_period=network_period,
-        network_first_bin=network_first_bin,
-        local_busy_duration=local_busy_duration,
-    )
+    for num_qubits_bob in bob_qubit_nums:
+        for bin_factor in net_bin_factors:
+            network_bin_len = int((latency_factor * t2) * bin_factor)
+            network_first_bin = int(network_bin_len / 2)
+            network_period = (num_iterations + network_gap) * network_bin_len
 
-    data_points.append(data_point)
+            data_point = get_metrics(
+                num_runs=num_runs,
+                num_iterations=num_iterations,
+                num_local_iterations=num_local_iterations,
+                num_qubits_bob=num_qubits_bob,
+                t1=t1,
+                t2=t2,
+                latency_factor=latency_factor,
+                network_bin_len=network_bin_len,
+                network_period=network_period,
+                network_first_bin=network_first_bin,
+                local_busy_duration=local_busy_duration,
+                prio_epr=prio_epr,
+            )
+            makespan = data_point.makespan
+            num_bins = math.ceil(makespan / network_bin_len)
+            # print(f"total duration: {end_time - start_time}s")
+
+            print(f"cc latency: {latency_factor * t2:_}")
+            print(f"network period: {network_period:_}")
+            print(f"network bin len: {network_bin_len:_}")
+            print(f"makespan: {makespan}")
+            print(f"num bins: {num_bins}")
+
+            data_points.append(data_point)
 
     meta = DataMeta(
         timestamp=timestamp,
         num_iterations=num_iterations,
-        num_local_iterations=num_local_iterations,
-        num_runs=num_runs,
         latency_factor=latency_factor,
+        net_bin_factors=net_bin_factors,
+        prio_epr=prio_epr,
+        bob_qubit_nums=bob_qubit_nums,
     )
 
     end_time = time.time()
     print(f"simulation took {end_time - start_time}s")
 
-    if dump:
-        data = Data(meta=meta, data_points=data_points)
-        json_data = asdict(data)
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
 
-        abs_dir = relative_to_cwd(f"data/{output_dir}")
-        Path(abs_dir).mkdir(parents=True, exist_ok=True)
-        last_path = os.path.join(abs_dir, f"LAST.json")
-        timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
-        with open(last_path, "w") as datafile:
-            json.dump(json_data, datafile)
-        with open(timestamp_path, "w") as datafile:
-            json.dump(json_data, datafile)
+    abs_dir = relative_to_cwd(f"data/{output_dir}")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, f"LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--dump", "-d", action="store_true")
+    parser.add_argument("--num_qubits", "-q", type=int, required=True)
     parser.add_argument("--num_runs", "-n", type=int, required=True)
-    parser.add_argument("--num_teleport", "-t", type=int, required=True)
-    parser.add_argument("--num_local", "-l", type=int, required=True)
 
     args = parser.parse_args()
-    dump = args.dump
+
+    num_qubits = args.num_qubits
     num_runs = args.num_runs
-    num_teleport = args.num_teleport
-    num_local = args.num_local
 
     run(
-        f"sweep_teleport_local_{num_teleport}_{num_local}",
+        "net_bin_factor_per_qubit_num",
+        prio_epr=False,
         num_runs=num_runs,
-        num_teleport=num_teleport,
-        num_local=num_local,
-        dump=dump,
+        num_qubits=num_qubits,
     )

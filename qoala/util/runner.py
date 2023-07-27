@@ -242,6 +242,7 @@ def run_two_node_app_separate_inputs_plus_local_program(
     network_cfg: ProcNodeNetworkConfig,
     linear: bool = False,
     linear_for: Optional[Dict[str, bool]] = None,
+    linear_local: bool = True
 ) -> AppResult:
     if linear_for is None:
         linear_for = {node1: False, node2: False}
@@ -296,7 +297,10 @@ def run_two_node_app_separate_inputs_plus_local_program(
         merged2 = TaskGraphBuilder.merge(tasks2)
 
     tasks_local = procnode2.scheduler.get_tasks_to_schedule_for(batch_local.batch_id)
-    merged_local = TaskGraphBuilder.merge_linear(tasks_local)
+    if linear_local:
+        merged_local = TaskGraphBuilder.merge_linear(tasks_local)
+    else:
+        merged_local = TaskGraphBuilder.merge(tasks_local)
     merged_with_local = TaskGraphBuilder.merge([merged2, merged_local])
 
     procnode2.scheduler.upload_task_graph(merged_with_local)
