@@ -235,9 +235,9 @@ class EntDist(Protocol):
         self._logger.info(f"total duration: {timed_sampler.delay}")
         total_delay = sample.duration + timed_sampler.delay
 
-        if cutoff is None and self._netschedule.length_of_QC_blocks is not None:
+        if cutoff is None and self._netschedule.length_of_qc_blocks is not None:
             try:
-                cutoff = self._netschedule.length_of_QC_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
+                cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
                 self._logger.warning(
                     f"Set max QC length to {cutoff}")
             except KeyError:
@@ -397,6 +397,7 @@ class EntDist(Protocol):
 
             # Wait until the next time bin.
             now = ns.sim_time()
+            # self._logger.warning(now)
             next_slot_time, next_slot = self._netschedule.next_bin(now)
 
             if next_slot_time - now > 0:
