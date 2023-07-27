@@ -393,10 +393,6 @@ class JumpOp(ClassicalIqoalaOp):
         attr: Optional[IqoalaValue],
     ):
         assert result is None
-        print(
-            "Args",
-            args,
-        )
         assert isinstance(attr, str)
         return cls(attr)
 

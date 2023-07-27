@@ -54,6 +54,16 @@ from qoala.util.logging import LogManager
 
 
 class NodeSchedulerComponent(Component):
+    """
+    NetSquid component representing for the NodeScheduler.
+    It is used to send messages from node scheduler to processor schedulers.
+
+    :param name: Name of the component
+    :param cpu_scheduler: CPU scheduler that node scheduler will send messages to.
+    :param qpu_scheduler: QPU scheduler that node scheduler will send messages to.
+
+    """
+
     def __init__(
         self,
         name,
@@ -61,34 +71,40 @@ class NodeSchedulerComponent(Component):
         qpu_scheduler: ProcessorScheduler,
     ):
         super().__init__(name=name)
-        self.add_ports(["cpu_scheduler_out", "cpu_scheduler_in"])
-        self.add_ports(["qpu_scheduler_out", "qpu_scheduler_in"])
+        self.add_ports(["cpu_scheduler_out"])
+        self.add_ports(["qpu_scheduler_out"])
 
-        self.ports["cpu_scheduler_out"].connect(cpu_scheduler.node_scheduler_out_port)
-        self.ports["cpu_scheduler_in"].connect(cpu_scheduler.node_scheduler_in_port)
-        self.ports["qpu_scheduler_out"].connect(qpu_scheduler.node_scheduler_out_port)
-        self.ports["qpu_scheduler_in"].connect(qpu_scheduler.node_scheduler_in_port)
+        self.ports["cpu_scheduler_out"].connect(cpu_scheduler.node_scheduler_in_port)
+        self.ports["qpu_scheduler_out"].connect(qpu_scheduler.node_scheduler_in_port)
 
     @property
     def cpu_scheduler_out_port(self) -> Port:
+        """
+        Port used to send messages to the CPU scheduler.
+        """
         return self.ports["cpu_scheduler_out"]
 
     @property
-    def cpu_scheduler_in_port(self) -> Port:
-        return self.ports["cpu_scheduler_in"]
-
-    @property
     def qpu_scheduler_out_port(self) -> Port:
+        """
+        Port used to send messages to the QPU scheduler.
+        """
         return self.ports["qpu_scheduler_out"]
 
-    @property
-    def qpu_scheduler_in_port(self) -> Port:
-        return self.ports["qpu_scheduler_in"]
-
     def send_cpu_scheduler_message(self, msg: Message) -> None:
+        """
+        Send a message to the CPU scheduler.
+        :param msg: Message to send.
+        :return: None
+        """
         self.cpu_scheduler_out_port.tx_output(msg)
 
     def send_qpu_scheduler_message(self, msg: Message) -> None:
+        """
+        Send a message to the QPU scheduler.
+        :param msg: Message to send.
+        :return: None
+        """
         self.qpu_scheduler_out_port.tx_output(msg)
 
 
@@ -104,10 +120,12 @@ class NodeScheduler(Protocol):
         network_ehi: EhiNetworkInfo,
         deterministic: bool = True,
         use_deadlines: bool = True,
+        is_predictable: bool = False,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
         self._node_name = node_name
+        self.add_signal(SIGNAL_TASK_COMPLETED)
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}({node_name})"
@@ -142,6 +160,8 @@ class NodeScheduler(Protocol):
 
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
+
+        self._is_predictable = is_predictable
 
         # TODO: refactor
         node_id = self.host._comp.node_id
@@ -343,10 +363,11 @@ class NodeScheduler(Protocol):
         yield event_expr
 
     def start(self) -> None:
-        super().start()
+        if not self._is_predictable:
+            super().start()
+            self.schedule_all()
         self._cpu_scheduler.start()
         self._qpu_scheduler.start()
-        self.schedule_all()
 
     def stop(self) -> None:
         self._qpu_scheduler.stop()
@@ -370,14 +391,21 @@ class NodeScheduler(Protocol):
             yield ev_expr
 
             now = ns.sim_time()
+
+            # Gets the pid of the last finished task at the current time,
+            # if there is no task that is finished at the current time, it returns -1
             self._last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(
                 now
             )
+            # If there is a task that is finished at the current time, assign the next
             if self._last_cpu_task_pid != -1:
                 self.schedule_next_for(self._last_cpu_task_pid)
+
             self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
                 now
             )
+            # If there is a task that is finished at the current time, assign the next, but we do not need to assign
+            # again if it is the same pid as the one that came from CPU
             if (
                 self._last_qpu_task_pid != -1
                 and self._last_qpu_task_pid != self._last_cpu_task_pid
@@ -385,11 +413,82 @@ class NodeScheduler(Protocol):
                 self.schedule_next_for(self._last_qpu_task_pid)
 
     def schedule_next_for(self, pid: int) -> None:
+        """
+        Schedule the tasks of the next block for program instance with given pid
+        by assigning respective tasks to CPU and QPU schedulers and sends a message
+        to schedulers for informing them about the newly assigned tasks.
 
+        :param pid: program instance id
+        :return: None
+        """
+        new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
+
+        # If there are new tasks, send a message to schedulers
+        # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
+        if new_cpu_tasks:
+            self._cpu_scheduler.add_tasks(new_cpu_tasks)
+            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+        if new_qpu_tasks:
+            self._qpu_scheduler.add_tasks(new_qpu_tasks)
+            self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
+
+    def schedule_all(self) -> None:
+        """
+        Schedules the tasks of the next block for each available program instance in the memory manager
+        by assigning respective tasks to CPU and QPU schedulers and sends a message
+        to schedulers for informing them about the newly assigned tasks.
+
+        This method is responsible for scheduling tasks for each available program instance in the memory manager.
+        A program instance is considered available if it meets two conditions:
+        1. It is not finished.
+        2. It does not have any dependencies on an unfinished program instance
+        which is the case if the batch of program instances are submitted to run linearly.
+
+        :return: None
+        """
+        all_new_cpu_tasks: Dict[int, TaskInfo] = {}
+        all_new_qpu_tasks: Dict[int, TaskInfo] = {}
+
+        for pid in self.memmgr.get_all_program_ids():
+            # If there is a dependency, check if it is finished
+            dependency_pid = self._prog_instance_dependency[pid]
+            if dependency_pid != -1:
+                dep_cur_index = self._current_block_index[dependency_pid]
+                dep_block_length = len(
+                    self.memmgr.get_process(dependency_pid).prog_instance.program.blocks
+                )
+                if dep_cur_index < dep_block_length:
+                    continue
+
+            # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
+            new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
+            if new_cpu_tasks:
+                all_new_cpu_tasks.update(new_cpu_tasks)
+            if new_qpu_tasks:
+                all_new_qpu_tasks.update(new_qpu_tasks)
+
+        # If there are new tasks, send a message to schedulers
+        if len(all_new_cpu_tasks) > 0:
+            self._cpu_scheduler.add_tasks(all_new_cpu_tasks)
+            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+        if len(all_new_qpu_tasks) > 0:
+            self._qpu_scheduler.add_tasks(all_new_qpu_tasks)
+            self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
+
+    def find_next_tasks_for(
+        self, pid: int
+    ) -> Tuple[Optional[Dict[int, TaskInfo]], Optional[Dict[int, TaskInfo]]]:
+        """
+        Finds the tasks of the next block for program instance with given pid,
+        and returns them as CPU tasks and QPU tasks separately.
+
+        :param pid: The program instance ID for which to find the next tasks.
+        :return: A 2-tuple containing the new CPU tasks and new QPU tasks. If no tasks are
+             found for the given PID, both elements of the tuple will be set to None.
+        """
         new_cpu_tasks: Dict[int, TaskInfo] = {}
         new_qpu_tasks: Dict[int, TaskInfo] = {}
 
-        # If there is a jump, jump to that block
         if (
             pid in self.host.interface.program_instance_jumps
             and self.host.interface.program_instance_jumps[pid] != -1
@@ -403,12 +502,11 @@ class NodeScheduler(Protocol):
         prog_instance = self.memmgr.get_process(pid).prog_instance
         blocks = prog_instance.program.blocks
 
-        # If it is not in range or cpu is not done with tasks with this pid
-        # We cannot add any more tasks because all block types have cpu tasks
-        if len(blocks) <= current_block_index or self.cpu_scheduler.task_exists_for_pid(
-            pid
-        ):
-            return
+        is_program_finished = current_block_index >= len(blocks)
+        # If program is finished or CPU scheduler has a task for this pid, do not schedule
+        # Note that for all block types, there will be tasks for CPU scheduler
+        if is_program_finished or self.cpu_scheduler.task_exists_for_pid(pid):
+            return None, None
 
         block = prog_instance.program.blocks[current_block_index]
 
@@ -425,6 +523,7 @@ class NodeScheduler(Protocol):
             self._current_block_index[pid] += 1
             # If scheduler does not have any task send a message to wake it up
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+            return new_cpu_tasks, None
         elif not self.qpu_scheduler.task_exists_for_pid(pid):
             # Note that we know that cpu does not have any tasks for this pid
             graph = self._task_from_block_builder.build(
@@ -434,77 +533,21 @@ class NodeScheduler(Protocol):
             new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
 
             self._current_block_index[pid] += 1
-            # If scheduler does not have any task send a message to wake it up
-            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
-            self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
 
-        self._cpu_scheduler.add_tasks(new_cpu_tasks)
-        self._qpu_scheduler.add_tasks(new_qpu_tasks)
+        return new_cpu_tasks, new_qpu_tasks
 
-    def schedule_all(self) -> None:
-        new_cpu_tasks: Dict[int, TaskInfo] = {}
-        new_qpu_tasks: Dict[int, TaskInfo] = {}
+    def upload_task_graph(self, graph: TaskGraph) -> None:
+        """
+        Assigns tasks in the given task graph to the CPU and QPU schedulers.
 
-        for pid in self.memmgr.get_all_program_ids():
-            # If there is a dependency, check if it is finished
-            dependency_pid = self._prog_instance_dependency[pid]
-            if dependency_pid != -1:
-                dep_cur_index = self._current_block_index[dependency_pid]
-                dep_block_length = len(
-                    self.memmgr.get_process(dependency_pid).prog_instance.program.blocks
-                )
-                if dep_cur_index < dep_block_length:
-                    continue
-
-            # If there is a jump, jump to that block
-            if (
-                pid in self.host.interface.program_instance_jumps
-                and self.host.interface.program_instance_jumps[pid] != -1
-            ):
-                self._current_block_index[
-                    pid
-                ] = self.host.interface.program_instance_jumps[pid]
-                self.host.interface.program_instance_jumps[pid] = -1
-
-            current_block_index = self._current_block_index[pid]
-            prog_instance = self.memmgr.get_process(pid).prog_instance
-
-            # If it is not in range or cpu is not done with tasks with this pid
-            # We cannot add any more tasks because all block types have cpu tasks
-            if self.is_program_instance_finished(
-                pid
-            ) or self.cpu_scheduler.task_exists_for_pid(pid):
-                continue
-
-            block = prog_instance.program.blocks[current_block_index]
-
-            # If it is CL or CC it will only have tasks in CPU but others will have tasks in both
-            if block.typ in {
-                BasicBlockType.CL,
-                BasicBlockType.CC,
-            }:
-                graph = self._task_from_block_builder.build(
-                    prog_instance, current_block_index, self._network_ehi
-                )
-                new_cpu_tasks.update(graph.get_tasks())
-
-                self._current_block_index[pid] += 1
-                # If scheduler does not have any task send a message to wake it up
-                self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
-            elif not self.qpu_scheduler.task_exists_for_pid(pid):
-                # Note that we know that cpu does not have any tasks for this pid
-                graph = self._task_from_block_builder.build(
-                    prog_instance, current_block_index, self._network_ehi
-                )
-                new_cpu_tasks.update(graph.partial_graph(ProcessorType.CPU).get_tasks())
-                new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
-
-                self._current_block_index[pid] += 1
-                # If scheduler does not have any task send a message to wake it up
-                self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
-                self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
-        self._cpu_scheduler.add_tasks(new_cpu_tasks)
-        self._qpu_scheduler.add_tasks(new_qpu_tasks)
+        :param graph: The task graph to upload.
+        :return: None
+        """
+        self._task_graph = graph
+        cpu_graph = graph.partial_graph(ProcessorType.CPU)
+        qpu_graph = graph.partial_graph(ProcessorType.QPU)
+        self._cpu_scheduler.upload_task_graph(cpu_graph)
+        self._qpu_scheduler.upload_task_graph(qpu_graph)
 
     def is_program_instance_finished(self, pid: int) -> bool:
         return self._current_block_index[pid] >= len(
@@ -532,16 +575,22 @@ class NodeScheduler(Protocol):
 
 
 class ProcessorSchedulerComponent(Component):
+    """
+    NetSquid component representing for the ProcessorScheduler.
+    It is used to receive messages from the node scheduler.
+
+    :param name: Name of the component
+    """
+
     def __init__(self, name):
         super().__init__(name=name)
-        self.add_ports(["node_scheduler_out", "node_scheduler_in"])
-
-    @property
-    def node_scheduler_out_port(self) -> Port:
-        return self.ports["node_scheduler_out"]
+        self.add_ports(["node_scheduler_in"])
 
     @property
     def node_scheduler_in_port(self) -> Port:
+        """
+        Port that the node scheduler uses to send messages to this component.
+        """
         return self.ports["node_scheduler_in"]
 
 
@@ -583,10 +632,6 @@ class ProcessorScheduler(Protocol):
         self._comp = ProcessorSchedulerComponent(name + "_comp")
 
     @property
-    def node_scheduler_out_port(self) -> Port:
-        return self._comp.node_scheduler_out_port
-
-    @property
     def node_scheduler_in_port(self) -> Port:
         return self._comp.node_scheduler_in_port
 
@@ -594,16 +639,47 @@ class ProcessorScheduler(Protocol):
     def driver(self) -> Driver:
         return self._driver
 
+    def upload_task_graph(self, graph: TaskGraph) -> None:
+        """
+        Sets the given task graph as the current task graph.
+
+        :param graph: The task graph to upload.
+        :return: None
+        """
+        self._task_graph = graph
+
+    # Gets the pid of the last finished task at the current time,
+    # if there is no task that is finished at the current time, it returns -1
     def get_last_finished_task_pid_at(self, time: float) -> int:
+        """
+        Finds the pid of the last finished task at the given time and returns it,
+        if there is no task that is finished at the current time, it returns -1
+
+        :param time: The time to check for finished tasks.
+        :return: The pid of the last finished task at the given time if such task exists, -1 otherwise.
+        """
         if self.last_finished_task_pid[1] == time:
             return self.last_finished_task_pid[0]
         else:
             return -1
 
     def task_exists_for_pid(self, pid: int) -> bool:
+        """
+        Checks the current task graph for the existence of a task with the given pid. Returns True if such task exists,
+        False otherwise.
+
+        :param pid: The pid to check for.
+        :return: True if a task with the given pid exists, False otherwise.
+        """
         return self._task_graph.task_exists_for_pid(pid)
 
     def add_tasks(self, tasks: Dict[int, TaskInfo]) -> None:
+        """
+        Adds the given tasks to the current task graph.
+
+        :param tasks: The tasks to add.
+        :return: None
+        """
         self._task_graph.get_tasks().update(tasks)
 
     def has_finished(self, task_id: int) -> bool:
@@ -879,7 +955,7 @@ class CpuEdfScheduler(EdfScheduler):
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
             else:
-                ev_expr = self.await_port_input(self.node_scheduler_out_port)
+                ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
                     ev_expr = ev_expr | self.await_signal(
                         sender=self._other_scheduler,
@@ -1158,7 +1234,7 @@ class QpuEdfScheduler(EdfScheduler):
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
             else:
-                ev_expr = self.await_port_input(self.node_scheduler_out_port)
+                ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
                     ev_expr = ev_expr | self.await_signal(
                         sender=self._other_scheduler,

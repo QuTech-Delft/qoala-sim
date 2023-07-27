@@ -39,6 +39,7 @@ class MockScheduler(NodeScheduler):
         self._host = scheduler.host
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
+        self._is_predictable = True
         pass
 
     def schedule_next_for(self, pid: int) -> None:

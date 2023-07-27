@@ -700,7 +700,6 @@ def test_full_program():
 def test_jump_instruction():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -721,7 +720,6 @@ def test_jump_instruction():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 5000  # 5 * 1000
@@ -734,7 +732,6 @@ def test_jump_instruction():
 def test_beq_instruction_1():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -755,7 +752,6 @@ def test_beq_instruction_1():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 5000  # 5 * 1000
@@ -768,7 +764,6 @@ def test_beq_instruction_1():
 def test_beq_instruction_2():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -789,7 +784,6 @@ def test_beq_instruction_2():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 7000  # 7 * 1000
@@ -802,7 +796,6 @@ def test_beq_instruction_2():
 def test_bne_instruction_1():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -823,7 +816,6 @@ def test_bne_instruction_1():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 5000  # 5 * 1000
@@ -836,7 +828,6 @@ def test_bne_instruction_1():
 def test_bne_instruction_2():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -857,7 +848,6 @@ def test_bne_instruction_2():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 7000  # 7 * 1000
@@ -870,7 +860,6 @@ def test_bne_instruction_2():
 def test_bgt_instruction_1():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -891,7 +880,6 @@ def test_bgt_instruction_1():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 5000  # 5 * 1000
@@ -904,7 +892,6 @@ def test_bgt_instruction_1():
 def test_bgt_instruction_2():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -925,7 +912,6 @@ def test_bgt_instruction_2():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 7000  # 7 * 1000
@@ -938,7 +924,6 @@ def test_bgt_instruction_2():
 def test_blt_instruction_1():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -959,7 +944,6 @@ def test_blt_instruction_1():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 5000  # 5 * 1000
@@ -972,7 +956,6 @@ def test_blt_instruction_1():
 def test_blt_instruction_2():
     network = setup_network()
     alice = network.nodes["alice"]
-    bob = network.nodes["bob"]
 
     program_alice = load_program("test_jumping_and_branching.iqoala")
 
@@ -993,7 +976,6 @@ def test_blt_instruction_2():
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
-    bob.scheduler.stop()
     ns.sim_run()
 
     assert ns.sim_time() == 7000  # 7 * 1000

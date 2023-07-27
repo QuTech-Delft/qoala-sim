@@ -69,8 +69,8 @@ class HostInterface(ComponentProtocol):
             self._signal_names.append(f"{SIGNAL_HOST_HOST_MSG}_{peer}")
 
         # If the last instruction executed for the program instance was a jump,
-        # this will be the name of the block to jump to, otherwise None.
-        self._program_instance_jumps: Dict[int, int] = {}  # pid => block name
+        # this will be the index of the block(in program's list of blocks) to jump to, otherwise None.
+        self._program_instance_jumps: Dict[int, int] = {}  # pid => block index
 
     @property
     def program_instance_jumps(self) -> Dict[int, int]:

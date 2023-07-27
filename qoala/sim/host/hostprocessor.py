@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Dict, Generator, List, Optional, Union
 
-import netsquid
 from netqasm.lang.operand import Template
 
 from pydynaa import EventExpression
@@ -62,7 +61,6 @@ class HostProcessor:
     def assign_instr(
         self, process: QoalaProcess, instr: hostlang.ClassicalIqoalaOp
     ) -> Generator[EventExpression, None, None]:
-        print("assign_instr", instr, netsquid.sim_time())
         csockets = process.csockets
         host_mem = process.prog_memory.host_mem
         pid = process.pid
