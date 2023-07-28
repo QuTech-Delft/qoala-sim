@@ -264,7 +264,7 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
     OP_NAME = "bcond_mult_const"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, result: str, value0: str, cond: str, const: IqoalaValue) -> None:
+    def __init__(self, result: str, value0: str, cond: str, const: int) -> None:
         # if const == 1:
         #   result = value0 * const
         # else:
@@ -283,6 +283,7 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
         assert attr is not None
         assert isinstance(args[0], str)
         assert isinstance(args[1], str)
+        assert isinstance(attr, int)
         return cls(result, args[0], args[1], attr)
 
 
@@ -375,6 +376,113 @@ class ReturnResultOp(ClassicalIqoalaOp):
         assert attr is None
         assert isinstance(args[0], str)
         return cls(args[0])
+
+
+class JumpOp(ClassicalIqoalaOp):
+    OP_NAME = "jump"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(self, block_name: str) -> None:
+        super().__init__(attributes=[block_name])
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
+    ):
+        assert result is None
+        assert isinstance(attr, str)
+        return cls(attr)
+
+
+class BranchIfEqualOp(ClassicalIqoalaOp):
+    OP_NAME = "beq"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+        super().__init__(arguments=[value0, value1], attributes=[block_name])
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
+    ):
+        assert result is None
+        assert len(args) == 2
+        assert isinstance(attr, str)
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], str)
+        return cls(args[0], args[1], attr)
+
+
+class BranchIfNotEqualOp(ClassicalIqoalaOp):
+    OP_NAME = "bne"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+        super().__init__(arguments=[value0, value1], attributes=[block_name])
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
+    ):
+        assert result is None
+        assert len(args) == 2
+        assert isinstance(attr, str)
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], str)
+        return cls(args[0], args[1], attr)
+
+
+class BranchIfGreaterThanOp(ClassicalIqoalaOp):
+    OP_NAME = "bgt"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+        super().__init__(arguments=[value0, value1], attributes=[block_name])
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
+    ):
+        assert result is None
+        assert len(args) == 2
+        assert isinstance(attr, str)
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], str)
+        return cls(args[0], args[1], attr)
+
+
+class BranchIfLessThanOp(ClassicalIqoalaOp):
+    OP_NAME = "blt"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+        super().__init__(arguments=[value0, value1], attributes=[block_name])
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[str],
+        args: Union[List[str], List[IqoalaTuple]],
+        attr: Optional[IqoalaValue],
+    ):
+        assert result is None
+        assert len(args) == 2
+        assert isinstance(attr, str)
+        assert isinstance(args[0], str)
+        assert isinstance(args[1], str)
+        return cls(args[0], args[1], attr)
 
 
 class BasicBlockType(Enum):

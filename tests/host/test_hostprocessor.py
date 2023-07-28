@@ -40,7 +40,6 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import SharedMemory
-from qoala.runtime.task import TaskGraph
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.host.hostprocessor import HostProcessor
@@ -65,6 +64,11 @@ class MockHostInterface(HostInterface):
         self.recv_events: List[InterfaceEvent] = []
 
         self.shared_mem = shared_mem
+        self._program_instance_jumps: Dict[int, int] = {}  # pid => block name
+
+    @property
+    def program_instance_jumps(self) -> Dict[int, int]:
+        return self._program_instance_jumps
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self.send_events.append(InterfaceEvent(peer, msg))
@@ -135,7 +139,6 @@ def create_process(
         program=program,
         inputs=prog_input,
         unit_module=UnitModule.from_full_ehi(mock_ehi),
-        task_graph=TaskGraph(),
     )
 
     mem = ProgramMemory(pid=0)

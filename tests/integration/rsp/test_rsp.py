@@ -73,6 +73,7 @@ def run_rsp(num_iterations: int, angles: List[int]) -> RspResult:
         programs={"alice": alice_program, "bob": bob_program},
         program_inputs={"alice": alice_inputs, "bob": bob_inputs},
         network_cfg=network_cfg,
+        linear=True,
     )
 
     alice_result = app_result.batch_results["alice"]
@@ -91,6 +92,7 @@ def test_rsp():
 
     result = run_rsp(num_iterations, angles)
     program_results = result.bob_results.results
+    print(program_results)
     outcomes = [result.values["outcome"] for result in program_results]
     print(outcomes)
 

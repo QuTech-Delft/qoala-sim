@@ -49,7 +49,7 @@ META_END
 SUBROUTINE add_one
     params: x
     returns: y
-    uses: 
+    uses:
     keeps:
     request:
   NETQASM_START
@@ -92,7 +92,7 @@ SUBROUTINE meas_q0_q1
 
 REQUEST epr_md_1
   callback_type: wait_all
-  callback: 
+  callback:
   return_vars: m
   remote_id: {alice_id}
   epr_socket_id: 0
@@ -105,7 +105,7 @@ REQUEST epr_md_1
 
 REQUEST epr_md_2
   callback_type: wait_all
-  callback: 
+  callback:
   return_vars: m0, m1
   remote_id: {alice_id}
   epr_socket_id: 0
@@ -118,8 +118,8 @@ REQUEST epr_md_2
 
 REQUEST epr_ck_1
   callback_type: wait_all
-  callback: 
-  return_vars: 
+  callback:
+  return_vars:
   remote_id: {alice_id}
   epr_socket_id: 0
   num_pairs: 1
@@ -131,7 +131,7 @@ REQUEST epr_ck_1
 
 REQUEST epr_ck_2
   callback_type: wait_all
-  callback: 
+  callback:
   return_vars:
   remote_id: {alice_id}
   epr_socket_id: 0

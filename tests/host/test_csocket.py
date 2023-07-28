@@ -36,7 +36,7 @@ def setup_alice_bob() -> Tuple[ClassicalSocket, ClassicalSocket]:
     alice.remote = bob
     bob.remote = alice
 
-    return (ClassicalSocket(alice, "bob", 0, 0), ClassicalSocket(bob, "alice", 0, 0))
+    return ClassicalSocket(alice, "bob", 0, 0), ClassicalSocket(bob, "alice", 0, 0)
 
 
 def test_send_str():

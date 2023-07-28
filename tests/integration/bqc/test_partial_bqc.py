@@ -19,7 +19,6 @@ from qoala.runtime.lhi_to_ehi import LhiConverter, NtfInterface
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.driver import QpuDriver
 from qoala.sim.entdist.entdist import EntDist
@@ -29,7 +28,25 @@ from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
+from qoala.sim.scheduler import NodeScheduler
 from qoala.util.math import has_state
+
+
+class MockScheduler(NodeScheduler):
+    def __init__(self, scheduler: NodeScheduler) -> None:
+        self._cpu_scheduler = scheduler.cpu_scheduler
+        self._qpu_scheduler = scheduler.qpu_scheduler
+        self._host = scheduler.host
+        self._last_cpu_task_pid = -1
+        self._last_qpu_task_pid = -1
+        self._is_predictable = True
+        pass
+
+    def schedule_next_for(self, pid: int) -> None:
+        pass
+
+    def schedule_all(self) -> None:
+        pass
 
 
 def create_process(
@@ -49,7 +66,6 @@ def create_process(
         program=program,
         inputs=prog_input,
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=0)
 
@@ -345,6 +361,10 @@ def run_bqc(
     server_procnode.node.entdist_in_port.connect(entdistcomp.node_out_port("server"))
     entdist = EntDist(nodes=nodes, ehi_network=network_ehi, comp=entdistcomp)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
+
+    # To prevent scheduler from running
+    server_procnode.scheduler = MockScheduler(server_procnode.scheduler)
+    client_procnode.scheduler = MockScheduler(client_procnode.scheduler)
 
     server_procnode.start()
     client_procnode.start()

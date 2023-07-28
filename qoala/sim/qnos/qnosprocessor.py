@@ -269,8 +269,7 @@ class QnosProcessor:
         result_addr = self._routine().result_addr
 
         value = qnos_mem.get_reg_value(instr.reg)
-        if value is None:
-            raise RuntimeError(f"value in register {instr.reg} is not defined")
+
         addr = instr.entry.address.address
         # Only allow NetQASM 2.0 input/output addresses
         assert isinstance(addr, str)

@@ -17,7 +17,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.task import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 
@@ -214,10 +213,9 @@ def run_bqc(
         print(
             f"client ID: {client_id}, batch ID: {batch_id}, server PIDs: {server_pids}"
         )
-        client_procnode.initialize_processes(remote_pids={batch_id: server_pids})
-        client_tasks = client_procnode.scheduler.get_tasks_to_schedule()
-        client_merged = TaskGraphBuilder.merge_linear(client_tasks)
-        client_procnode.scheduler.upload_task_graph(client_merged)
+        client_procnode.initialize_processes(
+            remote_pids={batch_id: server_pids}, linear=True
+        )
 
     client_pids = {
         server_batches[client_id].batch_id: [
@@ -226,10 +224,7 @@ def run_bqc(
         for client_id in range(1, num_clients + 1)
     }
     print(f"client PIDs: {client_pids}")
-    server_procnode.initialize_processes(remote_pids=client_pids)
-    server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
-    server_merged = TaskGraphBuilder.merge_linear(server_tasks)
-    server_procnode.scheduler.upload_task_graph(server_merged)
+    server_procnode.initialize_processes(remote_pids=client_pids, linear=True)
 
     network.start()
     start_time = ns.sim_time()

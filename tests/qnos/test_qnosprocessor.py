@@ -17,7 +17,6 @@ from qoala.runtime.message import Message
 from qoala.runtime.ntf import NvNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
-from qoala.runtime.task import TaskGraph
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
@@ -109,7 +108,6 @@ def create_process(
         program=program,
         inputs=inputs,
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 
@@ -226,7 +224,7 @@ def setup_components(
     unit_module = UnitModule.from_full_ehi(ehi)
     interface = MockQnosInterface(qdevice)
     processor = QnosProcessor(interface, latencies)
-    return (processor, unit_module)
+    return processor, unit_module
 
 
 def uniform_topology(num_qubits: int) -> LhiTopology:

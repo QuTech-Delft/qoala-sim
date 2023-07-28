@@ -8,7 +8,6 @@ from qoala.lang.ehi import EhiBuilder, UnitModule
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.task import TaskGraph
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
@@ -50,7 +49,6 @@ def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 

@@ -1,0 +1,59 @@
+META_START
+    name: alice
+    parameters:
+    csockets: 0 -> bob
+    epr_sockets: 0 -> bob
+META_END
+
+^blk_jump {type = CL}:
+    var_x = assign_cval() : 0
+    var_y = assign_cval() : 1
+    jump() : blk_last
+
+^blk_beq_1 {type = CL}:
+    var_x = assign_cval() : 1
+    var_y = assign_cval() : 1
+    beq(var_x, var_y) : blk_last
+
+^blk_beq_2 {type = CL}:
+    var_x = assign_cval() : 2
+    var_y = assign_cval() : 1
+    beq(var_x, var_y) : blk_last
+
+^blk_bne_1 {type = CL}:
+    var_x = assign_cval() : 2
+    var_y = assign_cval() : 3
+    bne(var_x, var_y) : blk_last
+
+^blk_bne_2 {type = CL}:
+    var_x = assign_cval() : 3
+    var_y = assign_cval() : 3
+    bne(var_x, var_y) : blk_last
+
+^blk_bgt_1 {type = CL}:
+    var_x = assign_cval() : 5
+    var_y = assign_cval() : 4
+    bgt(var_x, var_y) : blk_last
+
+^blk_bgt_2 {type = CL}:
+    var_x = assign_cval() : 4
+    var_y = assign_cval() : 4
+    bgt(var_x, var_y) : blk_last
+
+^blk_blt_1 {type = CL}:
+    var_x = assign_cval() : 6
+    var_y = assign_cval() : 7
+    blt(var_x, var_y) : blk_last
+
+^blk_blt_2 {type = CL}:
+    var_x = assign_cval() : 7
+    var_y = assign_cval() : 7
+    blt(var_x, var_y) : blk_last
+
+^blk_temp {type = CL}:
+    var_x = assign_cval() : 9
+    var_y = assign_cval() : 9
+
+^blk_last {type = CL}:
+    return_result(var_x)
+    return_result(var_y)

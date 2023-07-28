@@ -35,7 +35,6 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.ntf import GenericNtf, NtfInterface
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -47,6 +46,7 @@ from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
+from qoala.sim.scheduler import NodeScheduler
 from qoala.util.math import has_multi_state
 from qoala.util.tests import netsquid_run
 
@@ -126,6 +126,11 @@ class MockHostInterface(HostInterface):
     def __init__(self) -> None:
         self.send_events: List[InterfaceEvent] = []
         self.recv_events: List[InterfaceEvent] = []
+        self._program_instance_jumps: Dict[int, int] = {}  # pid => block name
+
+    @property
+    def program_instance_jumps(self) -> Dict[int, int]:
+        return self._program_instance_jumps
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self.send_events.append(InterfaceEvent(peer, msg))
@@ -188,7 +193,6 @@ def create_process(
         program=program,
         inputs=prog_input,
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=0)
 
@@ -203,6 +207,23 @@ def create_process(
         result=ProgramResult(values={}),
     )
     return process
+
+
+class MockScheduler(NodeScheduler):
+    def __init__(self, scheduler: NodeScheduler) -> None:
+        self._cpu_scheduler = scheduler.cpu_scheduler
+        self._qpu_scheduler = scheduler.qpu_scheduler
+        self._host = scheduler.host
+        self._last_cpu_task_pid = -1
+        self._last_qpu_task_pid = -1
+        self._is_predictable = True
+        pass
+
+    def schedule_next_for(self, pid: int) -> None:
+        pass
+
+    def schedule_all(self) -> None:
+        pass
 
 
 def create_qprocessor(name: str, num_qubits: int) -> QuantumProcessor:
@@ -440,11 +461,17 @@ def test_classical_comm():
 
     alice_procnode.connect_to(bob_procnode)
 
+    # To prevent scheduler from running
+    alice_procnode.scheduler = MockScheduler(alice_procnode.scheduler)
+    bob_procnode.scheduler = MockScheduler(bob_procnode.scheduler)
+
     # First start Bob, since Alice won't yield on anything (she only does a Send
     # instruction) and therefore calling 'start()' on alice completes her whole
     # protocol while Bob's interface has not even been started.
+
     bob_procnode.start()
     alice_procnode.start()
+
     ns.sim_run()
 
     assert bob_process.host_mem.read("result") == 1337
@@ -566,6 +593,11 @@ def test_classical_comm_three_nodes():
 
     alice_procnode.connect_to(charlie_procnode)
     bob_procnode.connect_to(charlie_procnode)
+
+    # To prevent scheduler from running
+    alice_procnode.scheduler = MockScheduler(alice_procnode.scheduler)
+    bob_procnode.scheduler = MockScheduler(bob_procnode.scheduler)
+    charlie_procnode.scheduler = MockScheduler(charlie_procnode.scheduler)
 
     # First start Charlie, since Alice and Bob don't yield on anything.
     charlie_procnode.start()
@@ -708,6 +740,10 @@ def test_epr():
     link_info = LhiLinkInfo.perfect(1000)
     entdist.add_sampler(alice_procnode.node.ID, bob_procnode.node.ID, link_info)
 
+    # To prevent scheduler from running
+    alice_procnode.scheduler = MockScheduler(alice_procnode.scheduler)
+    bob_procnode.scheduler = MockScheduler(bob_procnode.scheduler)
+
     # First start Bob, since Alice won't yield on anything (she only does a Send
     # instruction) and therefore calling 'start()' on alice completes her whole
     # protocol while Bob's interface has not even been started.
@@ -846,6 +882,10 @@ REQUEST req1
     entdist = EntDist(nodes=nodes, ehi_network=network_ehi, comp=entdistcomp)
     link_info = LhiLinkInfo.perfect(1000)
     entdist.add_sampler(client_procnode.node.ID, server_procnode.node.ID, link_info)
+
+    # To prevent scheduler from running
+    server_procnode.scheduler = MockScheduler(server_procnode.scheduler)
+    client_procnode.scheduler = MockScheduler(client_procnode.scheduler)
 
     server_procnode.start()
     client_procnode.start()
