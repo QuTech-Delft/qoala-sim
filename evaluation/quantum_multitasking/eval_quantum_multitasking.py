@@ -1,6 +1,5 @@
 from __future__ import annotations
 from argparse import ArgumentParser
-import numpy as np
 
 import json
 import math
@@ -9,7 +8,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import netsquid as ns
 
@@ -20,18 +19,12 @@ from qoala.runtime.config import (
     LatenciesConfig,
     NetworkScheduleConfig,
     NtfConfig,
-    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
-from qoala.util.runner import (
-    run_1_server_n_clients,
-    run_two_node_app_separate_inputs,
-    run_two_node_app_separate_inputs_plus_local_program,
-)
+from qoala.util.runner import run_two_node_app_separate_inputs_plus_local_program
 
 
 def create_procnode_cfg(
@@ -375,7 +368,7 @@ def run(
 
         abs_dir = relative_to_cwd(f"data/{output_dir}")
         Path(abs_dir).mkdir(parents=True, exist_ok=True)
-        last_path = os.path.join(abs_dir, f"LAST.json")
+        last_path = os.path.join(abs_dir, "LAST.json")
         timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
         with open(last_path, "w") as datafile:
             json.dump(json_data, datafile)

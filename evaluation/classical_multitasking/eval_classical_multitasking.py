@@ -23,7 +23,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
 from qoala.util.runner import (
     SchedulerType,
     run_two_node_app_separate_inputs_plus_constant_tasks,
@@ -133,8 +132,6 @@ def run_apps(
 
     alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
-
-    bob_stats = app_result.statistics["bob"]
 
     return ProgResult(alice_result, bob_result, [], app_result.total_duration)
 
@@ -332,7 +329,7 @@ def run(
 
     abs_dir = relative_to_cwd(f"data/{output_dir}")
     Path(abs_dir).mkdir(parents=True, exist_ok=True)
-    last_path = os.path.join(abs_dir, f"LAST.json")
+    last_path = os.path.join(abs_dir, "LAST.json")
     timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
     with open(last_path, "w") as datafile:
         json.dump(json_data, datafile)

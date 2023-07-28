@@ -1,14 +1,13 @@
 import json
 import numpy as np
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import dacite
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
 
 @dataclass

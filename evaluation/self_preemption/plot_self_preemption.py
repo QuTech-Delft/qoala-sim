@@ -1,13 +1,12 @@
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import dacite
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
 
 @dataclass
@@ -111,8 +110,6 @@ def plot_sweep_net_bin_period(timestamp: str, data: Data) -> None:
     ax.set_xlabel("Time bin length as fraction of node-node communication latency")
     ax.set_ylabel("Makespan (ms)")
 
-    ax2 = ax.twinx()
-
     fmts = ["o-b", "o-r", "o-k"]
     # fmts = [".-b", ".-r", ".-k"]
     # fmts = ["-b", "-r", "-k"]
@@ -122,22 +119,7 @@ def plot_sweep_net_bin_period(timestamp: str, data: Data) -> None:
     for num_qubits, fmt, label in zip(data.meta.bob_qubit_nums, fmts, labels):
         points = [p for p in data.data_points if p.num_qubits_bob == num_qubits]
         makespans = [p.makespan / 1e6 for p in points]
-        succ_probs = [p.tel_succ_prob for p in data.data_points]
-        error_plus = [p.tel_succ_prob_upper - p.tel_succ_prob for p in data.data_points]
-        error_plus = [max(0, e) for e in error_plus]
-        error_minus = [
-            p.tel_succ_prob - p.tel_succ_prob_lower for p in data.data_points
-        ]
-        error_minus = [max(0, e) for e in error_minus]
-        errors = [error_minus, error_plus]
-        # ax.set_xscale("log")
         ax.errorbar(x=nbf, y=makespans, fmt=fmt, label=label)
-        # ax2.errorbar(
-        #     x=nbf,
-        #     y=succ_probs,
-        #     yerr=errors,
-        #     fmt="o-b",
-        # )
 
     ax.set_title(
         "Teleportation makespan vs time bin length in network schedule",

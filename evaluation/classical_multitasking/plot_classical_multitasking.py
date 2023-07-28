@@ -1,16 +1,13 @@
 import json
-import math
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import dacite
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-
-from qoala.util.runner import SchedulerType
 
 
 @dataclass
@@ -184,7 +181,7 @@ def plot_sweep_busy_factor(
             y=makespan_improvements,
             # yerr=errors,
             fmt="o-r",
-            label=f"Makespan improvement",
+            label="Makespan improvement",
         )
     )
 
@@ -201,7 +198,7 @@ def plot_sweep_busy_factor(
     ax.xaxis.set_minor_locator(ticker.FixedLocator([0.1, 1, 10]))
 
     # ax2.set_yscale("log")
-    labels = [l.get_label() for l in lines]
+    labels = [line.get_label() for line in lines]
 
     ax.legend(lines, labels, loc="lower center")
 
