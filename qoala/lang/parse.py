@@ -49,6 +49,17 @@ class QoalaParseError(Exception):
     pass
 
 
+def is_valid_name(name: str) -> bool:
+    """Check if a string is a valid variable name.
+
+    :param name: The string to check.
+
+    :return: True if the string is a valid variable name, False otherwise. Acceptable variable names can only contain
+    letters(a-z, A-Z), numbers(0-9) or underscores(_), and can only start with a letter.
+
+    """
+    return name.isidentifier() and name[0].isalpha()
+
 class IqoalaMetaParser:
     def __init__(self, text: str) -> None:
         self._text = text
@@ -111,7 +122,10 @@ class IqoalaMetaParser:
             name_values = self._parse_meta_line("name", self._read_line())
             if len(name_values) != 1:
                 raise QoalaParseError("Qoala Program Meta name must be a single value.")
-            name = name_values[0]
+            name = name_values[0].strip()
+            if not is_valid_name(name):
+                raise QoalaParseError(f"Value {name} is not a valid name."
+                )
 
             parameters = self._parse_meta_line("parameters", self._read_line())
 
@@ -164,6 +178,11 @@ class IqoalaInstrParser:
                 tup_values = []
             else:
                 tup_values = [x.strip() for x in tup_values_str.split(";")]
+            for tup_value in tup_values:
+                if not is_valid_name(tup_value):
+                    raise QoalaParseError(
+                        f"Value {tup_value} is not a valid variable name."
+                    )
             return hl.IqoalaTuple(tup_values)
         elif "<" in var_str:
             if var_str.startswith("<"):
@@ -176,6 +195,10 @@ class IqoalaInstrParser:
                 )
             vec_split = var_str.split("<")
             vec_name = vec_split[0]
+            if not is_valid_name(vec_name):
+                raise QoalaParseError(
+                    f"Value {vec_name} is not a valid variable name."
+                )
             vec_size_str = vec_split[1][:-1]  # strip last ">"
             vec_size: Union[str, int]
             try:
@@ -216,7 +239,7 @@ class IqoalaInstrParser:
 
         op_parts = [x.strip() for x in value.split("(")]
         if value.startswith("("):
-            raise QoalaParseError("Iqoala instruction must start with a name.")
+            raise QoalaParseError("Iqoala instruction must have a name before '('.")
         if value.count("(") != 1 or value.count(")") != 1:
             raise QoalaParseError(
                 "Iqoala instruction must have a single '(' and a single ')'."
@@ -331,7 +354,9 @@ class HostCodeParser:
 
         header_parts = [x.strip() for x in line.split("{")]
 
-        name = header_parts[0][1:]  # trim '^' at start
+        name = header_parts[0][1:].strip()  # trim '^' at start
+        if is_valid_name(name):
+            raise QoalaParseError(f"Value {name} is not a valid block name.")
 
         close_brace = header_parts[1].find("}")
         # Since we already checked that there is only one '{' and '}' in the header,
@@ -441,6 +466,8 @@ class LocalRoutineParser:
         if not name_line.startswith("SUBROUTINE "):
             raise QoalaParseError("SubRoutine Meta must start with 'SUBROUTINE'.")
         name = name_line[len("SUBROUTINE") + 1 :].strip()
+        if not is_valid_name(name):
+            raise QoalaParseError(f"Value {name} is not a valid SubRoutine name.")
         params_line = self._parse_subrt_meta_line("params", self._read_line())
         # TODO: use params line?
 
@@ -686,10 +713,8 @@ class RequestRoutineParser:
         if not name_line.startswith("REQUEST "):
             raise QoalaParseError("Request Routine Meta must start with 'REQUEST'.")
         name = name_line[len("REQUEST") + 1 :].strip()
-        if len(name) == 0:
-            raise QoalaParseError(
-                "Name of the Request Routine must be specified after 'REQUEST'."
-            )
+        if not is_valid_name(name):
+            raise QoalaParseError(f"Value {name} is not a valid Request Routine name.")
 
         callback_type = self._parse_callback_type("callback_type", self._read_line())
 
