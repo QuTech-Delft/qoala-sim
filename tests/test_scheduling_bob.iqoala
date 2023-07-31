@@ -29,22 +29,22 @@ META_END
     tuple<y> = run_subroutine(tuple<x>) : add_one
 
 ^blk_epr_md_1 {type = QC}:
-    tuple<m> = run_request(tuple<>) : epr_md_1
+    tuple<m> = run_request() : epr_md_1
 
 ^blk_epr_md_2 {type = QC}:
-    tuple<m0; m1> = run_request(tuple<>) : epr_md_2
+    tuple<m0; m1> = run_request() : epr_md_2
 
 ^blk_epr_ck_1 {type = QC}:
-    run_request(tuple<>) : epr_ck_1
+    run_request() : epr_ck_1
 
 ^blk_meas_q0 {type = QL}:
-    tuple<p> = run_subroutine(tuple<>) : meas_q0
+    tuple<p> = run_subroutine() : meas_q0
 
 ^blk_epr_ck_2 {type = QC}:
-    run_request(tuple<>) : epr_ck_2
+    run_request() : epr_ck_2
 
 ^blk_meas_q0_q1 {type = QL}:
-    tuple<p0; p1> = run_subroutine(tuple<>) : meas_q0_q1
+    tuple<p0; p1> = run_subroutine() : meas_q0_q1
 
 SUBROUTINE add_one
     params: x

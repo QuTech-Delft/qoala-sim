@@ -83,7 +83,11 @@ class ClassicalIqoalaOp:
                 self.results, IqoalaVector
             )
             results = str(self.results)
-        args = ", ".join(str(a) for a in self.arguments)
+        # not to write  for the empty tuple
+        if self.arguments == [IqoalaTuple([])]:
+            args = ""
+        else:
+            args = ", ".join(str(a) for a in self.arguments)
         attrs = ", ".join(str(a) for a in self.attributes)
         s = ""
         if len(results) > 0:
@@ -308,7 +312,11 @@ class RunSubroutineOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
-        assert len(args) == 1
+        if len(args) == 0:
+            args = [IqoalaTuple([])]
+        else:
+            assert len(args) == 1
+
         assert isinstance(args[0], IqoalaTuple)
         assert isinstance(attr, str)
         return cls(result, args[0], attr)
@@ -343,7 +351,11 @@ class RunRequestOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             assert isinstance(result, IqoalaTuple) or isinstance(result, IqoalaVector)
-        assert len(args) == 1
+        if len(args) == 0:
+            args = [IqoalaTuple([])]
+        else:
+            assert len(args) == 1
+
         assert isinstance(args[0], IqoalaTuple)
         assert isinstance(attr, str)
         return cls(result, args[0], attr)

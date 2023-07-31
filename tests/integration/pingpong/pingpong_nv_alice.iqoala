@@ -9,20 +9,20 @@ META_END
     csocket = assign_cval() : 0
 
 ^b1 {type = QL}:
-    run_subroutine(tuple<>) : prepare_qubit
+    run_subroutine() : prepare_qubit
 
 ^b2 {type = QC}:
-    run_request(tuple<>) : epr_gen_1
+    run_request() : epr_gen_1
 
 ^b3 {type = QL}:
-    tuple<m0; m1> = run_subroutine(tuple<>) : bsm
+    tuple<m0; m1> = run_subroutine() : bsm
 
 ^b4 {type = CL}:
     send_cmsg(csocket, m0)
     send_cmsg(csocket, m1)
 
 ^b5 {type = QC}:
-    run_request(tuple<>) : epr_gen_2
+    run_request() : epr_gen_2
 
 ^b6 {type = CC}:
     p1 = recv_cmsg(csocket)
@@ -34,7 +34,7 @@ META_END
     run_subroutine(tuple<p1; p2>) : bsm_corrections
 
 ^b9 {type = QL}:
-    tuple<outcome> = run_subroutine(tuple<>) : measure
+    tuple<outcome> = run_subroutine() : measure
 
 ^b10 {type = CL}:
     return_result(outcome)

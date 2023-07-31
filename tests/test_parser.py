@@ -196,7 +196,7 @@ tuple<m1; m2> = run_subroutine(tuple<x; y>) : subrt1
 
 def test_parse_vector():
     text = """
-my_vec<3> = run_subroutine(tuple<>) : subrt1
+my_vec<3> = run_subroutine() : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -208,7 +208,7 @@ my_vec<3> = run_subroutine(tuple<>) : subrt1
 
 def test_parse_vector_2():
     text = """
-my_vec<3> = run_request(tuple<>) : req1
+my_vec<3> = run_request() : req1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -220,7 +220,7 @@ my_vec<3> = run_request(tuple<>) : req1
 
 def test_parse_vector_with_var():
     text = """
-my_vec<N> = run_request(tuple<>) : req1
+my_vec<N> = run_request() : req1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -1101,7 +1101,7 @@ META_END
     ^b0 {type = CL}:
         remote_id = assign_cval() : {client_id}
     ^b1 {type = QC}:
-        run_request(tuple<>) : req1
+        run_request() : req1
         """
 
     req_text = """

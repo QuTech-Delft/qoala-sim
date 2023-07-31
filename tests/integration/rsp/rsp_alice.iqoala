@@ -6,7 +6,7 @@ META_START
 META_END
 
 ^b2 {type = QC}:
-    run_request(tuple<>) : epr_gen
+    run_request() : epr_gen
 
 ^b3 {type = QL}:
     tuple<m> = run_subroutine(tuple<angle>) : measure

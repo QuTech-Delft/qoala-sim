@@ -22,11 +22,11 @@ META_END
     theta1 = bcond_mult_const(theta1, dummy1) : 0
 
 ^b1 {type = QC}:
-    run_request(tuple<>) : req0
+    run_request() : req0
 ^b2 {type = QL}:
     tuple<p2> = run_subroutine(tuple<theta2; epr0_rot_y; epr0_rot_z>) : post_epr_0
 ^b3 {type = QC}:
-    run_request(tuple<>) : req1
+    run_request() : req1
 ^b4 {type = QL}:
     tuple<p1> = run_subroutine(tuple<theta1; epr1_rot_y; epr1_rot_z>) : post_epr_1
 
