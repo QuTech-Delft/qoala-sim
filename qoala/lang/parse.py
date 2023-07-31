@@ -60,6 +60,7 @@ def is_valid_name(name: str) -> bool:
     """
     return name.isidentifier() and name[0].isalpha()
 
+
 class IqoalaMetaParser:
     def __init__(self, text: str) -> None:
         self._text = text
@@ -124,8 +125,7 @@ class IqoalaMetaParser:
                 raise QoalaParseError("Qoala Program Meta name must be a single value.")
             name = name_values[0].strip()
             if not is_valid_name(name):
-                raise QoalaParseError(f"Value {name} is not a valid name."
-                )
+                raise QoalaParseError(f"Value {name} is not a valid name.")
 
             parameters = self._parse_meta_line("parameters", self._read_line())
 
@@ -196,9 +196,7 @@ class IqoalaInstrParser:
             vec_split = var_str.split("<")
             vec_name = vec_split[0]
             if not is_valid_name(vec_name):
-                raise QoalaParseError(
-                    f"Value {vec_name} is not a valid variable name."
-                )
+                raise QoalaParseError(f"Value {vec_name} is not a valid variable name.")
             vec_size_str = vec_split[1][:-1]  # strip last ">"
             vec_size: Union[str, int]
             try:
@@ -355,7 +353,7 @@ class HostCodeParser:
         header_parts = [x.strip() for x in line.split("{")]
 
         name = header_parts[0][1:].strip()  # trim '^' at start
-        if is_valid_name(name):
+        if not is_valid_name(name):
             raise QoalaParseError(f"Value {name} is not a valid block name.")
 
         close_brace = header_parts[1].find("}")
