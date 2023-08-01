@@ -52,13 +52,14 @@ class QoalaParseError(Exception):
 def is_valid_name(name: str) -> bool:
     """Check if a string is a valid variable name.
 
-    :param name: The string to check.
+    :param name: Name to check.
 
-    :return: True if the string is a valid variable name, False otherwise. Acceptable variable names can only contain
-    letters(a-z, A-Z), numbers(0-9) or underscores(_), and can only start with a letter.
+    :return: True if the string is a valid name, False otherwise. Acceptable names can only contain
+    letters(a-z, A-Z), numbers(0-9) or underscores(_). Name must start with a letter, and cannot be
+    a reserved keyword.
 
     """
-    return name.isidentifier() and name[0].isalpha()
+    return name.isidentifier() and name[0].isalpha() and name not in LHR_OP_NAMES.keys()
 
 
 class IqoalaMetaParser:
@@ -122,7 +123,7 @@ class IqoalaMetaParser:
 
             name_values = self._parse_meta_line("name", self._read_line())
             if len(name_values) != 1:
-                raise QoalaParseError("Qoala Program Meta name must be a single value.")
+                raise QoalaParseError("Qoala Program Meta name must have a single value.")
             name = name_values[0].strip()
             if not is_valid_name(name):
                 raise QoalaParseError(f"Value {name} is not a valid name.")
@@ -329,7 +330,7 @@ class HostCodeParser:
         except KeyError:
             raise QoalaParseError(
                 "Invalid block type. Block type must be one of the "
-                "following: 'CL', 'CC', 'QL', 'QC' (case insensitive)"
+                "following: 'CL', 'CC', 'QL', 'QC' (case insensitive)."
             )
         if len(annotations_parts) == 1:  # no deadline
             deadlines = None
@@ -452,6 +453,8 @@ class LocalRoutineParser:
                     )
                 vec_split = v.split("<")
                 vec_name = vec_split[0]
+                if not is_valid_name(vec_name):
+                    raise QoalaParseError(f"Value {vec_name} is not a valid variable name.")
                 vec_size_str = vec_split[1][:-1]  # strip last ">"
                 vec_size = int(vec_size_str)
                 values.append(LrReturnVector(vec_name, vec_size))
@@ -505,7 +508,7 @@ class LocalRoutineParser:
 
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
-            raise QoalaParseError
+            raise QoalaParseError("All SubRoutine arguments must be declared in 'params'.")
         return LocalRoutine(name, subrt, return_vars, metadata, request_name)
 
     def parse(self) -> Dict[str, LocalRoutine]:

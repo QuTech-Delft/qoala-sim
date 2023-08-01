@@ -154,15 +154,15 @@ class AssignCValueOp(ClassicalIqoalaOp):
     ):
         if result is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation must have a result"
+                f"{cls.OP_NAME} operation operation must have a result."
             )
         if len(args) != 0:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation takes 0 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation operation takes 0 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation must have an attribute"
+                f"{cls.OP_NAME} operation operation must have an attribute."
             )
         return cls(result, attr)
 
@@ -183,15 +183,15 @@ class BusyOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 0:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation takes 0 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 0 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         return cls(attr)
 
@@ -215,19 +215,19 @@ class SendCMsgOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 2:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation takes 2 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
             )
         if attr is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation cannot have an attribute"
+                f"{cls.OP_NAME} operation cannot have an attribute."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation arguments must be strings"
+                f"{cls.OP_NAME} operation arguments must be strings."
             )
         return cls(args[0], args[1])
 
@@ -248,19 +248,19 @@ class ReceiveCMsgOp(ClassicalIqoalaOp):
     ):
         if result is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation must have a result"
+                f"{cls.OP_NAME} operation must have a result."
             )
         if len(args) != 1:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation takes 1 argument but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
             )
         if attr is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation cannot have an attribute"
+                f"{cls.OP_NAME} operation cannot have an attribute."
             )
         if not isinstance(args[0], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation argument must be a string"
+                f"{cls.OP_NAME} operation argument must be a string."
             )
         return cls(args[0], result)
 
@@ -281,19 +281,19 @@ class AddCValueOp(ClassicalIqoalaOp):
     ):
         if result is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation must have a result"
+                f"{cls.OP_NAME} operation must have a result."
             )
         if len(args) != 2:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation takes 2 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
             )
         if attr is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have an attribute"
+                f"{cls.OP_NAME} operation cannot have an attribute."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings"
+                f"{cls.OP_NAME} operation arguments must be strings."
             )
         return cls(result, args[0], args[1])
 
@@ -314,18 +314,18 @@ class MultiplyConstantCValueOp(ClassicalIqoalaOp):
         attr: Optional[IqoalaValue],
     ):
         if result is None:
-            raise HostLanguageSyntaxError(f"{cls.OP_NAME} operation must have a result")
+            raise HostLanguageSyntaxError(f"{cls.OP_NAME} operation must have a result.")
         if len(args) != 1:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(args[0], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be a string"
+                f"{cls.OP_NAME} operation arguments must be a string."
             )
         return cls(result, args[0], attr)
 
@@ -349,22 +349,22 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
         attr: Optional[IqoalaValue],
     ):
         if result is None:
-            raise HostLanguageSyntaxError(f"{cls.OP_NAME} operation must have a result")
+            raise HostLanguageSyntaxError(f"{cls.OP_NAME} operation must have a result.")
         if len(args) != 2:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings"
+                f"{cls.OP_NAME} operation arguments must be strings."
             )
         if not isinstance(attr, int):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation attribute must be an integer"
+                f"{cls.OP_NAME} operation attribute must be an integer."
             )
         return cls(result, args[0], args[1], attr)
 
@@ -394,26 +394,26 @@ class RunSubroutineOp(ClassicalIqoalaOp):
             ):
                 raise HostLanguageSyntaxError(
                     f"{cls.OP_NAME} operation cannot have a result of type {type(result)}. "
-                    f"It must be either IqoalaTuple or IqoalaVector"
+                    f"It must be either IqoalaTuple or IqoalaVector."
                 )
         if len(args) == 0:
             args = [IqoalaTuple([])]
 
         if len(args) != 1:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
             )
         if not isinstance(args[0], IqoalaTuple):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation argument must be an IqoalaTuple"
+                f"{cls.OP_NAME} operation argument must be an IqoalaTuple."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation attribute must be a string"
+                f"{cls.OP_NAME} operation attribute must be a string."
             )
 
         return cls(result, args[0], attr)
@@ -452,26 +452,26 @@ class RunRequestOp(ClassicalIqoalaOp):
             ):
                 raise HostLanguageSyntaxError(
                     f"{cls.OP_NAME} operation cannot have a result of type {type(result)}. "
-                    f"It must be either IqoalaTuple or IqoalaVector"
+                    f"It must be either IqoalaTuple or IqoalaVector."
                 )
         if len(args) == 0:
             args = [IqoalaTuple([])]
 
         if len(args) != 1:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
             )
         if not isinstance(args[0], IqoalaTuple):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation argument must be an IqoalaTuple"
+                f"{cls.OP_NAME} operation argument must be an IqoalaTuple."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation attribute must be a string"
+                f"{cls.OP_NAME} operation attribute must be a string."
             )
 
         return cls(result, args[0], attr)
@@ -501,19 +501,19 @@ class ReturnResultOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 1:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
             )
         if attr is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have an attribute"
+                f"{cls.OP_NAME} operation cannot have an attribute."
             )
         if not isinstance(args[0], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation argument must be a string"
+                f"{cls.OP_NAME} operation argument must be a string."
             )
 
         return cls(args[0])
@@ -535,19 +535,19 @@ class JumpOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 0:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 0 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 0 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation attribute must be a string"
+                f"{cls.OP_NAME} operation attribute must be a string."
             )
         return cls(attr)
 
@@ -568,23 +568,23 @@ class BranchIfEqualOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 2:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation attribute must be a string"
+                f"{cls.OP_NAME} operation attribute must be a string."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings"
+                f"{cls.OP_NAME} operation arguments must be strings."
             )
 
         return cls(args[0], args[1], attr)
@@ -606,23 +606,23 @@ class BranchIfNotEqualOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 2:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation attribute must be a string"
+                f"{cls.OP_NAME} operation attribute must be a string."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings"
+                f"{cls.OP_NAME} operation arguments must be strings."
             )
         return cls(args[0], args[1], attr)
 
@@ -643,23 +643,23 @@ class BranchIfGreaterThanOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 2:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation attribute must be a string"
+                f"{cls.OP_NAME} operation attribute must be a string."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings"
+                f"{cls.OP_NAME} operation arguments must be strings."
             )
         return cls(args[0], args[1], attr)
 
@@ -680,23 +680,23 @@ class BranchIfLessThanOp(ClassicalIqoalaOp):
     ):
         if result is not None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation cannot have a result"
+                f"{cls.OP_NAME} operation cannot have a result."
             )
         if len(args) != 2:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}"
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation must have an attribute"
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation attribute must be a string"
+                f"{cls.OP_NAME} operation operation attribute must be a string."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation arguments must be strings"
+                f"{cls.OP_NAME} operation operation arguments must be strings."
             )
         return cls(args[0], args[1], attr)
 
