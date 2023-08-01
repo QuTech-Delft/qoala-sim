@@ -31,7 +31,7 @@ SUBROUTINE measure
   NETQASM_END
 
 REQUEST req
-  callback_type: WAIT_ALL
+  callback_type:
   callback: 
   return_vars:
   remote_id: {bob_id}

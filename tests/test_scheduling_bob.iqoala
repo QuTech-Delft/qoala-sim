@@ -91,7 +91,7 @@ SUBROUTINE meas_q0_q1
   NETQASM_END
 
 REQUEST epr_md_1
-  callback_type: wait_all
+  callback_type:
   callback:
   return_vars: m
   remote_id: {alice_id}
@@ -104,7 +104,7 @@ REQUEST epr_md_1
   role: receive
 
 REQUEST epr_md_2
-  callback_type: wait_all
+  callback_type:
   callback:
   return_vars: m0, m1
   remote_id: {alice_id}
@@ -117,7 +117,7 @@ REQUEST epr_md_2
   role: receive
 
 REQUEST epr_ck_1
-  callback_type: wait_all
+  callback_type:
   callback:
   return_vars:
   remote_id: {alice_id}
@@ -130,7 +130,7 @@ REQUEST epr_ck_1
   role: receive
 
 REQUEST epr_ck_2
-  callback_type: wait_all
+  callback_type:
   callback:
   return_vars:
   remote_id: {alice_id}

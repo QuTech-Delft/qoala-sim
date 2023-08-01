@@ -70,7 +70,7 @@ SUBROUTINE post_epr_1
   NETQASM_END
 
 REQUEST req1
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {server_id}
@@ -83,7 +83,7 @@ REQUEST req1
   role: create
 
 REQUEST req0
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {server_id}

@@ -102,7 +102,7 @@ SUBROUTINE measure
   NETQASM_END
 
 REQUEST epr_gen_1
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {bob_id}
@@ -115,7 +115,7 @@ REQUEST epr_gen_1
   role: create
 
 REQUEST epr_gen_2
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {bob_id}

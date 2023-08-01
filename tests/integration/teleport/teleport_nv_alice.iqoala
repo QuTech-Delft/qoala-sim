@@ -108,7 +108,7 @@ SUBROUTINE bsm
   NETQASM_END
 
 REQUEST epr_gen
-  callback_type: sequential
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {bob_id}

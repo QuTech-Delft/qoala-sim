@@ -77,7 +77,7 @@ SUBROUTINE meas_qubit_0
   NETQASM_END
 
 REQUEST req0
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars:
   remote_id: {client_id}
@@ -90,7 +90,7 @@ REQUEST req0
   role: receive
 
 REQUEST req1
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars:
   remote_id: {client_id}

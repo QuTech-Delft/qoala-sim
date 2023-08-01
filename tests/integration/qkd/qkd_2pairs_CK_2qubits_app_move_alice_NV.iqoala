@@ -53,7 +53,7 @@ SUBROUTINE measure
   NETQASM_END
 
 REQUEST req
-  callback_type: SEQUENTIAL
+  callback_type:
   callback: 
   return_vars:
   remote_id: {bob_id}
