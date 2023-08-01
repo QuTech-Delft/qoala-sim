@@ -366,12 +366,16 @@ class LhiLatenciesConfigInterface(ABC):
     def get_host_peer_latency(self) -> float:
         raise NotImplementedError
 
+    def get_internal_sched_latency(self):
+        raise NotImplementedError
+
 
 @dataclass
 class LhiLatencies:
     host_instr_time: float = 0  # duration of classical Host instr execution
     qnos_instr_time: float = 0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0  # processing time for Host messages from remote node
+    internal_sched_latency: float = 0  # processing time for messaging between node scheduler and processor schedulers
 
     @classmethod
     def from_config(cls, cfg: LhiLatenciesConfigInterface) -> LhiLatencies:
@@ -379,13 +383,14 @@ class LhiLatencies:
             host_instr_time=cfg.get_host_instr_time(),
             qnos_instr_time=cfg.get_qnos_instr_time(),
             host_peer_latency=cfg.get_host_peer_latency(),
+            internal_sched_latency=cfg.get_internal_sched_latency(),
         )
 
     @classmethod
     def all_zero(cls) -> LhiLatencies:
         # NOTE: can also just use LhiLatencies() which will default all values to 0
         # However, using this classmethod makes this behavior more explicit and clear.
-        return LhiLatencies(0, 0, 0)
+        return LhiLatencies(0, 0, 0, 0)
 
 
 class LhiLinkConfigInterface(ABC):

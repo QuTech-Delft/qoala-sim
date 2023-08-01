@@ -1,0 +1,14 @@
+META_START
+    name: alice
+    parameters:
+    csockets:
+    epr_sockets:
+META_END
+
+^blk1 {type = CL}:
+    var_x = assign_cval() : 0
+    var_y = assign_cval() : 1
+
+^blk2 {type = CL}:
+    var_x = assign_cval() : 2
+    var_y = assign_cval() : 3

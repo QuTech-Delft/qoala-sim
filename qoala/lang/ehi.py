@@ -36,10 +36,11 @@ class EhiLatencies:
     host_instr_time: float  # duration of classical Host instr execution (CL)
     qnos_instr_time: float  # duration of classical Qnos instr execution (QL)
     host_peer_latency: float  # processing time for Host messages from remote node (CC)
+    internal_sched_latency: float  # processing time for messaging between node scheduler and processor schedulers
 
     @classmethod
     def all_zero(cls) -> EhiLatencies:
-        return EhiLatencies(0, 0, 0)
+        return EhiLatencies(0, 0, 0, 0)
 
 
 @dataclass(frozen=True)
