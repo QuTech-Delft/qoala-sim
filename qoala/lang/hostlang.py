@@ -314,7 +314,9 @@ class MultiplyConstantCValueOp(ClassicalIqoalaOp):
         attr: Optional[IqoalaValue],
     ):
         if result is None:
-            raise HostLanguageSyntaxError(f"{cls.OP_NAME} operation must have a result.")
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation must have a result."
+            )
         if len(args) != 1:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
@@ -349,7 +351,9 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
         attr: Optional[IqoalaValue],
     ):
         if result is None:
-            raise HostLanguageSyntaxError(f"{cls.OP_NAME} operation must have a result.")
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation must have a result."
+            )
         if len(args) != 2:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."

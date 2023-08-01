@@ -123,7 +123,9 @@ class IqoalaMetaParser:
 
             name_values = self._parse_meta_line("name", self._read_line())
             if len(name_values) != 1:
-                raise QoalaParseError("Qoala Program Meta name must have a single value.")
+                raise QoalaParseError(
+                    "Qoala Program Meta name must have a single value."
+                )
             name = name_values[0].strip()
             if not is_valid_name(name):
                 raise QoalaParseError(f"Value {name} is not a valid name.")
@@ -454,7 +456,9 @@ class LocalRoutineParser:
                 vec_split = v.split("<")
                 vec_name = vec_split[0]
                 if not is_valid_name(vec_name):
-                    raise QoalaParseError(f"Value {vec_name} is not a valid variable name.")
+                    raise QoalaParseError(
+                        f"Value {vec_name} is not a valid variable name."
+                    )
                 vec_size_str = vec_split[1][:-1]  # strip last ">"
                 vec_size = int(vec_size_str)
                 values.append(LrReturnVector(vec_name, vec_size))
@@ -508,7 +512,9 @@ class LocalRoutineParser:
 
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
-            raise QoalaParseError("All SubRoutine arguments must be declared in 'params'.")
+            raise QoalaParseError(
+                "All SubRoutine arguments must be declared in 'params'."
+            )
         return LocalRoutine(name, subrt, return_vars, metadata, request_name)
 
     def parse(self) -> Dict[str, LocalRoutine]:
@@ -691,10 +697,10 @@ class RequestRoutineParser:
             )
         return RequestVirtIdMapping.from_str(split[1].strip())
 
-    def _parse_callback_type(self, key: str, line: str) -> CallbackType:
+    def _parse_callback_type(self, key: str, line: str) -> Optional[CallbackType]:
         values = self._parse_request_line(key, line)
         if len(values) == 0:
-            return CallbackType.WAIT_ALL
+            return None
         if len(values) != 1:
             raise QoalaParseError(
                 "There must be a single value in Request Routine Meta line for Callback Type."
@@ -720,6 +726,14 @@ class RequestRoutineParser:
         callback_type = self._parse_callback_type("callback_type", self._read_line())
 
         callback = self._parse_optional_str_value("callback", self._read_line())
+
+        if callback is not None and callback_type is None:
+            raise QoalaParseError(
+                "If callback is specified, callback_type must also be specified."
+            )
+        # If both callback and callback_type are not specified, set callback_type to WAIT_ALL
+        if callback_type is None:
+            callback_type = CallbackType.WAIT_ALL
 
         return_vars = self._parse_request_line_with_vecs(
             "return_vars", self._read_line(), allow_template=True
