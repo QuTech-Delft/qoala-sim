@@ -154,15 +154,15 @@ class AssignCValueOp(ClassicalIqoalaOp):
     ):
         if result is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation must have a result."
+                f"{cls.OP_NAME} operation must have a result."
             )
         if len(args) != 0:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation takes 0 arguments but got {len(args)}."
+                f"{cls.OP_NAME} operation takes 0 arguments but got {len(args)}."
             )
         if attr is None:
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation must have an attribute."
+                f"{cls.OP_NAME} operation must have an attribute."
             )
         return cls(result, attr)
 
@@ -696,11 +696,11 @@ class BranchIfLessThanOp(ClassicalIqoalaOp):
             )
         if not isinstance(attr, str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation attribute must be a string."
+                f"{cls.OP_NAME} operation attribute must be a string."
             )
         if not isinstance(args[0], str) or not isinstance(args[1], str):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings."
             )
         return cls(args[0], args[1], attr)
 
