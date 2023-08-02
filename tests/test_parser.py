@@ -9,6 +9,7 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     BusyOp,
+    IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
     RunRequestOp,
@@ -107,7 +108,7 @@ x = assign_cval() : 1
     instructions = IqoalaInstrParser(text).parse()
 
     assert len(instructions) == 1
-    assert instructions[0] == AssignCValueOp(result="x", value=1)
+    assert instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
 
 
 def test_parse_2_instr():
@@ -119,8 +120,8 @@ y = assign_cval() : 17
     instructions = IqoalaInstrParser(text).parse()
 
     assert len(instructions) == 2
-    assert instructions[0] == AssignCValueOp(result="x", value=1)
-    assert instructions[1] == AssignCValueOp(result="y", value=17)
+    assert instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
+    assert instructions[1] == AssignCValueOp(result=IqoalaSingleton("y"), value=17)
 
 
 def test_parse_busy():
@@ -258,8 +259,10 @@ def test_parse_block():
     assert block.name == "b0"
     assert block.typ == BasicBlockType.CL
     assert len(block.instructions) == 2
-    assert block.instructions[0] == AssignCValueOp(result="x", value=1)
-    assert block.instructions[1] == AssignCValueOp(result="y", value=17)
+    assert block.instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
+    assert block.instructions[1] == AssignCValueOp(
+        result=IqoalaSingleton("y"), value=17
+    )
 
 
 def test_get_block_texts():
@@ -292,8 +295,12 @@ def test_parse_multiple_blocks():
     assert blocks[0].name == "b0"
     assert blocks[0].typ == BasicBlockType.CL
     assert len(blocks[0].instructions) == 2
-    assert blocks[0].instructions[0] == AssignCValueOp(result="x", value=1)
-    assert blocks[0].instructions[1] == AssignCValueOp(result="y", value=17)
+    assert blocks[0].instructions[0] == AssignCValueOp(
+        result=IqoalaSingleton("x"), value=1
+    )
+    assert blocks[0].instructions[1] == AssignCValueOp(
+        result=IqoalaSingleton("y"), value=17
+    )
 
     assert blocks[1].name == "b1"
     assert blocks[1].typ == BasicBlockType.QL

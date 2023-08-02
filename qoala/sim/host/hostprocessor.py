@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Generator, List, Optional, Union
+from typing import Dict, Generator, List, Optional
 
 from netqasm.lang.operand import Template
 
@@ -82,7 +82,9 @@ class HostProcessor:
             yield from self._interface.wait(first_half)
             value = instr.attributes[0]
             assert isinstance(value, int)
-            loc = instr.results[0]  # type: ignore
+            print(type(instr.results))
+            assert isinstance(instr.results, hostlang.IqoalaSingleton)
+            loc = instr.results.name  # type: ignore
             self._logger.debug(f"writing {value} to {loc}")
             yield from self._interface.wait(second_half)
             host_mem.write(loc, value)
@@ -93,20 +95,21 @@ class HostProcessor:
             self._logger.debug(f"busy for {value} ns")
             yield from self._interface.wait(value)
         elif isinstance(instr, hostlang.SendCMsgOp):
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.arguments[1], str)
+            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+            assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
 
-            csck_id = host_mem.read(instr.arguments[0])
+            csck_id = host_mem.read(instr.arguments[0].name)
             csck = csockets[csck_id]
-            value = host_mem.read(instr.arguments[1])
+            value = host_mem.read(instr.arguments[1].name)
             self._logger.info(f"sending msg {value}")
             csck.send_int(value)
             # Simulate instruction duration.
             yield from self._interface.wait(self._latencies.host_instr_time)
         elif isinstance(instr, hostlang.ReceiveCMsgOp):
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.results, list)
-            csck_id = host_mem.read(instr.arguments[0])
+            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+            print(type(instr.results))
+            assert isinstance(instr.results, hostlang.IqoalaSingleton)
+            csck_id = host_mem.read(instr.arguments[0].name)
             csck = csockets[csck_id]
 
             # TODO: refactor
@@ -117,15 +120,16 @@ class HostProcessor:
                 msg = csck.read_int()
 
             yield from self._interface.wait(self._latencies.host_peer_latency)
-            host_mem.write(instr.results[0], msg)
+            host_mem.write(instr.results.name, msg)
             self._logger.info(f"received msg {msg}")
         elif isinstance(instr, hostlang.AddCValueOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.arguments[1], str)
-            arg0 = host_mem.read(instr.arguments[0])
-            arg1 = host_mem.read(instr.arguments[1])
-            loc = instr.results[0]  # type: ignore
+            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+            assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
+            arg0 = host_mem.read(instr.arguments[0].name)
+            arg1 = host_mem.read(instr.arguments[1].name)
+            assert isinstance(instr.results, hostlang.IqoalaSingleton)
+            loc = instr.results.name  # type: ignore
             result = arg0 + arg1
             self._logger.debug(f"computing {loc} = {arg0} + {arg1} = {result}")
             # Simulate instruction duration.
@@ -133,11 +137,12 @@ class HostProcessor:
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.MultiplyConstantCValueOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            arg0 = host_mem.read(instr.arguments[0])
+            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+            arg0 = host_mem.read(instr.arguments[0].name)
             const = instr.attributes[0]
             assert isinstance(const, int)
-            loc = instr.results[0]  # type: ignore
+            assert isinstance(instr.results, hostlang.IqoalaSingleton)
+            loc = instr.results.name  # type: ignore
             result = arg0 * const
             self._logger.debug(f"computing {loc} = {arg0} * {const} = {result}")
             # Simulate instruction duration.
@@ -145,13 +150,14 @@ class HostProcessor:
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.BitConditionalMultiplyConstantCValueOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            assert isinstance(instr.arguments[1], str)
-            arg0 = host_mem.read(instr.arguments[0])
-            cond = host_mem.read(instr.arguments[1])
+            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+            assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
+            arg0 = host_mem.read(instr.arguments[0].name)
+            cond = host_mem.read(instr.arguments[1].name)
             const = instr.attributes[0]
             assert isinstance(const, int)
-            loc = instr.results[0]  # type: ignore
+            assert isinstance(instr.results, hostlang.IqoalaSingleton)
+            loc = instr.results.name  # type: ignore
             if cond == 1:
                 result = arg0 * const
             else:
@@ -162,8 +168,8 @@ class HostProcessor:
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.ReturnResultOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], str)
-            loc = instr.arguments[0]
+            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+            loc = instr.arguments[0].name
             # TODO: improve this
             try:
                 value = host_mem.read(loc)
@@ -197,13 +203,13 @@ class HostProcessor:
         first_half = instr_time / 2
         second_half = instr_time - first_half  # just to make it adds up
         yield from self._interface.wait(first_half)
-        assert isinstance(instr.arguments[0], str)
-        assert isinstance(instr.arguments[1], str)
+        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+        assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
         host_mem = process.prog_memory.host_mem
         pid = process.pid
 
-        value0 = host_mem.read(instr.arguments[0])
-        value1 = host_mem.read(instr.arguments[1])
+        value0 = host_mem.read(instr.arguments[0].name)
+        value1 = host_mem.read(instr.arguments[1].name)
         assert isinstance(instr.attributes[0], str)
         block_name = instr.attributes[0]
         if getattr(value0, comparison_op)(value1):
@@ -260,8 +266,8 @@ class HostProcessor:
         assert len(result) == result_vars_len
 
         # Copy results to local host variables.
-        if isinstance(instr.results, list):
-            for value, var in zip(result, instr.results):
+        if isinstance(instr.results, hostlang.IqoalaSingleton):
+            for value, var in zip(result, instr.results.name):
                 process.host_mem.write(var, value)
         elif isinstance(instr.results, hostlang.IqoalaTuple):
             result_tup: hostlang.IqoalaTuple = instr.results
@@ -270,6 +276,8 @@ class HostProcessor:
         elif isinstance(instr.results, hostlang.IqoalaVector):
             result_vec: hostlang.IqoalaVector = instr.results
             process.host_mem.write_vec(result_vec.name, result)
+        elif instr.results is None:
+            pass
         else:
             raise RuntimeError
 
@@ -396,14 +404,16 @@ class HostProcessor:
         all_results = rr_result + cb_results
         # At this point, `all_results` contains all the results of both the RR itself
         # as well as from all the callbacks, in order.
-
         result_vars_len = self._calculate_result_size(instr.results, prog_input)
         assert len(all_results) == result_vars_len
 
+        print(type(instr.results), ":", instr.results)
+
         # Collect the host variables to which to copy these results.
-        if isinstance(instr.results, list):
-            for value, var in zip(all_results, instr.results):
-                process.host_mem.write(var, value)
+        if isinstance(instr.results, hostlang.IqoalaSingleton):
+            loc = instr.results.name
+            value = all_results[0]
+            process.host_mem.write(loc, value)
         elif isinstance(instr.results, hostlang.IqoalaTuple):
             result_tup: hostlang.IqoalaTuple = instr.results
             for value, var in zip(all_results, result_tup.values):
@@ -411,16 +421,19 @@ class HostProcessor:
         elif isinstance(instr.results, hostlang.IqoalaVector):
             result_vec: hostlang.IqoalaVector = instr.results
             process.host_mem.write_vec(result_vec.name, all_results)
+        elif instr.results is None:
+            pass
         else:
             raise RuntimeError
 
     def _calculate_result_size(
         self,
-        results: Union[List[str], hostlang.IqoalaTuple, hostlang.IqoalaVector],
+        results: hostlang.IqoalaVar,
         prog_input: Optional[Dict[str, int]] = None,
     ) -> int:
-        if isinstance(results, list):
-            return len(results)
+        print(type(results))
+        if results is None:
+            return 0
         elif isinstance(results, hostlang.IqoalaTuple):
             return len(results.values)
         elif isinstance(results, hostlang.IqoalaVector):
@@ -429,5 +442,7 @@ class HostProcessor:
             else:  # Size is a variable. Get its value from the Program Inputs.
                 assert prog_input is not None
                 return prog_input[results.size]
+        elif isinstance(results, hostlang.IqoalaSingleton):
+            return 1
         else:
             raise RuntimeError

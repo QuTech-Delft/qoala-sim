@@ -7,7 +7,7 @@ from netqasm.lang.operand import Template
 from netqasm.lang.parsing.text import parse_text_subroutine
 
 from qoala.lang import hostlang as hl
-from qoala.lang.hostlang import IqoalaValue, IqoalaVector
+from qoala.lang.hostlang import IqoalaSingleton, IqoalaValue, IqoalaVar, IqoalaVector
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
@@ -183,7 +183,7 @@ class IqoalaInstrParser:
                 return line
             # if no non-empty line, will always break on EndOfLineException
 
-    def _parse_var(self, var_str: str) -> Union[str, hl.IqoalaTuple, hl.IqoalaVector]:
+    def _parse_var(self, var_str: str) -> IqoalaVar:
         if var_str.startswith("tuple"):
             if var_str[5] != "<" or not var_str.endswith(">"):
                 raise QoalaParseError(
@@ -230,7 +230,7 @@ class IqoalaInstrParser:
 
             return hl.IqoalaVector(vec_name, vec_size)
         else:
-            return var_str
+            return IqoalaSingleton(var_str)
 
     def _parse_lhr(self) -> hl.ClassicalIqoalaOp:
         line = self._read_line()

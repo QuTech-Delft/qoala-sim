@@ -8,6 +8,7 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlock,
     BasicBlockType,
+    IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
     ReceiveCMsgOp,
@@ -73,12 +74,18 @@ def test_serialize_host_code_1():
         "b0",
         BasicBlockType.CL,
         instructions=[
-            AssignCValueOp("my_value", 1),
-            AssignCValueOp("remote_id", 0),
-            SendCMsgOp("remote_id", "my_value"),
-            ReceiveCMsgOp("remote_id", "received_value"),
-            AssignCValueOp("new_value", 3),
-            AddCValueOp("my_value", "new_value", "new_value"),
+            AssignCValueOp(IqoalaSingleton("my_value"), 1),
+            AssignCValueOp(IqoalaSingleton("remote_id"), 0),
+            SendCMsgOp(IqoalaSingleton("remote_id"), IqoalaSingleton("my_value")),
+            ReceiveCMsgOp(
+                IqoalaSingleton("remote_id"), IqoalaSingleton("received_value")
+            ),
+            AssignCValueOp(IqoalaSingleton("new_value"), 3),
+            AddCValueOp(
+                IqoalaSingleton("my_value"),
+                IqoalaSingleton("new_value"),
+                IqoalaSingleton("new_value"),
+            ),
         ],
     )
     b1 = BasicBlock(
@@ -93,11 +100,12 @@ def test_serialize_host_code_1():
         "b2",
         BasicBlockType.CL,
         instructions=[
-            ReturnResultOp("m"),
+            ReturnResultOp(IqoalaSingleton("m")),
         ],
     )
 
     program = QoalaProgram(meta=ProgramMeta.empty("alice"), blocks=[b0, b1, b2])
+    print(program.serialize_host_code())
     assert text_equal(program.serialize_host_code(), expected)
 
 
