@@ -229,7 +229,29 @@ class IqoalaInstrParser:
                 vec_size = vec_size_str
 
             return hl.IqoalaVector(vec_name, vec_size)
+        elif "[" in var_str:
+            if var_str.startswith("["):
+                raise QoalaParseError("Iqoala vector indexing must start with a name.")
+            if not var_str.endswith("]"):
+                raise QoalaParseError("Iqoala vector indexing must end with a ']'.")
+            if var_str.count("[") != 1 or var_str.count("]") != 1:
+                raise QoalaParseError(
+                    "Iqoala vector indexing must have a single '[' and a single ']'."
+                )
+            vec_split = var_str.split("[")
+            vec_name = vec_split[0]
+            if not is_valid_name(vec_name):
+                raise QoalaParseError(f"Value {vec_name} is not a valid variable name.")
+            index_str = vec_split[1][:-1]  # strip last "]"
+            index: int
+            try:
+                index = int(index_str)
+            except ValueError:
+                raise QoalaParseError("Iqoala vector indexing must be an integer.")
+            return hl.IqoalaVectorElement(vec_name, index)
         else:
+            if not is_valid_name(var_str):
+                raise QoalaParseError(f"Value {var_str} is not a valid variable name.")
             return IqoalaSingleton(var_str)
 
     def _parse_lhr(self) -> hl.ClassicalIqoalaOp:

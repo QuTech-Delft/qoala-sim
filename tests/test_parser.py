@@ -12,8 +12,12 @@ from qoala.lang.hostlang import (
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
+    IqoalaVectorElement,
+    MultiplyConstantCValueOp,
+    ReceiveCMsgOp,
     RunRequestOp,
     RunSubroutineOp,
+    SendCMsgOp,
 )
 from qoala.lang.parse import (
     HostCodeParser,
@@ -1209,6 +1213,23 @@ def test_parse_file_2():
     assert parsed_program.local_routines["create_epr_1"].request_name == "req1"
 
 
+def test_vector_indexing():
+    text = """
+    send_cmsg(a[0], b)
+    b = recv_cmsg(a[0])
+    b = mult_const(a[0]) : 1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+
+    assert len(instructions) == 3
+    csocket = IqoalaVectorElement("a", 0)
+    remote_node = IqoalaSingleton("b")
+    assert instructions[0] == SendCMsgOp(csocket, remote_node)
+    assert instructions[1] == ReceiveCMsgOp(csocket, remote_node)
+    assert instructions[2] == MultiplyConstantCValueOp(remote_node, csocket, 1)
+
+
 if __name__ == "__main__":
     test_parse_incomplete_meta()
     test_parse_meta_no_end()
@@ -1252,3 +1273,4 @@ if __name__ == "__main__":
     test_parse_program_single_text()
     test_parse_file()
     test_parse_file_2()
+    test_vector_indexing()

@@ -206,6 +206,7 @@ def test_send_msg():
     processor = HostProcessor(interface, HostLatencies.all_zero())
     meta = ProgramMeta.empty("alice")
     meta.csockets = {0: "bob"}
+
     program = create_program(
         instrs=[SendCMsgOp(IqoalaSingleton("bob"), IqoalaSingleton("msg"))], meta=meta
     )

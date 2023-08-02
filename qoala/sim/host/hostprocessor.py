@@ -95,21 +95,42 @@ class HostProcessor:
             self._logger.debug(f"busy for {value} ns")
             yield from self._interface.wait(value)
         elif isinstance(instr, hostlang.SendCMsgOp):
-            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
-            assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
+            assert isinstance(
+                instr.arguments[0], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
+            assert isinstance(
+                instr.arguments[1], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[1], hostlang.IqoalaVectorElement)
 
-            csck_id = host_mem.read(instr.arguments[0].name)
+            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
+                csck_id = host_mem.read(instr.arguments[0].name)
+            else:
+                loc = instr.arguments[0].name
+                index = instr.arguments[0].index
+                csck_id = host_mem.read_vec(loc)[index]
             csck = csockets[csck_id]
-            value = host_mem.read(instr.arguments[1].name)
+            if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
+                value = host_mem.read(instr.arguments[1].name)
+            else:
+                loc = instr.arguments[1].name
+                index = instr.arguments[1].index
+                value = host_mem.read_vec(loc)[index]
             self._logger.info(f"sending msg {value}")
             csck.send_int(value)
             # Simulate instruction duration.
             yield from self._interface.wait(self._latencies.host_instr_time)
         elif isinstance(instr, hostlang.ReceiveCMsgOp):
-            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
-            print(type(instr.results))
+            assert isinstance(
+                instr.arguments[0], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
-            csck_id = host_mem.read(instr.arguments[0].name)
+
+            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
+                csck_id = host_mem.read(instr.arguments[0].name)
+            else:
+                loc = instr.arguments[0].name
+                index = instr.arguments[0].index
+                csck_id = host_mem.read_vec(loc)[index]
             csck = csockets[csck_id]
 
             # TODO: refactor
@@ -124,10 +145,27 @@ class HostProcessor:
             self._logger.info(f"received msg {msg}")
         elif isinstance(instr, hostlang.AddCValueOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
-            assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
-            arg0 = host_mem.read(instr.arguments[0].name)
-            arg1 = host_mem.read(instr.arguments[1].name)
+            assert isinstance(
+                instr.arguments[0], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
+            assert isinstance(
+                instr.arguments[1], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[1], hostlang.IqoalaVectorElement)
+
+            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
+                arg0 = host_mem.read(instr.arguments[0].name)
+            else:
+                loc = instr.arguments[0].name
+                index = instr.arguments[0].index
+                arg0 = host_mem.read_vec(loc)[index]
+
+            if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
+                arg1 = host_mem.read(instr.arguments[1].name)
+            else:
+                loc = instr.arguments[1].name
+                index = instr.arguments[1].index
+                arg1 = host_mem.read_vec(loc)[index]
+
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
             loc = instr.results.name  # type: ignore
             result = arg0 + arg1
@@ -137,8 +175,15 @@ class HostProcessor:
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.MultiplyConstantCValueOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
-            arg0 = host_mem.read(instr.arguments[0].name)
+            assert isinstance(
+                instr.arguments[0], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
+            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
+                arg0 = host_mem.read(instr.arguments[0].name)
+            else:
+                loc = instr.arguments[0].name
+                index = instr.arguments[0].index
+                arg0 = host_mem.read_vec(loc)[index]
             const = instr.attributes[0]
             assert isinstance(const, int)
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
@@ -150,10 +195,28 @@ class HostProcessor:
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.BitConditionalMultiplyConstantCValueOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
-            assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
-            arg0 = host_mem.read(instr.arguments[0].name)
-            cond = host_mem.read(instr.arguments[1].name)
+
+            assert isinstance(
+                instr.arguments[0], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
+            assert isinstance(
+                instr.arguments[1], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[1], hostlang.IqoalaVectorElement)
+
+            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
+                arg0 = host_mem.read(instr.arguments[0].name)
+            else:
+                loc = instr.arguments[0].name
+                index = instr.arguments[0].index
+                arg0 = host_mem.read_vec(loc)[index]
+
+            if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
+                cond = host_mem.read(instr.arguments[1].name)
+            else:
+                loc = instr.arguments[1].name
+                index = instr.arguments[1].index
+                cond = host_mem.read_vec(loc)[index]
+
             const = instr.attributes[0]
             assert isinstance(const, int)
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
@@ -203,13 +266,31 @@ class HostProcessor:
         first_half = instr_time / 2
         second_half = instr_time - first_half  # just to make it adds up
         yield from self._interface.wait(first_half)
-        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
-        assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton)
+
+        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton) or isinstance(
+            instr.arguments[0], hostlang.IqoalaVectorElement
+        )
+        assert isinstance(instr.arguments[1], hostlang.IqoalaSingleton) or isinstance(
+            instr.arguments[1], hostlang.IqoalaVectorElement
+        )
+
         host_mem = process.prog_memory.host_mem
         pid = process.pid
 
-        value0 = host_mem.read(instr.arguments[0].name)
-        value1 = host_mem.read(instr.arguments[1].name)
+        if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
+            value0 = host_mem.read(instr.arguments[0].name)
+        else:
+            loc = instr.arguments[0].name
+            index = instr.arguments[0].index
+            value0 = host_mem.read_vec(loc)[index]
+
+        if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
+            value1 = host_mem.read(instr.arguments[1].name)
+        else:
+            loc = instr.arguments[1].name
+            index = instr.arguments[1].index
+            value1 = host_mem.read_vec(loc)[index]
+
         assert isinstance(instr.attributes[0], str)
         block_name = instr.attributes[0]
         if getattr(value0, comparison_op)(value1):
