@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator, List, Optional, Union
 
 from netqasm.lang.operand import Template
 
 from pydynaa import EventExpression
 from qoala.lang import hostlang
-from qoala.lang.hostlang import ClassicalIqoalaOp
+from qoala.lang.hostlang import ClassicalIqoalaOp, IqoalaSingleton, IqoalaVectorElement
 from qoala.lang.request import CallbackType
+from qoala.runtime.memory import HostMemory
 from qoala.runtime.message import LrCallTuple, RrCallTuple
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
@@ -40,6 +41,17 @@ class HostProcessor:
         inputs = process.prog_instance.inputs
         for name, value in inputs.values.items():
             host_mem.write(name, value)
+
+    @staticmethod
+    def _read_value_from_host_mem(
+        arg: Union[IqoalaSingleton, IqoalaVectorElement], host_mem: HostMemory
+    ) -> int:
+        if isinstance(arg, hostlang.IqoalaSingleton):
+            return host_mem.read(arg.name)
+        else:
+            loc = arg.name
+            index = arg.index
+            return host_mem.read_vec(loc)[index]
 
     def assign_instr_index(
         self, process: QoalaProcess, instr_idx: int
@@ -102,12 +114,8 @@ class HostProcessor:
                 instr.arguments[1], hostlang.IqoalaSingleton
             ) or isinstance(instr.arguments[1], hostlang.IqoalaVectorElement)
 
-            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
-                csck_id = host_mem.read(instr.arguments[0].name)
-            else:
-                loc = instr.arguments[0].name
-                index = instr.arguments[0].index
-                csck_id = host_mem.read_vec(loc)[index]
+            csck_id = self._read_value_from_host_mem(instr.arguments[0], host_mem)
+
             csck = csockets[csck_id]
             if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
                 value = host_mem.read(instr.arguments[1].name)
@@ -125,12 +133,8 @@ class HostProcessor:
             ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
 
-            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
-                csck_id = host_mem.read(instr.arguments[0].name)
-            else:
-                loc = instr.arguments[0].name
-                index = instr.arguments[0].index
-                csck_id = host_mem.read_vec(loc)[index]
+            csck_id = self._read_value_from_host_mem(instr.arguments[0], host_mem)
+
             csck = csockets[csck_id]
 
             # TODO: refactor
@@ -152,19 +156,8 @@ class HostProcessor:
                 instr.arguments[1], hostlang.IqoalaSingleton
             ) or isinstance(instr.arguments[1], hostlang.IqoalaVectorElement)
 
-            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
-                arg0 = host_mem.read(instr.arguments[0].name)
-            else:
-                loc = instr.arguments[0].name
-                index = instr.arguments[0].index
-                arg0 = host_mem.read_vec(loc)[index]
-
-            if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
-                arg1 = host_mem.read(instr.arguments[1].name)
-            else:
-                loc = instr.arguments[1].name
-                index = instr.arguments[1].index
-                arg1 = host_mem.read_vec(loc)[index]
+            arg0 = self._read_value_from_host_mem(instr.arguments[0], host_mem)
+            arg1 = self._read_value_from_host_mem(instr.arguments[1], host_mem)
 
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
             loc = instr.results.name  # type: ignore
@@ -178,12 +171,9 @@ class HostProcessor:
             assert isinstance(
                 instr.arguments[0], hostlang.IqoalaSingleton
             ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
-            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
-                arg0 = host_mem.read(instr.arguments[0].name)
-            else:
-                loc = instr.arguments[0].name
-                index = instr.arguments[0].index
-                arg0 = host_mem.read_vec(loc)[index]
+
+            arg0 = self._read_value_from_host_mem(instr.arguments[0], host_mem)
+
             const = instr.attributes[0]
             assert isinstance(const, int)
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
@@ -203,19 +193,8 @@ class HostProcessor:
                 instr.arguments[1], hostlang.IqoalaSingleton
             ) or isinstance(instr.arguments[1], hostlang.IqoalaVectorElement)
 
-            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
-                arg0 = host_mem.read(instr.arguments[0].name)
-            else:
-                loc = instr.arguments[0].name
-                index = instr.arguments[0].index
-                arg0 = host_mem.read_vec(loc)[index]
-
-            if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
-                cond = host_mem.read(instr.arguments[1].name)
-            else:
-                loc = instr.arguments[1].name
-                index = instr.arguments[1].index
-                cond = host_mem.read_vec(loc)[index]
+            arg0 = self._read_value_from_host_mem(instr.arguments[0], host_mem)
+            cond = self._read_value_from_host_mem(instr.arguments[1], host_mem)
 
             const = instr.attributes[0]
             assert isinstance(const, int)
@@ -277,19 +256,8 @@ class HostProcessor:
         host_mem = process.prog_memory.host_mem
         pid = process.pid
 
-        if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
-            value0 = host_mem.read(instr.arguments[0].name)
-        else:
-            loc = instr.arguments[0].name
-            index = instr.arguments[0].index
-            value0 = host_mem.read_vec(loc)[index]
-
-        if isinstance(instr.arguments[1], hostlang.IqoalaSingleton):
-            value1 = host_mem.read(instr.arguments[1].name)
-        else:
-            loc = instr.arguments[1].name
-            index = instr.arguments[1].index
-            value1 = host_mem.read_vec(loc)[index]
+        value0 = self._read_value_from_host_mem(instr.arguments[0], host_mem)
+        value1 = self._read_value_from_host_mem(instr.arguments[1], host_mem)
 
         assert isinstance(instr.attributes[0], str)
         block_name = instr.attributes[0]
