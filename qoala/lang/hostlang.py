@@ -21,11 +21,6 @@ class IqoalaInstructionType(Enum):
 
 
 @dataclass(frozen=True)
-class IqoalaAttribute:
-    value: IqoalaValue
-
-
-@dataclass(frozen=True)
 class IqoalaTuple:
     values: List[str]
 
@@ -38,10 +33,16 @@ class IqoalaVector:
     # TODO: create single IqoalaVar class that IqoalaVector, IqoalaTuple,
     # and IqoalaSingleton derive from
     name: str
-    size: Union[int, str]
+    size: IqoalaValue
 
     def __str__(self) -> str:
         return f"{self.name}<{self.size}>"
+
+
+@dataclass(frozen=True)
+class IqoalaVectorElement:
+    vector_name: str
+    index: int
 
 
 class ClassicalIqoalaOp:

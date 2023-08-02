@@ -7,6 +7,7 @@ from netqasm.lang.operand import Template
 from netqasm.lang.parsing.text import parse_text_subroutine
 
 from qoala.lang import hostlang as hl
+from qoala.lang.hostlang import IqoalaValue, IqoalaVector
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
@@ -15,9 +16,8 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
-    RrReturnVector,
 )
-from qoala.lang.routine import LrReturnVector, RoutineMetadata
+from qoala.lang.routine import RoutineMetadata
 
 LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
     cls.OP_NAME: cls  # type: ignore
@@ -128,14 +128,31 @@ class IqoalaMetaParser:
                 )
             name = name_values[0].strip()
             if not is_valid_name(name):
-                raise QoalaParseError(f"Value {name} is not a valid name.")
+                raise QoalaParseError(
+                    f"Value {name} in Qoala Program Meta is not a valid program name."
+                )
 
             parameters = self._parse_meta_line("parameters", self._read_line())
+            for param in parameters:
+                if not is_valid_name(param):
+                    raise QoalaParseError(
+                        f"Value {param} in Qoala Program Meta is not a valid parameter name."
+                    )
 
             csockets_map = self._parse_meta_line("csockets", self._read_line())
             csockets = self._parse_meta_mapping(csockets_map)
+            for node_name in csockets.values():
+                if not is_valid_name(node_name):
+                    raise QoalaParseError(
+                        f"Value {node_name} in Qoala Program Meta is not a valid remote node name."
+                    )
             epr_sockets_map = self._parse_meta_line("epr_sockets", self._read_line())
             epr_sockets = self._parse_meta_mapping(epr_sockets_map)
+            for node_name in epr_sockets.values():
+                if not is_valid_name(node_name):
+                    raise QoalaParseError(
+                        f"Value {node_name} in Qoala Program Meta is not a valid remote node name."
+                    )
 
             end_line = self._read_line()
             if end_line != "META_END":
@@ -201,11 +218,16 @@ class IqoalaInstrParser:
             if not is_valid_name(vec_name):
                 raise QoalaParseError(f"Value {vec_name} is not a valid variable name.")
             vec_size_str = vec_split[1][:-1]  # strip last ">"
-            vec_size: Union[str, int]
+            vec_size: IqoalaValue  # Template is not used insde the blocks
             try:
                 vec_size = int(vec_size_str)
             except ValueError:
+                if not is_valid_name(vec_size_str):
+                    raise QoalaParseError(
+                        f"Value {vec_size_str} is not a valid variable name."
+                    )
                 vec_size = vec_size_str
+
             return hl.IqoalaVector(vec_name, vec_size)
         else:
             return var_str
@@ -427,7 +449,7 @@ class LocalRoutineParser:
 
     def _parse_subrt_meta_line_with_vecs(
         self, key: str, line: str
-    ) -> List[Union[str, LrReturnVector]]:
+    ) -> List[Union[str, IqoalaVector]]:
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
         split = line.split(":")
@@ -442,7 +464,7 @@ class LocalRoutineParser:
             return []
         values_str = split[1].split(",")
         values_str = [v.strip() for v in values_str]
-        values: List[Union[str, LrReturnVector]] = []
+        values: List[Union[str, IqoalaVector]] = []
         for v in values_str:
             if "<" in v:
                 if v.startswith("<"):
@@ -459,10 +481,28 @@ class LocalRoutineParser:
                     raise QoalaParseError(
                         f"Value {vec_name} is not a valid variable name."
                     )
-                vec_size_str = vec_split[1][:-1]  # strip last ">"
-                vec_size = int(vec_size_str)
-                values.append(LrReturnVector(vec_name, vec_size))
+                vec_size_str = vec_split[1][:-1].strip()  # strip last ">"
+                vec_size: IqoalaValue
+                if vec_size_str.startswith("{") and vec_size_str.endswith("}"):
+                    vec_size_str = vec_size_str.strip("{}").strip()
+                    if not is_valid_name(vec_size_str):
+                        raise QoalaParseError(
+                            f"Value {vec_size_str} is not a valid name for a template. "
+                        )
+
+                    vec_size = Template(vec_size_str)
+                else:
+                    try:
+                        vec_size = int(vec_size_str)
+                    except ValueError:
+                        raise QoalaParseError(
+                            "An integer or a template(using '{' and '{') must be provided "
+                            f"as the size of an Iqoala vector {vec_name}."
+                        )
+                values.append(IqoalaVector(vec_name, vec_size))
             else:
+                if not is_valid_name(v):
+                    raise QoalaParseError(f"Value {v} is not a valid variable name.")
                 values.append(v)
         return values
 
@@ -474,6 +514,11 @@ class LocalRoutineParser:
         if not is_valid_name(name):
             raise QoalaParseError(f"Value {name} is not a valid SubRoutine name.")
         params_line = self._parse_subrt_meta_line("params", self._read_line())
+        for param in params_line:
+            if not is_valid_name(param):
+                raise QoalaParseError(
+                    f"SubRoutine {name}: value {param} is not a valid name for a parameter."
+                )
         # TODO: use params line?
 
         return_vars = self._parse_subrt_meta_line_with_vecs(
@@ -482,9 +527,19 @@ class LocalRoutineParser:
         assert all(" " not in v for v in return_vars if isinstance(v, str))
 
         uses_line = self._parse_subrt_meta_line("uses", self._read_line())
-        uses = [int(u) for u in uses_line]
+        try:
+            uses = [int(u) for u in uses_line]
+        except ValueError:
+            raise QoalaParseError(
+                f"SubRoutine {name}: 'uses' line values must be a comma separated list of integers."
+            )
         keeps_line = self._parse_subrt_meta_line("keeps", self._read_line())
-        keeps = [int(k) for k in keeps_line]
+        try:
+            keeps = [int(k) for k in keeps_line]
+        except ValueError:
+            raise QoalaParseError(
+                f"SubRoutine {name}: 'keeps' line values must be a comma separated list of integers."
+            )
         metadata = RoutineMetadata(qubit_use=uses, qubit_keep=keeps)
 
         request_line = self._parse_subrt_meta_line("request", self._read_line())
@@ -493,6 +548,10 @@ class LocalRoutineParser:
                 "SubRoutine request can have have at most one request."
             )
         request_name = None if len(request_line) == 0 else request_line[0]
+        if request_name is not None and not is_valid_name(request_name):
+            raise QoalaParseError(
+                f"SubRoutine {name}: value {request_name} is not a valid name for a request."
+            )
 
         start_line = self._read_line()
         if start_line != "NETQASM_START":
@@ -567,8 +626,8 @@ class RequestRoutineParser:
         return [v.strip() for v in values]
 
     def _parse_request_line_with_vecs(
-        self, key: str, line: str, allow_template: bool = False
-    ) -> List[Union[str, RrReturnVector]]:
+        self, key: str, line: str
+    ) -> List[Union[str, IqoalaVector]]:
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
         split = line.split(":")
@@ -583,7 +642,7 @@ class RequestRoutineParser:
             return []
         values_str = split[1].split(",")
         values_str = [v.strip() for v in values_str]
-        values: List[Union[str, RrReturnVector]] = []
+        values: List[Union[str, IqoalaVector]] = []
         for v in values_str:
             if "<" in v:
                 if v.startswith("<"):
@@ -596,36 +655,53 @@ class RequestRoutineParser:
                     )
                 vec_split = v.split("<")
                 vec_name = vec_split[0]
-                vec_size_str = vec_split[1][:-1]  # strip last ">"
-                vec_size: Union[int, Template]
-                if (
-                    allow_template
-                    and vec_size_str.startswith("{")
-                    and vec_size_str.endswith("}")
-                ):
+                if not is_valid_name(vec_name):
+                    raise QoalaParseError(
+                        f"Value {vec_name} is not a valid variable name."
+                    )
+                vec_size_str = vec_split[1][:-1].strip()  # strip last ">"
+                vec_size: IqoalaValue
+                if vec_size_str.startswith("{") and vec_size_str.endswith("}"):
                     vec_size_str = vec_size_str.strip("{}").strip()
+                    if not is_valid_name(vec_size_str):
+                        raise QoalaParseError(
+                            f"Value {vec_size_str} is not a valid name for a template. "
+                        )
+
                     vec_size = Template(vec_size_str)
                 else:
-                    vec_size = int(vec_size_str)
-                values.append(RrReturnVector(vec_name, vec_size))
+                    try:
+                        vec_size = int(vec_size_str)
+                    except ValueError:
+                        raise QoalaParseError(
+                            "An integer or a template(using '{' and '{') must be provided "
+                            f"as the size of an Iqoala vector {vec_name}."
+                        )
+                values.append(IqoalaVector(vec_name, vec_size))
             else:
+                if not is_valid_name(v):
+                    raise QoalaParseError(f"Value {v} is not a valid variable name.")
                 values.append(v)
         return values
 
-    def _parse_single_int_value(
-        self, key: str, line: str, allow_template: bool = False
-    ) -> Union[int, Template]:
+    def _parse_single_int_value(self, key: str, line: str) -> Union[int, Template]:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise QoalaParseError(
-                f"One single integer value is allowed in Request Routine Meta line for {key}."
+                f"One single integer or a template value is allowed in Request Routine Meta line for {key}."
             )
         value = strings[0]
-        if allow_template:
-            if value.startswith("{") and value.endswith("}"):
-                value = value.strip("{}").strip()
-                return Template(value)
-        return int(value)
+        if value.startswith("{") and value.endswith("}"):
+            value = value.strip("{}").strip()
+            if not is_valid_name(value):
+                raise QoalaParseError(
+                    f"Value {value} is not a valid name for a template."
+                )
+            return Template(value)
+        try:
+            return int(value)
+        except ValueError:
+            raise QoalaParseError(f"Value for {key} must be an integer or a template.")
 
     def _parse_optional_str_value(self, key: str, line: str) -> Optional[str]:
         strings = self._parse_request_line(key, line)
@@ -637,24 +713,24 @@ class RequestRoutineParser:
             )
         return strings[0]
 
-    def _parse_int_list_value(self, key: str, line: str) -> List[int]:
-        strings = self._parse_request_line(key, line)
-        return [int(s) for s in strings]
-
-    def _parse_single_float_value(
-        self, key: str, line: str, allow_template: bool = False
-    ) -> Union[float, Template]:
+    def _parse_single_float_value(self, key: str, line: str) -> Union[float, Template]:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise QoalaParseError(
                 f"One single floating point value is allowed in Request Routine Meta line for {key}."
             )
         value = strings[0]
-        if allow_template:
-            if value.startswith("{") and value.endswith("}"):
-                value = value.strip("{}").strip()
-                return Template(value)
-        return float(value)
+        if value.startswith("{") and value.endswith("}"):
+            value = value.strip("{}").strip()
+            if not is_valid_name(value):
+                raise QoalaParseError(
+                    f"Value {value} is not a valid name for a template."
+                )
+            return Template(value)
+        try:
+            return float(value)
+        except ValueError:
+            raise QoalaParseError(f"Value for {key} must be a float or a template.")
 
     def _parse_epr_create_role_value(self, key: str, line: str) -> EprRole:
         strings = self._parse_request_line(key, line)
@@ -726,6 +802,10 @@ class RequestRoutineParser:
         callback_type = self._parse_callback_type("callback_type", self._read_line())
 
         callback = self._parse_optional_str_value("callback", self._read_line())
+        if callback is not None and not is_valid_name(callback):
+            raise QoalaParseError(
+                f"Request {name}: Value {callback} is not a valid callback name."
+            )
 
         if callback is not None and callback_type is None:
             raise QoalaParseError(
@@ -736,27 +816,16 @@ class RequestRoutineParser:
             callback_type = CallbackType.WAIT_ALL
 
         return_vars = self._parse_request_line_with_vecs(
-            "return_vars", self._read_line(), allow_template=True
+            "return_vars", self._read_line()
         )
         assert all(" " not in v for v in return_vars if isinstance(v, str))
 
-        remote_id = self._parse_single_int_value(
-            "remote_id", self._read_line(), allow_template=True
-        )
-        epr_socket_id = self._parse_single_int_value(
-            "epr_socket_id", self._read_line(), allow_template=True
-        )
-        num_pairs = self._parse_single_int_value(
-            "num_pairs", self._read_line(), allow_template=True
-        )
-        # virt_ids = self._parse_int_list_value("virt_ids", self._read_line())
+        remote_id = self._parse_single_int_value("remote_id", self._read_line())
+        epr_socket_id = self._parse_single_int_value("epr_socket_id", self._read_line())
+        num_pairs = self._parse_single_int_value("num_pairs", self._read_line())
         virt_ids = self._parse_virt_ids("virt_ids", self._read_line())
-        timeout = self._parse_single_int_value(
-            "timeout", self._read_line(), allow_template=True
-        )
-        fidelity = self._parse_single_float_value(
-            "fidelity", self._read_line(), allow_template=True
-        )
+        timeout = self._parse_single_int_value("timeout", self._read_line())
+        fidelity = self._parse_single_float_value("fidelity", self._read_line())
         typ = self._parse_epr_create_type_value("typ", self._read_line())
         role = self._parse_epr_create_role_value("role", self._read_line())
 

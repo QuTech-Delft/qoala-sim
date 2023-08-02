@@ -33,9 +33,8 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
-    RrReturnVector,
 )
-from qoala.lang.routine import LocalRoutine, LrReturnVector, RoutineMetadata
+from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
@@ -334,7 +333,7 @@ def test_prepare_lr_call():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
     instr = RunSubroutineOp(
         result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
@@ -358,7 +357,7 @@ def test_post_lr_call():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
     instr = RunSubroutineOp(
         result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
@@ -410,7 +409,7 @@ def test_prepare_rr_call():
         role=EprRole.CREATE,
     )
     routine = RequestRoutine(
-        "req", request, [RrReturnVector("outcomes", 10)], CallbackType.WAIT_ALL, None
+        "req", request, [IqoalaVector("outcomes", 10)], CallbackType.WAIT_ALL, None
     )
     instr = RunRequestOp(
         result=IqoalaVector("outcomes", 10), values=IqoalaTuple([]), routine="req"
@@ -434,7 +433,7 @@ def test_prepare_rr_call_with_callbacks():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     local_routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
 
     request = create_simple_request(
@@ -475,7 +474,7 @@ def test_post_rr_call_with_callbacks():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     local_routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
 
     request = create_simple_request(

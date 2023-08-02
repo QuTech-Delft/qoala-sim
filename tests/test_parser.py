@@ -31,9 +31,8 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
-    RrReturnVector,
 )
-from qoala.lang.routine import LrReturnVector, RoutineMetadata
+from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -403,7 +402,7 @@ SUBROUTINE my_subroutine
         name="my_subroutine",
         subroutine=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
-        return_vars=[LrReturnVector("outcomes", 10)],
+        return_vars=[IqoalaVector("outcomes", 10)],
     )
 
 
@@ -544,7 +543,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[RrReturnVector("outcomes", 3)],
+        return_vars=[IqoalaVector("outcomes", 3)],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=QoalaRequest(
@@ -624,7 +623,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[RrReturnVector("outcomes", Template("N"))],
+        return_vars=[IqoalaVector("outcomes", Template("N"))],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=QoalaRequest(

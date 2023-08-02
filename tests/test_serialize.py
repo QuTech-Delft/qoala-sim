@@ -16,7 +16,7 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
-from qoala.lang.routine import LrReturnVector, RoutineMetadata
+from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -174,7 +174,7 @@ SUBROUTINE subrt2
             ],
             arguments=["param1"],
         ),
-        return_vars=[LrReturnVector("outcomes", 10)],
+        return_vars=[IqoalaVector("outcomes", 10)],
         metadata=RoutineMetadata.free_all([0]),
     )
     subrt2 = LocalRoutine(
