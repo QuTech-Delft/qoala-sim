@@ -774,7 +774,7 @@ META_END
 ^b0 {type = CL}:
     remote_id = assign_cval() : {client_id}
 ^b1 {type = QC}:
-    run_request(tuple<>) : req1
+    run_request() : req1
 
 REQUEST req1
   callback_type: wait_all
@@ -837,7 +837,7 @@ META_END
 ^b0 {type = CL}:
     remote_id = assign_cval() : {server_id}
 ^b1 {type = QL}:
-    run_request(tuple<>) : req1
+    run_request() : req1
 
 REQUEST req1
   callback_type: wait_all

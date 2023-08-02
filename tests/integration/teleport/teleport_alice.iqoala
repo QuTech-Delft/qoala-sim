@@ -12,10 +12,10 @@ META_END
     run_subroutine(tuple<state>) : prepare_qubit
 
 ^b2 {type = QC}:
-    run_request(tuple<>) : epr_gen
+    run_request() : epr_gen
 
 ^b3 {type = QL}:
-    tuple<m1; m2> = run_subroutine(tuple<>) : bsm
+    tuple<m1; m2> = run_subroutine() : bsm
 
 ^b4 {type = CL}:
     send_cmsg(csocket, m1)
@@ -95,7 +95,7 @@ SUBROUTINE bsm
   NETQASM_END
 
 REQUEST epr_gen
-  callback_type: sequential
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {bob_id}

@@ -196,7 +196,7 @@ tuple<m1; m2> = run_subroutine(tuple<x; y>) : subrt1
 
 def test_parse_vector():
     text = """
-my_vec<3> = run_subroutine(tuple<>) : subrt1
+my_vec<3> = run_subroutine() : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -208,7 +208,7 @@ my_vec<3> = run_subroutine(tuple<>) : subrt1
 
 def test_parse_vector_2():
     text = """
-my_vec<3> = run_request(tuple<>) : req1
+my_vec<3> = run_request() : req1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -220,7 +220,7 @@ my_vec<3> = run_request(tuple<>) : req1
 
 def test_parse_vector_with_var():
     text = """
-my_vec<N> = run_request(tuple<>) : req1
+my_vec<N> = run_request() : req1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -1101,7 +1101,7 @@ META_END
     ^b0 {type = CL}:
         remote_id = assign_cval() : {client_id}
     ^b1 {type = QC}:
-        run_request(tuple<>) : req1
+        run_request() : req1
         """
 
     req_text = """
@@ -1204,22 +1204,22 @@ def test_parse_file_2():
 
 
 if __name__ == "__main__":
-    # test_parse_incomplete_meta()
-    # test_parse_meta_no_end()
-    # test_parse_meta()
-    # test_parse_meta_multiple_remotes()
-    # test_parse_1_instr()
-    # test_parse_2_instr()
-    # test_parse_busy()
-    # test_parse_faulty_instr()
-    # test_parse_tuple()
-    # test_parse_tuple_2_elements()
-    # test_parse_tuple_2_elements_and_return()
-    # test_parse_tuple_2_elements_and_return_2_elements()
-    # test_parse_vector()
-    # test_parse_vector_2()
-    # test_parse_vector_with_var()
-    # test_parse_block_header()
+    test_parse_incomplete_meta()
+    test_parse_meta_no_end()
+    test_parse_meta()
+    test_parse_meta_multiple_remotes()
+    test_parse_1_instr()
+    test_parse_2_instr()
+    test_parse_busy()
+    test_parse_faulty_instr()
+    test_parse_tuple()
+    test_parse_tuple_2_elements()
+    test_parse_tuple_2_elements_and_return()
+    test_parse_tuple_2_elements_and_return_2_elements()
+    test_parse_vector()
+    test_parse_vector_2()
+    test_parse_vector_with_var()
+    test_parse_block_header()
     test_parse_block_header_with_deadlines()
     test_parse_block()
     test_get_block_texts()

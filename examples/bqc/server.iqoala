@@ -9,11 +9,11 @@ META_END
     csocket = assign_cval() : 0
 
 ^b1 {type = QC}:
-    run_request(tuple<>) : req0
+    run_request() : req0
 ^b2 {type = QC}:
-    run_request(tuple<>) : req1
+    run_request() : req1
 ^b3 {type = QL}:
-    run_subroutine(tuple<>) : local_cphase
+    run_subroutine() : local_cphase
 
 ^b4 {type = CC}:
     delta1 = recv_cmsg(csocket)
@@ -77,7 +77,7 @@ SUBROUTINE meas_qubit_0
   NETQASM_END
 
 REQUEST req0
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars:
   remote_id: {client_id}
@@ -90,7 +90,7 @@ REQUEST req0
   role: receive
 
 REQUEST req1
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars:
   remote_id: {client_id}

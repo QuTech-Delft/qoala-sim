@@ -6,7 +6,7 @@ META_START
 META_END
 
 ^b2 {type = QC}:
-    run_request(tuple<>) : epr_gen
+    run_request() : epr_gen
 
 ^b3 {type = QL}:
     tuple<m> = run_subroutine(tuple<angle>) : measure
@@ -43,7 +43,7 @@ SUBROUTINE measure
   NETQASM_END
 
 REQUEST epr_gen
-  callback_type: sequential
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {bob_id}

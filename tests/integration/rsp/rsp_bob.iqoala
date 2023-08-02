@@ -7,7 +7,7 @@ META_END
 
 
 ^b0 {type = QC}:
-    run_request(tuple<>) : epr_gen
+    run_request() : epr_gen
 
 ^b1 {type = CL}:
     csocket = assign_cval() : 0
@@ -22,7 +22,7 @@ META_END
     run_subroutine(tuple<angle>) : correction
 
 ^b5 {type = QL}:
-    tuple<outcome> = run_subroutine(tuple<>) : measure
+    tuple<outcome> = run_subroutine() : measure
 
 ^b6 {type = CL}:
     return_result(outcome)
@@ -79,7 +79,7 @@ SUBROUTINE measure
   NETQASM_END
 
 REQUEST epr_gen
-  callback_type: sequential
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {alice_id}
