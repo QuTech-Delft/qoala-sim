@@ -1215,6 +1215,7 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
     host_instr_time: float = 0.0  # duration of classical Host instr execution
     qnos_instr_time: float = 0.0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0.0  # processing time for Host messages from remote node
+    internal_sched_latency: float = 0  # processing time for messaging between node scheduler and processor schedulers
 
     @classmethod
     def from_file(cls, path: str) -> LatenciesConfig:
@@ -1231,10 +1232,14 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
         host_peer_latency = 0.0
         if "host_peer_latency" in dict:
             host_peer_latency = dict["host_peer_latency"]
+        internal_sched_latency = 0.0
+        if "internal_sched_latency" in dict:
+            host_peer_latency = dict["internal_sched_latency"]
         return LatenciesConfig(
             host_instr_time=host_instr_time,
             qnos_instr_time=qnos_instr_time,
             host_peer_latency=host_peer_latency,
+            internal_sched_latency=internal_sched_latency,
         )
 
     def get_host_instr_time(self) -> float:
@@ -1245,6 +1250,9 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
 
     def get_host_peer_latency(self) -> float:
         return self.host_peer_latency
+
+    def get_internal_sched_latency(self) -> float:
+        return self.internal_sched_latency
 
 
 class ProcNodeConfig(BaseModel):

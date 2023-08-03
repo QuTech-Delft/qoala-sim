@@ -93,6 +93,7 @@ class LhiConverter:
             latencies.host_instr_time,
             latencies.qnos_instr_time,
             latencies.host_peer_latency,
+            latencies.internal_sched_latency,
         )
 
         return EhiNodeInfo(

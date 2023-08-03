@@ -96,10 +96,13 @@ def load_program(path: str) -> QoalaProgram:
     return QoalaParser(text).parse()
 
 
-def setup_network() -> ProcNodeNetwork:
+def setup_network(internal_sched_latency: float = 0) -> ProcNodeNetwork:
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
     latencies = LhiLatencies(
-        host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
+        host_instr_time=1000,
+        qnos_instr_time=2000,
+        host_peer_latency=3000,
+        internal_sched_latency=internal_sched_latency,
     )
     link_info = LhiLinkInfo.perfect(duration=20_000)
 
@@ -985,6 +988,29 @@ def test_blt_instruction_2():
     assert alice_mem.read("var_y") == 9
 
 
+def test_internal_sched_latency():
+    network = setup_network(internal_sched_latency=500)
+    alice = network.nodes["alice"]
+
+    program_alice = load_program("test_internal_sched_latency.iqoala")
+
+    pid = 0
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid)
+
+    alice.scheduler.submit_program_instance(instance_alice, 0)
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    network.nodes["bob"].stop()
+    ns.sim_run()
+
+    total_host_instr_time = 4 * 1000
+    total_internal_sched_latency = 2 * 500  # 2 CL blocks => 2 * 500
+    total_time = total_host_instr_time + total_internal_sched_latency
+    assert ns.sim_time() == total_time
+
+
 if __name__ == "__main__":
     test_cpu_scheduler()
     test_cpu_scheduler_no_time()
@@ -1008,3 +1034,4 @@ if __name__ == "__main__":
     test_bgt_instruction_2()
     test_blt_instruction_1()
     test_blt_instruction_2()
+    test_internal_sched_latency()
