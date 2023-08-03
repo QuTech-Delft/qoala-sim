@@ -19,6 +19,7 @@ from qoala.lang.hostlang import (
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
+    IqoalaVectorElement,
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
     ReturnResultOp,
@@ -557,6 +558,41 @@ def test_return_result():
     assert process.result.values == {"result": 2}
 
 
+def test_vector_element():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
+    )
+    instr = RunSubroutineOp(
+        result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+    instr2 = AddCValueOp(
+        IqoalaSingleton("result"),
+        IqoalaVectorElement("res", 0),
+        IqoalaVectorElement("res", 1),
+    )
+
+    program = create_program(instrs=[instr, instr2], subroutines={"subrt1": routine})
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    lrcall = processor.prepare_lr_call(process, program.instructions[0])
+    # Mock LR execution by writing results to shared memory.
+    process.shared_mem.write_lr_out(lrcall.result_addr, [1, 2, 3])
+
+    processor.post_lr_call(process, program.instructions[0], lrcall)
+
+    yield_from(processor.assign_instr_index(process, 1))
+
+    # Host memory should contain the results.
+    assert process.host_mem.read_vec("res") == [1, 2, 3]
+    assert process.prog_memory.host_mem.read("result") == 3
+
+
 if __name__ == "__main__":
     test_initialize()
     test_assign_cvalue()
@@ -574,3 +610,4 @@ if __name__ == "__main__":
     test_prepare_rr_call_with_callbacks()
     test_post_rr_call_with_callbacks()
     test_return_result()
+    test_vector_element()
