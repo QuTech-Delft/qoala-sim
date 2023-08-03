@@ -9,13 +9,13 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     BusyOp,
-    HostLanguageSyntaxError,
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
     IqoalaVectorElement,
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
+    ReturnResultOp,
     RunRequestOp,
     RunSubroutineOp,
     SendCMsgOp,
@@ -1249,13 +1249,16 @@ def test_vector_indexing_error():
 def test_arg_vector_passing():
     text = """
     a<3> = run_request() : req1    
-    send_cmsg(a, b)
+    return_result(a)
     """
 
-    # gives an error because SendCMsgOp expects a singleton as the first argument
-    # but receives a vector.
-    with pytest.raises(HostLanguageSyntaxError):
-        IqoalaInstrParser(text).parse()
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 2
+    vec = IqoalaVector("a", 3)
+    assert instructions[0] == RunRequestOp(
+        result=vec, values=IqoalaTuple([]), routine="req1"
+    )
+    assert instructions[1] == ReturnResultOp(vec)
 
 
 if __name__ == "__main__":

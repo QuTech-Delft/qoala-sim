@@ -210,12 +210,14 @@ class HostProcessor:
             host_mem.write(loc, result)
         elif isinstance(instr, hostlang.ReturnResultOp):
             yield from self._interface.wait(first_half)
-            assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+            assert isinstance(
+                instr.arguments[0], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[0], hostlang.IqoalaVector)
             loc = instr.arguments[0].name
-            # TODO: improve this
-            try:
+            print(type(instr.arguments[0]))
+            if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
                 value = host_mem.read(loc)
-            except KeyError:
+            else:
                 value = host_mem.read_vec(loc)
             self._logger.debug(f"returning {loc} = {value}")
             # Simulate instruction duration.

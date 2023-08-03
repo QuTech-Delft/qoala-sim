@@ -550,7 +550,7 @@ class ReturnResultOp(ClassicalIqoalaOp):
     OP_NAME = "return_result"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, value: IqoalaSingleton) -> None:
+    def __init__(self, value: Union[IqoalaSingleton, IqoalaVector]) -> None:
         super().__init__(arguments=[value])
 
     @classmethod
@@ -572,9 +572,11 @@ class ReturnResultOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation cannot have an attribute."
             )
-        if not isinstance(args[0], IqoalaSingleton):
+        if not isinstance(args[0], IqoalaSingleton) and not isinstance(
+            args[0], IqoalaVector
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be string."
+                f"{cls.OP_NAME} operation argument must be a string or vector."
             )
 
         return cls(args[0])

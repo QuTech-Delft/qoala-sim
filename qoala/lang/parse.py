@@ -164,12 +164,16 @@ class IqoalaMetaParser:
 
 
 class IqoalaInstrParser:
-    def __init__(self, text: str) -> None:
+    def __init__(
+        self, text: str, defined_vectors: Dict[str, hl.IqoalaVector] = None
+    ) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
         self._lines = [line for line in lines if len(line) > 0]
         self._lineno: int = 0
-        self._defined_vectors: Dict[str, hl.IqoalaVector] = {}  # name -> vector
+        self._defined_vectors: Dict[str, hl.IqoalaVector] = {}
+        if defined_vectors is not None:
+            self._defined_vectors = defined_vectors
 
     def _next_line(self) -> None:
         self._lineno += 1
@@ -337,6 +341,7 @@ class HostCodeParser:
         lines = [line.strip() for line in text.split("\n")]
         self._lines = [line for line in lines if len(line) > 0]
         self._lineno: int = 0
+        self._defined_vectors: Dict[str, hl.IqoalaVector] = {}  # name -> vector
 
     def get_block_texts(self) -> List[str]:
         block_start_lines: List[int] = []
@@ -432,7 +437,9 @@ class HostCodeParser:
         lines = [line for line in lines if len(line) > 0]
         name, typ, deadline = self._parse_block_header(lines[0])
         instr_lines = lines[1:]
-        instrs = IqoalaInstrParser("\n".join(instr_lines)).parse()
+        instrs = IqoalaInstrParser(
+            "\n".join(instr_lines), self._defined_vectors
+        ).parse()
 
         return hl.BasicBlock(name, typ, instrs, deadline)
 
