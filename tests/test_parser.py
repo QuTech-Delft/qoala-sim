@@ -9,6 +9,7 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     BusyOp,
+    HostLanguageSyntaxError,
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
@@ -1215,6 +1216,7 @@ def test_parse_file_2():
 
 def test_vector_indexing():
     text = """
+    a<3> = run_request() : req1    
     send_cmsg(a[0], b)
     b = recv_cmsg(a[0])
     b = mult_const(a[0]) : 1
@@ -1222,12 +1224,38 @@ def test_vector_indexing():
 
     instructions = IqoalaInstrParser(text).parse()
 
-    assert len(instructions) == 3
+    assert len(instructions) == 4
     csocket = IqoalaVectorElement("a", 0)
     remote_node = IqoalaSingleton("b")
-    assert instructions[0] == SendCMsgOp(csocket, remote_node)
-    assert instructions[1] == ReceiveCMsgOp(csocket, remote_node)
-    assert instructions[2] == MultiplyConstantCValueOp(remote_node, csocket, 1)
+    assert instructions[0] == RunRequestOp(
+        result=IqoalaVector("a", 3), values=IqoalaTuple([]), routine="req1"
+    )
+    assert instructions[1] == SendCMsgOp(csocket, remote_node)
+    assert instructions[2] == ReceiveCMsgOp(csocket, remote_node)
+    assert instructions[3] == MultiplyConstantCValueOp(remote_node, csocket, 1)
+
+
+def test_vector_indexing_error():
+    text = """
+    send_cmsg(a[0], b)
+    b = recv_cmsg(a[0])
+    b = mult_const(a[0]) : 1
+    """
+
+    with pytest.raises(QoalaParseError):
+        IqoalaInstrParser(text).parse()
+
+
+def test_arg_vector_passing():
+    text = """
+    a<3> = run_request() : req1    
+    send_cmsg(a, b)
+    """
+
+    # gives an error because SendCMsgOp expects a singleton as the first argument
+    # but receives a vector.
+    with pytest.raises(HostLanguageSyntaxError):
+        IqoalaInstrParser(text).parse()
 
 
 if __name__ == "__main__":
@@ -1274,3 +1302,5 @@ if __name__ == "__main__":
     test_parse_file()
     test_parse_file_2()
     test_vector_indexing()
+    test_vector_indexing_error()
+    test_arg_vector_passing()

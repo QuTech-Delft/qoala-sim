@@ -169,6 +169,7 @@ class IqoalaInstrParser:
         lines = [line.strip() for line in text.split("\n")]
         self._lines = [line for line in lines if len(line) > 0]
         self._lineno: int = 0
+        self._defined_vectors: Dict[str, hl.IqoalaVector] = {}  # name -> vector
 
     def _next_line(self) -> None:
         self._lineno += 1
@@ -183,7 +184,7 @@ class IqoalaInstrParser:
                 return line
             # if no non-empty line, will always break on EndOfLineException
 
-    def _parse_var(self, var_str: str) -> IqoalaVar:
+    def _parse_var(self, var_str: str, is_result=False) -> IqoalaVar:
         if var_str.startswith("tuple"):
             if var_str[5] != "<" or not var_str.endswith(">"):
                 raise QoalaParseError(
@@ -205,6 +206,10 @@ class IqoalaInstrParser:
                     )
             return hl.IqoalaTuple(tup_values)
         elif "<" in var_str:
+            if not is_result:
+                raise QoalaParseError(
+                    "Iqoala vector size cannot be specified for non-result variables."
+                )
             if var_str.startswith("<"):
                 raise QoalaParseError("Iqoala vector must start with a name.")
             if not var_str.endswith(">"):
@@ -227,7 +232,6 @@ class IqoalaInstrParser:
                         f"Value {vec_size_str} is not a valid variable name."
                     )
                 vec_size = vec_size_str
-
             return hl.IqoalaVector(vec_name, vec_size)
         elif "[" in var_str:
             if var_str.startswith("["):
@@ -242,6 +246,10 @@ class IqoalaInstrParser:
             vec_name = vec_split[0]
             if not is_valid_name(vec_name):
                 raise QoalaParseError(f"Value {vec_name} is not a valid variable name.")
+            if vec_name not in self._defined_vectors:
+                raise QoalaParseError(
+                    f"Iqoala vector {vec_name} must be defined before indexing."
+                )
             index_str = vec_split[1][:-1]  # strip last "]"
             index: int
             try:
@@ -252,6 +260,8 @@ class IqoalaInstrParser:
         else:
             if not is_valid_name(var_str):
                 raise QoalaParseError(f"Value {var_str} is not a valid variable name.")
+            if var_str in self._defined_vectors:
+                return self._defined_vectors[var_str]
             return IqoalaSingleton(var_str)
 
     def _parse_lhr(self) -> hl.ClassicalIqoalaOp:
@@ -267,7 +277,9 @@ class IqoalaInstrParser:
             result = None
         elif len(assign_parts) == 2:
             value = assign_parts[1]
-            result = self._parse_var(assign_parts[0])
+            result = self._parse_var(assign_parts[0], is_result=True)
+            if isinstance(result, hl.IqoalaVector):
+                self._defined_vectors[result.name] = result
         value_parts = [x.strip() for x in value.split(":")]
         if len(value_parts) > 2:
             raise QoalaParseError("Iqoala instruction can have at most one ':'.")
