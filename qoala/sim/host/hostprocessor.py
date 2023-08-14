@@ -94,7 +94,6 @@ class HostProcessor:
             yield from self._interface.wait(first_half)
             value = instr.attributes[0]
             assert isinstance(value, int)
-            print(type(instr.results))
             assert isinstance(instr.results, hostlang.IqoalaSingleton)
             loc = instr.results.name  # type: ignore
             self._logger.debug(f"writing {value} to {loc}")
@@ -214,7 +213,6 @@ class HostProcessor:
                 instr.arguments[0], hostlang.IqoalaSingleton
             ) or isinstance(instr.arguments[0], hostlang.IqoalaVector)
             loc = instr.arguments[0].name
-            print(type(instr.arguments[0]))
             if isinstance(instr.arguments[0], hostlang.IqoalaSingleton):
                 value = host_mem.read(loc)
             else:
@@ -458,8 +456,6 @@ class HostProcessor:
         result_vars_len = self._calculate_result_size(instr.results, prog_input)
         assert len(all_results) == result_vars_len
 
-        print(type(instr.results), ":", instr.results)
-
         # Collect the host variables to which to copy these results.
         if isinstance(instr.results, hostlang.IqoalaSingleton):
             loc = instr.results.name
@@ -482,7 +478,6 @@ class HostProcessor:
         results: hostlang.IqoalaVar,
         prog_input: Optional[Dict[str, int]] = None,
     ) -> int:
-        print(type(results))
         if results is None:
             return 0
         elif isinstance(results, hostlang.IqoalaTuple):

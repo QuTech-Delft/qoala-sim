@@ -117,7 +117,7 @@ class ClassicalIqoalaOp:
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ) -> ClassicalIqoalaOp:
         raise NotImplementedError
@@ -150,7 +150,7 @@ class AssignCValueOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
@@ -260,7 +260,7 @@ class ReceiveCMsgOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
@@ -302,7 +302,7 @@ class AddCValueOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
@@ -349,7 +349,7 @@ class MultiplyConstantCValueOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
@@ -396,7 +396,7 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
@@ -446,7 +446,7 @@ class RunSubroutineOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -504,7 +504,7 @@ class RunRequestOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -557,7 +557,7 @@ class ReturnResultOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -593,7 +593,7 @@ class JumpOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -631,7 +631,7 @@ class BranchIfEqualOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -680,7 +680,7 @@ class BranchIfNotEqualOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -728,7 +728,7 @@ class BranchIfGreaterThanOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -776,7 +776,7 @@ class BranchIfLessThanOp(ClassicalIqoalaOp):
     def from_generic_args(
         cls,
         result: Optional[IqoalaVar],
-        args: Union[List[IqoalaVar]],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
