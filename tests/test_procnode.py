@@ -15,6 +15,7 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     ClassicalIqoalaOp,
+    IqoalaSingleton,
     ReceiveCMsgOp,
     SendCMsgOp,
 )
@@ -326,7 +327,7 @@ def test_initialize():
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    instrs = [AssignCValueOp("x", 3)]
+    instrs = [AssignCValueOp(IqoalaSingleton("x"), 3)]
     subrt1 = simple_subroutine(
         "subrt1",
         """
@@ -426,7 +427,9 @@ def test_classical_comm():
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    alice_instrs = [SendCMsgOp("csocket_id", "message")]
+    alice_instrs = [
+        SendCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("message"))
+    ]
     alice_meta = ProgramMeta(
         name="alice",
         parameters=["csocket_id", "message"],
@@ -444,7 +447,9 @@ def test_classical_comm():
     alice_procnode.add_process(alice_process)
     alice_host_processor.initialize(alice_process)
 
-    bob_instrs = [ReceiveCMsgOp("csocket_id", "result")]
+    bob_instrs = [
+        ReceiveCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("result"))
+    ]
     bob_meta = ProgramMeta(
         name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
     )
@@ -534,7 +539,9 @@ def test_classical_comm_three_nodes():
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    alice_instrs = [SendCMsgOp("csocket_id", "message")]
+    alice_instrs = [
+        SendCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("message"))
+    ]
     alice_meta = ProgramMeta(
         name="alice",
         parameters=["csocket_id", "message"],
@@ -552,7 +559,7 @@ def test_classical_comm_three_nodes():
     alice_procnode.add_process(alice_process)
     alice_host_processor.initialize(alice_process)
 
-    bob_instrs = [SendCMsgOp("csocket_id", "message")]
+    bob_instrs = [SendCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("message"))]
     bob_meta = ProgramMeta(
         name="bob",
         parameters=["csocket_id", "message"],
@@ -571,8 +578,10 @@ def test_classical_comm_three_nodes():
     bob_host_processor.initialize(bob_process)
 
     charlie_instrs = [
-        ReceiveCMsgOp("csocket_id_alice", "result_alice"),
-        ReceiveCMsgOp("csocket_id_bob", "result_bob"),
+        ReceiveCMsgOp(
+            IqoalaSingleton("csocket_id_alice"), IqoalaSingleton("result_alice")
+        ),
+        ReceiveCMsgOp(IqoalaSingleton("csocket_id_bob"), IqoalaSingleton("result_bob")),
     ]
     charlie_meta = ProgramMeta(
         name="bob",

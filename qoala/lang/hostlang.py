@@ -20,13 +20,20 @@ class IqoalaInstructionType(Enum):
     QL = auto()
 
 
-@dataclass(frozen=True)
-class IqoalaAttribute:
-    value: IqoalaValue
+class IqoalaVar:
+    pass
 
 
 @dataclass(frozen=True)
-class IqoalaTuple:
+class IqoalaSingleton(IqoalaVar):
+    name: str
+
+    def __str__(self):
+        return self.name
+
+
+@dataclass(frozen=True)
+class IqoalaTuple(IqoalaVar):
     values: List[str]
 
     def __str__(self) -> str:
@@ -34,14 +41,18 @@ class IqoalaTuple:
 
 
 @dataclass(frozen=True)
-class IqoalaVector:
-    # TODO: create single IqoalaVar class that IqoalaVector, IqoalaTuple,
-    # and IqoalaSingleton derive from
+class IqoalaVector(IqoalaVar):
     name: str
-    size: Union[int, str]
+    size: IqoalaValue
 
     def __str__(self) -> str:
         return f"{self.name}<{self.size}>"
+
+
+@dataclass(frozen=True)
+class IqoalaVectorElement(IqoalaVar):
+    name: str
+    index: int
 
 
 class ClassicalIqoalaOp:
@@ -50,14 +61,14 @@ class ClassicalIqoalaOp:
 
     def __init__(
         self,
-        arguments: Optional[Union[List[str], List[IqoalaTuple]]] = None,
-        results: Optional[Union[List[str], IqoalaTuple, IqoalaVector]] = None,
+        arguments: Optional[List[IqoalaVar]] = None,
+        results: Optional[IqoalaVar] = None,
         attributes: Optional[List[IqoalaValue]] = None,
     ) -> None:
         # TODO: support list of strs and tuples
         # currently not needed and confuses mypy
-        self._arguments: Union[List[str], List[IqoalaTuple]]
-        self._results: Union[List[str], IqoalaTuple, IqoalaVector]
+        self._arguments: List[IqoalaVar]
+        self._results: IqoalaVar
         self._attributes: List[IqoalaValue]
 
         if arguments is None:
@@ -65,14 +76,7 @@ class ClassicalIqoalaOp:
         else:
             self._arguments = arguments
 
-        if results is None:
-            self._results = []
-        elif isinstance(results, list):
-            # List of ints
-            self._results = results
-        else:
-            assert isinstance(results, IqoalaTuple) or isinstance(results, IqoalaVector)
-            self._results = results
+        self._results = results  # type: ignore
 
         if attributes is None:
             self._attributes = []
@@ -80,12 +84,9 @@ class ClassicalIqoalaOp:
             self._attributes = attributes
 
     def __str__(self) -> str:
-        if isinstance(self.results, list):
-            results = ", ".join(str(r) for r in self.results)
+        if self.results is None:
+            results = ""
         else:
-            assert isinstance(self.results, IqoalaTuple) or isinstance(
-                self.results, IqoalaVector
-            )
             results = str(self.results)
         # not to write  for the empty tuple
         if self.arguments == [IqoalaTuple([])]:
@@ -115,8 +116,8 @@ class ClassicalIqoalaOp:
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ) -> ClassicalIqoalaOp:
         raise NotImplementedError
@@ -126,11 +127,11 @@ class ClassicalIqoalaOp:
         return self.__class__.OP_NAME  # type: ignore
 
     @property
-    def arguments(self) -> Union[List[str], List[IqoalaTuple]]:
+    def arguments(self) -> List[IqoalaVar]:
         return self._arguments
 
     @property
-    def results(self) -> Union[List[str], IqoalaTuple, IqoalaVector]:
+    def results(self) -> IqoalaVar:
         return self._results
 
     @property
@@ -142,20 +143,22 @@ class AssignCValueOp(ClassicalIqoalaOp):
     OP_NAME = "assign_cval"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, result: str, value: IqoalaValue) -> None:
-        super().__init__(results=[result], attributes=[value])
+    def __init__(self, result: IqoalaSingleton, value: IqoalaValue) -> None:
+        super().__init__(results=result, attributes=[value])
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation must have a result."
             )
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
         if len(args) != 0:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation takes 0 arguments but got {len(args)}."
@@ -177,8 +180,8 @@ class BusyOp(ClassicalIqoalaOp):
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: Union[List[IqoalaVar]],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -200,7 +203,11 @@ class SendCMsgOp(ClassicalIqoalaOp):
     OP_NAME = "send_cmsg"
     TYP = IqoalaInstructionType.CC
 
-    def __init__(self, csocket: str, value: str) -> None:
+    def __init__(
+        self,
+        csocket: Union[IqoalaSingleton, IqoalaVectorElement],
+        value: Union[IqoalaSingleton, IqoalaVectorElement],
+    ) -> None:
         # args:
         #   csocket (int): ID of csocket
         #   value (str): name of variable holding the value to send
@@ -209,8 +216,8 @@ class SendCMsgOp(ClassicalIqoalaOp):
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: Union[List[IqoalaVar]],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -225,9 +232,15 @@ class SendCMsgOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation cannot have an attribute."
             )
-        if not isinstance(args[0], str) or not isinstance(args[1], str):
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         return cls(args[0], args[1])
 
@@ -236,20 +249,26 @@ class ReceiveCMsgOp(ClassicalIqoalaOp):
     OP_NAME = "recv_cmsg"
     TYP = IqoalaInstructionType.CC
 
-    def __init__(self, csocket: str, result: str) -> None:
-        super().__init__(arguments=[csocket], results=[result])
+    def __init__(
+        self,
+        csocket: Union[IqoalaSingleton, IqoalaVectorElement],
+        result: IqoalaSingleton,
+    ) -> None:
+        super().__init__(arguments=[csocket], results=result)
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation must have a result."
             )
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
         if len(args) != 1:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
@@ -258,9 +277,11 @@ class ReceiveCMsgOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation cannot have an attribute."
             )
-        if not isinstance(args[0], str):
+        if not isinstance(args[0], IqoalaSingleton) and not isinstance(
+            args[0], IqoalaVectorElement
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation argument must be a string."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         return cls(args[0], result)
 
@@ -269,20 +290,27 @@ class AddCValueOp(ClassicalIqoalaOp):
     OP_NAME = "add_cval_c"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, result: str, value0: str, value1: str) -> None:
-        super().__init__(arguments=[value0, value1], results=[result])
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+    ) -> None:
+        super().__init__(arguments=[value0, value1], results=result)
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation must have a result."
             )
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
         if len(args) != 2:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
@@ -291,9 +319,15 @@ class AddCValueOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation cannot have an attribute."
             )
-        if not isinstance(args[0], str) or not isinstance(args[1], str):
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         return cls(result, args[0], args[1])
 
@@ -302,21 +336,28 @@ class MultiplyConstantCValueOp(ClassicalIqoalaOp):
     OP_NAME = "mult_const"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, result: str, value0: str, const: IqoalaValue) -> None:
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        const: IqoalaValue,
+    ) -> None:
         # result = value0 * const
-        super().__init__(arguments=[value0], attributes=[const], results=[result])
+        super().__init__(arguments=[value0], attributes=[const], results=result)
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation must have a result."
             )
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
         if len(args) != 1:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
@@ -325,9 +366,11 @@ class MultiplyConstantCValueOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation must have an attribute."
             )
-        if not isinstance(args[0], str):
+        if not isinstance(args[0], IqoalaSingleton) and not isinstance(
+            args[0], IqoalaVectorElement
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be a string."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         return cls(result, args[0], attr)
 
@@ -336,24 +379,32 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
     OP_NAME = "bcond_mult_const"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, result: str, value0: str, cond: str, const: int) -> None:
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        cond: Union[IqoalaSingleton, IqoalaVectorElement],
+        const: int,
+    ) -> None:
         # if const == 1:
         #   result = value0 * const
         # else:
         #   result = value0
-        super().__init__(arguments=[value0, cond], attributes=[const], results=[result])
+        super().__init__(arguments=[value0, cond], attributes=[const], results=result)
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is None:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation must have a result."
             )
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
         if len(args) != 2:
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
@@ -362,9 +413,15 @@ class BitConditionalMultiplyConstantCValueOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation must have an attribute."
             )
-        if not isinstance(args[0], str) or not isinstance(args[1], str):
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         if not isinstance(attr, int):
             raise HostLanguageSyntaxError(
@@ -388,8 +445,8 @@ class RunSubroutineOp(ClassicalIqoalaOp):
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -446,8 +503,8 @@ class RunRequestOp(ClassicalIqoalaOp):
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -493,14 +550,14 @@ class ReturnResultOp(ClassicalIqoalaOp):
     OP_NAME = "return_result"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, value: str) -> None:
+    def __init__(self, value: Union[IqoalaSingleton, IqoalaVector]) -> None:
         super().__init__(arguments=[value])
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -515,9 +572,11 @@ class ReturnResultOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation cannot have an attribute."
             )
-        if not isinstance(args[0], str):
+        if not isinstance(args[0], IqoalaSingleton) and not isinstance(
+            args[0], IqoalaVector
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation argument must be a string."
+                f"{cls.OP_NAME} operation argument must be a string or vector."
             )
 
         return cls(args[0])
@@ -533,8 +592,8 @@ class JumpOp(ClassicalIqoalaOp):
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -560,14 +619,19 @@ class BranchIfEqualOp(ClassicalIqoalaOp):
     OP_NAME = "beq"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+    def __init__(
+        self,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+        block_name: str,
+    ) -> None:
         super().__init__(arguments=[value0, value1], attributes=[block_name])
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -586,9 +650,15 @@ class BranchIfEqualOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation attribute must be a string."
             )
-        if not isinstance(args[0], str) or not isinstance(args[1], str):
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
 
         return cls(args[0], args[1], attr)
@@ -598,14 +668,19 @@ class BranchIfNotEqualOp(ClassicalIqoalaOp):
     OP_NAME = "bne"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+    def __init__(
+        self,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+        block_name: str,
+    ) -> None:
         super().__init__(arguments=[value0, value1], attributes=[block_name])
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -624,9 +699,15 @@ class BranchIfNotEqualOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation attribute must be a string."
             )
-        if not isinstance(args[0], str) or not isinstance(args[1], str):
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         return cls(args[0], args[1], attr)
 
@@ -635,14 +716,19 @@ class BranchIfGreaterThanOp(ClassicalIqoalaOp):
     OP_NAME = "bgt"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+    def __init__(
+        self,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+        block_name: str,
+    ) -> None:
         super().__init__(arguments=[value0, value1], attributes=[block_name])
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -661,9 +747,15 @@ class BranchIfGreaterThanOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation attribute must be a string."
             )
-        if not isinstance(args[0], str) or not isinstance(args[1], str):
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         return cls(args[0], args[1], attr)
 
@@ -672,14 +764,19 @@ class BranchIfLessThanOp(ClassicalIqoalaOp):
     OP_NAME = "blt"
     TYP = IqoalaInstructionType.CL
 
-    def __init__(self, value0: str, value1: str, block_name: str) -> None:
+    def __init__(
+        self,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+        block_name: str,
+    ) -> None:
         super().__init__(arguments=[value0, value1], attributes=[block_name])
 
     @classmethod
     def from_generic_args(
         cls,
-        result: Optional[str],
-        args: Union[List[str], List[IqoalaTuple]],
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
         attr: Optional[IqoalaValue],
     ):
         if result is not None:
@@ -698,9 +795,15 @@ class BranchIfLessThanOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation attribute must be a string."
             )
-        if not isinstance(args[0], str) or not isinstance(args[1], str):
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
             raise HostLanguageSyntaxError(
-                f"{cls.OP_NAME} operation arguments must be strings."
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
         return cls(args[0], args[1], attr)
 

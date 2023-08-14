@@ -13,6 +13,7 @@ from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.lang import hostlang
 from qoala.lang.ehi import (
     EhiNetworkInfo,
     EhiNetworkSchedule,
@@ -852,8 +853,8 @@ class CpuEdfScheduler(EdfScheduler):
         block = process.program.get_block(task.block_name)
         instr = block.instructions[0]
         assert isinstance(instr, ReceiveCMsgOp)
-        assert isinstance(instr.arguments[0], str)
-        csck_id = process.host_mem.read(instr.arguments[0])
+        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+        csck_id = process.host_mem.read(instr.arguments[0].name)
         csck = process.csockets[csck_id]
         remote_name = csck.remote_name
         remote_pid = csck.remote_pid

@@ -9,10 +9,16 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     BusyOp,
+    IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
+    IqoalaVectorElement,
+    MultiplyConstantCValueOp,
+    ReceiveCMsgOp,
+    ReturnResultOp,
     RunRequestOp,
     RunSubroutineOp,
+    SendCMsgOp,
 )
 from qoala.lang.parse import (
     HostCodeParser,
@@ -31,9 +37,8 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
-    RrReturnVector,
 )
-from qoala.lang.routine import LrReturnVector, RoutineMetadata
+from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -108,7 +113,7 @@ x = assign_cval() : 1
     instructions = IqoalaInstrParser(text).parse()
 
     assert len(instructions) == 1
-    assert instructions[0] == AssignCValueOp(result="x", value=1)
+    assert instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
 
 
 def test_parse_2_instr():
@@ -120,8 +125,8 @@ y = assign_cval() : 17
     instructions = IqoalaInstrParser(text).parse()
 
     assert len(instructions) == 2
-    assert instructions[0] == AssignCValueOp(result="x", value=1)
-    assert instructions[1] == AssignCValueOp(result="y", value=17)
+    assert instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
+    assert instructions[1] == AssignCValueOp(result=IqoalaSingleton("y"), value=17)
 
 
 def test_parse_busy():
@@ -259,8 +264,10 @@ def test_parse_block():
     assert block.name == "b0"
     assert block.typ == BasicBlockType.CL
     assert len(block.instructions) == 2
-    assert block.instructions[0] == AssignCValueOp(result="x", value=1)
-    assert block.instructions[1] == AssignCValueOp(result="y", value=17)
+    assert block.instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
+    assert block.instructions[1] == AssignCValueOp(
+        result=IqoalaSingleton("y"), value=17
+    )
 
 
 def test_get_block_texts():
@@ -293,8 +300,12 @@ def test_parse_multiple_blocks():
     assert blocks[0].name == "b0"
     assert blocks[0].typ == BasicBlockType.CL
     assert len(blocks[0].instructions) == 2
-    assert blocks[0].instructions[0] == AssignCValueOp(result="x", value=1)
-    assert blocks[0].instructions[1] == AssignCValueOp(result="y", value=17)
+    assert blocks[0].instructions[0] == AssignCValueOp(
+        result=IqoalaSingleton("x"), value=1
+    )
+    assert blocks[0].instructions[1] == AssignCValueOp(
+        result=IqoalaSingleton("y"), value=17
+    )
 
     assert blocks[1].name == "b1"
     assert blocks[1].typ == BasicBlockType.QL
@@ -403,7 +414,7 @@ SUBROUTINE my_subroutine
         name="my_subroutine",
         subroutine=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
-        return_vars=[LrReturnVector("outcomes", 10)],
+        return_vars=[IqoalaVector("outcomes", 10)],
     )
 
 
@@ -544,7 +555,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[RrReturnVector("outcomes", 3)],
+        return_vars=[IqoalaVector("outcomes", 3)],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=QoalaRequest(
@@ -624,7 +635,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[RrReturnVector("outcomes", Template("N"))],
+        return_vars=[IqoalaVector("outcomes", Template("N"))],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=QoalaRequest(
@@ -1203,6 +1214,53 @@ def test_parse_file_2():
     assert parsed_program.local_routines["create_epr_1"].request_name == "req1"
 
 
+def test_vector_indexing():
+    text = """
+    a<3> = run_request() : req1    
+    send_cmsg(a[0], b)
+    b = recv_cmsg(a[0])
+    b = mult_const(a[0]) : 1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+
+    assert len(instructions) == 4
+    csocket = IqoalaVectorElement("a", 0)
+    remote_node = IqoalaSingleton("b")
+    assert instructions[0] == RunRequestOp(
+        result=IqoalaVector("a", 3), values=IqoalaTuple([]), routine="req1"
+    )
+    assert instructions[1] == SendCMsgOp(csocket, remote_node)
+    assert instructions[2] == ReceiveCMsgOp(csocket, remote_node)
+    assert instructions[3] == MultiplyConstantCValueOp(remote_node, csocket, 1)
+
+
+def test_vector_indexing_error():
+    text = """
+    send_cmsg(a[0], b)
+    b = recv_cmsg(a[0])
+    b = mult_const(a[0]) : 1
+    """
+
+    with pytest.raises(QoalaParseError):
+        IqoalaInstrParser(text).parse()
+
+
+def test_arg_vector_passing():
+    text = """
+    a<3> = run_request() : req1    
+    return_result(a)
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 2
+    vec = IqoalaVector("a", 3)
+    assert instructions[0] == RunRequestOp(
+        result=vec, values=IqoalaTuple([]), routine="req1"
+    )
+    assert instructions[1] == ReturnResultOp(vec)
+
+
 if __name__ == "__main__":
     test_parse_incomplete_meta()
     test_parse_meta_no_end()
@@ -1246,3 +1304,6 @@ if __name__ == "__main__":
     test_parse_program_single_text()
     test_parse_file()
     test_parse_file_2()
+    test_vector_indexing()
+    test_vector_indexing_error()
+    test_arg_vector_passing()
