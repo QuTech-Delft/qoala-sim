@@ -422,7 +422,9 @@ class QnosProcessor:
         elif isinstance(instr, core.MulInstruction):
             return a * b
         elif isinstance(instr, core.DivInstruction):
-            return int(a / b)
+            return a // b
+        elif isinstance(instr, core.RemInstruction):
+            return a % b
         else:
             raise ValueError(f"{instr} cannot be used as binary classical function")
 
