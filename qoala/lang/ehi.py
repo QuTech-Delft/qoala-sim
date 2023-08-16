@@ -313,6 +313,8 @@ class EhiNetworkSchedule:
     def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
         global_offset = time - self.first_bin
 
+        print(time)
+
         # Get the start of the current iteration of the repeating pattern.
         curr_pattern_index = floor(global_offset / self.repeat_period)
         curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
@@ -336,6 +338,8 @@ class EhiNetworkSchedule:
     def next_specific_bin(self, time: int, bin: EhiNetworkTimebin) -> int:
         bin_index: Optional[int] = None
         first_bin_index: Optional[int] = None
+
+        print(time)
 
         current_bin_index = (time % self.repeat_period) // self.bin_length # Gets the bin index currently in
 
