@@ -59,7 +59,7 @@ class EhiNodeInfo:
     latencies: EhiLatencies
 
     def find_single_gate(
-        self, qubit_id: int, instr: Type[NetQASMInstruction]
+            self, qubit_id: int, instr: Type[NetQASMInstruction]
     ) -> Optional[EhiGateInfo]:
         if qubit_id not in self.single_gate_infos:
             return None
@@ -69,7 +69,7 @@ class EhiNodeInfo:
         return None
 
     def find_multi_gate(
-        self, qubit_ids: List[int], instr: Type[NetQASMInstruction]
+            self, qubit_ids: List[int], instr: Type[NetQASMInstruction]
     ) -> Optional[EhiGateInfo]:
         multi = MultiQubit(qubit_ids)
         if multi not in self.multi_gate_infos:
@@ -83,7 +83,7 @@ class EhiNodeInfo:
 class EhiBuilder:
     @classmethod
     def decoherence_qubit(
-        cls, is_communication: bool, decoherence_rate: float
+            cls, is_communication: bool, decoherence_rate: float
     ) -> EhiQubitInfo:
         return EhiQubitInfo(
             is_communication=is_communication, decoherence_rate=decoherence_rate
@@ -97,10 +97,10 @@ class EhiBuilder:
 
     @classmethod
     def decoherence_gates(
-        cls,
-        duration: float,
-        instructions: List[Type[NetQASMInstruction]],
-        decoherence: float,
+            cls,
+            duration: float,
+            instructions: List[Type[NetQASMInstruction]],
+            decoherence: float,
     ) -> List[EhiGateInfo]:
         return [
             EhiGateInfo(instruction=instr, duration=duration, decoherence=decoherence)
@@ -109,7 +109,7 @@ class EhiBuilder:
 
     @classmethod
     def perfect_gates(
-        cls, duration: float, instructions: List[Type[NetQASMInstruction]]
+            cls, duration: float, instructions: List[Type[NetQASMInstruction]]
     ) -> List[EhiGateInfo]:
         return cls.decoherence_gates(
             duration=duration, instructions=instructions, decoherence=0
@@ -117,14 +117,14 @@ class EhiBuilder:
 
     @classmethod
     def perfect_uniform(
-        cls,
-        num_qubits,
-        flavour: Type[Flavour],
-        single_instructions: List[Type[NetQASMInstruction]],
-        single_duration: float,
-        two_instructions: List[Type[NetQASMInstruction]],
-        two_duration: float,
-        latencies: Optional[EhiLatencies] = None,
+            cls,
+            num_qubits,
+            flavour: Type[Flavour],
+            single_instructions: List[Type[NetQASMInstruction]],
+            single_duration: float,
+            two_instructions: List[Type[NetQASMInstruction]],
+            two_duration: float,
+            latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         return cls.fully_uniform(
             num_qubits=num_qubits,
@@ -137,13 +137,13 @@ class EhiBuilder:
 
     @classmethod
     def fully_uniform(
-        cls,
-        num_qubits,
-        qubit_info: EhiQubitInfo,
-        flavour: Type[Flavour],
-        single_gate_infos: List[EhiGateInfo],
-        two_gate_infos: List[EhiGateInfo],
-        latencies: Optional[EhiLatencies] = None,
+            cls,
+            num_qubits,
+            qubit_info: EhiQubitInfo,
+            flavour: Type[Flavour],
+            single_gate_infos: List[EhiGateInfo],
+            two_gate_infos: List[EhiGateInfo],
+            latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}
@@ -160,16 +160,16 @@ class EhiBuilder:
 
     @classmethod
     def perfect_star(
-        cls,
-        num_qubits: int,
-        flavour: Type[Flavour],
-        comm_instructions: List[Type[NetQASMInstruction]],
-        comm_duration: float,
-        mem_instructions: List[Type[NetQASMInstruction]],
-        mem_duration: float,
-        two_instructions: List[Type[NetQASMInstruction]],
-        two_duration: float,
-        latencies: Optional[EhiLatencies] = None,
+            cls,
+            num_qubits: int,
+            flavour: Type[Flavour],
+            comm_instructions: List[Type[NetQASMInstruction]],
+            comm_duration: float,
+            mem_instructions: List[Type[NetQASMInstruction]],
+            mem_duration: float,
+            two_instructions: List[Type[NetQASMInstruction]],
+            two_duration: float,
+            latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         comm_qubit_info = cls.perfect_qubit(is_communication=True)
         mem_qubit_info = cls.perfect_qubit(is_communication=False)
@@ -195,21 +195,21 @@ class EhiBuilder:
 
     @classmethod
     def generic_t1t2_star(
-        cls,
-        num_qubits: int,
-        flavour: Type[Flavour],
-        comm_decoherence: float,
-        mem_decoherence: float,
-        comm_instructions: List[Type[NetQASMInstruction]],
-        comm_duration: float,
-        comm_instr_decoherence: float,
-        mem_instructions: List[Type[NetQASMInstruction]],
-        mem_duration: float,
-        mem_instr_decoherence: float,
-        two_instructions: List[Type[NetQASMInstruction]],
-        two_duration: float,
-        two_instr_decoherence: float,
-        latencies: Optional[EhiLatencies] = None,
+            cls,
+            num_qubits: int,
+            flavour: Type[Flavour],
+            comm_decoherence: float,
+            mem_decoherence: float,
+            comm_instructions: List[Type[NetQASMInstruction]],
+            comm_duration: float,
+            comm_instr_decoherence: float,
+            mem_instructions: List[Type[NetQASMInstruction]],
+            mem_duration: float,
+            mem_instr_decoherence: float,
+            two_instructions: List[Type[NetQASMInstruction]],
+            two_duration: float,
+            two_instr_decoherence: float,
+            latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         comm_qubit_info = cls.decoherence_qubit(
             is_communication=True, decoherence_rate=comm_decoherence
@@ -306,14 +306,15 @@ class EhiNetworkSchedule:
     repeat_period: int
 
     length_of_qc_blocks: Dict[Tuple[int, int, int, int], float] | None = None
-        # (node_id1, pid1, node_id2, pid2) -> float (length of QC / PGA)
-        # TODO: Allow for session PGA/QC to change lengths during the schedule?
-        # TODO: Is the key the correct format here, or better to use EhiNetworkTimebin?
+
+    # (node_id1, pid1, node_id2, pid2) -> float (length of QC / PGA)
+    # TODO: Allow for session PGA/QC to change lengths during the schedule?
+    # TODO: Is the key the correct format here, or better to use EhiNetworkTimebin?
 
     def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
         global_offset = time - self.first_bin
 
-        print(time)
+        # print(time)
 
         # Get the start of the current iteration of the repeating pattern.
         curr_pattern_index = floor(global_offset / self.repeat_period)
@@ -339,9 +340,11 @@ class EhiNetworkSchedule:
         bin_index: Optional[int] = None
         first_bin_index: Optional[int] = None
 
-        print(time)
+        current_bin_index = (time % self.repeat_period) // self.bin_length + (
+            1 if time % self.bin_length != 0 else 0)  # Gets the index of the next bin in the future/present, i.e. if we are part of the way through a bin then the next possible bin is the next one. This will prevent needlessly jumping to the next schedule from taking the bin currently in as the "next" occurrence. It will still return the current bin if queried on a boundary.
 
-        current_bin_index = (time % self.repeat_period) // self.bin_length # Gets the bin index currently in
+        if current_bin_index >= len(self.bin_pattern):
+            current_bin_index = 0  # If we don't have enough bins to fill the repeat_period, then if the query time is in the gap between the end of the schedule and the end of the repeat period, then the next bin is the first, i.e. index 0.
 
         for i, pat_bin in enumerate(self.bin_pattern):
             if bin == pat_bin:
@@ -364,6 +367,9 @@ class EhiNetworkSchedule:
         curr_pattern_index = floor(global_offset / self.repeat_period)
         curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
         time_since_pattern_start = global_offset - curr_pattern_start
+
+        # print('|'.join(str(x) for x in [time, bin, current_bin_index, bin_index,bin_rel_to_pat_start - time_since_pattern_start if bin_rel_to_pat_start >= time_since_pattern_start else self.repeat_period - time_since_pattern_start + bin_rel_to_pat_start]))  # For debugging purposes.
+
         if bin_rel_to_pat_start >= time_since_pattern_start:
             return bin_rel_to_pat_start - time_since_pattern_start
         else:
@@ -386,7 +392,7 @@ class EhiNetworkInfo:
 
     @classmethod
     def fully_connected(
-        cls, nodes: Dict[int, str], info: EhiLinkInfo
+            cls, nodes: Dict[int, str], info: EhiLinkInfo
     ) -> EhiNetworkInfo:
         links: Dict[FrozenSet[int], EhiLinkInfo] = {}
         for n1, n2 in itertools.combinations(nodes.keys(), 2):
@@ -396,7 +402,7 @@ class EhiNetworkInfo:
 
     @classmethod
     def perfect_fully_connected(
-        cls, nodes: Dict[int, str], duration: float
+            cls, nodes: Dict[int, str], duration: float
     ) -> EhiNetworkInfo:
         link = EhiLinkInfo(duration=duration, fidelity=1.0)
         return cls.fully_connected(nodes, link)
