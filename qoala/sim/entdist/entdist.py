@@ -364,16 +364,26 @@ class EntDist(Protocol):
         return None
 
     def serve_request(
-        self, request: JointRequest
+        self, request: JointRequest, fixed_length_qc_blocks: bool = False
     ) -> Generator[EventExpression, None, None]:
-        yield from self.deliver_with_failure(
-            node1_id=request.node1_id,
-            node1_phys_id=request.node1_qubit_id,
-            node2_id=request.node2_id,
-            node2_phys_id=request.node2_qubit_id,
-            node1_pid=request.node1_pid,
-            node2_pid=request.node2_pid,
-        )
+        if fixed_length_qc_blocks:
+            yield from self.deliver_with_failure(
+                node1_id=request.node1_id,
+                node1_phys_id=request.node1_qubit_id,
+                node2_id=request.node2_id,
+                node2_phys_id=request.node2_qubit_id,
+                node1_pid=request.node1_pid,
+                node2_pid=request.node2_pid,
+            )
+        else:
+            yield from self.deliver(
+                node1_id=request.node1_id,
+                node1_phys_id=request.node1_qubit_id,
+                node2_id=request.node2_id,
+                node2_phys_id=request.node2_qubit_id,
+                node1_pid=request.node1_pid,
+                node2_pid=request.node2_pid,
+            )
 
     def serve_all_requests(self) -> Generator[EventExpression, None, None]:
         while (request := self.get_next_joint_request()) is not None:
@@ -421,7 +431,7 @@ class EntDist(Protocol):
             joint_request = self.get_next_joint_request()
             if joint_request is not None:
                 self._logger.warning("serving request")
-                yield from self.serve_request(joint_request)
+                yield from self.serve_request(joint_request, fixed_length_qc_blocks=True)
                 self._logger.warning("served request")
             else:
                 for node_id in requesting_nodes:
