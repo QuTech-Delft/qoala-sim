@@ -909,8 +909,17 @@ class QpuEdfScheduler(EdfScheduler):
         drv_mem = self._driver._memory
         rrcall = drv_mem.read_shared_rrcall(task.shared_ptr)
         process = self._memmgr.get_process(task.pid)
+
+        # from rich import print as rprint
+        # rprint(tid,self._node_id, process.epr_sockets)
+
         routine = process.get_request_routine(rrcall.routine_name)
         request = routine.request
+
+        # rprint(request)
+
+        print("I need to know my socket so I sure hope I have been instantiated")
+
         epr_sck = process.epr_sockets[request.epr_socket_id]
         return EhiNetworkTimebin(
             nodes=frozenset({self._node_id, epr_sck.remote_id}),
@@ -1039,6 +1048,8 @@ class QpuEdfScheduler(EdfScheduler):
         for e in epr_no_preds_not_blocked:
             if self._network_schedule is not None:
                 # Find the time until the next netschedule timebin that allows this EPR task.
+
+
                 bin = self.timebin_for_task(e)
                 self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")
                 delta = self._network_schedule.next_specific_bin(now, bin)

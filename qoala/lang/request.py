@@ -115,6 +115,7 @@ class QoalaRequest:
             self.remote_id = values[self.remote_id.name]
         if isinstance(self.epr_socket_id, Template):
             self.epr_socket_id = values[self.epr_socket_id.name]
+            print("I'm setting the socket value")
         if isinstance(self.num_pairs, Template):
             self.num_pairs = values[self.num_pairs.name]
         if isinstance(self.virt_ids.single_value, Template):
@@ -162,6 +163,7 @@ class RequestRoutine:
     callback: Optional[str]  # Local Routine name
 
     def instantiate(self, values: Dict[str, Any]) -> None:
+        print("I'm instantiating now!")
         for i in range(len(self.return_vars)):
             ret_var = self.return_vars[i]
             if isinstance(ret_var, RrReturnVector):
