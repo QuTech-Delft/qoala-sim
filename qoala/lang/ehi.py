@@ -358,7 +358,7 @@ class EhiNetworkSchedule:
             if first_bin_index is not None:
                 bin_index = first_bin_index  # If found a bin in the past / next period then take that as the bin index
             else:
-                raise ValueError
+                raise ValueError(f"No index found for bin {bin}")
 
         bin_rel_to_pat_start = bin_index * self.bin_length
 
