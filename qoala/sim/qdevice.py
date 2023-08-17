@@ -55,7 +55,7 @@ class QDevice:
         return len(self.get_non_comm_qubit_ids())
 
     def get_all_qubit_ids(self) -> Set[int]:
-        return {q for q, _ in self.topology.qubit_infos.items()}
+        return {q for q in self.topology.qubit_infos.keys()}
 
     def get_comm_qubit_ids(self) -> Set[int]:
         return {
@@ -100,10 +100,10 @@ class QDevice:
         self.qprocessor.mem_positions[id].in_use = in_use
 
     def execute_commands(
-        self, commands: List[QDeviceCommand]
+        self, commands: List[QDeviceCommand], parallel: bool = False
     ) -> Generator[EventExpression, None, Optional[int]]:
         """Can only return at most 1 measurement result."""
-        prog = QuantumProgram()
+        prog = QuantumProgram(parallel=parallel)
 
         # TODO: rewrite this abomination
 

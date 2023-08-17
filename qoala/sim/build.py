@@ -69,6 +69,7 @@ def build_qprocessor_from_topology(
                 quantum_noise_model=gate_info.error_model(
                     **gate_info.error_model_kwargs
                 ),
+                parallel=True,
             )
             phys_instructions.append(phys_instr)
 

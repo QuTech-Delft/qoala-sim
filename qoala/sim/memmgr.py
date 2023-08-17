@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from netsquid.protocols import Protocol
 
@@ -167,3 +167,6 @@ class MemoryManager(Protocol):
             if virt_loc.pid == pid:
                 return virt_loc.virt_id
         return None
+
+    def get_all_qubit_ids(self) -> Set[int]:
+        return self._qdevice.get_all_qubit_ids()
