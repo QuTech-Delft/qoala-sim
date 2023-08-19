@@ -567,6 +567,25 @@ def test_non_initalized():
         netsquid_run(qdevice.execute_commands(commands))
 
 
+def test_multiple_measurement():
+    num_qubits = 3
+    qdevice = perfect_uniform_qdevice(num_qubits)
+
+    commands = [
+        QDeviceCommand(ns_instr.INSTR_INIT, [0]),
+        QDeviceCommand(ns_instr.INSTR_INIT, [1]),
+        QDeviceCommand(ns_instr.INSTR_INIT, [2]),
+        QDeviceCommand(ns_instr.INSTR_MEASURE, [0], output_key="m0"),
+        QDeviceCommand(ns_instr.INSTR_MEASURE, [1], output_key="m1"),
+        QDeviceCommand(ns_instr.INSTR_MEASURE, [2], output_key="m2"),
+    ]
+
+    meas_outcome = netsquid_run(qdevice.execute_commands(commands))
+    assert meas_outcome["m0"] == [0]
+    assert meas_outcome["m1"] == [0]
+    assert meas_outcome["m2"] == [0]
+
+
 if __name__ == "__main__":
     test_static_generic()
     test_static_nv()
@@ -581,3 +600,4 @@ if __name__ == "__main__":
     test_unsupported_commands_generic()
     test_unsupported_commands_nv()
     test_non_initalized()
+    test_multiple_measurement()

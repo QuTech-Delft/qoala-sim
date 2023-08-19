@@ -807,36 +807,35 @@ class IonTrapProcessor(QnosProcessor):
         return None
 
     def _interpret_all_qubit_init(self):
+
         qubit_ids = self._interface.memmgr.get_all_qubit_ids()
         commands = [QDeviceCommand(INSTR_INIT, [phys_id]) for phys_id in qubit_ids]
         yield from self.qdevice.execute_commands(commands, parallel=True)
 
     def _interpret_all_qubit_meas(self, instr: trapped_ion.AllQubitsMeasInstruction):
-        pass
-        # qnos_mem = self._prog_mem().qnos_mem
-        #
-        # offset = qnos_mem.get_reg_value(instr.reg)
-        # result_addr = self._routine().result_addr
-        # shared_mem = self._prog_mem().shared_mem
-        #
-        # addr = instr.entry.address.address
-        # # Only allow NetQASM 2.0 input/output addresses
-        # assert isinstance(addr, str)
-        # assert addr == "output"
-        # entry = instr.entry.index
-        # assert isinstance(entry, Register)
-        # index = qnos_mem.get_reg_value(entry)
-        # self._logger.debug(
-        #     f"Measuring all qubits Storing value {value} from register {instr.reg} "
-        #     f"to array entry {instr.entry} (index {entry} = {index})"
-        # )
-        # qubit_ids = self._interface.memmgr.get_all_qubit_ids()
-        # commands = [QDeviceCommand(INSTR_MEASURE, [phys_id]) for phys_id in qubit_ids]
-        # yield from self.qdevice.execute_commands(commands, parallel=True)
-        #
-        # shared_mem.write_lr_out(result_addr, [value], offset=index)
-        #
-        # return None
+        qnos_mem = self._prog_mem().qnos_mem
+        offset = qnos_mem.get_reg_value(instr.reg)
+        result_addr = self._routine().result_addr
+        print("result_addr", result_addr)
+        shared_mem = self._prog_mem().shared_mem
+        addr = instr.address.address
+        # Only allow NetQASM 2.0 input/output addresses
+        assert isinstance(addr, str)
+        assert addr == "output"
+        self._logger.debug(f"Measuring all qubits")
+        qubit_ids = sorted(
+            self._interface.memmgr.get_all_qubit_ids()
+        )  # qubit ids in order
+        commands = [
+            QDeviceCommand(INSTR_MEASURE, [phys_id], output_key="m" + str(phys_id))
+            for phys_id in qubit_ids
+        ]
+        outcome = yield from self.qdevice.execute_commands(commands, parallel=True)
+        assert isinstance(outcome, dict)
+        results = [outcome["m" + str(phys_id)][0] for phys_id in qubit_ids]
+        shared_mem.write_lr_out(result_addr, results, offset=offset)
+
+        return None
 
     def _interpret_all_qubit_rotation(
         self, instr: trapped_ion.AllQubitsRotationInstruction, ns_instr: NsInstr

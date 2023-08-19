@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Generator, List, Optional, Set
+from typing import Generator, List, Optional, Set, Union
 
 from netsquid.components.instructions import INSTR_INIT, Instruction
 from netsquid.components.qprocessor import QuantumProcessor
@@ -24,6 +24,7 @@ class QDeviceCommand:
     instr: Instruction
     indices: List[int]
     angle: Optional[float] = None
+    output_key: str = "last"  # following the convention in the NetSquid
 
 
 class QDevice:
@@ -101,8 +102,7 @@ class QDevice:
 
     def execute_commands(
         self, commands: List[QDeviceCommand], parallel: bool = False
-    ) -> Generator[EventExpression, None, Optional[int]]:
-        """Can only return at most 1 measurement result."""
+    ) -> Generator[EventExpression, None, Optional[Union[int, List[int]]]]:
         prog = QuantumProgram(parallel=parallel)
 
         # TODO: rewrite this abomination
@@ -126,12 +126,22 @@ class QDevice:
 
         for cmd in commands:
             if cmd.angle is not None:
-                prog.apply(cmd.instr, qubit_indices=cmd.indices, angle=cmd.angle)
-            else:
-                prog.apply(cmd.instr, qubit_indices=cmd.indices)
-        yield self.qprocessor.execute_program(prog)
+                prog.apply(
+                    cmd.instr,
+                    qubit_indices=cmd.indices,
+                    angle=cmd.angle,
+                    output_key=cmd.output_key,
+                )
 
+            else:
+                prog.apply(
+                    cmd.instr, qubit_indices=cmd.indices, output_key=cmd.output_key
+                )
+
+        yield self.qprocessor.execute_program(prog)
         last_result = prog.output["last"]
+        if len(prog.output) > 1:  # if custom output_key is used
+            return prog.output
         if last_result is not None:
             meas_outcome: int = last_result[0]
             return meas_outcome

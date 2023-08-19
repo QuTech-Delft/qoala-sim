@@ -4,7 +4,12 @@ from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
 import pytest
-from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
+from netqasm.lang.instr.flavour import (
+    Flavour,
+    NVFlavour,
+    TrappedIonFlavour,
+    VanillaFlavour,
+)
 from netqasm.lang.parsing import parse_text_subroutine
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -43,7 +48,10 @@ from qoala.sim.qnos import (
     QnosLatencies,
     QnosProcessor,
 )
-from qoala.sim.qnos.qnosprocessor import UnsupportedNetqasmInstructionError
+from qoala.sim.qnos.qnosprocessor import (
+    IonTrapProcessor,
+    UnsupportedNetqasmInstructionError,
+)
 from qoala.util.math import has_multi_state, has_state
 from qoala.util.tests import netsquid_run
 
@@ -156,6 +164,18 @@ def create_process_with_nv_subrt(
     )
 
 
+def create_process_with_trapped_ion_subrt(
+    pid: int,
+    subrt_text: str,
+    unit_module: UnitModule,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
+) -> QoalaProcess:
+    return create_process_with_subrt(
+        pid, subrt_text, unit_module, TrappedIonFlavour(), uses, keeps
+    )
+
+
 def set_new_subroutine(
     process: QoalaProcess,
     subrt_text: str,
@@ -190,6 +210,15 @@ def set_new_nv_subroutine(
     keeps: Optional[List[int]] = None,
 ) -> None:
     set_new_subroutine(process, subrt_text, NVFlavour(), uses, keeps)
+
+
+def set_new_trapped_ion_subroutine(
+    process: QoalaProcess,
+    subrt_text: str,
+    uses: Optional[List[int]] = None,
+    keeps: Optional[List[int]] = None,
+) -> None:
+    set_new_subroutine(process, subrt_text, TrappedIonFlavour(), uses, keeps)
 
 
 def execute_process(processor: GenericProcessor, process: QoalaProcess) -> int:
@@ -259,6 +288,19 @@ def setup_components_nv_star(
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
     processor = NVProcessor(interface, latencies)
+    return processor, unit_module
+
+
+def setup_components_trapped_ion(
+    num_qubits: int, latencies: QnosLatencies = QnosLatencies.all_zero()
+) -> Tuple[QnosProcessor, UnitModule]:
+    qdevice = perfect_uniform_qdevice(num_qubits)
+    ehi = LhiConverter.to_ehi(qdevice.topology, ntf=GenericNtf())
+    unit_module = UnitModule.from_full_ehi(ehi)
+    qnos_comp = QnosComponent(node=qdevice._node)
+    memmgr = MemoryManager(qdevice._node.name, qdevice)
+    interface = QnosInterface(qnos_comp, qdevice, memmgr)
+    processor = IonTrapProcessor(interface, latencies)
     return processor, unit_module
 
 
@@ -900,6 +942,81 @@ def test_multiple_processes_nv_alloc_error():
     # but there is only one physical comm qubit available.
     with pytest.raises(AllocError):
         execute_multiple_processes(processor, [process0, process1])
+
+
+def test_initialize_all():
+    num_qubits = 3
+    processor, unit_module = setup_components_trapped_ion(num_qubits)
+
+    subrt = """
+    init_all
+    """
+    process = create_process_with_trapped_ion_subrt(
+        0, subrt, unit_module, [0, 1, 2], [0, 1, 2]
+    )
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+
+    qubit0 = processor.qdevice.get_local_qubit(0)
+    qubit1 = processor.qdevice.get_local_qubit(1)
+    qubit2 = processor.qdevice.get_local_qubit(2)
+
+    assert has_state(qubit0, ketstates.s0)
+    assert has_state(qubit1, ketstates.s0)
+    assert has_state(qubit2, ketstates.s0)
+
+
+def test_rotate_all():
+    num_qubits = 3
+    processor, unit_module = setup_components_trapped_ion(num_qubits)
+
+    subrt = """
+    init_all
+    rot_y_all 8 4
+    """
+    process = create_process_with_trapped_ion_subrt(
+        0, subrt, unit_module, [0, 1, 2], [0, 1, 2]
+    )
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+
+    qubit0 = processor.qdevice.get_local_qubit(0)
+    qubit1 = processor.qdevice.get_local_qubit(1)
+    qubit2 = processor.qdevice.get_local_qubit(2)
+
+    assert has_state(qubit0, ketstates.h0)
+    assert has_state(qubit1, ketstates.h0)
+    assert has_state(qubit2, ketstates.h0)
+
+    subrt = """
+    rot_z_all 24 4
+    """
+
+    set_new_trapped_ion_subroutine(process, subrt, [0, 1, 2], [0, 1, 2])
+    execute_process(processor, process)
+
+    qubit0 = processor.qdevice.get_local_qubit(0)
+    qubit1 = processor.qdevice.get_local_qubit(1)
+    qubit2 = processor.qdevice.get_local_qubit(2)
+
+    assert has_state(qubit0, ketstates.y1)
+    assert has_state(qubit1, ketstates.y1)
+    assert has_state(qubit2, ketstates.y1)
+
+
+def test_bichromatic():
+    num_qubits = 3
+    processor, unit_module = setup_components_trapped_ion(num_qubits)
+
+    subrt = """
+        init_all
+        bichromatic 8 4
+        """
+    process = create_process_with_trapped_ion_subrt(
+        0, subrt, unit_module, [0, 1, 2], [0, 1, 2]
+    )
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
 
 
 if __name__ == "__main__":
