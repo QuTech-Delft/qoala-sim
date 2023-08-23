@@ -72,8 +72,8 @@ def run_qkd(
         state_delay=0.0
     )
 
-    pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
-    pattern.insert(1, (-1,-1,-1,-1))
+    pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)] + [(alice_id, 0, bob_id, 0)]
+    # pattern.insert(1, (-1,-1,-1,-1))
     network_cfg.netschedule = NetworkScheduleConfig(
         bin_length=800_000, first_bin=0, bin_pattern=pattern, repeat_period=8_800_000
     )
@@ -89,7 +89,7 @@ def run_qkd(
         bob_input = ProgramInput({"alice_id": alice_id})
 
     netschedule = EhiNetworkSchedule(
-        first_bin=network_cfg.netschedule.first_bin, bin_pattern=[EhiNetworkTimebin(nodes=L.nodes, pids = L.pids) for L in network_cfg.netschedule.to_bin_pattern()], bin_length=network_cfg.netschedule.bin_length, repeat_period=network_cfg.netschedule.repeat_period, length_of_QC_blocks={(alice_id, i, bob_id, i):800_000.0 for i in range(num_iterations)}
+        first_bin=network_cfg.netschedule.first_bin, bin_pattern=[EhiNetworkTimebin(nodes=L.nodes, pids = L.pids) for L in network_cfg.netschedule.to_bin_pattern()], bin_length=network_cfg.netschedule.bin_length, repeat_period=network_cfg.netschedule.repeat_period, length_of_qc_blocks={(alice_id, i, bob_id, i):800_000.0 for i in range(num_iterations)}
     )
 
     rprint(netschedule.bin_pattern)
