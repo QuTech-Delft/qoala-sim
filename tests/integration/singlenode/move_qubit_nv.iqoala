@@ -6,16 +6,16 @@ META_START
 META_END
 
 ^b0 {type = QL}:
-    run_subroutine(tuple<>) : init_mem_qubit
+    run_subroutine() : init_mem_qubit
 
 ^b1 {type = QL}:
-    run_subroutine(tuple<>) : prepare_comm_qubit
+    run_subroutine() : prepare_comm_qubit
 
 ^b2 {type = QL}:
-    run_subroutine(tuple<>) : move_qubit
+    run_subroutine() : move_qubit
 
 ^b3 {type = QL}:
-    tuple<m> = run_subroutine(tuple<>) : measure
+    tuple<m> = run_subroutine() : measure
 
 ^b4 {type = CL}:
     return_result(m)

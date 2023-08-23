@@ -16,8 +16,10 @@ from qoala.lang.hostlang import (
     BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
     ClassicalIqoalaOp,
+    IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
+    IqoalaVectorElement,
     MultiplyConstantCValueOp,
     ReceiveCMsgOp,
     ReturnResultOp,
@@ -34,14 +36,12 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
-    RrReturnVector,
 )
-from qoala.lang.routine import LocalRoutine, LrReturnVector, RoutineMetadata
+from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import SharedMemory
-from qoala.runtime.task import TaskGraph
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.host.hostprocessor import HostProcessor
@@ -66,6 +66,11 @@ class MockHostInterface(HostInterface):
         self.recv_events: List[InterfaceEvent] = []
 
         self.shared_mem = shared_mem
+        self._program_instance_jumps: Dict[int, int] = {}  # pid => block name
+
+    @property
+    def program_instance_jumps(self) -> Dict[int, int]:
+        return self._program_instance_jumps
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self.send_events.append(InterfaceEvent(peer, msg))
@@ -136,7 +141,6 @@ def create_process(
         program=program,
         inputs=prog_input,
         unit_module=UnitModule.from_full_ehi(mock_ehi),
-        task_graph=TaskGraph(),
     )
 
     mem = ProgramMemory(pid=0)
@@ -175,7 +179,7 @@ def test_initialize():
 def test_assign_cvalue():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero())
-    program = create_program(instrs=[AssignCValueOp("x", 3)])
+    program = create_program(instrs=[AssignCValueOp(IqoalaSingleton("x"), 3)])
     process = create_process(program, interface)
     processor.initialize(process)
 
@@ -189,7 +193,7 @@ def test_assign_cvalue_with_latencies():
     interface = MockHostInterface()
     latencies = HostLatencies(host_instr_time=500)
     processor = HostProcessor(interface, latencies)
-    program = create_program(instrs=[AssignCValueOp("x", 3)])
+    program = create_program(instrs=[AssignCValueOp(IqoalaSingleton("x"), 3)])
     process = create_process(program, interface)
     processor.initialize(process)
 
@@ -233,7 +237,10 @@ def test_send_msg():
     processor = HostProcessor(interface, HostLatencies.all_zero())
     meta = ProgramMeta.empty("alice")
     meta.csockets = {0: "bob"}
-    program = create_program(instrs=[SendCMsgOp("bob", "msg")], meta=meta)
+
+    program = create_program(
+        instrs=[SendCMsgOp(IqoalaSingleton("bob"), IqoalaSingleton("msg"))], meta=meta
+    )
     process = create_process(program, interface, inputs={"bob": 0, "msg": 12})
     processor.initialize(process)
 
@@ -264,7 +271,10 @@ def test_recv_msg():
     processor = HostProcessor(interface, HostLatencies.all_zero())
     meta = ProgramMeta.empty("alice")
     meta.csockets = {0: "bob"}
-    program = create_program(instrs=[ReceiveCMsgOp("bob", "msg")], meta=meta)
+    program = create_program(
+        instrs=[ReceiveCMsgOp(IqoalaSingleton("bob"), IqoalaSingleton("msg"))],
+        meta=meta,
+    )
     process = create_process(program, interface, inputs={"bob": 0})
     processor.initialize(process)
 
@@ -281,7 +291,10 @@ def test_recv_msg_with_latencies():
     processor = HostProcessor(interface, latencies)
     meta = ProgramMeta.empty("alice")
     meta.csockets = {0: "bob"}
-    program = create_program(instrs=[ReceiveCMsgOp("bob", "msg")], meta=meta)
+    program = create_program(
+        instrs=[ReceiveCMsgOp(IqoalaSingleton("bob"), IqoalaSingleton("msg"))],
+        meta=meta,
+    )
     process = create_process(program, interface, inputs={"bob": 0})
     processor.initialize(process)
 
@@ -297,9 +310,11 @@ def test_add_cvalue():
     processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
         instrs=[
-            AssignCValueOp("a", 2),
-            AssignCValueOp("b", 3),
-            AddCValueOp("sum", "a", "b"),
+            AssignCValueOp(IqoalaSingleton("a"), 2),
+            AssignCValueOp(IqoalaSingleton("b"), 3),
+            AddCValueOp(
+                IqoalaSingleton("sum"), IqoalaSingleton("a"), IqoalaSingleton("b")
+            ),
         ]
     )
     process = create_process(program, interface)
@@ -342,9 +357,11 @@ def test_add_cvalue_with_latencies():
     processor = HostProcessor(interface, HostLatencies(host_instr_time=1200))
     program = create_program(
         instrs=[
-            AssignCValueOp("a", 2),
-            AssignCValueOp("b", 3),
-            AddCValueOp("sum", "a", "b"),
+            AssignCValueOp(IqoalaSingleton("a"), 2),
+            AssignCValueOp(IqoalaSingleton("b"), 3),
+            AddCValueOp(
+                IqoalaSingleton("sum"), IqoalaSingleton("a"), IqoalaSingleton("b")
+            ),
         ]
     )
     process = create_process(program, interface)
@@ -362,7 +379,12 @@ def test_multiply_const():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
-        instrs=[AssignCValueOp("a", 4), MultiplyConstantCValueOp("result", "a", -1)]
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("a"), 4),
+            MultiplyConstantCValueOp(
+                IqoalaSingleton("result"), IqoalaSingleton("a"), -1
+            ),
+        ]
     )
     process = create_process(program, interface)
     processor.initialize(process)
@@ -412,12 +434,22 @@ def test_bit_cond_mult():
     processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
         instrs=[
-            AssignCValueOp("var1", 4),
-            AssignCValueOp("var2", 7),
-            AssignCValueOp("cond1", 0),
-            AssignCValueOp("cond2", 1),
-            BitConditionalMultiplyConstantCValueOp("result1", "var1", "cond1", -1),
-            BitConditionalMultiplyConstantCValueOp("result2", "var2", "cond2", -1),
+            AssignCValueOp(IqoalaSingleton("var1"), 4),
+            AssignCValueOp(IqoalaSingleton("var2"), 7),
+            AssignCValueOp(IqoalaSingleton("cond1"), 0),
+            AssignCValueOp(IqoalaSingleton("cond2"), 1),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result1"),
+                IqoalaSingleton("var1"),
+                IqoalaSingleton("cond1"),
+                -1,
+            ),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result2"),
+                IqoalaSingleton("var2"),
+                IqoalaSingleton("cond2"),
+                -1,
+            ),
         ]
     )
     process = create_process(program, interface)
@@ -488,7 +520,7 @@ def test_prepare_lr_call():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
     instr = RunSubroutineOp(
         result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
@@ -512,7 +544,7 @@ def test_post_lr_call():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
     instr = RunSubroutineOp(
         result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
@@ -564,7 +596,7 @@ def test_prepare_rr_call():
         role=EprRole.CREATE,
     )
     routine = RequestRoutine(
-        "req", request, [RrReturnVector("outcomes", 10)], CallbackType.WAIT_ALL, None
+        "req", request, [IqoalaVector("outcomes", 10)], CallbackType.WAIT_ALL, None
     )
     instr = RunRequestOp(
         result=IqoalaVector("outcomes", 10), values=IqoalaTuple([]), routine="req"
@@ -590,7 +622,7 @@ def test_prepare_rr_call_with_callbacks_seq():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     local_routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
 
     request = create_simple_request(
@@ -693,7 +725,7 @@ def test_post_rr_call_with_callbacks_seq():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     local_routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
 
     request = create_simple_request(
@@ -780,7 +812,10 @@ def test_return_result():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero())
     program = create_program(
-        instrs=[AssignCValueOp("result", 2), ReturnResultOp("result")]
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("result"), 2),
+            ReturnResultOp(IqoalaSingleton("result")),
+        ]
     )
     process = create_process(program, interface)
     processor.initialize(process)
@@ -790,6 +825,41 @@ def test_return_result():
 
     assert process.prog_memory.host_mem.read("result") == 2
     assert process.result.values == {"result": 2}
+
+
+def test_vector_element():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
+    )
+    instr = RunSubroutineOp(
+        result=IqoalaVector("res", 3), values=IqoalaTuple([]), subrt="subrt1"
+    )
+    instr2 = AddCValueOp(
+        IqoalaSingleton("result"),
+        IqoalaVectorElement("res", 0),
+        IqoalaVectorElement("res", 1),
+    )
+
+    program = create_program(instrs=[instr, instr2], subroutines={"subrt1": routine})
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    lrcall = processor.prepare_lr_call(process, program.instructions[0])
+    # Mock LR execution by writing results to shared memory.
+    process.shared_mem.write_lr_out(lrcall.result_addr, [1, 2, 3])
+
+    processor.post_lr_call(process, program.instructions[0], lrcall)
+
+    yield_from(processor.assign_instr_index(process, 1))
+
+    # Host memory should contain the results.
+    assert process.host_mem.read_vec("res") == [1, 2, 3]
+    assert process.prog_memory.host_mem.read("result") == 3
 
 
 if __name__ == "__main__":
@@ -819,3 +889,4 @@ if __name__ == "__main__":
     test_post_rr_call_with_callbacks_seq()
     test_post_rr_call_with_callbacks_wait_all()
     test_return_result()
+    test_vector_element()

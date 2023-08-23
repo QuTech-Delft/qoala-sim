@@ -7,7 +7,7 @@ from netsquid.components.models.qerrormodels import QuantumErrorModel
 from netsquid.components.qprocessor import PhysicalInstruction, QuantumProcessor
 from netsquid.nodes.connections import Connection
 
-from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo, EhiNetworkSchedule
+from qoala.lang.ehi import EhiLinkInfo, EhiNetworkInfo
 
 # Ignore type since whole 'config' module is ignored by mypy
 from qoala.runtime.config import ProcNodeConfig, ProcNodeNetworkConfig  # type: ignore
@@ -16,6 +16,7 @@ from qoala.runtime.lhi import (
     LhiLatencies,
     LhiLinkInfo,
     LhiNetworkInfo,
+    LhiNetworkSchedule,
     LhiProcNodeInfo,
     LhiTopology,
     LhiTopologyBuilder,
@@ -113,6 +114,7 @@ def build_procnode_from_config(
         network_ehi=network_ehi,
         deterministic_scheduler=cfg.determ_sched,
         use_deadlines=cfg.use_deadlines,
+        is_predictable=cfg.is_predictable,
     )
 
     # TODO: refactor this hack
@@ -136,8 +138,9 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         ehi_links[node_link] = ehi_link
     nodes = {cfg.node_id: cfg.node_name for cfg in config.nodes}
     if config.netschedule is not None:
-        netschedule = EhiNetworkSchedule.from_config(config.netschedule)
-        network_ehi = EhiNetworkInfo(nodes, ehi_links, netschedule)
+        lhi_netschedule = LhiNetworkSchedule.from_config(config.netschedule)
+        ehi_netschedule = LhiConverter.netschedule_to_ehi(lhi_netschedule)
+        network_ehi = EhiNetworkInfo(nodes, ehi_links, ehi_netschedule)
     else:
         network_ehi = EhiNetworkInfo(nodes, ehi_links)
 

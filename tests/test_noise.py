@@ -33,7 +33,6 @@ from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
-from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import QoalaProcess
@@ -91,7 +90,7 @@ def setup_noisy_components(num_qubits: int) -> Tuple[QnosProcessor, UnitModule]:
     memmgr = MemoryManager(qdevice._node.name, qdevice)
     interface = QnosInterface(qnos_comp, qdevice, memmgr)
     processor = GenericProcessor(interface, latencies=QnosLatencies.all_zero())
-    return (processor, unit_module)
+    return processor, unit_module
 
 
 def create_program(
@@ -113,7 +112,6 @@ def create_process(
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 

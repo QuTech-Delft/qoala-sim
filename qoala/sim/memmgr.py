@@ -1,8 +1,11 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
+
+from netsquid.protocols import Protocol
 
 from qoala.lang.ehi import EhiNodeInfo, UnitModule
+from qoala.sim.events import SIGNAL_MEMORY_FREED
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
 from qoala.util.logging import LogManager
@@ -35,7 +38,7 @@ class VirtualLocation:
     virt_id: int
 
 
-class MemoryManager:
+class MemoryManager(Protocol):
     def __init__(
         self,
         node_name: str,
@@ -54,6 +57,8 @@ class MemoryManager:
         self._physical_mapping: Dict[int, Optional[VirtualLocation]] = {
             i: None for i in qdevice.get_all_qubit_ids()
         }  # phys ID -> virt location
+
+        self.add_signal(SIGNAL_MEMORY_FREED)
 
     def _get_free_comm_phys_id(self) -> int:
         for phys_id in self._qdevice.get_comm_qubit_ids():
@@ -80,6 +85,9 @@ class MemoryManager:
 
     def get_process(self, pid: int) -> QoalaProcess:
         return self._processes[pid]
+
+    def get_all_program_ids(self) -> List[int]:
+        return list(self._processes.keys())
 
     def allocate(self, pid: int, virt_id: int) -> int:
         vmap = self._process_mappings[pid]
@@ -130,6 +138,9 @@ class MemoryManager:
 
         # update netsquid memory
         self._qdevice.set_mem_pos_in_use(phys_id, False)
+
+        # send a signal for components that may be blocked on resources
+        self.send_signal(SIGNAL_MEMORY_FREED)
 
     def get_unmapped_non_comm_qubit(self, pid: int) -> int:
         """returns virt ID"""

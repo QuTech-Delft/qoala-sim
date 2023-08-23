@@ -6,16 +6,16 @@ META_START
 META_END
 
 ^b1 {type = QC}:
-    run_request(tuple<>) : req
+    run_request() : req
 
 ^b2 {type = QL}:
-    run_subroutine(tuple<>) : move
+    run_subroutine() : move
 
 ^b3 {type = QC}:
-    run_request(tuple<>) : req
+    run_request() : req
 
 ^b4 {type = QL}:
-    tuple<m0; m1> = run_subroutine(tuple<>) : measure
+    tuple<m0; m1> = run_subroutine() : measure
 
 ^b5 {type = CL}:
     return_result(m0)
@@ -52,7 +52,7 @@ SUBROUTINE measure
   NETQASM_END
 
 REQUEST req
-  callback_type: SEQUENTIAL
+  callback_type:
   callback: 
   return_vars:
   remote_id: {alice_id}

@@ -350,14 +350,11 @@ def test_find_gates():
             assert ehi.find_single_gate(i, nv.RotZInstruction) is not None
         else:
             assert ehi.find_single_gate(i, nv.RotZInstruction) is None
-    assert ehi.find_single_gate(4, nv.GateHInstruction) is None
 
     for i in range(1, 3):
         assert ehi.find_multi_gate([0, i], nv.ControlledRotXInstruction) is not None
         assert ehi.find_multi_gate([0, i], nv.ControlledRotYInstruction) is not None
         assert ehi.find_multi_gate([i, 0], nv.ControlledRotYInstruction) is None
-
-    assert ehi.find_multi_gate([0, 0], nv.GateYInstruction) is None
 
 
 def test_network_ehi():

@@ -4,7 +4,6 @@ from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
-from qoala.runtime.task import TaskGraph
 from qoala.sim.process import QoalaProcess
 
 
@@ -34,7 +33,6 @@ def create_process(program: QoalaProgram) -> QoalaProcess:
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=0)
 

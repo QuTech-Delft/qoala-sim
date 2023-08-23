@@ -6,14 +6,14 @@ META_START
 META_END
 
 ^b1 {type = QC}:
-    tuple<m0> = run_request(tuple<>) : req
+    tuple<m0> = run_request() : req
   
 ^b2 {type = CL}:
     return_result(m0)
 
 
 REQUEST req
-  callback_type: wait_all
+  callback_type:
   callback: 
   return_vars: m0
   remote_id: {alice_id}

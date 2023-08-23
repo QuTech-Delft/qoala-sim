@@ -5,6 +5,7 @@ from netqasm.lang.subroutine import Subroutine
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
+from qoala.lang.hostlang import IqoalaVector
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
@@ -13,9 +14,8 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
-    RrReturnVector,
 )
-from qoala.lang.routine import LocalRoutine, LrReturnVector, RoutineMetadata
+from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine
@@ -23,7 +23,6 @@ from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
-from qoala.runtime.task import TaskGraph
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.memmgr import AllocError, MemoryManager
@@ -104,7 +103,6 @@ def create_process(
         program=program,
         inputs=ProgramInput({}),
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 
@@ -210,8 +208,8 @@ def test__create_entdist_request():
         local_node_id=interface.node_id,
         remote_node_id=1,
         local_qubit_id=phys_id,
-        local_pids=[0],
-        remote_pids=[42],
+        local_pid=0,
+        remote_pid=42,
     )
 
 
@@ -225,7 +223,7 @@ def test_instantiate():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     local_routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
 
     request = QoalaRequest(
@@ -242,7 +240,7 @@ def test_instantiate():
     routine = RequestRoutine(
         "req",
         request,
-        [RrReturnVector("outcomes", 1)],
+        [IqoalaVector("outcomes", 1)],
         CallbackType.WAIT_ALL,
         "subrt1",
     )

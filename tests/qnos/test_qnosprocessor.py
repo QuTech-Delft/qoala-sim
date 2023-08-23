@@ -17,7 +17,6 @@ from qoala.runtime.message import Message
 from qoala.runtime.ntf import NvNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.sharedmem import MemAddr
-from qoala.runtime.task import TaskGraph
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
@@ -109,7 +108,6 @@ def create_process(
         program=program,
         inputs=inputs,
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
     mem = ProgramMemory(pid=pid)
 
@@ -226,7 +224,7 @@ def setup_components(
     unit_module = UnitModule.from_full_ehi(ehi)
     interface = MockQnosInterface(qdevice)
     processor = QnosProcessor(interface, latencies)
-    return (processor, unit_module)
+    return processor, unit_module
 
 
 def uniform_topology(num_qubits: int) -> LhiTopology:
@@ -353,6 +351,20 @@ def test_div_rounded():
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
     assert process.prog_memory.qnos_mem.get_reg_value("R2") == 5
+
+
+def test_rem():
+    processor, unit_module = setup_components(star_topology(2))
+
+    subrt = """
+    set R0 16
+    set R1 3
+    rem R2 R0 R1
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 1
 
 
 def test_no_branch():
@@ -512,6 +524,7 @@ if __name__ == "__main__":
     test_mul()
     test_div()
     test_div_rounded()
+    test_rem()
     test_no_branch()
     test_branch()
     test_branch_with_latencies()
