@@ -13,7 +13,7 @@ from qoala.runtime.message import Message
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
 from qoala.runtime.task import TaskGraph
-from qoala.sim.entdist.entdist import EntDistRequest
+from qoala.sim.entdist.entdist import EntDistRequest, WindowedEntDistRequest
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.memmgr import AllocError, MemoryManager
 from qoala.sim.netstack import NetstackInterface, NetstackLatencies, NetstackProcessor
@@ -118,6 +118,26 @@ def create_simple_request(
         role=EprRole.CREATE,
     )
 
+def create_windowed_request(
+    remote_id: int,
+    num_pairs: int,
+    window: int,
+    virt_ids: RequestVirtIdMapping,
+    epr_socket_id: int = 0,
+) -> QoalaRequest:
+    return QoalaRequest(
+        name="req",
+        remote_id=remote_id,
+        epr_socket_id=epr_socket_id,
+        num_pairs=num_pairs,
+        window=window,
+        virt_ids=virt_ids,
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+    )
+
 
 def test__allocate_for_pair():
     topology = generic_topology(5)
@@ -169,9 +189,10 @@ def test__create_entdist_request():
     latencies = NetstackLatencies.all_zero()
     processor = NetstackProcessor(interface, latencies)
 
-    request = create_simple_request(
+    request = create_windowed_request(
         remote_id=1,
         num_pairs=5,
+        window=500_000,
         virt_ids=RequestVirtIdMapping.from_str("all 0"),
         epr_socket_id=7,
     )
@@ -186,7 +207,46 @@ def test__create_entdist_request():
         remote_pid=42,
     )
 
+def test__create_windowed_entdist_request():
+    topology = generic_topology(10)
+    qdevice = MockQDevice(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
+    unit_module = UnitModule.from_full_ehi(ehi)
+    memmgr = MemoryManager("alice", qdevice)
+
+    process = create_process(0, unit_module)
+    memmgr.add_process(process)
+
+    interface = MockNetstackInterface(qdevice, memmgr)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
+
+    request = create_windowed_request(
+        remote_id=1,
+        num_pairs=5,
+        window=500_000,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        epr_socket_id=7,
+    )
+
+    virt_ids =[1,2,3,4,5]
+    phys_ids = []
+
+    for v in virt_ids:
+        phys_ids.append(memmgr.allocate(process.pid, v))
+
+    process.epr_sockets[7] = EprSocket(7, 1, 0, 42, 1.0)
+    assert processor._create_windowed_entdist_request(process, request, virt_ids) == WindowedEntDistRequest(
+        local_node_id=interface.node_id,
+        remote_node_id=1,
+        local_qubit_id=phys_ids,
+        local_pid=0,
+        remote_pid=42,
+        window=500_000,
+        num_pairs=5,
+    )
 
 if __name__ == "__main__":
     test__allocate_for_pair()
     test__create_entdist_request()
+    test__create_windowed_entdist_request()

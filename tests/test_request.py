@@ -101,8 +101,37 @@ REQUEST req1
     assert request.remote_id == 2
     assert request.num_pairs == 10
 
+def test_instantiate_socket():
+    text = """
+REQUEST req1
+  callback_type: wait_all
+  callback: 
+  return_vars: 
+  remote_id: {client_id}
+  epr_socket_id: {socket}
+  num_pairs: {num_pairs}
+  virt_ids: custom 1, 2, 3
+  timeout: 1000
+  fidelity: 0.65
+  typ: measure_directly
+  role: receive
+    """
+
+    request_routine = RequestRoutineParser(text).parse()["req1"]
+    request = request_routine.request
+    assert request.remote_id == Template(name="client_id")
+    assert request.num_pairs == Template(name="num_pairs")
+    assert request.epr_socket_id == Template(name="socket")
+
+    request.instantiate(values={"client_id": 2, "num_pairs": 10, "socket":10})
+    assert request.remote_id == 2
+    assert request.num_pairs == 10
+    assert request.epr_socket_id == 10
+
+
 
 if __name__ == "__main__":
     test_virt_id_mapping_to_string()
     test_string_to_virt_id_mapping()
     test_instantiate()
+    test_instantiate_socket()

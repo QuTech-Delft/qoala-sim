@@ -517,6 +517,7 @@ REQUEST req1
             fidelity=0.65,
             typ=EprType.CREATE_KEEP,
             role=EprRole.CREATE,
+            window=None,
         ),
     )
 
@@ -530,6 +531,7 @@ REQUEST req1
   remote_id: 1
   epr_socket_id: 0
   num_pairs: 3
+  window: 500_000
   virt_ids: custom 1, 2, 3
   timeout: 1000
   fidelity: 0.65
@@ -557,6 +559,7 @@ REQUEST req1
             fidelity=0.65,
             typ=EprType.MEASURE_DIRECTLY,
             role=EprRole.RECEIVE,
+            window=500_000
         ),
     )
 
