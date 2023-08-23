@@ -7,7 +7,7 @@ from qoala.lang.request import CallbackType, EprType, QoalaRequest
 from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine
 from qoala.runtime.message import Message, RrCallTuple
-from qoala.sim.entdist.entdist import EntDistRequest
+from qoala.sim.entdist.entdist import EntDistRequest, WindowedEntDistRequest, WindowedEntanglementPacket
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
@@ -83,6 +83,28 @@ class NetstackProcessor:
             remote_pid=epr_sck.remote_pid,
         )
 
+    def _create_windowed_entdist_request(
+        self, process: QoalaProcess, request: QoalaRequest, virt_ids: List[int]
+    ) -> EntDistRequest:
+        memmgr = self._interface.memmgr
+        pid = process.pid
+        phys_ids = []
+        for virt_id in virt_ids:
+            phys_ids.append(memmgr.phys_id_for(pid, virt_id))
+
+
+        epr_sck = process.epr_sockets[request.epr_socket_id]
+
+        return WindowedEntDistRequest(
+            local_node_id=self._interface.node_id,
+            remote_node_id=request.remote_id,
+            local_qubit_id=phys_ids,
+            local_pid=epr_sck.local_pid,
+            remote_pid=epr_sck.remote_pid,
+            window=request.window,
+            num_pairs=request.num_pairs,
+        )
+
     def measure_epr_qubit(
         self, process: QoalaProcess, virt_id: int
     ) -> Generator[EventExpression, None, int]:
@@ -102,6 +124,7 @@ class NetstackProcessor:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
+        print(routine.request)
         assert request.typ == EprType.CREATE_KEEP
         num_pairs = request.num_pairs
 
@@ -112,6 +135,30 @@ class NetstackProcessor:
             if not result:
                 self._interface.memmgr.free(process.pid, virt_id)
                 return False
+        return True
+
+    def _handle_multi_pair_ck_windowed(
+        self, process: QoalaProcess, routine_name: str
+    ) -> Generator[EventExpression, None, bool]:
+        running_routine = process.qnos_mem.get_running_request_routine(routine_name)
+        routine = running_routine.routine
+        request = routine.request
+        print(routine.request)
+        assert request.typ == EprType.CREATE_KEEP
+        num_pairs = request.num_pairs
+
+        virt_ids = []
+
+        for i in range(num_pairs):
+            virt_ids.append(self._allocate_for_pair(process, request, i))
+
+        entdist_req = self._create_windowed_entdist_request(process, request, virt_ids)
+        result = yield from self._execute_entdist_request(entdist_req)
+
+        if not result:
+            for virt_id in virt_ids:
+                self._interface.memmgr.free(process.pid, virt_id)
+            return False
         return True
 
     def _handle_multi_pair_md(
@@ -155,7 +202,10 @@ class NetstackProcessor:
         request = routine.request
 
         if request.typ == EprType.CREATE_KEEP:
-            result = yield from self._handle_multi_pair_ck(process, routine_name)
+            if request.window is None:
+                result = yield from self._handle_multi_pair_ck(process, routine_name)
+            else:
+                result = yield from self._handle_multi_pair_ck_windowed(process, routine_name)
         elif request.typ == EprType.MEASURE_DIRECTLY:
             result = yield from self._handle_multi_pair_md(process, routine_name)
         else:
