@@ -499,6 +499,25 @@ class RequestRoutineParser:
         assert len(strings) == 1
         return strings[0]
 
+    def _parse_window(self, key: str, line: str) -> Optional[int, Template]:
+        if "window" in line:
+            strings = self._parse_request_line(key, line)
+        else:
+            self._lineno -= 1  # Go back a line to re-read the line
+            return None
+        if len(strings) == 0:
+            return None
+        elif len(strings) > 1:
+            raise QoalaParseError
+
+        value = strings[0]
+        if value.startswith("{") and value.endswith("}"):
+            value = value.strip("{}").strip()
+            return Template(value)
+
+        return int(value)
+
+
     def _parse_int_list_value(self, key: str, line: str) -> List[int]:
         strings = self._parse_request_line(key, line)
         return [int(s) for s in strings]
@@ -567,6 +586,7 @@ class RequestRoutineParser:
         num_pairs = self._parse_single_int_value(
             "num_pairs", self._read_line(), allow_template=True
         )
+        window = self._parse_window("window", self._read_line())
         # virt_ids = self._parse_int_list_value("virt_ids", self._read_line())
         virt_ids = self._parse_virt_ids("virt_ids", self._read_line())
         timeout = self._parse_single_int_value(
@@ -583,6 +603,7 @@ class RequestRoutineParser:
             remote_id=remote_id,
             epr_socket_id=epr_socket_id,
             num_pairs=num_pairs,
+            window=window,
             virt_ids=virt_ids,
             timeout=timeout,
             fidelity=fidelity,
