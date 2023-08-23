@@ -109,13 +109,14 @@ class QoalaRequest:
     fidelity: float
     typ: EprType
     role: EprRole
+    window: Union[int, Template, None] = None
 
     def instantiate(self, values: Dict[str, Any]) -> None:
         if isinstance(self.remote_id, Template):
             self.remote_id = values[self.remote_id.name]
         if isinstance(self.epr_socket_id, Template):
             self.epr_socket_id = values[self.epr_socket_id.name]
-            print("I'm setting the socket value")
+            # print("I'm setting the socket value")
         if isinstance(self.num_pairs, Template):
             self.num_pairs = values[self.num_pairs.name]
         if isinstance(self.virt_ids.single_value, Template):
@@ -126,6 +127,8 @@ class QoalaRequest:
             self.timeout = values[self.timeout.name]
         if isinstance(self.fidelity, Template):
             self.fidelity = values[self.fidelity.name]
+        if isinstance(self.window, Template):
+            self.window = values[self.window.name]
 
     def serialize(self) -> str:
         s = f"REQUEST {self.name}"
@@ -137,6 +140,7 @@ class QoalaRequest:
         s += f"fidelity: {self.fidelity}"
         s += f"typ: {self.typ.name}"
         s += f"role: {self.role}"
+        s += f"window: {self.window}"
         return s
 
     def __str__(self) -> str:
@@ -163,7 +167,7 @@ class RequestRoutine:
     callback: Optional[str]  # Local Routine name
 
     def instantiate(self, values: Dict[str, Any]) -> None:
-        print("I'm instantiating now!")
+        # print("I'm instantiating now!")
         for i in range(len(self.return_vars)):
             ret_var = self.return_vars[i]
             if isinstance(ret_var, RrReturnVector):
