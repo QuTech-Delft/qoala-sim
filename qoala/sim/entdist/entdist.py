@@ -50,6 +50,11 @@ class EntDistRequest:
             and bin.pids[self.remote_node_id] == self.remote_pid
         )
 
+@dataclass(frozen=True)
+class WindowedEntDistRequest(EntDistRequest):
+    local_qubit_id: List[int]
+    window: int
+    num_pairs: int
 
 @dataclass(frozen=True)
 class JointRequest:
@@ -59,6 +64,13 @@ class JointRequest:
     node2_qubit_id: int
     node1_pid: int
     node2_pid: int
+
+@dataclass(frozen=True)
+class WindowedJointRequest(JointRequest):
+    node1_qubit_id: List[int]
+    node2_qubit_id: List[int]
+    window: int
+
 
 
 @dataclass
@@ -78,6 +90,48 @@ class EprDeliverySample:
 class DelayedSampler:
     sampler: StateDeliverySampler
     delay: float
+
+class WindowedEntanglementPacket(dict):  # dict holding entangled pairs which may form a packet. In the format {time:epr pair}.
+
+    def __init__(self, __iterable:Any, window:int, number_of_pairs:int):
+     super().__init__(__iterable)
+     self._window = window
+     self._num_pairs = number_of_pairs
+
+    @property
+    def window(self):
+        return self._window
+
+    @property
+    def number_of_pairs(self):
+        return self._num_pairs
+
+    @property
+    def complete_packet(self):
+        return len(self) == self._num_pairs
+
+    def add_pair(self, epr_pair:Tuple[Qubit,Qubit], time:int|float):
+        self[time] = epr_pair
+        for t in self.keys():
+            if time - self._window > 0:  # Removes any pairs which are too old.
+                self.pop(t)
+
+    def split(self) -> Tuple[List[int],List[Tuple[Qubit,Qubit]]]:
+        _generation_times = list(self.keys())
+        _generation_times.sort()
+
+        _pairs = [self[x] for x in _generation_times]
+        _deltas = [_generation_times[0]] + [_generation_times[i] - _generation_times[i-1] for i in range(1,len(_generation_times))]
+
+        assert len(_deltas) == len(_generation_times)
+
+        return zip(_deltas, _pairs)
+
+
+
+
+
+
 
 
 class EntDist(Protocol):
@@ -296,6 +350,107 @@ class EntDist(Protocol):
         self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
         self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
 
+    def deliver_with_failure_windowed(
+        self,
+        node1_id: int,
+        node1_phys_id: List[int],
+        node2_id: int,
+        node2_phys_id: List[int],
+        node1_pid: int,
+        node2_pid: int,
+        window: int,
+        num_pairs: int,
+        cutoff: float | None = None,
+    ) -> Generator[EventExpression, None, None]:
+        """
+        Will return a failure if the length of time it would take to generate an entangled link is longer than the time allowed by cutoff. If cutoff is None, then will attempt to get the cutoff from the network schedule.
+        """
+
+        if cutoff is None and self._netschedule.length_of_qc_blocks is not None:
+            try:
+                cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
+                self._logger.warning(
+                    f"Set max QC length to {cutoff}")
+            except KeyError:
+                cutoff = None
+                self._logger.warning(f"No known QC length for session {(node1_id, node1_pid, node2_id, node2_pid)}, defaulting to None")
+
+        prospective_packet = WindowedEntanglementPacket({},window=window, number_of_pairs=num_pairs)
+
+        total_elapsed_time_in_request = 0
+
+        while not prospective_packet.complete_packet:
+
+            timed_sampler = self.get_sampler(node1_id, node2_id)
+            sample = self.sample_state(timed_sampler.sampler)
+
+
+            self._logger.info(f"sample duration: {sample.duration}")
+            self._logger.info(f"total duration: {timed_sampler.delay}")
+            total_elapsed_time_in_request += sample.duration + timed_sampler.delay
+
+            if not (total_elapsed_time_in_request < cutoff if cutoff is not None else True):
+                break
+
+            prospective_packet.add_pair(self.create_epr_pair_with_state(sample.state), total_elapsed_time_in_request)
+
+
+        if not prospective_packet.complete_packet:
+
+            self._schedule_after(cutoff-1, EPR_DELIVERY) # TODO:Can I still use EPR_Delivery here???
+            #  Cutoff-1 to stop off-by-one errors once it tries to request the next entanglement.
+            event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
+            yield event_expr
+
+            node1 = self._interface.remote_id_to_peer_name(node1_id)
+            node2 = self._interface.remote_id_to_peer_name(node2_id)
+            # TODO: use PIDs??
+            self._interface.send_node_msg(node1, Message(-1, -1, None))
+            self._interface.send_node_msg(node2, Message(-1, -1, None))
+
+            if cutoff < total_elapsed_time_in_request if cutoff is not None else False:
+                self._logger.warning("Entanglement Packet Generation Failed")
+
+
+
+            return
+
+        else:
+
+            node1_mem = self._nodes[node1_id].qmemory
+            node2_mem = self._nodes[node2_id].qmemory
+
+            for i, (delta, pair) in enumerate(prospective_packet.split(), start=0):
+
+                if not (0 <= node1_phys_id[i] < node1_mem.num_positions):
+                    raise ValueError(
+                        f"qubit location id of {node1_phys_id} is not present in \
+                            quantum memory of node ID {node1_id}."
+                    )
+                if not (0 <= node2_phys_id[i] < node2_mem.num_positions):
+                    raise ValueError(
+                        f"qubit location id of {node2_phys_id} is not present in \
+                            quantum memory of node ID {node2_id}."
+                    )
+                node1_mem.mem_positions[node1_phys_id[i]].in_use = True
+                node2_mem.mem_positions[node2_phys_id[i]].in_use = True
+
+                self._schedule_after(delta, EPR_DELIVERY)
+                event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
+                yield event_expr
+
+                self._logger.warning("pair delivered")
+
+                node1_mem.put(qubits=pair[0], positions=node1_phys_id[i])
+                node2_mem.put(qubits=pair[1], positions=node2_phys_id[i])
+
+            # Send messages to the nodes indictating a request has been delivered.
+            node1 = self._interface.remote_id_to_peer_name(node1_id)
+            node2 = self._interface.remote_id_to_peer_name(node2_id)
+            # TODO: use PIDs??
+            self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
+            self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
+
     def put_request(self, request: EntDistRequest) -> None:
         if request.local_node_id not in self._nodes:
             raise ValueError(
@@ -348,14 +503,29 @@ class EntDist(Protocol):
             if remote_request_id is not None:
                 remote_id = local_request.remote_node_id
                 remote_request = self._requests[remote_id].pop(remote_request_id)
-                return JointRequest(
-                    local_request.local_node_id,
-                    remote_request.local_node_id,
-                    local_request.local_qubit_id,
-                    remote_request.local_qubit_id,
-                    local_request.local_pid,
-                    local_request.remote_pid,
-                )
+                if isinstance(local_request, WindowedEntDistRequest):
+
+                    assert isinstance(remote_request, WindowedEntDistRequest)
+                    assert remote_request.window == local_request.window
+
+                    return WindowedJointRequest(
+                        node1_id=local_request.local_node_id,
+                        node2_id=remote_request.local_node_id,
+                        node1_qubit_id=local_request.local_qubit_id,
+                        node2_qubit_id=remote_request.local_qubit_id,
+                        node1_pid=local_request.local_pid,
+                        node2_pid=remote_request.local_pid,
+                        window=local_request.window,
+                    )
+                else:
+                    return JointRequest(
+                        local_request.local_node_id,
+                        remote_request.local_node_id,
+                        local_request.local_qubit_id,
+                        remote_request.local_qubit_id,
+                        local_request.local_pid,
+                        local_request.remote_pid,
+                    )
             else:
                 # Put local request back
                 local_requests.insert(0, local_request)
@@ -367,23 +537,37 @@ class EntDist(Protocol):
         self, request: JointRequest, fixed_length_qc_blocks: bool = False
     ) -> Generator[EventExpression, None, None]:
         if fixed_length_qc_blocks:
-            yield from self.deliver_with_failure(
-                node1_id=request.node1_id,
-                node1_phys_id=request.node1_qubit_id,
-                node2_id=request.node2_id,
-                node2_phys_id=request.node2_qubit_id,
-                node1_pid=request.node1_pid,
-                node2_pid=request.node2_pid,
-            )
+            if isinstance(request, WindowedJointRequest):
+                yield from self.deliver_with_failure_windowed(
+                    node1_id=request.node1_id,
+                    node1_phys_id=request.node1_qubit_id,
+                    node2_id=request.node2_id,
+                    node2_phys_id=request.node2_qubit_id,
+                    node1_pid=request.node1_pid,
+                    node2_pid=request.node2_pid,
+                    window=request.window,
+                )
+            else:
+                yield from self.deliver_with_failure(
+                    node1_id=request.node1_id,
+                    node1_phys_id=request.node1_qubit_id,
+                    node2_id=request.node2_id,
+                    node2_phys_id=request.node2_qubit_id,
+                    node1_pid=request.node1_pid,
+                    node2_pid=request.node2_pid,
+                )
         else:
-            yield from self.deliver(
-                node1_id=request.node1_id,
-                node1_phys_id=request.node1_qubit_id,
-                node2_id=request.node2_id,
-                node2_phys_id=request.node2_qubit_id,
-                node1_pid=request.node1_pid,
-                node2_pid=request.node2_pid,
-            )
+            if isinstance(request, WindowedJointRequest):
+                raise NotImplementedError
+            else:
+                yield from self.deliver(
+                    node1_id=request.node1_id,
+                    node1_phys_id=request.node1_qubit_id,
+                    node2_id=request.node2_id,
+                    node2_phys_id=request.node2_qubit_id,
+                    node1_pid=request.node1_pid,
+                    node2_pid=request.node2_pid,
+                )
 
     def serve_all_requests(self) -> Generator[EventExpression, None, None]:
         while (request := self.get_next_joint_request()) is not None:
