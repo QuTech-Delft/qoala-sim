@@ -7,7 +7,7 @@ from qoala.lang.request import CallbackType, EprType, QoalaRequest
 from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine
 from qoala.runtime.message import Message, RrCallTuple
-from qoala.sim.entdist.entdist import EntDistRequest, WindowedEntDistRequest, WindowedEntanglementPacket
+from qoala.sim.entdist.entdist import EntDistRequest, WindowedEntDistRequest
 from qoala.sim.netstack.netstackinterface import NetstackInterface, NetstackLatencies
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice, QDeviceCommand
