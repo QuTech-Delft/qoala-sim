@@ -918,7 +918,7 @@ class QpuEdfScheduler(EdfScheduler):
 
         # rprint(request)
 
-        print("I need to know my socket so I sure hope I have been instantiated")
+        # print("I need to know my socket so I sure hope I have been instantiated")
 
         epr_sck = process.epr_sockets[request.epr_socket_id]
         return EhiNetworkTimebin(

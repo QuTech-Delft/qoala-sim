@@ -124,7 +124,7 @@ class NetstackProcessor:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
-        print(routine.request)
+        # print(routine.request)
         assert request.typ == EprType.CREATE_KEEP
         num_pairs = request.num_pairs
 
@@ -143,7 +143,7 @@ class NetstackProcessor:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
-        print(routine.request)
+        # print(routine.request)
         assert request.typ == EprType.CREATE_KEEP
         num_pairs = request.num_pairs
 
