@@ -1,5 +1,5 @@
 import itertools
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import netsquid as ns
 import numpy as np
@@ -20,8 +20,10 @@ from qoala.sim.entdist.entdist import (
     DelayedSampler,
     EntDist,
     EntDistRequest,
+    WindowedEntDistRequest,
     EprDeliverySample,
     JointRequest,
+    WindowedJointRequest,
 )
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.util.math import (
@@ -58,6 +60,24 @@ def create_request(
         remote_pid=rpid,
     )
 
+def create_windowed_request(
+    node1_id: int,
+    node2_id: int,
+    lpid: Optional[int] = 0,
+    rpid: Optional[int] = 0,
+    window: int = 500_000,
+    num_pairs: int = 3,
+) -> WindowedEntDistRequest:
+    return WindowedEntDistRequest(
+        local_node_id=node1_id,
+        remote_node_id=node2_id,
+        local_qubit_id=list(range(num_pairs)),
+        local_pid=lpid,
+        remote_pid=rpid,
+        window=window,
+        num_pairs=num_pairs,
+    )
+
 
 def create_joint_request(
     node1_id: int,
@@ -75,6 +95,28 @@ def create_joint_request(
         node1_pid=node1_pid,
         node2_pid=node2_pid,
     )
+
+def create_joint_windowed_request(
+    node1_id: int,
+    node2_id: int,
+    node1_qubit_id: Union[List[int], None] = None,
+    node2_qubit_id: Union[List[int], None] = None,
+    node1_pid: int = 0,
+    node2_pid: int = 0,
+    window: int = 500_000,
+    num_pairs: int = 3,
+) -> WindowedJointRequest:
+    return WindowedJointRequest(
+        node1_id=node1_id,
+        node2_id=node2_id,
+        node1_qubit_id=node1_qubit_id if node1_qubit_id is not None else list(range(num_pairs)),
+        node2_qubit_id=node2_qubit_id if node1_qubit_id is not None else list(range(num_pairs)),
+        node1_pid=node1_pid,
+        node2_pid=node2_pid,
+        window=window,
+        num_pairs=num_pairs
+    )
+
 
 
 def create_entdist(nodes: List[Node]) -> EntDist:
@@ -388,6 +430,41 @@ def test_get_next_joint_request_2():
         bob.ID, charlie.ID, node1_pid=0, node2_pid=1
     )
 
+def test_get_next_joint_request_windowed():
+    """
+    Tests windowed Joint request
+    """
+    alice, bob = create_n_nodes(2)
+    entdist = create_entdist(nodes=[alice, bob])
+
+    request_alice = create_windowed_request(alice.ID, bob.ID, 0, 0,500_000, 3)
+    entdist.put_request(request_alice)
+    assert len(entdist.get_requests(alice.ID)) == 1
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+    # Only Alice's request registered; no corresponding request from Bob yet.
+    assert entdist.get_next_joint_request() is None
+
+    # No requests should have been popped.
+    assert len(entdist.get_requests(alice.ID)) == 1
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+    request_bob = create_windowed_request(bob.ID, alice.ID, 0, 0,500_000, 3)
+    entdist.put_request(request_bob)
+    assert len(entdist.get_requests(bob.ID)) == 1
+
+    next_request = entdist.get_next_joint_request()
+    print(next_request)
+
+    # Alice and Bob have corresponding requests.
+    assert next_request == WindowedJointRequest(alice.ID,bob.ID,list(range(3)),list(range(3)),0,0,500_000,3)
+
+    assert len(entdist.get_requests(alice.ID)) == 0
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+    # Requests have been popped.
+    assert entdist.get_next_joint_request() is None
+
 
 def test_serve_request():
     alice, bob = create_n_nodes(2, num_qubits=2)
@@ -465,6 +542,73 @@ def test_serve_request_multiple_nodes():
     assert has_multi_state([david_qubits[0], charlie_qubits[1]], B00_DENS)
     assert has_multi_state([bob_qubits[1], david_qubits[1]], B00_DENS)
 
+def test_serve_request_with_failure():
+
+    alice, bob = create_n_nodes(2, num_qubits=2)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.depolarise(100_000,0.1,0.99,20_000)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    alice_mem = 0
+    bob_mem = 0
+    joint_request = create_joint_request(alice.ID, bob.ID, alice_mem, bob_mem)
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+
+    netsquid_run(entdist.serve_request(joint_request, fixed_length_qc_blocks=True, cutoff=10000)) # will always fail out to generate as cutoff shorter than state delay.
+    assert ns.sim_time() == 9999
+
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    ns.sim_reset()
+    netsquid_run(entdist.serve_request(joint_request, fixed_length_qc_blocks=True, cutoff=1_000_000))
+    assert ns.sim_time() <= 999_999
+
+    assert alice.qmemory.mem_positions[0].in_use or ns.sim_time() == 999_999
+    assert bob.qmemory.mem_positions[0].in_use or ns.sim_time() == 999_999
+
+def test_serve_windowed_request():
+    alice, bob = create_n_nodes(2, num_qubits=5)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.depolarise(100_000,0.1,0.3,100_000)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    alice_mem = [0,1,2]
+    bob_mem = [0,1,2]
+    joint_request = create_joint_windowed_request(alice.ID, bob.ID, alice_mem, bob_mem, window=500_000, num_pairs=3)
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+
+    netsquid_run(entdist.serve_request(joint_request, fixed_length_qc_blocks=True, cutoff=100_000))
+    assert ns.sim_time() == 99_999
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+
+    netsquid_run(entdist.serve_request(joint_request, fixed_length_qc_blocks=True, cutoff=2_000_000_000))
+
+    assert ns.sim_time() < 2_000_000_000
+
+    assert (all(alice.qmemory.mem_positions[i].in_use for i in alice_mem) and ns.sim_time() < 1_999_999_999) or (all(not alice.qmemory.mem_positions[i].in_use for i in alice_mem) and ns.sim_time() == 1_999_999_999)
+    assert (all(bob.qmemory.mem_positions[i].in_use for i in bob_mem) and ns.sim_time() < 1_999_999_999) or (all(not bob.qmemory.mem_positions[i].in_use for i in bob_mem) and ns.sim_time() == 1_999_999_999)
+
+    #TODO: automated verification that window is being adhered to (from logs can verify that fact but need automated scripts)
+
+
+
+
+
 
 if __name__ == "__main__":
     test_add_sampler()
@@ -479,5 +623,9 @@ if __name__ == "__main__":
     test_get_remote_request_for()
     test_get_next_joint_request()
     test_get_next_joint_request_2()
+    test_get_next_joint_request_windowed()
     test_serve_request()
     test_serve_request_multiple_nodes()
+    test_serve_request_with_failure()
+    test_serve_windowed_request()
+
