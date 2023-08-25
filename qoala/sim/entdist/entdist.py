@@ -249,7 +249,7 @@ class EntDist(Protocol):
         self._logger.info(f"total duration: {timed_sampler.delay}")
         total_delay = sample.duration + timed_sampler.delay
 
-        if cutoff is None and self._netschedule.length_of_qc_blocks is not None:
+        if cutoff is None and (self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
             try:
                 cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
                 self._logger.warning(
@@ -261,9 +261,9 @@ class EntDist(Protocol):
 
         if cutoff is not None:
             if total_delay > cutoff:
-                self._schedule_after(cutoff-1, EPR_DELIVERY) # TODO:Can I still use EPR_Delivery here???
+                self._schedule_after(cutoff-1, CUTOFF_REACHED)
                 #  Cutoff-1 to stop off-by-one errors once it tries to request the next entanglement.
-                event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
+                event_expr = EventExpression(source=self, event_type=CUTOFF_REACHED)
                 yield event_expr
 
                 node1 = self._interface.remote_id_to_peer_name(node1_id)
@@ -294,8 +294,8 @@ class EntDist(Protocol):
         node1_mem.mem_positions[node1_phys_id].in_use = True
         node2_mem.mem_positions[node2_phys_id].in_use = True
 
-        self._schedule_after(total_delay, CUTOFF_REACHED)
-        event_expr = EventExpression(source=self, event_type=CUTOFF_REACHED)
+        self._schedule_after(total_delay, EPR_DELIVERY)
+        event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
         yield event_expr
 
         self._logger.warning("pair delivered")
@@ -326,7 +326,7 @@ class EntDist(Protocol):
         Will return a failure if the length of time it would take to generate an entangled link is longer than the time allowed by cutoff. If cutoff is None, then will attempt to get the cutoff from the network schedule.
         """
 
-        if cutoff is None and self._netschedule.length_of_qc_blocks is not None:
+        if cutoff is None and (self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
             try:
                 cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
                 self._logger.warning(
@@ -551,7 +551,17 @@ class EntDist(Protocol):
                 )
         else:
             if isinstance(request, WindowedJointRequest):
-                raise NotImplementedError
+                yield from self.deliver_with_failure_windowed(
+                    node1_id=request.node1_id,
+                    node1_phys_id=request.node1_qubit_id,
+                    node2_id=request.node2_id,
+                    node2_phys_id=request.node2_qubit_id,
+                    node1_pid=request.node1_pid,
+                    node2_pid=request.node2_pid,
+                    window=request.window,
+                    num_pairs=request.num_pairs,
+                    cutoff=cutoff
+                )
             else:
                 yield from self.deliver(
                     node1_id=request.node1_id,
