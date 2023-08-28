@@ -102,7 +102,50 @@ REQUEST req1
     assert request.num_pairs == 10
 
 
+def test_template():
+    text = """
+    REQUEST req1
+      callback_type: wait_all
+      callback: 
+      return_vars: 
+      remote_id: {client_id}
+      epr_socket_id: {epr_socket_id}
+      num_pairs: {num_pairs}
+      virt_ids: all {virt_id}
+      timeout: {timeout}
+      fidelity: {fidelity}
+      typ: measure_directly
+      role: receive
+    """
+    request_routine = RequestRoutineParser(text).parse()["req1"]
+    request = request_routine.request
+    assert request.remote_id == Template(name="client_id")
+    assert request.num_pairs == Template(name="num_pairs")
+    assert request.epr_socket_id == Template(name="epr_socket_id")
+    assert request.virt_ids.single_value == Template(name="virt_id")
+    assert request.timeout == Template(name="timeout")
+    assert request.fidelity == Template(name="fidelity")
+
+    request.instantiate(
+        values={
+            "client_id": 2,
+            "num_pairs": 10,
+            "epr_socket_id": 0,
+            "virt_id": 0,
+            "timeout": 1000,
+            "fidelity": 0.65,
+        }
+    )
+    assert request.remote_id == 2
+    assert request.num_pairs == 10
+    assert request.epr_socket_id == 0
+    assert request.virt_ids.single_value == 0
+    assert request.timeout == 1000
+    assert request.fidelity == 0.65
+
+
 if __name__ == "__main__":
     test_virt_id_mapping_to_string()
     test_string_to_virt_id_mapping()
     test_instantiate()
+    test_template()

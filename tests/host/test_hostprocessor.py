@@ -15,6 +15,7 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
+    BusyOp,
     ClassicalIqoalaOp,
     IqoalaSingleton,
     IqoalaTuple,
@@ -26,7 +27,6 @@ from qoala.lang.hostlang import (
     RunRequestOp,
     RunSubroutineOp,
     SendCMsgOp,
-    BusyOp,
 )
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.request import (
@@ -256,7 +256,9 @@ def test_send_msg_with_latencies():
     processor = HostProcessor(interface, latencies)
     meta = ProgramMeta.empty("alice")
     meta.csockets = {0: "bob"}
-    program = create_program(instrs=[SendCMsgOp("bob", "msg")], meta=meta)
+    program = create_program(
+        instrs=[SendCMsgOp(IqoalaSingleton("bob"), IqoalaSingleton("msg"))], meta=meta
+    )
     process = create_process(program, interface, inputs={"bob": 0, "msg": 12})
     processor.initialize(process)
 
@@ -333,7 +335,9 @@ def test_add_cvalue_with_inputs():
     processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
     program = create_program(
         instrs=[
-            AddCValueOp("sum", "a", "b"),
+            AddCValueOp(
+                IqoalaSingleton("sum"), IqoalaSingleton("a"), IqoalaSingleton("b")
+            ),
         ]
     )
     process = create_process(
@@ -400,7 +404,13 @@ def test_multiply_const_with_inputs():
 
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
-    program = create_program(instrs=[MultiplyConstantCValueOp("result", "a", -1)])
+    program = create_program(
+        instrs=[
+            MultiplyConstantCValueOp(
+                IqoalaSingleton("result"), IqoalaSingleton("a"), -1
+            )
+        ]
+    )
     process = create_process(program, interface, inputs={"a": 4})
     processor.initialize(process)
 
@@ -417,7 +427,12 @@ def test_multiply_const_with_latencies():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
     program = create_program(
-        instrs=[AssignCValueOp("a", 4), MultiplyConstantCValueOp("result", "a", -1)]
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("a"), 4),
+            MultiplyConstantCValueOp(
+                IqoalaSingleton("result"), IqoalaSingleton("a"), -1
+            ),
+        ]
     )
     process = create_process(program, interface)
     processor.initialize(process)
@@ -468,9 +483,19 @@ def test_bit_cond_mult_with_inputs():
     processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
     program = create_program(
         instrs=[
-            AssignCValueOp("var2", 7),
-            BitConditionalMultiplyConstantCValueOp("result1", "var1", "cond1", -1),
-            BitConditionalMultiplyConstantCValueOp("result2", "var2", "cond2", -1),
+            AssignCValueOp(IqoalaSingleton("var2"), 7),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result1"),
+                IqoalaSingleton("var1"),
+                IqoalaSingleton("cond1"),
+                -1,
+            ),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result2"),
+                IqoalaSingleton("var2"),
+                IqoalaSingleton("cond2"),
+                -1,
+            ),
         ]
     )
     process = create_process(
@@ -493,12 +518,22 @@ def test_bit_cond_mult_with_latencies():
     processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
     program = create_program(
         instrs=[
-            AssignCValueOp("var1", 4),
-            AssignCValueOp("var2", 7),
-            AssignCValueOp("cond1", 0),
-            AssignCValueOp("cond2", 1),
-            BitConditionalMultiplyConstantCValueOp("result1", "var1", "cond1", -1),
-            BitConditionalMultiplyConstantCValueOp("result2", "var2", "cond2", -1),
+            AssignCValueOp(IqoalaSingleton("var1"), 4),
+            AssignCValueOp(IqoalaSingleton("var2"), 7),
+            AssignCValueOp(IqoalaSingleton("cond1"), 0),
+            AssignCValueOp(IqoalaSingleton("cond2"), 1),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result1"),
+                IqoalaSingleton("var1"),
+                IqoalaSingleton("cond1"),
+                -1,
+            ),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result2"),
+                IqoalaSingleton("var2"),
+                IqoalaSingleton("cond2"),
+                -1,
+            ),
         ]
     )
     process = create_process(program, interface)
@@ -671,7 +706,7 @@ def test_prepare_rr_call_with_callbacks_wait_all():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     local_routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
 
     request = create_simple_request(
@@ -684,7 +719,7 @@ def test_prepare_rr_call_with_callbacks_wait_all():
     routine = RequestRoutine(
         "req",
         request,
-        [RrReturnVector("req_return", 2)],
+        [IqoalaVector("req_return", 2)],
         CallbackType.WAIT_ALL,
         "subrt1",
     )
@@ -767,7 +802,7 @@ def test_post_rr_call_with_callbacks_wait_all():
     subrt = Subroutine()
     metadata = RoutineMetadata.use_none()
     local_routine = LocalRoutine(
-        "subrt1", subrt, return_vars=[LrReturnVector("res", 3)], metadata=metadata
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
     )
 
     request = create_simple_request(
@@ -780,7 +815,7 @@ def test_post_rr_call_with_callbacks_wait_all():
     routine = RequestRoutine(
         "req",
         request,
-        [RrReturnVector("req_result", 2)],
+        [IqoalaVector("req_result", 2)],
         CallbackType.WAIT_ALL,
         "subrt1",
     )

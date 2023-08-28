@@ -28,6 +28,8 @@ def test_no_other_nodes():
     assert "entdist_in" in comp.ports
     assert "entdist_out" in comp.ports
 
+    assert len(comp.subcomponents) == 3
+
 
 def test_one_other_node():
     comp = create_procnodecomp(num_other_nodes=1)
@@ -48,6 +50,8 @@ def test_one_other_node():
     assert (
         comp.netstack_peer_out_port("node_1") == comp.ports["netstack_peer_node_1_out"]
     )
+
+    assert len(comp.subcomponents) == 3
 
 
 def test_many_other_nodes():
@@ -78,6 +82,8 @@ def test_many_other_nodes():
             == comp.ports[f"netstack_peer_node_{i}_out"]
         )
 
+    assert len(comp.subcomponents) == 3
+
 
 def test_connection_with_channel():
     ns.sim_reset()
@@ -100,10 +106,10 @@ def test_connection_with_channel():
 
     class BobProcnode(ProcNode):
         def run(self) -> Generator[EventExpression, None, None]:
+            assert ns.sim_time() == 0
             msg = yield from self.host.interface.receive_peer_msg("alice")
-            print(f"before receiving: {ns.sim_time()}")
-            print(f"{self.name}: received msg with content: {msg.content}")
-            print(f"after receiving: {ns.sim_time()}")
+            assert ns.sim_time() == 1000
+            assert msg == Message(0, 0, "hello")
 
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(1)
     latencies = LhiLatencies.all_zero()

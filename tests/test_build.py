@@ -37,6 +37,7 @@ from qoala.sim.build import (
     build_network_from_config,
     build_network_from_lhi,
     build_procnode_from_config,
+    build_procnode_from_lhi,
     build_qprocessor_from_topology,
 )
 
@@ -349,6 +350,39 @@ def test_build_network_from_lhi():
     assert alice.local_ehi.latencies.host_peer_latency == 20_000
 
 
+def test_build_procnode_from_lhi():
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
+    latencies = LhiLatencies(
+        host_instr_time=500,
+        qnos_instr_time=1000,
+        host_peer_latency=20_000,
+    )
+    nodes = {42: "alice", 43: "bob"}
+
+    network_lhi = LhiNetworkInfo.perfect_fully_connected(nodes, 100_000)
+
+    alice_procnode = build_procnode_from_lhi(
+        name="alice",
+        id=42,
+        topology=topology,
+        latencies=latencies,
+        network_lhi=network_lhi,
+        ntf=GenericNtf(),
+    )
+
+    assert alice_procnode.qdevice.qprocessor.name == "alice_processor"
+    assert alice_procnode.qdevice.qprocessor.num_positions == 3
+
+    assert alice_procnode.network_ehi.get_link(42, 43).duration == 100_000
+
+    assert alice_procnode.local_ehi.latencies.host_instr_time == 500
+    assert alice_procnode.local_ehi.latencies.qnos_instr_time == 1000
+    assert alice_procnode.local_ehi.latencies.host_peer_latency == 20_000
+
+    assert alice_procnode.node.netstack_peer_in_port("bob") is not None
+    assert alice_procnode.node.netstack_peer_out_port("bob") is not None
+
+
 if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
@@ -357,3 +391,4 @@ if __name__ == "__main__":
     test_build_network_from_config()
     test_build_network_perfect_links()
     test_build_network_from_lhi()
+    test_build_procnode_from_lhi()
