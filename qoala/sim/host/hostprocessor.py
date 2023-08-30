@@ -14,6 +14,8 @@ from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import QoalaProcess
 from qoala.util.logging import LogManager
 
+import netsquid as ns
+
 
 class HostProcessor:
     """Does not have state itself. Acts on and changes process objects."""
@@ -167,6 +169,8 @@ class HostProcessor:
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             process.result.values[loc] = value
+            if process.result.times is not None:  # Optional to record the result times, also for backwards compatability
+                process.result.times[loc] = ns.sim_time()
 
     def prepare_lr_call(
         self, process: QoalaProcess, instr: hostlang.RunSubroutineOp
