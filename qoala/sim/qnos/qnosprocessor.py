@@ -23,10 +23,16 @@ from netsquid.components.instructions import (
     INSTR_Z,
 )
 from netsquid.components.instructions import Instruction as NsInstr
-from netsquid_trappedions.instructions import IonTrapMSGate
 
 from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
+from qoala.runtime.instructions import (
+    INSTR_BICHROMATIC,
+    INSTR_MEASURE_ALL,
+    INSTR_ROT_X_ALL,
+    INSTR_ROT_Y_ALL,
+    INSTR_ROT_Z_ALL,
+)
 from qoala.runtime.memory import ProgramMemory, RunningLocalRoutine
 from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.memmgr import NotAllocatedError
@@ -558,7 +564,7 @@ class GenericProcessor(QnosProcessor):
 
         commands = [QDeviceCommand(INSTR_MEASURE, [phys_id])]
         outcome = yield from self.qdevice.execute_commands(commands)
-        assert outcome is not None
+        assert isinstance(outcome, int)
         qnos_mem.set_reg_value(instr.creg, outcome)
         return None
 
@@ -793,7 +799,7 @@ class IonTrapProcessor(QnosProcessor):
 
         commands = [QDeviceCommand(INSTR_MEASURE, [phys_id])]
         outcome = yield from self.qdevice.execute_commands(commands)
-        assert outcome is not None
+        assert isinstance(outcome, int)
         qnos_mem.set_reg_value(instr.creg, outcome)
         return None
 
@@ -807,33 +813,23 @@ class IonTrapProcessor(QnosProcessor):
         return None
 
     def _interpret_all_qubit_init(self):
-
-        qubit_ids = self._interface.memmgr.get_all_qubit_ids()
-        commands = [QDeviceCommand(INSTR_INIT, [phys_id]) for phys_id in qubit_ids]
-        yield from self.qdevice.execute_commands(commands, parallel=True)
+        commands = [QDeviceCommand(INSTR_INIT)]
+        yield from self.qdevice.execute_commands(commands)
 
     def _interpret_all_qubit_meas(self, instr: trapped_ion.AllQubitsMeasInstruction):
         qnos_mem = self._prog_mem().qnos_mem
         offset = qnos_mem.get_reg_value(instr.reg)
         result_addr = self._routine().result_addr
-        print("result_addr", result_addr)
         shared_mem = self._prog_mem().shared_mem
         addr = instr.address.address
         # Only allow NetQASM 2.0 input/output addresses
         assert isinstance(addr, str)
         assert addr == "output"
-        self._logger.debug(f"Measuring all qubits")
-        qubit_ids = sorted(
-            self._interface.memmgr.get_all_qubit_ids()
-        )  # qubit ids in order
-        commands = [
-            QDeviceCommand(INSTR_MEASURE, [phys_id], output_key="m" + str(phys_id))
-            for phys_id in qubit_ids
-        ]
+        self._logger.debug("Measuring all qubits")
+        commands = [QDeviceCommand(INSTR_MEASURE_ALL)]
         outcome = yield from self.qdevice.execute_commands(commands, parallel=True)
-        assert isinstance(outcome, dict)
-        results = [outcome["m" + str(phys_id)][0] for phys_id in qubit_ids]
-        shared_mem.write_lr_out(result_addr, results, offset=offset)
+        assert isinstance(outcome, list)
+        shared_mem.write_lr_out(result_addr, outcome, offset=offset)
 
         return None
 
@@ -852,11 +848,8 @@ class IonTrapProcessor(QnosProcessor):
             d = instr.angle_denom.value
         angle = self._get_rotation_angle_from_operands(n=n, d=d)
         self._logger.debug(f"Performing {instr} with angle {angle} on all qubit")
-        qubit_ids = self._interface.memmgr.get_all_qubit_ids()
-        commands = [
-            QDeviceCommand(ns_instr, [phys_id], angle=angle) for phys_id in qubit_ids
-        ]
-        yield from self.qdevice.execute_commands(commands, parallel=True)
+        commands = [QDeviceCommand(ns_instr, angle=angle)]
+        yield from self.qdevice.execute_commands(commands)
         return None
 
     def _interpret_bichromatic_instr(self, instr: trapped_ion.BichromaticInstruction):
@@ -872,10 +865,8 @@ class IonTrapProcessor(QnosProcessor):
             d = instr.angle_denom.value
         angle = self._get_rotation_angle_from_operands(n=n, d=d)
         self._logger.debug(f"Performing {instr} with angle {angle} on all qubit")
-        qubit_ids = list(self._interface.memmgr.get_all_qubit_ids())
-        num_qubits = len(qubit_ids)
-        ns_instr = IonTrapMSGate(num_positions=num_qubits, theta=angle)
-        commands = [QDeviceCommand(ns_instr, qubit_ids)]
+
+        commands = [QDeviceCommand(INSTR_BICHROMATIC, angle=angle)]
         yield from self.qdevice.execute_commands(commands)
         return None
 
@@ -889,10 +880,10 @@ class IonTrapProcessor(QnosProcessor):
         elif isinstance(instr, trapped_ion.AllQubitsMeasInstruction):
             yield from self._interpret_all_qubit_meas(instr)
         elif isinstance(instr, trapped_ion.AllQubitsRotXInstruction):
-            yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_X)
+            yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_X_ALL)
         elif isinstance(instr, trapped_ion.AllQubitsRotYInstruction):
-            yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_Y)
+            yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_Y_ALL)
         elif isinstance(instr, trapped_ion.AllQubitsRotZInstruction):
-            yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_Z)
+            yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_Z_ALL)
         else:
             raise UnsupportedNetqasmInstructionError

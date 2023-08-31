@@ -93,7 +93,7 @@ class NetstackProcessor:
         # doesn't take time.
         commands = [QDeviceCommand(INSTR_MEASURE_INSTANT, [phys_id])]
         m = yield from self.qdevice.execute_commands(commands=commands)
-        assert m is not None
+        assert isinstance(m, int)
         return m
 
     def _handle_multi_pair_ck(

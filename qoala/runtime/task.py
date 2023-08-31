@@ -722,6 +722,7 @@ class TaskDurationEstimator:
         duration = 0.0
         # TODO: refactor this
         for instr in routine.subroutine.instructions:
+            print("instr", instr)
             if (
                 type(instr)
                 in [
@@ -752,9 +753,10 @@ class TaskDurationEstimator:
                 if max_duration != -1:
                     duration += max_duration
                 else:
-                    raise RuntimeError(
-                        f"Gate {type(instr)} not found in EHI. Cannot calculate duration of containing block."
-                    )
+                    return 0
+                    # raise RuntimeError(
+                    #     f"Gate {type(instr)} not found in EHI. Cannot calculate duration of containing block."
+                    # )
         return duration
 
 

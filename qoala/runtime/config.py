@@ -349,6 +349,13 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
     @classmethod
+    def with_all_qubit_gate_fidelity(
+        cls, name: str, duration: int, fidelity: float, num_qubits: int
+    ) -> GateConfig:
+        depolar_prob = fidelity_to_prob_max_mixed(num_qubits=num_qubits, fid=fidelity)
+        return cls.with_depolar_prob(name, duration, depolar_prob)
+
+    @classmethod
     def from_dict(
         cls,
         dict: Any,
@@ -510,6 +517,17 @@ class MultiGateConfig(BaseModel):
         )
 
 
+class AllQubitGateConfig(BaseModel):
+    gate_configs: List[GateConfig]
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> AllQubitGateConfig:
+        print(dict)
+        return AllQubitGateConfig(
+            gate_configs=[GateConfig.from_dict(d) for d in dict["gate_configs"]],
+        )
+
+
 # Topology config.
 
 
@@ -517,6 +535,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
     qubits: List[QubitIdConfig]
     single_gates: List[SingleGateConfig]
     multi_gates: List[MultiGateConfig]
+    all_qubit_gates: Optional[AllQubitGateConfig] = None
 
     @classmethod
     def from_file(cls, path: str) -> TopologyConfig:
@@ -532,6 +551,8 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         single_duration: int,
         two_instructions: List[str],
         two_duration: int,
+        all_qubit_gate_instructions: List[str] = None,
+        all_qubit_gate_duration: int = 0,
     ) -> TopologyConfig:
         qubits = [
             QubitIdConfig(
@@ -568,8 +589,22 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
                 )
                 multi_gates.append(cfg)
 
+        all_qubit_gates = None
+        if all_qubit_gate_instructions is not None:
+            all_qubit_gates = AllQubitGateConfig(
+                gate_configs=[
+                    GateConfig.perfect_config(
+                        name=name, duration=all_qubit_gate_duration
+                    )
+                    for name in all_qubit_gate_instructions
+                ]
+            )
+
         return TopologyConfig(
-            qubits=qubits, single_gates=single_gates, multi_gates=multi_gates
+            qubits=qubits,
+            single_gates=single_gates,
+            multi_gates=multi_gates,
+            all_qubit_gates=all_qubit_gates,
         )
 
     @classmethod
@@ -580,6 +615,8 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         single_duration: int,
         two_instructions: List[str],
         two_duration: int,
+        all_qubit_gate_instructions: List[str] = None,
+        all_qubit_gate_duration: int = 0,
     ) -> TopologyConfig:
         return cls.uniform_t1t2_qubits_perfect_gates(
             num_qubits=num_qubits,
@@ -589,6 +626,8 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
             single_duration=single_duration,
             two_instructions=two_instructions,
             two_duration=two_duration,
+            all_qubit_gate_instructions=all_qubit_gate_instructions,
+            all_qubit_gate_duration=all_qubit_gate_duration,
         )
 
     @classmethod
@@ -796,8 +835,15 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         single_gates = [SingleGateConfig.from_dict(d) for d in raw_single_gates]
         raw_multi_gates = dict["multi_gates"]
         multi_gates = [MultiGateConfig.from_dict(d) for d in raw_multi_gates]
+        all_qubit_gates = None
+        if "all_qubit_gates" in dict:
+            raw_all_qubit_gates = dict["all_qubit_gates"]
+            all_qubit_gates = AllQubitGateConfig.from_dict(raw_all_qubit_gates)
         return TopologyConfig(
-            qubits=qubits, single_gates=single_gates, multi_gates=multi_gates
+            qubits=qubits,
+            single_gates=single_gates,
+            multi_gates=multi_gates,
+            all_qubit_gates=all_qubit_gates,
         )
 
     def get_qubit_configs(self) -> Dict[int, LhiQubitConfigInterface]:
@@ -819,6 +865,11 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         for cfg in self.multi_gates:
             infos[MultiQubit(cfg.qubit_ids)] = cfg.gate_configs
         return infos
+
+    def get_all_qubit_gate_configs(self) -> List[LhiGateConfigInterface]:
+        if self.all_qubit_gates is None:
+            return []
+        return self.all_qubit_gates.gate_configs
 
 
 class TopologyConfigBuilder:
@@ -957,9 +1008,10 @@ class TopologyConfigBuilder:
         qubits = self._build_qubits()
         single_gates = self._build_single_gates()
         multi_gates = self._build_multi_gates()
-
         return TopologyConfig(
-            qubits=qubits, single_gates=single_gates, multi_gates=multi_gates
+            qubits=qubits,
+            single_gates=single_gates,
+            multi_gates=multi_gates,
         )
 
     def num_qubits(self, num: int) -> TopologyConfigBuilder:

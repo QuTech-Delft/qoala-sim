@@ -3,12 +3,17 @@ from __future__ import annotations
 from netsquid.protocols import Protocol
 
 from qoala.lang.ehi import EhiNetworkInfo
-from qoala.runtime.ntf import GenericNtf, NtfInterface, NvNtf
+from qoala.runtime.ntf import GenericNtf, NtfInterface, NvNtf, TrappedIonNtf
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos.qnoscomp import QnosComponent
 from qoala.sim.qnos.qnosinterface import QnosInterface, QnosLatencies
-from qoala.sim.qnos.qnosprocessor import GenericProcessor, NVProcessor, QnosProcessor
+from qoala.sim.qnos.qnosprocessor import (
+    GenericProcessor,
+    IonTrapProcessor,
+    NVProcessor,
+    QnosProcessor,
+)
 
 
 class Qnos(Protocol):
@@ -51,6 +56,10 @@ class Qnos(Protocol):
             )
         elif isinstance(ntf_interface, NvNtf):
             self._processor = NVProcessor(
+                self._interface, latencies, self._asynchronous
+            )
+        elif isinstance(ntf_interface, TrappedIonNtf):
+            self._processor = IonTrapProcessor(
                 self._interface, latencies, self._asynchronous
             )
         else:

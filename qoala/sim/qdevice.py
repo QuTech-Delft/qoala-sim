@@ -22,9 +22,8 @@ class NonInitializedQubitError(Exception):
 @dataclass(frozen=True)
 class QDeviceCommand:
     instr: Instruction
-    indices: List[int]
+    indices: Optional[List[int]] = None
     angle: Optional[float] = None
-    output_key: str = "last"  # following the convention in the NetSquid
 
 
 class QDevice:
@@ -87,10 +86,15 @@ class QDevice:
                 return True
 
             # Else, check if it is allowed for our current qubit(s).
-            if len(cmd.indices) == 1:
+            if cmd.indices is None:
+                # Only all qubit instructions can have their indices be None.
+                n = self.get_qubit_count()
+                if phys_instr.topology == [tuple(range(n))]:
+                    return True
+            elif len(cmd.indices) == 1:
                 if cmd.indices[0] in phys_instr.topology:
                     return True
-            else:
+            elif len(cmd.indices) == 2:
                 if (cmd.indices[0], cmd.indices[1]) in phys_instr.topology:
                     return True
 
@@ -105,6 +109,7 @@ class QDevice:
     ) -> Generator[EventExpression, None, Optional[Union[int, List[int]]]]:
         prog = QuantumProgram(parallel=parallel)
 
+        all_qubits = list(range(self.get_qubit_count()))
         # TODO: rewrite this abomination
 
         for cmd in commands:
@@ -120,28 +125,31 @@ class QDevice:
             # TODO: better logic for detecting INITs of individual qubits.
             if cmd.instr == INSTR_INIT:
                 break
-            for index in cmd.indices:
-                if self.get_local_qubit(index) is None:
-                    raise NonInitializedQubitError
+            if cmd.indices is not None:
+                for index in cmd.indices:
+                    if self.get_local_qubit(index) is None:
+                        raise NonInitializedQubitError
+            else:
+                for index in all_qubits:
+                    if self.get_local_qubit(index) is None:
+                        raise NonInitializedQubitError
 
         for cmd in commands:
+            indices = cmd.indices
+            if cmd.indices is None:
+                indices = all_qubits
+
             if cmd.angle is not None:
                 prog.apply(
                     cmd.instr,
-                    qubit_indices=cmd.indices,
+                    qubit_indices=indices,
                     angle=cmd.angle,
-                    output_key=cmd.output_key,
                 )
-
             else:
-                prog.apply(
-                    cmd.instr, qubit_indices=cmd.indices, output_key=cmd.output_key
-                )
-
+                prog.apply(cmd.instr, qubit_indices=indices)
         yield self.qprocessor.execute_program(prog)
         last_result = prog.output["last"]
-        if len(prog.output) > 1:  # if custom output_key is used
-            return prog.output
+
         if last_result is not None:
             meas_outcome: int = last_result[0]
             return meas_outcome

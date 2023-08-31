@@ -87,6 +87,19 @@ def build_qprocessor_from_topology(
             )
             phys_instructions.append(phys_instr)
 
+    if topology.all_qubit_gate_infos is not None:
+        for gate_info in topology.all_qubit_gate_infos:
+            phys_instr = PhysicalInstruction(
+                instruction=gate_info.instruction,
+                duration=gate_info.duration,
+                topology=[tuple(range(num_qubits))],
+                quantum_noise_model=gate_info.error_model(
+                    **gate_info.error_model_kwargs
+                ),
+            )
+            print("phys_instr: ", phys_instr, "topology: ", phys_instr.topology)
+            phys_instructions.append(phys_instr)
+
     return QuantumProcessor(
         name=name,
         num_positions=num_qubits,

@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 
 import netsquid as ns
 import pytest
-from netqasm.lang.instr import core
+from netqasm.lang.instr import TrappedIonFlavour, core
 
 from qoala.lang.ehi import EhiNodeInfo, UnitModule
 from qoala.lang.hostlang import BasicBlock, BasicBlockType
@@ -16,7 +16,7 @@ from qoala.runtime.lhi import (
     LhiProcNodeInfo,
     LhiTopologyBuilder,
 )
-from qoala.runtime.ntf import GenericNtf
+from qoala.runtime.ntf import GenericNtf, TrappedIonNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.task import (
     HostLocalTask,
@@ -96,6 +96,13 @@ def load_program(path: str) -> QoalaProgram:
     return QoalaParser(text).parse()
 
 
+def load_program_trapped_ion(path: str) -> QoalaProgram:
+    path = os.path.join(os.path.dirname(__file__), path)
+    with open(path) as file:
+        text = file.read()
+    return QoalaParser(text, flavour=TrappedIonFlavour()).parse()
+
+
 def setup_network() -> ProcNodeNetwork:
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
     latencies = LhiLatencies(
@@ -110,6 +117,26 @@ def setup_network() -> ProcNodeNetwork:
     network_lhi = LhiNetworkInfo.fully_connected(nodes, link_info)
     bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
     ntfs = [GenericNtf(), GenericNtf()]
+    return build_network_from_lhi([alice_lhi, bob_lhi], ntfs, network_lhi)
+
+
+def setup_network_trapped_ion() -> ProcNodeNetwork:
+    num_qubits = 3
+    topology = LhiTopologyBuilder.trapped_ion_default_perfect_gates(
+        num_qubits=num_qubits
+    )
+    latencies = LhiLatencies(
+        host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
+    )
+    link_info = LhiLinkInfo.perfect(duration=20_000)
+
+    alice_lhi = LhiProcNodeInfo(
+        name="alice", id=0, topology=topology, latencies=latencies
+    )
+    nodes = {0: "alice", 1: "bob"}
+    network_lhi = LhiNetworkInfo.fully_connected(nodes, link_info)
+    bob_lhi = LhiProcNodeInfo(name="bob", id=1, topology=topology, latencies=latencies)
+    ntfs = [TrappedIonNtf(), TrappedIonNtf()]
     return build_network_from_lhi([alice_lhi, bob_lhi], ntfs, network_lhi)
 
 
@@ -985,6 +1012,29 @@ def test_blt_instruction_2():
     assert alice_mem.read("var_y") == 9
 
 
+def test_measure_all():
+    network = setup_network_trapped_ion()
+    alice = network.nodes["alice"]
+
+    program_alice = load_program_trapped_ion("test_measure_all.iqoala")
+
+    pid = 0
+    inputs_alice = ProgramInput({"bob_id": 1})
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance(instance_alice, 0)
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
+    ns.sim_run()
+    alice_outcome = alice.memmgr.get_process(pid).host_mem.read("m0")
+    alice_outcome2 = alice.memmgr.get_process(pid).host_mem.read("m1")
+    alice_outcome3 = alice.memmgr.get_process(pid).host_mem.read("m2")
+    assert alice_outcome == alice_outcome2 == alice_outcome3 == 0
+
+
+
 if __name__ == "__main__":
     test_cpu_scheduler()
     test_cpu_scheduler_no_time()
@@ -1008,3 +1058,4 @@ if __name__ == "__main__":
     test_bgt_instruction_2()
     test_blt_instruction_1()
     test_blt_instruction_2()
+    test_measure_all()
