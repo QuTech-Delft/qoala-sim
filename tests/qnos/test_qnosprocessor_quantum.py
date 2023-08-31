@@ -1057,7 +1057,10 @@ def test_measure_all():
             meas_all Q0 @output
             """
     process = create_process_with_trapped_ion_subrt(
-        0, subrt, unit_module, [0, 1, 2],
+        0,
+        subrt,
+        unit_module,
+        [0, 1, 2],
     )
     process.shared_mem.allocate_lr_out(3)
     processor._interface.memmgr.add_process(process)

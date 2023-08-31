@@ -1034,7 +1034,6 @@ def test_measure_all():
     assert alice_outcome == alice_outcome2 == alice_outcome3 == 0
 
 
-
 if __name__ == "__main__":
     test_cpu_scheduler()
     test_cpu_scheduler_no_time()
