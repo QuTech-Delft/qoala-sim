@@ -732,6 +732,8 @@ def test_bichromatic():
     assert q0 is not None
     assert q1 is not None
     assert q2 is not None
+
+
 def test_is_allowed():
     num_qubits = 3
     qdevice_gen = perfect_uniform_qdevice(num_qubits)

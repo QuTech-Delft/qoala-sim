@@ -103,7 +103,6 @@ def load_program_trapped_ion(path: str) -> QoalaProgram:
     return QoalaParser(text, flavour=TrappedIonFlavour()).parse()
 
 
-def setup_network() -> ProcNodeNetwork:
 def setup_network(internal_sched_latency: float = 0) -> ProcNodeNetwork:
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
     latencies = LhiLatencies(
@@ -1025,11 +1024,18 @@ def test_measure_all():
     pid = 0
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+
+    alice.scheduler.submit_program_instance(instance_alice, 0)
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    network.start()
     ns.sim_run()
     alice_outcome = alice.memmgr.get_process(pid).host_mem.read("m0")
     alice_outcome2 = alice.memmgr.get_process(pid).host_mem.read("m1")
     alice_outcome3 = alice.memmgr.get_process(pid).host_mem.read("m2")
     assert alice_outcome == alice_outcome2 == alice_outcome3 == 0
+
 
 def test_internal_sched_latency():
     network = setup_network(internal_sched_latency=500)

@@ -960,7 +960,6 @@ class CpuEdfScheduler(EdfScheduler):
             self._status = SchedulerStatus(status=set(), params={})
             self.update_external_predcessors()
             self.update_status()
-            print(self.name, ns.sim_time(), f"status: {self.status.status}")
             self._task_logger.debug(f"status: {self.status.status}")
             if Status.NEXT_TASK in self.status.status:
                 task_id = self.status.params["task_id"]

@@ -2,7 +2,6 @@ from typing import List
 
 import pytest
 from netqasm.lang.instr import core, nv, trapped_ion
-
 from netqasm.lang.instr.flavour import NVFlavour
 
 from qoala.lang.common import MultiQubit

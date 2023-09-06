@@ -133,6 +133,7 @@ def test_topology_to_ehi_trapped_ion():
     assert ehi.latencies.qnos_instr_time == 3
     assert ehi.latencies.host_peer_latency == 4
 
+
 def test_qubit_to_ehi():
     lhi_qubit = LhiTopologyBuilder.t1t2_qubit(is_communication=False, t1=3, t2=4)
     ehi_qubit = LhiConverter.qubit_info_to_ehi(lhi_qubit)
