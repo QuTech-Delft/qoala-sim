@@ -383,7 +383,7 @@ def test_host_program():
 
     program = load_program("test_scheduling_alice.iqoala")
     pid = 0
-    instance = instantiate(program, alice.local_ehi, pid)
+    instance = instantiate(program, alice.local_ehi, pid, ProgramInput({"bob_id": 1}))
 
     used_blocks = {"blk_host0", "blk_host1"}
 
@@ -413,7 +413,7 @@ def test_lr_program():
 
     program = load_program("test_scheduling_alice.iqoala")
     pid = 0
-    instance = instantiate(program, alice.local_ehi, pid)
+    instance = instantiate(program, alice.local_ehi, pid, ProgramInput({"bob_id": 1}))
 
     used_blocks = {"blk_host2", "blk_add_one"}
 
