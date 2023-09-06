@@ -2,21 +2,27 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Dict, Generator, List, Optional, Tuple
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple
 
 import netsquid as ns
 from netqasm.lang.operand import Template
+from netsquid.components.cchannel import ClassicalChannel
+from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.lang import hostlang
 from qoala.lang.ehi import (
     EhiNetworkInfo,
     EhiNetworkSchedule,
     EhiNetworkTimebin,
     EhiNodeInfo,
 )
-from qoala.lang.hostlang import ReceiveCMsgOp
+from qoala.lang.hostlang import BasicBlockType, ReceiveCMsgOp
 from qoala.runtime.memory import ProgramMemory
+from qoala.runtime.message import Message
 from qoala.runtime.program import (
     BatchInfo,
     BatchResult,
@@ -33,7 +39,8 @@ from qoala.runtime.task import (
     QoalaTask,
     SinglePairTask,
     TaskGraph,
-    TaskGraphBuilder,
+    TaskGraphFromBlockBuilder,
+    TaskInfo,
 )
 from qoala.sim.driver import CpuDriver, Driver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.eprsocket import EprSocket
@@ -48,6 +55,70 @@ from qoala.sim.qnos import Qnos
 from qoala.util.logging import LogManager
 
 
+class NodeSchedulerComponent(Component):
+    """
+    NetSquid component representing for a node scheduler.
+    It is used to send messages from the node scheduler to processor schedulers.
+
+    :param name: Name of the component
+    :param cpu_scheduler: CPU scheduler that node scheduler will send messages to.
+    :param qpu_scheduler: QPU scheduler that node scheduler will send messages to.
+
+    """
+
+    def __init__(
+        self,
+        name,
+        cpu_scheduler: ProcessorScheduler,
+        qpu_scheduler: ProcessorScheduler,
+        internal_sched_latency: float = 0.0,
+    ):
+        super().__init__(name=name)
+        self.add_ports(["cpu_scheduler_out"])
+        self.add_ports(["qpu_scheduler_out"])
+
+        node_sched_to_cpu = ClassicalChannel(
+            "node_scheduler_to_cpu_scheduler", delay=internal_sched_latency
+        )
+        self.cpu_scheduler_out_port.connect(node_sched_to_cpu.ports["send"])
+        node_sched_to_cpu.ports["recv"].connect(cpu_scheduler.node_scheduler_in_port)
+        node_sched_to_qpu = ClassicalChannel(
+            "node_scheduler_to_qpu_scheduler", delay=internal_sched_latency
+        )
+        self.qpu_scheduler_out_port.connect(node_sched_to_qpu.ports["send"])
+        node_sched_to_qpu.ports["recv"].connect(qpu_scheduler.node_scheduler_in_port)
+
+    @property
+    def cpu_scheduler_out_port(self) -> Port:
+        """
+        Port used to send messages to the CPU scheduler.
+        """
+        return self.ports["cpu_scheduler_out"]
+
+    @property
+    def qpu_scheduler_out_port(self) -> Port:
+        """
+        Port used to send messages to the QPU scheduler.
+        """
+        return self.ports["qpu_scheduler_out"]
+
+    def send_cpu_scheduler_message(self, msg: Message) -> None:
+        """
+        Send a message to the CPU scheduler.
+        :param msg: Message to send.
+        :return: None
+        """
+        self.cpu_scheduler_out_port.tx_output(msg)
+
+    def send_qpu_scheduler_message(self, msg: Message) -> None:
+        """
+        Send a message to the QPU scheduler.
+        :param msg: Message to send.
+        :return: None
+        """
+        self.qpu_scheduler_out_port.tx_output(msg)
+
+
 class NodeScheduler(Protocol):
     def __init__(
         self,
@@ -60,10 +131,12 @@ class NodeScheduler(Protocol):
         network_ehi: EhiNetworkInfo,
         deterministic: bool = True,
         use_deadlines: bool = True,
+        is_predictable: bool = False,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
         self._node_name = node_name
+        self.add_signal(SIGNAL_TASK_COMPLETED)
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}({node_name})"
@@ -87,8 +160,19 @@ class NodeScheduler(Protocol):
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
         self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
 
+        self._current_block_index: Dict[int, int] = {}  # program ID -> block index
+        self._task_from_block_builder = TaskGraphFromBlockBuilder()
+        self._prog_instance_dependency: Dict[
+            int, int
+        ] = {}  # program ID -> dependent program ID
+
+        self._last_cpu_task_pid = -1
+        self._last_qpu_task_pid = -1
+
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
+
+        self._is_predictable = is_predictable
 
         # TODO: refactor
         node_id = self.host._comp.node_id
@@ -120,6 +204,13 @@ class NodeScheduler(Protocol):
             netschedule,
             deterministic,
             use_deadlines,
+        )
+
+        self._comp = NodeSchedulerComponent(
+            f"{node_name}_scheduler",
+            self._cpu_scheduler,
+            self._qpu_scheduler,
+            internal_sched_latency=local_ehi.latencies.internal_sched_latency,
         )
 
         self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
@@ -154,22 +245,12 @@ class NodeScheduler(Protocol):
 
         for i in range(batch_info.num_iterations):
             pid = self._prog_instance_counter
-            tasks = TaskGraphBuilder.from_program(
-                batch_info.program,
-                pid,
-                self._local_ehi,
-                self._network_ehi,
-                first_task_id=self._task_counter,
-                prog_input=batch_info.inputs[i].values,
-            )
-            self._task_counter += len(tasks.get_tasks())
 
             instance = ProgramInstance(
                 pid=pid,
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 unit_module=batch_info.unit_module,
-                task_graph=tasks,
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -219,7 +300,9 @@ class NodeScheduler(Protocol):
     def create_processes_for_batches(
         self,
         remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+        linear: bool = False,
     ) -> None:
+        prev_prog_instance_id = -1
         for batch_id, batch in self._batches.items():
             for i, prog_instance in enumerate(batch.instances):
                 if remote_pids is not None:
@@ -230,6 +313,14 @@ class NodeScheduler(Protocol):
 
                 self.memmgr.add_process(process)
                 self.initialize_process(process)
+                self._current_block_index[prog_instance.pid] = 0
+                if linear:
+                    self._prog_instance_dependency[
+                        prog_instance.pid
+                    ] = prev_prog_instance_id
+                    prev_prog_instance_id = prog_instance.pid
+                else:
+                    self._prog_instance_dependency[prog_instance.pid] = -1
 
     def collect_timestamps(self, batch_id: int) -> List[Optional[Tuple[float, float]]]:
         batch = self._batches[batch_id]
@@ -270,41 +361,208 @@ class NodeScheduler(Protocol):
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
 
-        # TODO: rethink how and when Requests are instantiated
-        # inputs = process.prog_instance.inputs
-        # for req in process.get_all_requests().values():
-        #     # TODO: support for other request parameters being templates?
-        #     remote_id = req.request.remote_id
-        #     if isinstance(remote_id, Template):
-        #         req.request.remote_id = inputs.values[remote_id.name]
+        inputs = process.prog_instance.inputs
+        for req in process.prog_instance.program.request_routines.values():
+            req.instantiate(inputs.values)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
 
-    def upload_cpu_task_graph(self, graph: TaskGraph) -> None:
-        self._cpu_scheduler.upload_task_graph(graph)
+    def start(self) -> None:
+        # Processor schedulers start first to ensure that they will start running tasks after they receive the first
+        # message from the node scheduler.
+        self._cpu_scheduler.start()
+        self._qpu_scheduler.start()
+        if not self._is_predictable:
+            super().start()
+            self.schedule_all()
 
-    def upload_qpu_task_graph(self, graph: TaskGraph) -> None:
-        self._qpu_scheduler.upload_task_graph(graph)
+    def stop(self) -> None:
+        self._qpu_scheduler.stop()
+        self._cpu_scheduler.stop()
+        super().stop()
+
+    def run(self) -> Generator[EventExpression, None, None]:
+        while True:
+            if (
+                self._last_cpu_task_pid != -1
+                and self.is_program_instance_finished(self._last_cpu_task_pid)
+            ) or (
+                self._last_qpu_task_pid != -1
+                and self.is_program_instance_finished(self._last_qpu_task_pid)
+            ):
+                self.schedule_all()
+            ev_expr = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
+            ev_expr = ev_expr | self.await_signal(
+                self._qpu_scheduler, SIGNAL_TASK_COMPLETED
+            )
+            yield ev_expr
+
+            now = ns.sim_time()
+
+            # Gets the pid of the last finished task at the current time,
+            # if there is no task that is finished at the current time, it returns -1
+            self._last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(
+                now
+            )
+            # If there is a task that is finished at the current time, assign the next
+            if self._last_cpu_task_pid != -1:
+                self.schedule_next_for(self._last_cpu_task_pid)
+
+            self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
+                now
+            )
+            # If there is a task that is finished at the current time, assign the next, but we do not need to assign
+            # again if it is the same pid as the one that came from CPU
+            if (
+                self._last_qpu_task_pid != -1
+                and self._last_qpu_task_pid != self._last_cpu_task_pid
+            ):
+                self.schedule_next_for(self._last_qpu_task_pid)
+
+    def schedule_next_for(self, pid: int) -> None:
+        """
+        Schedule the tasks of the next block for program instance with given pid
+        by assigning respective tasks to CPU and QPU schedulers and send a message
+        to schedulers for informing them about the newly assigned tasks.
+
+        :param pid: program instance id
+        :return: None
+        """
+        new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
+
+        # If there are new tasks, send a message to schedulers
+        # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
+        if new_cpu_tasks:
+            self._cpu_scheduler.add_tasks(new_cpu_tasks)
+            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+        if new_qpu_tasks:
+            self._qpu_scheduler.add_tasks(new_qpu_tasks)
+            self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
+
+    def schedule_all(self) -> None:
+        """
+        Schedules the tasks of the next block for each available program instance in the memory manager
+        by assigning respective tasks to CPU and QPU schedulers and sends a message
+        to schedulers for informing them about the newly assigned tasks.
+
+        This method is responsible for scheduling tasks for each available program instance in the memory manager.
+        A program instance is considered available if it meets two conditions:
+        1. It is not finished.
+        2. It does not have any dependencies on an unfinished program instance
+        (it can have such dependencies if the batch of program instances are submitted to run linearly).
+
+        :return: None
+        """
+        all_new_cpu_tasks: Dict[int, TaskInfo] = {}
+        all_new_qpu_tasks: Dict[int, TaskInfo] = {}
+
+        for pid in self.memmgr.get_all_program_ids():
+            # If there is a dependency, check if it is finished
+            dependency_pid = self._prog_instance_dependency[pid]
+            if dependency_pid != -1:
+                dep_cur_index = self._current_block_index[dependency_pid]
+                dep_block_length = len(
+                    self.memmgr.get_process(dependency_pid).prog_instance.program.blocks
+                )
+                if dep_cur_index < dep_block_length:
+                    continue
+
+            # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
+            new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
+            if new_cpu_tasks:
+                all_new_cpu_tasks.update(new_cpu_tasks)
+            if new_qpu_tasks:
+                all_new_qpu_tasks.update(new_qpu_tasks)
+
+        # If there are new tasks, send a message to schedulers
+        if len(all_new_cpu_tasks) > 0:
+            self._cpu_scheduler.add_tasks(all_new_cpu_tasks)
+            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+        if len(all_new_qpu_tasks) > 0:
+            self._qpu_scheduler.add_tasks(all_new_qpu_tasks)
+            self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
+
+    def find_next_tasks_for(
+        self, pid: int
+    ) -> Tuple[Optional[Dict[int, TaskInfo]], Optional[Dict[int, TaskInfo]]]:
+        """
+        Finds the tasks of the next block for program instance with given pid,
+        and returns them as CPU tasks and QPU tasks separately.
+
+        :param pid: The program instance ID for which to find the next tasks.
+        :return: A 2-tuple containing the new CPU tasks and new QPU tasks. If no tasks are
+             found for the given PID, both elements of the tuple will be set to None.
+        """
+        new_cpu_tasks: Dict[int, TaskInfo] = {}
+        new_qpu_tasks: Dict[int, TaskInfo] = {}
+
+        if (
+            pid in self.host.interface.program_instance_jumps
+            and self.host.interface.program_instance_jumps[pid] != -1
+        ):
+            self._current_block_index[pid] = self.host.interface.program_instance_jumps[
+                pid
+            ]
+            self.host.interface.program_instance_jumps[pid] = -1
+
+        current_block_index = self._current_block_index[pid]
+        prog_instance = self.memmgr.get_process(pid).prog_instance
+        blocks = prog_instance.program.blocks
+
+        is_program_finished = current_block_index >= len(blocks)
+        # If program is finished or CPU scheduler has a task for this pid, do not schedule
+        # Note that for all block types, there will be tasks for CPU scheduler
+        if is_program_finished or self.cpu_scheduler.task_exists_for_pid(pid):
+            return None, None
+
+        block = prog_instance.program.blocks[current_block_index]
+
+        # If it is CL or CC it will only have tasks in CPU but others will have tasks in both
+        if block.typ in {
+            BasicBlockType.CL,
+            BasicBlockType.CC,
+        }:
+            graph = self._task_from_block_builder.build(
+                prog_instance, current_block_index, self._network_ehi
+            )
+            new_cpu_tasks.update(graph.get_tasks())
+
+            self._current_block_index[pid] += 1
+            # If scheduler does not have any task send a message to wake it up
+            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
+            return new_cpu_tasks, None
+        elif not self.qpu_scheduler.task_exists_for_pid(pid):
+            # Note that we know that cpu does not have any tasks for this pid
+            graph = self._task_from_block_builder.build(
+                prog_instance, current_block_index, self._network_ehi
+            )
+            new_cpu_tasks.update(graph.partial_graph(ProcessorType.CPU).get_tasks())
+            new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
+
+            self._current_block_index[pid] += 1
+
+        return new_cpu_tasks, new_qpu_tasks
 
     def upload_task_graph(self, graph: TaskGraph) -> None:
+        """
+        Assigns tasks in the given task graph to the CPU and QPU schedulers.
+
+        :param graph: The task graph to upload.
+        :return: None
+        """
         self._task_graph = graph
         cpu_graph = graph.partial_graph(ProcessorType.CPU)
         qpu_graph = graph.partial_graph(ProcessorType.QPU)
         self._cpu_scheduler.upload_task_graph(cpu_graph)
         self._qpu_scheduler.upload_task_graph(qpu_graph)
 
-    def start(self) -> None:
-        super().start()
-        self._cpu_scheduler.start()
-        self._qpu_scheduler.start()
-
-    def stop(self) -> None:
-        self._qpu_scheduler.stop()
-        self._cpu_scheduler.stop()
-        super().stop()
+    def is_program_instance_finished(self, pid: int) -> bool:
+        return self._current_block_index[pid] >= len(
+            self.memmgr.get_process(pid).prog_instance.program.blocks
+        )
 
     def submit_program_instance(
         self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
@@ -312,24 +570,8 @@ class NodeScheduler(Protocol):
         process = self.create_process(prog_instance, remote_pid)
         self.memmgr.add_process(process)
         self.initialize_process(process)
-
-    def get_tasks_to_schedule(self) -> List[TaskGraph]:
-        all_tasks: List[TaskGraph] = []
-
-        for batch in self._batches.values():
-            for inst in batch.instances:
-                all_tasks.append(inst.task_graph)
-
-        return all_tasks
-
-    def get_tasks_to_schedule_for(self, batch_id: int) -> List[TaskGraph]:
-        all_tasks: List[TaskGraph] = []
-
-        batch = self._batches[batch_id]
-        for inst in batch.instances:
-            all_tasks.append(inst.task_graph)
-
-        return all_tasks
+        self._current_block_index[prog_instance.pid] = 0
+        self._prog_instance_dependency[prog_instance.pid] = -1
 
     def get_statistics(self) -> SchedulerStatistics:
         return SchedulerStatistics(
@@ -340,6 +582,26 @@ class NodeScheduler(Protocol):
             cpu_task_ends=self.cpu_scheduler.get_task_ends(),
             qpu_task_ends=self.qpu_scheduler.get_task_ends(),
         )
+
+
+class ProcessorSchedulerComponent(Component):
+    """
+    NetSquid component representing for the ProcessorScheduler.
+    It is used to receive messages from the node scheduler.
+
+    :param name: Name of the component
+    """
+
+    def __init__(self, name):
+        super().__init__(name=name)
+        self.add_ports(["node_scheduler_in"])
+
+    @property
+    def node_scheduler_in_port(self) -> Port:
+        """
+        Port that the node scheduler uses to send messages to this component.
+        """
+        return self.ports["node_scheduler_in"]
 
 
 class ProcessorScheduler(Protocol):
@@ -366,7 +628,7 @@ class ProcessorScheduler(Protocol):
         self._deterministic = deterministic
         self._use_deadlines = use_deadlines
 
-        self._task_graph: Optional[TaskGraph] = None
+        self._task_graph: TaskGraph = TaskGraph()
         self._finished_tasks: List[int] = []
 
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
@@ -375,13 +637,60 @@ class ProcessorScheduler(Protocol):
         self._tasks_executed: Dict[int, QoalaTask] = {}
         self._task_starts: Dict[int, float] = {}
         self._task_ends: Dict[int, float] = {}
+        self.last_finished_task_pid: Tuple[int, int] = (-1, -1)  # (pid, end_time)
+
+        self._comp = ProcessorSchedulerComponent(name + "_comp")
+
+    @property
+    def node_scheduler_in_port(self) -> Port:
+        return self._comp.node_scheduler_in_port
 
     @property
     def driver(self) -> Driver:
         return self._driver
 
     def upload_task_graph(self, graph: TaskGraph) -> None:
+        """
+        Sets the given task graph as the current task graph.
+
+        :param graph: The task graph to upload.
+        :return: None
+        """
         self._task_graph = graph
+
+    # Gets the pid of the last finished task at the current time,
+    # if there is no task that is finished at the current time, it returns -1
+    def get_last_finished_task_pid_at(self, time: float) -> int:
+        """
+        Finds the pid of the last finished task at the given time and returns it,
+        if there is no task that is finished at the current time, it returns -1
+
+        :param time: The time to check for finished tasks.
+        :return: The pid of the last finished task at the given time if such task exists, -1 otherwise.
+        """
+        if self.last_finished_task_pid[1] == time:
+            return self.last_finished_task_pid[0]
+        else:
+            return -1
+
+    def task_exists_for_pid(self, pid: int) -> bool:
+        """
+        Checks the current task graph for the existence of a task with the given pid. Returns True if such task exists,
+        False otherwise.
+
+        :param pid: The pid to check for.
+        :return: True if a task with the given pid exists, False otherwise.
+        """
+        return self._task_graph.task_exists_for_pid(pid)
+
+    def add_tasks(self, tasks: Dict[int, TaskInfo]) -> None:
+        """
+        Adds the given tasks to the current task graph.
+
+        :param tasks: The tasks to add.
+        :return: None
+        """
+        self._task_graph.get_tasks().update(tasks)
 
     def has_finished(self, task_id: int) -> bool:
         return task_id in self._finished_tasks
@@ -420,152 +729,21 @@ class ProcessorScheduler(Protocol):
         yield event_expr
 
 
+class Status(Enum):
+    GRAPH_EMPTY = auto()
+    EPR_GEN = auto()
+    NEXT_TASK = auto()
+    WAITING_OTHER_CORE = auto()
+    WAITING_MSG = auto()
+    WAITING_START_TIME = auto()
+    WAITING_RESOURCES = auto()
+    WAITING_TIME_BIN = auto()
+
+
+@dataclass
 class SchedulerStatus:
-    pass
-
-
-class StatusGraphEmpty(SchedulerStatus):
-    pass
-
-
-class StatusEprGen(SchedulerStatus):
-    def __init__(self, task_id: int) -> None:
-        self._task_id = task_id
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, StatusEprGen):
-            raise NotImplementedError
-        return self.task_id == other.task_id
-
-
-class StatusNextTask(SchedulerStatus):
-    def __init__(self, task_id: int) -> None:
-        self._task_id = task_id
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, StatusNextTask):
-            raise NotImplementedError
-        return self.task_id == other.task_id
-
-
-class StatusBlockedOnMessage(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnMessageOrStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnOtherCore(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnOtherCoreOrStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnMessageOrOtherCore(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnMessageOrOtherCoreOrStartTime(SchedulerStatus):
-    def __init__(self, start_time: float) -> None:
-        self._start_time = start_time
-
-    @property
-    def start_time(self) -> float:
-        return self._start_time
-
-
-class StatusBlockedOnResource(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnResourceOrOtherCore(SchedulerStatus):
-    pass
-
-
-class StatusBlockedOnTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
-
-
-class StatusBlockedOnOtherCoreOrTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
-
-
-class StatusBlockedOnResourceOrTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
-
-
-class StatusBlockedOnOtherCoreorResourceOrTimebin(SchedulerStatus):
-    def __init__(self, task_id: int, delta: int) -> None:
-        self._task_id = task_id
-        self._delta = delta
-
-    @property
-    def task_id(self) -> int:
-        return self._task_id
-
-    @property
-    def delta(self) -> int:
-        return self._delta
+    status: Set[Status]
+    params: Dict[str, Any]
 
 
 class EdfScheduler(ProcessorScheduler):
@@ -586,6 +764,11 @@ class EdfScheduler(ProcessorScheduler):
             deterministic=deterministic,
             use_deadlines=use_deadlines,
         )
+        self._status: SchedulerStatus = SchedulerStatus(status=set(), params={})
+
+    @property
+    def status(self) -> SchedulerStatus:
+        return self._status
 
     def update_external_predcessors(self) -> None:
         if self._other_scheduler is None:
@@ -593,6 +776,7 @@ class EdfScheduler(ProcessorScheduler):
         assert self._task_graph is not None
 
         tg = self._task_graph
+
         for r in tg.get_roots(ignore_external=True):
             ext_preds = tg.get_tinfo(r).ext_predecessors
             new_ext_preds = {
@@ -620,6 +804,7 @@ class EdfScheduler(ProcessorScheduler):
             after = ns.sim_time()
 
             self.record_end_timestamp(task.pid, after)
+            self.last_finished_task_pid = (task.pid, after)
             duration = after - before
             self._task_graph.decrease_deadlines(duration)
             self._task_graph.remove_task(task_id)
@@ -664,8 +849,8 @@ class CpuEdfScheduler(EdfScheduler):
         block = process.program.get_block(task.block_name)
         instr = block.instructions[0]
         assert isinstance(instr, ReceiveCMsgOp)
-        assert isinstance(instr.arguments[0], str)
-        csck_id = process.host_mem.read(instr.arguments[0])
+        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+        csck_id = process.host_mem.read(instr.arguments[0].name)
         csck = process.csockets[csck_id]
         remote_name = csck.remote_name
         remote_pid = csck.remote_pid
@@ -677,11 +862,13 @@ class CpuEdfScheduler(EdfScheduler):
             self._task_logger.debug(f"task {tid} blocked")
             return False
 
-    def update_status(self) -> SchedulerStatus:
+    def update_status(self) -> None:
+
         tg = self._task_graph
 
         if tg is None or len(tg.get_tasks()) == 0:
-            return StatusGraphEmpty()
+            self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
+            return
 
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
@@ -744,141 +931,67 @@ class CpuEdfScheduler(EdfScheduler):
                     to_return = ready[index]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
-
-            return StatusNextTask(to_return)
+            self._status = SchedulerStatus(
+                status={Status.NEXT_TASK}, params={"task_id": to_return}
+            )
+            return
         else:
-            # No tasks ready to execute. Check what is/are the cause(s).
             if len(blocked_on_other_core) > 0:
-                if len(event_blocked_on_message) > 0:
-                    if wait_for_start is not None:
-                        _, start = wait_for_start
-                        return StatusBlockedOnMessageOrOtherCoreOrStartTime(start)
-                    else:
-                        return StatusBlockedOnMessageOrOtherCore()
-                else:
-                    if wait_for_start is not None:
-                        _, start = wait_for_start
-                        return StatusBlockedOnOtherCoreOrStartTime(start)
-                    else:
-                        return StatusBlockedOnOtherCore()
-            else:
-                if len(event_blocked_on_message) > 0:
-                    if wait_for_start is not None:
-                        _, start = wait_for_start
-                        return StatusBlockedOnMessageOrStartTime(start)
-                    else:
-                        return StatusBlockedOnMessage()
-                else:
-                    if wait_for_start is not None:
-                        _, start = wait_for_start
-                        return StatusBlockedOnStartTime(start)
-                    else:
-                        raise RuntimeError
+                self._logger.debug("Waiting other core")
+                self._task_logger.debug("Waiting other core")
+                self._status.status.add(Status.WAITING_OTHER_CORE)
+            if len(event_blocked_on_message) > 0:
+                self._logger.debug("Waiting message")
+                self._task_logger.debug("Waiting message")
+                self._status.status.add(Status.WAITING_MSG)
+            if wait_for_start is not None:
+                _, start = wait_for_start
+                self._logger.debug("Waiting Start Time")
+                self._task_logger.debug("Waiting Start Time")
+                self._status.status.add(Status.WAITING_START_TIME)
+                self._status.params["start_time"] = start
+
+            if len(self.status.status) == 0:
+                raise RuntimeError
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             self._task_logger.debug("updating status...")
-            status = self.update_status()
-            self._task_logger.debug(f"status: {status}")
-            if isinstance(status, StatusGraphEmpty):
-                break
-            elif isinstance(status, StatusBlockedOnOtherCore):
-                self._task_logger.debug("waiting for TASK_COMPLETED signal")
-                yield self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                self._task_logger.debug("got TASK_COMPLETED signal")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnOtherCoreOrStartTime):
-                now = ns.sim_time()
-                delta = status.start_time - now
-                self._task_logger.info(
-                    f"Blocked on other core or start time (delta = {delta})"
-                )
-                ev_other_core = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                self._schedule_after(delta, EVENT_WAIT)
-                ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
-                yield ev_other_core | ev_start_time
-            elif isinstance(status, StatusBlockedOnMessage):
-                self._task_logger.info("blocked, waiting for message...")
-                yield from self._host_interface.wait_for_any_msg()
-                self._task_logger.debug("message arrived")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnStartTime):
-                now = ns.sim_time()
-                delta = status.start_time - now
-                self._task_logger.info(
-                    f"blocked, waiting for start time (delta = {delta})"
-                )
-                self._schedule_after(delta, EVENT_WAIT)
-                ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
-                yield ev_start_time
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnMessageOrStartTime):
-                now = ns.sim_time()
-                delta = status.start_time - now
-                self._task_logger.info(
-                    f"Blocked on message or start time (delta = {delta})"
-                )
-                ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
-                assert ev_msg_arrived is not None
+            self._status = SchedulerStatus(status=set(), params={})
+            self.update_external_predcessors()
+            self.update_status()
+            self._task_logger.debug(f"status: {self.status.status}")
+            if Status.NEXT_TASK in self.status.status:
+                task_id = self.status.params["task_id"]
+                yield from self.handle_task(task_id)
+            else:
+                ev_expr = self.await_port_input(self.node_scheduler_in_port)
+                if Status.WAITING_OTHER_CORE in self.status.status:
+                    ev_expr = ev_expr | self.await_signal(
+                        sender=self._other_scheduler,
+                        signal_label=SIGNAL_TASK_COMPLETED,
+                    )
+                if Status.WAITING_START_TIME in self.status.status:
+                    start_time = self.status.params["start_time"]
+                    now = ns.sim_time()
+                    delta = start_time - now
+                    self._schedule_after(delta, EVENT_WAIT)
+                    ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
+                    ev_expr = ev_expr | ev_start_time
 
-                self._schedule_after(delta, EVENT_WAIT)
-                ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
-                union = ev_msg_arrived | ev_start_time  # type: ignore
+                if Status.WAITING_MSG in self.status.status:
+                    ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
 
-                yield union
-                if len(union.first_term.triggered_events) > 0:
-                    # It was "ev_msg_arrived" that triggered.
-                    # Need to process this event (flushing potential other messages)
-                    yield from self._host_interface.handle_msg_evexpr(union.first_term)
-
-            elif isinstance(status, StatusBlockedOnMessageOrOtherCore):
-                self._task_logger.debug("blocked, waiting for message OR other core...")
-
-                ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
-
-                ev_other_core = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                union = ev_msg_arrived | ev_other_core
-
-                yield union
-                self._task_logger.info("Unblocked")
-                if len(union.first_term.triggered_events) > 0:
-                    # It was "ev_msg_arrived" that triggered.
-                    # Need to process this event (flushing potential other messages)
-                    yield from self._host_interface.handle_msg_evexpr(union.first_term)
-            elif isinstance(status, StatusBlockedOnMessageOrOtherCoreOrStartTime):
-                now = ns.sim_time()
-                delta = status.start_time - now
-                self._task_logger.info(
-                    f"Blocked on message or other core or start time (delta = {delta})"
-                )
-                ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
-                assert ev_msg_arrived is not None
-
-                ev_other_core = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                self._schedule_after(delta, EVENT_WAIT)
-                ev_start_time = EventExpression(source=self, event_type=EVENT_WAIT)
-
-                union = ev_msg_arrived | ev_other_core | ev_start_time
-                yield union
-                if len(union.first_term.triggered_events) > 0:
-                    # It was "ev_msg_arrived" that triggered.
-                    # Need to process this event (flushing potential other messages)
-                    yield from self._host_interface.handle_msg_evexpr(union.first_term)
-            elif isinstance(status, StatusNextTask):
-                yield from self.handle_task(status.task_id)
-                self.update_external_predcessors()
+                    ev_expr = ev_msg_arrived | ev_expr
+                    yield ev_expr
+                    if len(ev_expr.first_term.triggered_events) > 0:
+                        # It was "ev_msg_arrived" that triggered.
+                        # Need to process this event (flushing potential other messages)
+                        yield from self._host_interface.handle_msg_evexpr(
+                            ev_expr.first_term
+                        )
+                else:
+                    yield ev_expr
 
 
 class QpuEdfScheduler(EdfScheduler):
@@ -942,8 +1055,10 @@ class QpuEdfScheduler(EdfScheduler):
 
             # Get virt ID which would be need to be allocated
             virt_id = routine.request.virt_ids.get_id(task.pair_index)
+
             # Check if virt ID is available by trying to allocate
             # (without actually allocating)
+
             try:
                 self._memmgr.allocate(task.pid, virt_id)
                 self._memmgr.free(task.pid, virt_id)
@@ -1000,11 +1115,12 @@ class QpuEdfScheduler(EdfScheduler):
             # resources so they can always return `True` here.
             return True
 
-    def update_status(self) -> SchedulerStatus:
+    def update_status(self) -> None:
         tg = self._task_graph
 
         if tg is None or len(tg.get_tasks()) == 0:
-            return StatusGraphEmpty()
+            self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
+            return
 
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
@@ -1075,7 +1191,9 @@ class QpuEdfScheduler(EdfScheduler):
 
         if len(epr_ready) > 0:
             self._task_logger.info(f"epr_ready: {epr_ready}")
-            return StatusEprGen(epr_ready[0])
+            self._status = SchedulerStatus(
+                status={Status.EPR_GEN}, params={"task_id": epr_ready[0]}
+            )
         elif len(non_epr_ready) > 0:
             with_deadline = [
                 t for t in non_epr_ready if tg.get_tinfo(t).deadline is not None
@@ -1089,7 +1207,9 @@ class QpuEdfScheduler(EdfScheduler):
                 to_return = sorted_by_deadline[0][0]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
-                return StatusNextTask(to_return)
+                self._status = SchedulerStatus(
+                    status={Status.NEXT_TASK}, params={"task_id": to_return}
+                )
             else:
                 # No deadlines
                 if self._deterministic:
@@ -1099,128 +1219,56 @@ class QpuEdfScheduler(EdfScheduler):
                 to_return = non_epr_ready[index]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
-                return StatusNextTask(to_return)
+                self._status = SchedulerStatus(
+                    status={Status.NEXT_TASK}, params={"task_id": to_return}
+                )
         else:
-            # No tasks ready to execute. Check what is/are the cause(s).
             if len(blocked_on_other_core) > 0:
-                if len(blocked_on_resources) > 0:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnOtherCoreorResourceOrTimebin(
-                            task_id, delta
-                        )
-                    else:
-                        return StatusBlockedOnResourceOrOtherCore()
-                else:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnOtherCoreOrTimebin(task_id, delta)
-                    else:
-                        return StatusBlockedOnOtherCore()
-            else:
-                if len(blocked_on_resources) > 0:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnResourceOrTimebin(task_id, delta)
-                    else:
-                        return StatusBlockedOnResource()
-                else:
-                    if epr_wait_for_bin is not None:
-                        task_id, delta = epr_wait_for_bin
-                        return StatusBlockedOnTimebin(task_id, delta)
-                    else:
-                        raise RuntimeError
+                self._logger.debug("Waiting other core")
+                self._task_logger.debug("Waiting other core")
+                self._status.status.add(Status.WAITING_OTHER_CORE)
+            if len(blocked_on_resources) > 0:
+                self._logger.debug("Waiting resources")
+                self._task_logger.debug("Waiting resources")
+                self._status.status.add(Status.WAITING_RESOURCES)
+            if epr_wait_for_bin is not None:
+                self._logger.debug("Waiting time bin")
+                self._task_logger.debug("Waiting time bin")
+                task_id, delta = epr_wait_for_bin
+                self._status.status.add(Status.WAITING_TIME_BIN)
+                self._status.params["delta"] = delta
+
+            if len(self.status.status) == 0:
+                raise RuntimeError
 
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
-            status = self.update_status()
-            if isinstance(status, StatusGraphEmpty):
-                self._task_logger.info("graph empty")
-                break
-            elif isinstance(status, StatusBlockedOnOtherCore):
-                self._task_logger.info("waiting for TASK_COMPLETED signal")
-                yield self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                self._task_logger.debug("got TASK_COMPLETED signal")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnResource):
-                self._task_logger.info(
-                    "blocked on resource: waiting for MEMORY_FREED signal"
-                )
-                yield self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                )
-                self._task_logger.debug("blocked on resource: got MEMORY_FREED signal")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnResourceOrOtherCore):
-                self._task_logger.info(
-                    "blocked on resource and other core: "
-                    "waiting for MEMORY_FREED signal OR TASK_COMPLETED signal"
-                )
-                ev_mem_freed = self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                )
-                ev_task_completed = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                yield ev_mem_freed | ev_task_completed
-
-                self.update_external_predcessors()
-            elif isinstance(status, StatusEprGen):
-                self._task_logger.info(f"handling EPR task {status.task_id}")
-                yield from self.handle_task(status.task_id)
-            elif isinstance(status, StatusNextTask):
-                self._task_logger.info(f"handling task {status.task_id}")
-                yield from self.handle_task(status.task_id)
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnTimebin):
-                self._task_logger.info(f"Blocked on timebin (delta = {status.delta})")
-                yield from self.wait(status.delta)
-            elif isinstance(status, StatusBlockedOnOtherCoreOrTimebin):
-                self._task_logger.info(
-                    f"Blocked on other core or timebin (delta = {status.delta})"
-                )
-                self._schedule_after(status.delta, EVENT_WAIT)
-                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
-                ev_task_completed = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                yield ev_timebin | ev_task_completed
-                self._task_logger.info("unblocked")
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnResourceOrTimebin):
-                self._task_logger.info(
-                    f"Blocked on resource or timebin (delta = {status.delta})"
-                )
-                self._schedule_after(status.delta, EVENT_WAIT)
-                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
-                ev_mem_freed = self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                )
-                yield ev_timebin | ev_mem_freed
-                self.update_external_predcessors()
-            elif isinstance(status, StatusBlockedOnOtherCoreorResourceOrTimebin):
-                self._task_logger.info(
-                    f"Blocked on other core or resource or timebin (delta = {status.delta})"
-                )
-                ev_task_completed = self.await_signal(
-                    sender=self._other_scheduler,
-                    signal_label=SIGNAL_TASK_COMPLETED,
-                )
-                self._schedule_after(status.delta, EVENT_WAIT)
-                ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
-                ev_mem_freed = self.await_signal(
-                    sender=self._memmgr,
-                    signal_label=SIGNAL_MEMORY_FREED,
-                )
-                yield ev_task_completed | ev_timebin | ev_mem_freed
-                self.update_external_predcessors()
+            self._task_logger.debug("updating status...")
+            self._status = SchedulerStatus(status=set(), params={})
+            self.update_external_predcessors()
+            self.update_status()
+            self._task_logger.debug(f"status: {self.status.status}")
+            if Status.EPR_GEN in self.status.status:
+                task_id = self.status.params["task_id"]
+                yield from self.handle_task(task_id)
+            elif Status.NEXT_TASK in self.status.status:
+                task_id = self.status.params["task_id"]
+                yield from self.handle_task(task_id)
             else:
-                raise RuntimeError()
+                ev_expr = self.await_port_input(self.node_scheduler_in_port)
+                if Status.WAITING_OTHER_CORE in self.status.status:
+                    ev_expr = ev_expr | self.await_signal(
+                        sender=self._other_scheduler,
+                        signal_label=SIGNAL_TASK_COMPLETED,
+                    )
+                if Status.WAITING_RESOURCES in self.status.status:
+                    ev_expr = ev_expr | self.await_signal(
+                        sender=self._memmgr,
+                        signal_label=SIGNAL_MEMORY_FREED,
+                    )
+                if Status.WAITING_TIME_BIN in self.status.status:
+                    delta = self.status.params["delta"]
+                    self._schedule_after(delta, EVENT_WAIT)
+                    ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
+                    ev_expr = ev_expr | ev_timebin
+                yield ev_expr

@@ -6,7 +6,6 @@ from qoala.runtime.lhi import LhiLatencies, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.task import TaskGraph
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.procnode import ProcNode
 
@@ -42,5 +41,4 @@ class ObjectBuilder:
             program,
             inputs,
             unit_module=unit_module,
-            task_graph=TaskGraph(),
         )

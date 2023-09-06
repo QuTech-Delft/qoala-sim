@@ -81,7 +81,7 @@ def run_two_node_app_separate_inputs(
 
         remote_batch = batches[other_name[name]]
         remote_pids = {remote_batch.batch_id: [p.pid for p in remote_batch.instances]}
-        procnode.initialize_processes(remote_pids)
+        procnode.initialize_processes(remote_pids, linear=linear)
 
         tasks = procnode.scheduler.get_tasks_to_schedule()
         if linear:
@@ -224,15 +224,11 @@ def run_1_server_n_clients(
         server_pids[client_name] = batch.instances[0].pid
 
     for client_name in client_names:
-        procnode.initialize_processes({0: [server_pids[client_name]]})
-        tasks = procnode.scheduler.get_tasks_to_schedule()
-        merged = TaskGraphBuilder.merge(tasks)
-        procnode.scheduler.upload_task_graph(merged)
+        procnode.initialize_processes({0: [server_pids[client_name]]}, linear=False)
 
-    server_procnode.initialize_processes({i: [0] for i in range(len(client_names))})
-    server_tasks = server_procnode.scheduler.get_tasks_to_schedule()
-    server_merged = TaskGraphBuilder.merge(server_tasks)
-    server_procnode.scheduler.upload_task_graph(server_merged)
+    server_procnode.initialize_processes(
+        {i: [0] for i in range(len(client_names))}, linear=False
+    )
 
     network.start()
     ns.sim_run()
@@ -262,7 +258,6 @@ def run_two_node_app(
     linear: bool = False,
     netschedule: EhiNetworkSchedule | None = None,
 ) -> AppResult:
-    new_inputs: Dict[str, List[ProgramInput]] = {}
 
     names = list(programs.keys())
     new_inputs = {
@@ -299,21 +294,14 @@ def run_single_node_app_separate_inputs(
     batch_info = create_batch(program, unit_module, program_input, num_iterations)
     procnode.submit_batch(batch_info)
 
-    procnode.initialize_processes()
+    procnode.initialize_processes(linear=linear)
 
-    tasks = procnode.scheduler.get_tasks_to_schedule()
-    if linear:
-        merged = TaskGraphBuilder.merge_linear(tasks)
-    else:
-        merged = TaskGraphBuilder.merge(tasks)
-    procnode.scheduler.upload_task_graph(merged)
-
-    logger = LogManager.get_stack_logger()
-    for batch_id, prog_batch in procnode.scheduler.get_batches().items():
-        task_graph = prog_batch.instances[0].task_graph
-        num = len(prog_batch.instances)
-        logger.info(f"batch {batch_id}: {num} instances each with task graph:")
-        logger.info(task_graph)
+    # logger = LogManager.get_stack_logger()
+    # for batch_id, prog_batch in procnode.scheduler.get_batches().items():
+    #     task_graph = prog_batch.instances[0].task_graph
+    #     num = len(prog_batch.instances)
+    #     logger.info(f"batch {batch_id}: {num} instances each with task graph:")
+    #     logger.info(task_graph)
 
     network.start()
     ns.sim_run()

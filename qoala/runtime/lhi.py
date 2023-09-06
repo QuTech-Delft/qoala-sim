@@ -33,10 +33,18 @@ from netsquid_magic.state_delivery_sampler import (
 )
 
 from qoala.lang.common import MultiQubit
+from qoala.runtime.instructions import (
+    INSTR_BICHROMATIC,
+    INSTR_MEASURE_ALL,
+    INSTR_ROT_X_ALL,
+    INSTR_ROT_Y_ALL,
+    INSTR_ROT_Z_ALL,
+)
 
 # A measurement that is meant to take 0 time.
 # Used in e.g. Measure Directly EPR generation.
 INSTR_MEASURE_INSTANT = IMeasure("measurement_instant_op")
+
 
 # Config Interface
 
@@ -88,6 +96,9 @@ class LhiTopologyConfigInterface(ABC):
     ) -> Dict[MultiQubit, List[LhiGateConfigInterface]]:
         raise NotImplementedError
 
+    def get_all_qubit_gate_configs(self) -> List[LhiGateConfigInterface]:
+        raise NotImplementedError
+
 
 # Data classes
 
@@ -114,6 +125,7 @@ class LhiTopology:
     multi_gate_infos: Dict[
         MultiQubit, List[LhiGateInfo]
     ]  # ordered qubit ID list -> gates
+    all_qubit_gate_infos: Optional[List[LhiGateInfo]] = None
 
     def find_single_gate(
         self, qubit_id: int, instr: Type[NetSquidInstruction]
@@ -132,6 +144,17 @@ class LhiTopology:
         if multi not in self.multi_gate_infos:
             return None
         for info in self.multi_gate_infos[multi]:
+            if info.instruction == instr:
+                return info
+        return None
+
+    def find_all_qubit_gate(
+        self, instr: Type[NetSquidInstruction]
+    ) -> Optional[LhiGateInfo]:
+        if self.all_qubit_gate_infos is None:
+            return None
+
+        for info in self.all_qubit_gate_infos:
             if info.instruction == instr:
                 return info
         return None
@@ -177,10 +200,24 @@ class LhiTopologyBuilder:
                 for info in cfg_infos
             ]
 
+        all_qubit_gate_infos: Optional[List[LhiGateInfo]] = None
+        if cfg.get_all_qubit_gate_configs() is not None:
+            all_qubit_gate_infos = []
+            for info in cfg.get_all_qubit_gate_configs():
+                all_qubit_gate_infos.append(
+                    LhiGateInfo(
+                        instruction=info.to_instruction(),
+                        duration=info.to_duration(),
+                        error_model=info.to_error_model(),
+                        error_model_kwargs=info.to_error_model_kwargs(),
+                    )
+                )
+
         return LhiTopology(
             qubit_infos=qubit_infos,
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
+            all_qubit_gate_infos=all_qubit_gate_infos,
         )
 
     @classmethod
@@ -250,13 +287,31 @@ class LhiTopologyBuilder:
         single_duration: float,
         two_instructions: List[NetSquidInstruction],
         two_duration: float,
+        all_qubit_instructions: List[NetSquidInstruction] = None,
+        all_qubit_duration: float = 0,
     ) -> LhiTopology:
-        return cls.fully_uniform(
-            num_qubits=num_qubits,
-            qubit_info=cls.perfect_qubit(is_communication=True),
-            single_gate_infos=cls.perfect_gates(single_duration, single_instructions),
-            two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
-        )
+        if all_qubit_instructions is None:
+            return cls.fully_uniform(
+                num_qubits=num_qubits,
+                qubit_info=cls.perfect_qubit(is_communication=True),
+                single_gate_infos=cls.perfect_gates(
+                    single_duration, single_instructions
+                ),
+                two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
+            )
+        else:
+            all_qubit_gate_infos = cls.perfect_gates(
+                all_qubit_duration, all_qubit_instructions
+            )
+            return cls.fully_uniform(
+                num_qubits=num_qubits,
+                qubit_info=cls.perfect_qubit(is_communication=True),
+                single_gate_infos=cls.perfect_gates(
+                    single_duration, single_instructions
+                ),
+                two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
+                all_qubit_gate_infos=all_qubit_gate_infos,
+            )
 
     @classmethod
     def fully_uniform(
@@ -265,6 +320,7 @@ class LhiTopologyBuilder:
         qubit_info: LhiQubitInfo,
         single_gate_infos: List[LhiGateInfo],
         two_gate_infos: List[LhiGateInfo],
+        all_qubit_gate_infos: List[LhiGateInfo] = None,
     ) -> LhiTopology:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}
@@ -274,7 +330,8 @@ class LhiTopologyBuilder:
                 if i != j:
                     multi = MultiQubit([i, j])
                     mg_infos[multi] = two_gate_infos
-        return LhiTopology(q_infos, sg_infos, mg_infos)
+
+        return LhiTopology(q_infos, sg_infos, mg_infos, all_qubit_gate_infos)
 
     @classmethod
     def perfect_star(
@@ -352,6 +409,31 @@ class LhiTopologyBuilder:
 
         return LhiTopology(q_infos, sg_infos, mg_infos)
 
+    @classmethod
+    def trapped_ion_default_perfect_gates(cls, num_qubits: int) -> LhiTopology:
+        # TODO check default values
+        return cls.perfect_uniform(
+            num_qubits=num_qubits,
+            single_instructions=[
+                INSTR_INIT,
+                INSTR_ROT_Z,
+                INSTR_MEASURE,
+                INSTR_MEASURE_INSTANT,
+            ],
+            single_duration=5e3,
+            two_instructions=[],
+            two_duration=0,
+            all_qubit_instructions=[
+                INSTR_INIT,
+                INSTR_MEASURE_ALL,
+                INSTR_ROT_X_ALL,
+                INSTR_ROT_Y_ALL,
+                INSTR_ROT_Z_ALL,
+                INSTR_BICHROMATIC,
+            ],
+            all_qubit_duration=5e3,
+        )
+
 
 class LhiLatenciesConfigInterface(ABC):
     @abstractmethod
@@ -366,12 +448,16 @@ class LhiLatenciesConfigInterface(ABC):
     def get_host_peer_latency(self) -> float:
         raise NotImplementedError
 
+    def get_internal_sched_latency(self):
+        raise NotImplementedError
+
 
 @dataclass
 class LhiLatencies:
     host_instr_time: float = 0  # duration of classical Host instr execution
     qnos_instr_time: float = 0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0  # processing time for Host messages from remote node
+    internal_sched_latency: float = 0  # processing time for messaging between node scheduler and processor schedulers
 
     @classmethod
     def from_config(cls, cfg: LhiLatenciesConfigInterface) -> LhiLatencies:
@@ -379,13 +465,14 @@ class LhiLatencies:
             host_instr_time=cfg.get_host_instr_time(),
             qnos_instr_time=cfg.get_qnos_instr_time(),
             host_peer_latency=cfg.get_host_peer_latency(),
+            internal_sched_latency=cfg.get_internal_sched_latency(),
         )
 
     @classmethod
     def all_zero(cls) -> LhiLatencies:
         # NOTE: can also just use LhiLatencies() which will default all values to 0
         # However, using this classmethod makes this behavior more explicit and clear.
-        return LhiLatencies(0, 0, 0)
+        return LhiLatencies(0, 0, 0, 0)
 
 
 class LhiLinkConfigInterface(ABC):
@@ -487,7 +574,17 @@ class LhiNetworkInfo:
         return cls.fully_connected(nodes, link)
 
     def add_link(self, node1_id, node2_id, link_info: LhiLinkInfo):
+        if node1_id not in self.nodes:
+            raise ValueError(f"Node with ID {node1_id} not found")
+        if node2_id not in self.nodes:
+            raise ValueError(f"Node with ID {node2_id} not found")
+        if node1_id == node2_id:
+            raise ValueError("Cannot add link between same node")
         node_link = frozenset([node1_id, node2_id])
+        if node_link in self.links:
+            raise ValueError(
+                f"Link between nodes {node1_id} and {node2_id} already exists"
+            )
         self.links[node_link] = link_info
 
     def get_link(self, node_id1: int, node_id2: int) -> LhiLinkInfo:

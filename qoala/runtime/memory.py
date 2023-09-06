@@ -83,7 +83,7 @@ class QnosMemory:
 
         # NetQASM registers.
         register_names: Dict[RegisterName, RegisterGroup] = setup_registers()
-        self._registers: Dict[Dict[RegisterName, RegisterGroup], int] = {}
+        self._registers: Dict[RegisterName, Dict[int, int]] = {}
         # TODO fix this abomination of handling registers
         for name in register_names.keys():
             self._registers[name] = {}  # type: ignore

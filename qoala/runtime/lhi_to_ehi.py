@@ -87,12 +87,20 @@ class LhiConverter:
             ids: [cls.gate_info_to_ehi(gi, ntf) for gi in gis]
             for (ids, gis) in topology.multi_gate_infos.items()
         }
+        if topology.all_qubit_gate_infos is None:
+            all_qubit_gate_infos = []
+        else:
+            all_qubit_gate_infos = [
+                cls.gate_info_to_ehi(gi, ntf) for gi in topology.all_qubit_gate_infos
+            ]
+
         flavour = ntf.flavour()
 
         ehi_latencies = EhiLatencies(
             latencies.host_instr_time,
             latencies.qnos_instr_time,
             latencies.host_peer_latency,
+            latencies.internal_sched_latency,
         )
 
         return EhiNodeInfo(
@@ -100,6 +108,7 @@ class LhiConverter:
             flavour=flavour,
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
+            all_qubit_gate_infos=all_qubit_gate_infos,
             latencies=ehi_latencies,
         )
 
@@ -122,9 +131,8 @@ class LhiConverter:
     @classmethod
     def network_to_ehi(cls, info: LhiNetworkInfo) -> EhiNetworkInfo:
         links: Dict[FrozenSet[int], EhiLinkInfo] = {}
-        for ([n1, n2], link_info) in info.links.items():
+        for (node_link, link_info) in info.links.items():
             ehi_link = cls.link_info_to_ehi(link_info)
-            node_link = frozenset([n1, n2])
             links[node_link] = ehi_link
         return EhiNetworkInfo(info.nodes, links)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generator, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
@@ -67,6 +67,14 @@ class HostInterface(ComponentProtocol):
             )
             self._listener_names.append(f"peer_{peer}")
             self._signal_names.append(f"{SIGNAL_HOST_HOST_MSG}_{peer}")
+
+        # If the last instruction executed for the program instance was a jump,
+        # this will be the index of the block(in program's list of blocks) to jump to, otherwise None.
+        self._program_instance_jumps: Dict[int, int] = {}  # pid => block index
+
+    @property
+    def program_instance_jumps(self) -> Dict[int, int]:
+        return self._program_instance_jumps
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
         self._logger.info(f"sending message {msg}")

@@ -36,10 +36,11 @@ class EhiLatencies:
     host_instr_time: float  # duration of classical Host instr execution (CL)
     qnos_instr_time: float  # duration of classical Qnos instr execution (QL)
     host_peer_latency: float  # processing time for Host messages from remote node (CC)
+    internal_sched_latency: float  # processing time for messaging between node scheduler and processor schedulers
 
     @classmethod
     def all_zero(cls) -> EhiLatencies:
-        return EhiLatencies(0, 0, 0)
+        return EhiLatencies(0, 0, 0, 0)
 
 
 @dataclass(frozen=True)
@@ -55,8 +56,10 @@ class EhiNodeInfo:
     multi_gate_infos: Dict[
         MultiQubit, List[EhiGateInfo]
     ]  # ordered qubit ID list -> gates
-
     latencies: EhiLatencies
+    all_qubit_gate_infos: Optional[
+        List[EhiGateInfo]
+    ] = None  # gates that are applied to all qubits
 
     def find_single_gate(
             self, qubit_id: int, instr: Type[NetQASMInstruction]
@@ -75,6 +78,17 @@ class EhiNodeInfo:
         if multi not in self.multi_gate_infos:
             return None
         for info in self.multi_gate_infos[multi]:
+            if info.instruction == instr:
+                return info
+        return None
+
+    def find_all_qubit_gate(
+        self, instr: Type[NetQASMInstruction]
+    ) -> Optional[EhiGateInfo]:
+        if self.all_qubit_gate_infos is None:
+            return None
+
+        for info in self.all_qubit_gate_infos:
             if info.instruction == instr:
                 return info
         return None
@@ -117,33 +131,54 @@ class EhiBuilder:
 
     @classmethod
     def perfect_uniform(
-            cls,
-            num_qubits,
-            flavour: Type[Flavour],
-            single_instructions: List[Type[NetQASMInstruction]],
-            single_duration: float,
-            two_instructions: List[Type[NetQASMInstruction]],
-            two_duration: float,
-            latencies: Optional[EhiLatencies] = None,
+        cls,
+        num_qubits,
+        flavour: Type[Flavour],
+        single_instructions: List[Type[NetQASMInstruction]],
+        single_duration: float,
+        two_instructions: List[Type[NetQASMInstruction]],
+        two_duration: float,
+        all_qubit_instructions: List[Type[NetQASMInstruction]] = None,
+        all_qubit_duration: float = 0,
+        latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
-        return cls.fully_uniform(
-            num_qubits=num_qubits,
-            flavour=flavour,
-            qubit_info=cls.perfect_qubit(is_communication=True),
-            single_gate_infos=cls.perfect_gates(single_duration, single_instructions),
-            two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
-            latencies=latencies,
-        )
+        if all_qubit_instructions is None:
+            return cls.fully_uniform(
+                num_qubits=num_qubits,
+                flavour=flavour,
+                qubit_info=cls.perfect_qubit(is_communication=True),
+                single_gate_infos=cls.perfect_gates(
+                    single_duration, single_instructions
+                ),
+                two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
+                latencies=latencies,
+            )
+        else:
+            all_qubit_gate_infos = cls.perfect_gates(
+                all_qubit_duration, all_qubit_instructions
+            )
+            return cls.fully_uniform(
+                num_qubits=num_qubits,
+                flavour=flavour,
+                qubit_info=cls.perfect_qubit(is_communication=True),
+                single_gate_infos=cls.perfect_gates(
+                    single_duration, single_instructions
+                ),
+                two_gate_infos=cls.perfect_gates(two_duration, two_instructions),
+                all_qubit_gate_infos=all_qubit_gate_infos,
+                latencies=latencies,
+            )
 
     @classmethod
     def fully_uniform(
-            cls,
-            num_qubits,
-            qubit_info: EhiQubitInfo,
-            flavour: Type[Flavour],
-            single_gate_infos: List[EhiGateInfo],
-            two_gate_infos: List[EhiGateInfo],
-            latencies: Optional[EhiLatencies] = None,
+        cls,
+        num_qubits,
+        qubit_info: EhiQubitInfo,
+        flavour: Type[Flavour],
+        single_gate_infos: List[EhiGateInfo],
+        two_gate_infos: List[EhiGateInfo],
+        all_qubit_gate_infos: List[EhiGateInfo] = None,
+        latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}
@@ -156,7 +191,15 @@ class EhiBuilder:
 
         if latencies is None:
             latencies = EhiLatencies.all_zero()
-        return EhiNodeInfo(q_infos, flavour, sg_infos, mg_infos, latencies)
+
+        return EhiNodeInfo(
+            q_infos,
+            flavour,
+            sg_infos,
+            mg_infos,
+            latencies,
+            all_qubit_gate_infos=copy.deepcopy(all_qubit_gate_infos),
+        )
 
     @classmethod
     def perfect_star(
@@ -264,6 +307,10 @@ class UnitModule:
     @classmethod
     def from_ehi(cls, ehi: EhiNodeInfo, qubit_ids: List[int]) -> UnitModule:
         """Get a subset of an EhiNodeInfo"""
+        for id in qubit_ids:
+            if id not in ehi.qubit_infos:
+                raise ValueError(f"Qubit ID {id} not in EhiNodeInfo")
+
         qubit_infos = {i: ehi.qubit_infos[i] for i in qubit_ids}
         single_gate_infos = {i: ehi.single_gate_infos[i] for i in qubit_ids}
         multi_gate_infos = {
@@ -271,6 +318,9 @@ class UnitModule:
             for (ids, info) in ehi.multi_gate_infos.items()
             if all(id in qubit_ids for id in ids.qubit_ids)
         }
+        all_qubit_gate_infos: Optional[List[EhiGateInfo]] = None
+        if len(ehi.qubit_infos.keys()) == len(qubit_ids):
+            all_qubit_gate_infos = ehi.all_qubit_gate_infos
 
         return UnitModule(
             info=EhiNodeInfo(
@@ -279,6 +329,7 @@ class UnitModule:
                 single_gate_infos,
                 multi_gate_infos,
                 ehi.latencies,
+                all_qubit_gate_infos=all_qubit_gate_infos,
             )
         )
 
@@ -413,8 +464,18 @@ class EhiNetworkInfo:
                 return id
         raise ValueError(f"Node with name {name} not found")
 
-    def add_link(self, node1_id, node2_id, link_info: EhiLinkInfo):
+    def add_link(self, node1_id: int, node2_id: int, link_info: EhiLinkInfo) -> None:
+        if node1_id not in self.nodes:
+            raise ValueError(f"Node with ID {node1_id} not found")
+        if node2_id not in self.nodes:
+            raise ValueError(f"Node with ID {node2_id} not found")
+        if node1_id == node2_id:
+            raise ValueError("Cannot add link between same node")
         node_link = frozenset([node1_id, node2_id])
+        if node_link in self.links:
+            raise ValueError(
+                f"Link between nodes {node1_id} and {node2_id} already exists"
+            )
         self.links[node_link] = link_info
 
     def get_all_node_names(self) -> List[str]:

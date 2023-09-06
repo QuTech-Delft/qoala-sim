@@ -9,10 +9,16 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     BusyOp,
+    IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
+    IqoalaVectorElement,
+    MultiplyConstantCValueOp,
+    ReceiveCMsgOp,
+    ReturnResultOp,
     RunRequestOp,
     RunSubroutineOp,
+    SendCMsgOp,
 )
 from qoala.lang.parse import (
     HostCodeParser,
@@ -31,9 +37,8 @@ from qoala.lang.request import (
     QoalaRequest,
     RequestRoutine,
     RequestVirtIdMapping,
-    RrReturnVector,
 )
-from qoala.lang.routine import LrReturnVector, RoutineMetadata
+from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
 
@@ -108,7 +113,7 @@ x = assign_cval() : 1
     instructions = IqoalaInstrParser(text).parse()
 
     assert len(instructions) == 1
-    assert instructions[0] == AssignCValueOp(result="x", value=1)
+    assert instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
 
 
 def test_parse_2_instr():
@@ -120,8 +125,8 @@ y = assign_cval() : 17
     instructions = IqoalaInstrParser(text).parse()
 
     assert len(instructions) == 2
-    assert instructions[0] == AssignCValueOp(result="x", value=1)
-    assert instructions[1] == AssignCValueOp(result="y", value=17)
+    assert instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
+    assert instructions[1] == AssignCValueOp(result=IqoalaSingleton("y"), value=17)
 
 
 def test_parse_busy():
@@ -196,7 +201,7 @@ tuple<m1; m2> = run_subroutine(tuple<x; y>) : subrt1
 
 def test_parse_vector():
     text = """
-my_vec<3> = run_subroutine(tuple<>) : subrt1
+my_vec<3> = run_subroutine() : subrt1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -208,7 +213,7 @@ my_vec<3> = run_subroutine(tuple<>) : subrt1
 
 def test_parse_vector_2():
     text = """
-my_vec<3> = run_request(tuple<>) : req1
+my_vec<3> = run_request() : req1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -220,7 +225,7 @@ my_vec<3> = run_request(tuple<>) : req1
 
 def test_parse_vector_with_var():
     text = """
-my_vec<N> = run_request(tuple<>) : req1
+my_vec<N> = run_request() : req1
     """
 
     instructions = IqoalaInstrParser(text).parse()
@@ -259,8 +264,10 @@ def test_parse_block():
     assert block.name == "b0"
     assert block.typ == BasicBlockType.CL
     assert len(block.instructions) == 2
-    assert block.instructions[0] == AssignCValueOp(result="x", value=1)
-    assert block.instructions[1] == AssignCValueOp(result="y", value=17)
+    assert block.instructions[0] == AssignCValueOp(result=IqoalaSingleton("x"), value=1)
+    assert block.instructions[1] == AssignCValueOp(
+        result=IqoalaSingleton("y"), value=17
+    )
 
 
 def test_get_block_texts():
@@ -293,8 +300,12 @@ def test_parse_multiple_blocks():
     assert blocks[0].name == "b0"
     assert blocks[0].typ == BasicBlockType.CL
     assert len(blocks[0].instructions) == 2
-    assert blocks[0].instructions[0] == AssignCValueOp(result="x", value=1)
-    assert blocks[0].instructions[1] == AssignCValueOp(result="y", value=17)
+    assert blocks[0].instructions[0] == AssignCValueOp(
+        result=IqoalaSingleton("x"), value=1
+    )
+    assert blocks[0].instructions[1] == AssignCValueOp(
+        result=IqoalaSingleton("y"), value=17
+    )
 
     assert blocks[1].name == "b1"
     assert blocks[1].typ == BasicBlockType.QL
@@ -403,7 +414,7 @@ SUBROUTINE my_subroutine
         name="my_subroutine",
         subroutine=Subroutine(instructions=expected_instrs, arguments=expected_args),
         metadata=RoutineMetadata.free_all([0, 1]),
-        return_vars=[LrReturnVector("outcomes", 10)],
+        return_vars=[IqoalaVector("outcomes", 10)],
     )
 
 
@@ -546,7 +557,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[RrReturnVector("outcomes", 3)],
+        return_vars=[IqoalaVector("outcomes", 3)],
         callback_type=CallbackType.SEQUENTIAL,
         callback="subrt1",
         request=QoalaRequest(
@@ -627,7 +638,7 @@ REQUEST req1
 
     assert routine == RequestRoutine(
         name="req1",
-        return_vars=[RrReturnVector("outcomes", Template("N"))],
+        return_vars=[IqoalaVector("outcomes", Template("N"))],
         callback_type=CallbackType.WAIT_ALL,
         callback=None,
         request=QoalaRequest(
@@ -1104,7 +1115,7 @@ META_END
     ^b0 {type = CL}:
         remote_id = assign_cval() : {client_id}
     ^b1 {type = QC}:
-        run_request(tuple<>) : req1
+        run_request() : req1
         """
 
     req_text = """
@@ -1206,23 +1217,70 @@ def test_parse_file_2():
     assert parsed_program.local_routines["create_epr_1"].request_name == "req1"
 
 
+def test_vector_indexing():
+    text = """
+    a<3> = run_request() : req1    
+    send_cmsg(a[0], b)
+    b = recv_cmsg(a[0])
+    b = mult_const(a[0]) : 1
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+
+    assert len(instructions) == 4
+    csocket = IqoalaVectorElement("a", 0)
+    remote_node = IqoalaSingleton("b")
+    assert instructions[0] == RunRequestOp(
+        result=IqoalaVector("a", 3), values=IqoalaTuple([]), routine="req1"
+    )
+    assert instructions[1] == SendCMsgOp(csocket, remote_node)
+    assert instructions[2] == ReceiveCMsgOp(csocket, remote_node)
+    assert instructions[3] == MultiplyConstantCValueOp(remote_node, csocket, 1)
+
+
+def test_vector_indexing_error():
+    text = """
+    send_cmsg(a[0], b)
+    b = recv_cmsg(a[0])
+    b = mult_const(a[0]) : 1
+    """
+
+    with pytest.raises(QoalaParseError):
+        IqoalaInstrParser(text).parse()
+
+
+def test_arg_vector_passing():
+    text = """
+    a<3> = run_request() : req1    
+    return_result(a)
+    """
+
+    instructions = IqoalaInstrParser(text).parse()
+    assert len(instructions) == 2
+    vec = IqoalaVector("a", 3)
+    assert instructions[0] == RunRequestOp(
+        result=vec, values=IqoalaTuple([]), routine="req1"
+    )
+    assert instructions[1] == ReturnResultOp(vec)
+
+
 if __name__ == "__main__":
-    # test_parse_incomplete_meta()
-    # test_parse_meta_no_end()
-    # test_parse_meta()
-    # test_parse_meta_multiple_remotes()
-    # test_parse_1_instr()
-    # test_parse_2_instr()
-    # test_parse_busy()
-    # test_parse_faulty_instr()
-    # test_parse_tuple()
-    # test_parse_tuple_2_elements()
-    # test_parse_tuple_2_elements_and_return()
-    # test_parse_tuple_2_elements_and_return_2_elements()
-    # test_parse_vector()
-    # test_parse_vector_2()
-    # test_parse_vector_with_var()
-    # test_parse_block_header()
+    test_parse_incomplete_meta()
+    test_parse_meta_no_end()
+    test_parse_meta()
+    test_parse_meta_multiple_remotes()
+    test_parse_1_instr()
+    test_parse_2_instr()
+    test_parse_busy()
+    test_parse_faulty_instr()
+    test_parse_tuple()
+    test_parse_tuple_2_elements()
+    test_parse_tuple_2_elements_and_return()
+    test_parse_tuple_2_elements_and_return_2_elements()
+    test_parse_vector()
+    test_parse_vector_2()
+    test_parse_vector_with_var()
+    test_parse_block_header()
     test_parse_block_header_with_deadlines()
     test_parse_block()
     test_get_block_texts()
@@ -1249,3 +1307,6 @@ if __name__ == "__main__":
     test_parse_program_single_text()
     test_parse_file()
     test_parse_file_2()
+    test_vector_indexing()
+    test_vector_indexing_error()
+    test_arg_vector_passing()

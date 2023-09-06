@@ -1,0 +1,22 @@
+META_START
+    name: bob
+    parameters:
+    csockets: 0 -> alice
+    epr_sockets: 0 -> alice
+META_END
+
+^blk_host0 {type = QL}:
+    tuple<m0; m1; m2> = run_subroutine(tuple<>) : subrt1
+
+
+SUBROUTINE subrt1
+    params:
+    returns: m0, m1, m2
+    uses: 0, 1, 2
+    keeps:
+    request:
+  NETQASM_START
+    init_all
+    set Q0 0
+    meas_all Q0 @output
+  NETQASM_END
