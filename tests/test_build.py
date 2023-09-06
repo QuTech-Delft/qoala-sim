@@ -5,6 +5,7 @@ from netsquid.components.instructions import (
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,
+    INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -23,6 +24,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
+from qoala.runtime.instructions import INSTR_MEASURE_ALL, INSTR_ROT_X_ALL
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
@@ -71,6 +73,7 @@ def uniform_topology(num_qubits: int) -> LhiTopology:
             },
         )
     ]
+
     return LhiTopologyBuilder.fully_uniform(
         num_qubits=num_qubits,
         qubit_info=qubit_info,
@@ -99,6 +102,32 @@ def test_build_from_topology():
         proc.get_instruction_duration(INSTR_CNOT, [0, 1])
         == topology.find_multi_gate([0, 1], INSTR_CNOT).duration
     )
+
+
+def test_build_from_topology_with_all_qubit_gates():
+    num_qubits = 3
+    topology = LhiTopologyBuilder.perfect_uniform(
+        num_qubits=num_qubits,
+        single_instructions=[INSTR_INIT, INSTR_MEASURE, INSTR_ROT_Z],
+        single_duration=5e3,
+        two_instructions=[],
+        two_duration=100e3,
+        all_qubit_instructions=[INSTR_ROT_X_ALL, INSTR_MEASURE_ALL],
+        all_qubit_duration=50e3,
+    )
+    proc: QuantumProcessor = build_qprocessor_from_topology("proc", topology)
+    assert proc.num_positions == num_qubits
+
+    for i in range(num_qubits):
+        assert (
+            proc.get_instruction_duration(INSTR_ROT_Z, [i])
+            == topology.find_single_gate(i, INSTR_ROT_Z).duration
+        )
+        with pytest.raises(MissingInstructionError):
+            proc.get_instruction_duration(INSTR_X, [i])
+
+    assert proc.get_instruction_duration(INSTR_ROT_X_ALL, [0, 1, 2]) == 50e3
+    assert proc.get_instruction_duration(INSTR_MEASURE_ALL, [0, 1, 2]) == 50e3
 
 
 def test_build_perfect_topology():

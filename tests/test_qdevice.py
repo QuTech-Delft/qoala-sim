@@ -19,6 +19,13 @@ from netsquid.components.qprocessor import MissingInstructionError
 from netsquid.nodes import Node
 from netsquid.qubits import ketstates
 
+from qoala.runtime.instructions import (
+    INSTR_BICHROMATIC,
+    INSTR_MEASURE_ALL,
+    INSTR_ROT_X_ALL,
+    INSTR_ROT_Y_ALL,
+    INSTR_ROT_Z_ALL,
+)
 from qoala.runtime.lhi import LhiTopologyBuilder
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.qdevice import (
@@ -44,10 +51,20 @@ def perfect_uniform_qdevice(num_qubits: int) -> QDevice:
             INSTR_ROT_Y,
             INSTR_ROT_Z,
             INSTR_MEASURE,
+            INSTR_MEASURE_ALL,
         ],
         single_duration=5e3,
         two_instructions=[INSTR_CNOT],
         two_duration=100e3,
+        all_qubit_instructions=[
+            INSTR_INIT,
+            INSTR_MEASURE_ALL,
+            INSTR_ROT_X_ALL,
+            INSTR_ROT_Y_ALL,
+            INSTR_ROT_Z_ALL,
+            INSTR_BICHROMATIC,
+        ],
+        all_qubit_duration=100e3,
     )
     processor = build_qprocessor_from_topology(name="processor", topology=topology)
     node = Node(name="alice", qmemory=processor)
@@ -572,6 +589,151 @@ def test_non_initalized():
         netsquid_run(qdevice.execute_commands(commands))
 
 
+def test_all_qubit_gates():
+    num_qubits = 3
+    qdevice = perfect_uniform_qdevice(num_qubits)
+
+    with pytest.raises(UnsupportedQDeviceCommandError):
+        commands = [QDeviceCommand(ns_instr.INSTR_X)]
+        netsquid_run(qdevice.execute_commands(commands))
+
+    with pytest.raises(UnsupportedQDeviceCommandError):
+        commands = [QDeviceCommand(INSTR_ROT_X_ALL, [0], angle=PI)]
+        netsquid_run(qdevice.execute_commands(commands))
+
+    with pytest.raises(UnsupportedQDeviceCommandError):
+        # All qubit commands should not have qubit indices.
+        commands = [QDeviceCommand(INSTR_ROT_X_ALL, [0, 1, 2], angle=PI)]
+        netsquid_run(qdevice.execute_commands(commands))
+
+
+def test_initialize_all():
+    num_qubits = 3
+    qdevice = perfect_uniform_qdevice(num_qubits)
+
+    commands = [
+        QDeviceCommand(
+            INSTR_INIT,
+        )
+    ]
+
+    netsquid_run(qdevice.execute_commands(commands))
+    ns.sim_run()
+
+    q0 = qdevice.get_local_qubit(0)
+    q1 = qdevice.get_local_qubit(1)
+    q2 = qdevice.get_local_qubit(2)
+    assert q0 is not None
+    assert q1 is not None
+    assert q2 is not None
+
+
+def test_measure_all():
+    num_qubits = 3
+    qdevice = perfect_uniform_qdevice(num_qubits)
+
+    commands = [
+        QDeviceCommand(
+            INSTR_INIT,
+        ),
+        QDeviceCommand(INSTR_Y, [1]),
+        QDeviceCommand(
+            INSTR_MEASURE_ALL,
+        ),
+    ]
+
+    meas_outcome = netsquid_run(qdevice.execute_commands(commands))
+    ns.sim_run()
+
+    q0 = qdevice.get_local_qubit(0)
+    q1 = qdevice.get_local_qubit(1)
+    q2 = qdevice.get_local_qubit(2)
+    assert has_state(q0, ketstates.s0)
+    assert has_state(q1, ketstates.s1)
+    assert has_state(q2, ketstates.s0)
+
+    assert meas_outcome == [0, 1, 0]
+
+
+def test_rotate_all():
+    num_qubits = 3
+    qdevice = perfect_uniform_qdevice(num_qubits)
+
+    commands = [
+        QDeviceCommand(
+            INSTR_INIT,
+        ),
+        QDeviceCommand(INSTR_ROT_X_ALL, angle=PI),
+    ]
+
+    netsquid_run(qdevice.execute_commands(commands))
+    ns.sim_run()
+
+    q0 = qdevice.get_local_qubit(0)
+    q1 = qdevice.get_local_qubit(1)
+    q2 = qdevice.get_local_qubit(2)
+    assert has_state(q0, ketstates.s1)
+    assert has_state(q1, ketstates.s1)
+    assert has_state(q2, ketstates.s1)
+
+    commands = [
+        QDeviceCommand(
+            INSTR_INIT,
+        ),
+        QDeviceCommand(INSTR_ROT_Y_ALL, angle=PI_OVER_2),
+    ]
+
+    netsquid_run(qdevice.execute_commands(commands))
+    ns.sim_run()
+
+    q0 = qdevice.get_local_qubit(0)
+    q1 = qdevice.get_local_qubit(1)
+    q2 = qdevice.get_local_qubit(2)
+    assert has_state(q0, ketstates.h0)
+    assert has_state(q1, ketstates.h0)
+    assert has_state(q2, ketstates.h0)
+
+    commands = [
+        QDeviceCommand(
+            INSTR_INIT,
+        ),
+        QDeviceCommand(INSTR_ROT_Y_ALL, angle=PI_OVER_2),
+        QDeviceCommand(INSTR_ROT_Z_ALL, angle=PI_OVER_2),
+    ]
+
+    netsquid_run(qdevice.execute_commands(commands))
+    ns.sim_run()
+
+    q0 = qdevice.get_local_qubit(0)
+    q1 = qdevice.get_local_qubit(1)
+    q2 = qdevice.get_local_qubit(2)
+    assert has_state(q0, ketstates.y0)
+    assert has_state(q1, ketstates.y0)
+    assert has_state(q2, ketstates.y0)
+
+
+def test_bichromatic():
+    num_qubits = 3
+    qdevice = perfect_uniform_qdevice(num_qubits)
+
+    commands = [
+        QDeviceCommand(
+            INSTR_INIT,
+        ),
+        QDeviceCommand(INSTR_ROT_X_ALL, angle=PI),
+    ]
+
+    netsquid_run(qdevice.execute_commands(commands))
+    ns.sim_run()
+
+    q0 = qdevice.get_local_qubit(0)
+    q1 = qdevice.get_local_qubit(1)
+    q2 = qdevice.get_local_qubit(2)
+    assert q0 is not None
+    assert q1 is not None
+    assert q2 is not None
+
+
 def test_is_allowed():
     num_qubits = 3
     qdevice_gen = perfect_uniform_qdevice(num_qubits)
@@ -624,4 +786,9 @@ if __name__ == "__main__":
     test_unsupported_commands_generic()
     test_unsupported_commands_nv()
     test_non_initalized()
+    test_all_qubit_gates()
+    test_initialize_all()
+    test_measure_all()
+    test_rotate_all()
+    test_bichromatic()
     test_is_allowed()

@@ -87,6 +87,13 @@ class LhiConverter:
             ids: [cls.gate_info_to_ehi(gi, ntf) for gi in gis]
             for (ids, gis) in topology.multi_gate_infos.items()
         }
+        if topology.all_qubit_gate_infos is None:
+            all_qubit_gate_infos = []
+        else:
+            all_qubit_gate_infos = [
+                cls.gate_info_to_ehi(gi, ntf) for gi in topology.all_qubit_gate_infos
+            ]
+
         flavour = ntf.flavour()
 
         ehi_latencies = EhiLatencies(
@@ -101,6 +108,7 @@ class LhiConverter:
             flavour=flavour,
             single_gate_infos=single_gate_infos,
             multi_gate_infos=multi_gate_infos,
+            all_qubit_gate_infos=all_qubit_gate_infos,
             latencies=ehi_latencies,
         )
 

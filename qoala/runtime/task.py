@@ -749,6 +749,10 @@ class TaskDurationEstimator:
                     if info := ehi.find_multi_gate(multi.qubit_ids, type(instr)):
                         max_duration = max(max_duration, info.duration)
 
+                if ehi.all_qubit_gate_infos is not None:
+                    for gate_info in ehi.all_qubit_gate_infos:
+                        max_duration = max(max_duration, gate_info.duration)
+
                 if max_duration != -1:
                     duration += max_duration
                 else:

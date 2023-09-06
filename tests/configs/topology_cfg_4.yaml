@@ -45,3 +45,10 @@ multi_gates:
         noise_config_cls: "GateDepolariseConfig"
         noise_config:
           <<: *gate_noise
+
+all_qubit_gates:
+  gate_configs:
+    - name: "INSTR_ROT_X_ALL"
+      noise_config_cls: "GateDepolariseConfig"
+      noise_config:
+        <<: *gate_noise

@@ -23,6 +23,7 @@ from netsquid_magic.state_delivery_sampler import (
 
 from qoala.lang.common import MultiQubit
 from qoala.runtime.config import (
+    AllQubitGateConfig,
     BaseModel,
     DepolariseSamplerConfig,
     GateConfig,
@@ -47,7 +48,8 @@ from qoala.runtime.config import (
     TopologyConfig,
     TopologyConfigBuilder,
 )
-from qoala.runtime.ntf import GenericNtf, NvNtf
+from qoala.runtime.instructions import INSTR_ROT_X_ALL
+from qoala.runtime.ntf import GenericNtf, NvNtf, TrappedIonNtf
 from qoala.util.math import fidelity_to_prob_max_mixed
 
 
@@ -174,6 +176,9 @@ def test_ntf_config_file():
 
     cfg_2 = NtfConfig.from_file(relative_path("configs/ntf_2.yaml"))
     assert cfg_2.to_ntf_interface() == NvNtf
+
+    cfg_2 = NtfConfig.from_file(relative_path("configs/ntf_3.yaml"))
+    assert cfg_2.to_ntf_interface() == TrappedIonNtf
 
 
 def test_topology_config():
@@ -556,6 +561,149 @@ def test_topology_config_file_multi_gate():
     }
 
 
+def test_topology_config_all_qubit_gate():
+    qubit_noise_cfg = QubitT1T2Config(T1=1e6, T2=3e6)
+    qubit_cfg = QubitConfig(
+        is_communication=True,
+        noise_config_cls="QubitT1T2Config",
+        noise_config=qubit_noise_cfg,
+    )
+    gate_noise_cfg = GateDepolariseConfig(duration=4e3, depolarise_prob=0.2)
+    gate_cfg = GateConfig(
+        name="INSTR_ROT_X_ALL",
+        noise_config_cls="GateDepolariseConfig",
+        noise_config=gate_noise_cfg,
+    )
+
+    cfg = TopologyConfig(
+        qubits=[
+            QubitIdConfig(qubit_id=0, qubit_config=qubit_cfg),
+            QubitIdConfig(qubit_id=1, qubit_config=qubit_cfg),
+        ],
+        single_gates=[],
+        multi_gates=[],
+        all_qubit_gates=AllQubitGateConfig(gate_configs=[gate_cfg]),
+    )
+
+    for i in [0, 1]:
+        assert cfg.qubits[i].qubit_id == i
+        assert cfg.qubits[i].qubit_config.to_is_communication()
+        assert cfg.qubits[i].qubit_config.to_error_model() == T1T2NoiseModel
+        assert cfg.qubits[i].qubit_config.to_error_model_kwargs() == {
+            "T1": 1e6,
+            "T2": 3e6,
+        }
+
+    assert cfg.all_qubit_gates.gate_configs[0].to_instruction() == INSTR_ROT_X_ALL
+    assert cfg.all_qubit_gates.gate_configs[0].to_duration() == 4e3
+    assert cfg.all_qubit_gates.gate_configs[0].to_error_model() == DepolarNoiseModel
+    assert cfg.all_qubit_gates.gate_configs[0].to_error_model_kwargs() == {
+        "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+    # check interface
+    for i in [0, 1]:
+        assert cfg.get_qubit_configs()[i].to_is_communication()
+        assert cfg.get_qubit_configs()[i].to_error_model() == T1T2NoiseModel
+        assert cfg.get_qubit_configs()[i].to_error_model_kwargs() == {
+            "T1": 1e6,
+            "T2": 3e6,
+        }
+
+    assert cfg.get_all_qubit_gate_configs()[0].to_instruction() == INSTR_ROT_X_ALL
+    assert cfg.get_all_qubit_gate_configs()[0].to_duration() == 4e3
+    assert cfg.get_all_qubit_gate_configs()[0].to_error_model() == DepolarNoiseModel
+    assert cfg.get_all_qubit_gate_configs()[0].to_error_model_kwargs() == {
+        "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+
+def test_topology_config_all_qubit_gates_perfect_uniform():
+    cfg = TopologyConfig.perfect_config_uniform(
+        num_qubits=3,
+        single_instructions=[],
+        single_duration=0,
+        two_instructions=[],
+        two_duration=0,
+        all_qubit_gate_instructions=["INSTR_ROT_X_ALL"],
+        all_qubit_gate_duration=4e3,
+    )
+
+    for i in range(3):
+        assert cfg.qubits[i].qubit_id == i
+        assert cfg.qubits[i].qubit_config.to_is_communication()
+        assert cfg.qubits[i].qubit_config.to_error_model() == T1T2NoiseModel
+        assert cfg.qubits[i].qubit_config.to_error_model_kwargs() == {
+            "T1": 0,
+            "T2": 0,
+        }
+
+    assert cfg.all_qubit_gates.gate_configs[0].to_instruction() == INSTR_ROT_X_ALL
+    assert cfg.all_qubit_gates.gate_configs[0].to_duration() == 4e3
+    assert cfg.all_qubit_gates.gate_configs[0].to_error_model() == DepolarNoiseModel
+    assert cfg.all_qubit_gates.gate_configs[0].to_error_model_kwargs() == {
+        "depolar_rate": 0,
+        "time_independent": True,
+    }
+
+    # check interface
+    for i in range(3):
+        assert cfg.get_qubit_configs()[i].to_is_communication()
+        assert cfg.get_qubit_configs()[i].to_error_model() == T1T2NoiseModel
+        assert cfg.get_qubit_configs()[i].to_error_model_kwargs() == {
+            "T1": 0,
+            "T2": 0,
+        }
+
+    assert cfg.get_all_qubit_gate_configs()[0].to_instruction() == INSTR_ROT_X_ALL
+    assert cfg.get_all_qubit_gate_configs()[0].to_duration() == 4e3
+    assert cfg.get_all_qubit_gate_configs()[0].to_error_model() == DepolarNoiseModel
+    assert cfg.get_all_qubit_gate_configs()[0].to_error_model_kwargs() == {
+        "depolar_rate": 0,
+        "time_independent": True,
+    }
+
+
+def test_topology_config_file_all_qubit_gates():
+    cfg = TopologyConfig.from_file(relative_path("configs/topology_cfg_7.yaml"))
+
+    for i in [0, 1]:
+        assert cfg.qubits[i].qubit_id == i
+        assert cfg.qubits[i].qubit_config.to_is_communication()
+        assert cfg.qubits[i].qubit_config.to_error_model() == T1T2NoiseModel
+        assert cfg.qubits[i].qubit_config.to_error_model_kwargs() == {
+            "T1": 1e6,
+            "T2": 3e6,
+        }
+
+    assert cfg.all_qubit_gates.gate_configs[0].to_instruction() == INSTR_ROT_X_ALL
+    assert cfg.all_qubit_gates.gate_configs[0].to_duration() == 4e3
+    assert cfg.all_qubit_gates.gate_configs[0].to_error_model() == DepolarNoiseModel
+    assert cfg.all_qubit_gates.gate_configs[0].to_error_model_kwargs() == {
+        "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+    # check interface
+    for i in [0, 1]:
+        assert cfg.get_qubit_configs()[i].to_is_communication()
+        assert cfg.get_qubit_configs()[i].to_error_model() == T1T2NoiseModel
+        assert cfg.get_qubit_configs()[i].to_error_model_kwargs() == {
+            "T1": 1e6,
+            "T2": 3e6,
+        }
+
+    assert cfg.get_all_qubit_gate_configs()[0].to_instruction() == INSTR_ROT_X_ALL
+    assert cfg.get_all_qubit_gate_configs()[0].to_duration() == 4e3
+    assert cfg.get_all_qubit_gate_configs()[0].to_error_model() == DepolarNoiseModel
+    assert cfg.get_all_qubit_gate_configs()[0].to_error_model_kwargs() == {
+        "depolar_rate": 0.2,
+        "time_independent": True,
+    }
+
+
 def test_topology_config_file_reuse_gate_def():
     cfg = TopologyConfig.from_file(relative_path("configs/topology_cfg_5.yaml"))
 
@@ -880,6 +1028,9 @@ if __name__ == "__main__":
     test_topology_config_file_multi_gate()
     test_topology_config_multi_gate_perfect_uniform()
     test_topology_config_multi_gate_perfect_star()
+    test_topology_config_all_qubit_gate()
+    test_topology_config_all_qubit_gates_perfect_uniform()
+    test_topology_config_file_all_qubit_gates()
     test_topology_config_file_reuse_gate_def()
     test_topology_builder()
     test_topology_from_nv_params()
