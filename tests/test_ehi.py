@@ -1,6 +1,7 @@
 from typing import List
 
-from netqasm.lang.instr import core, nv
+import pytest
+from netqasm.lang.instr import core, nv, trapped_ion
 from netqasm.lang.instr.flavour import NVFlavour
 
 from qoala.lang.common import MultiQubit
@@ -51,12 +52,15 @@ def create_ehi() -> EhiNodeInfo:
         MultiQubit([1, 0]): multi_gates(),
     }
 
+    all_qubit_gate_infos = [EhiGateInfo(trapped_ion.AllQubitsRotXInstruction, 50e3, 0)]
+
     return EhiNodeInfo(
         qubit_infos,
         flavour,
         single_gate_infos,
         multi_gate_infos,
         EhiLatencies.all_zero(),
+        all_qubit_gate_infos,
     )
 
 
@@ -69,6 +73,7 @@ def test_1_qubit():
         assert um.info.qubit_infos == {i: qubit_info()}
         assert um.info.single_gate_infos == {i: single_gates()}
         assert um.info.multi_gate_infos == {}
+        assert um.info.all_qubit_gate_infos is None
 
 
 def test_2_qubits():
@@ -76,24 +81,31 @@ def test_2_qubits():
 
     um01 = UnitModule.from_ehi(ehi, qubit_ids=[0, 1])
 
+    # write test for error
+    with pytest.raises(ValueError):
+        um01 = UnitModule.from_ehi(ehi, qubit_ids=[0, 3])
+
     assert um01.info.qubit_infos == {0: qubit_info(), 1: qubit_info()}
     assert um01.info.single_gate_infos == {0: single_gates(), 1: single_gates()}
     assert um01.info.multi_gate_infos == {
         MultiQubit([0, 1]): multi_gates(),
         MultiQubit([1, 0]): multi_gates(),
     }
+    assert um01.info.all_qubit_gate_infos is None
 
     um02 = UnitModule.from_ehi(ehi, qubit_ids=[0, 2])
 
     assert um02.info.qubit_infos == {0: qubit_info(), 2: qubit_info()}
     assert um02.info.single_gate_infos == {0: single_gates(), 2: single_gates()}
     assert um02.info.multi_gate_infos == {}
+    assert um02.info.all_qubit_gate_infos is None
 
     um12 = UnitModule.from_ehi(ehi, qubit_ids=[1, 2])
 
     assert um12.info.qubit_infos == {1: qubit_info(), 2: qubit_info()}
     assert um12.info.single_gate_infos == {1: single_gates(), 2: single_gates()}
     assert um12.info.multi_gate_infos == {}
+    assert um12.info.all_qubit_gate_infos is None
 
 
 def test_full():
@@ -150,6 +162,8 @@ def test_perfect_uniform():
     single_gate_duration = 5e3
     two_qubit_instructions = [nv.ControlledRotXInstruction]
     two_gate_duration = 2e5
+    all_qubit_instructions = [trapped_ion.AllQubitsRotXInstruction]
+    all_qubit_gate_duration = 1e5
     ehi = EhiBuilder.perfect_uniform(
         num_qubits,
         NVFlavour,
@@ -157,6 +171,8 @@ def test_perfect_uniform():
         single_gate_duration,
         two_qubit_instructions,
         two_gate_duration,
+        all_qubit_instructions,
+        all_qubit_gate_duration,
     )
 
     assert ehi.qubit_infos == {
@@ -182,6 +198,10 @@ def test_perfect_uniform():
         if i != j
     }
 
+    assert ehi.all_qubit_gate_infos == [
+        EhiGateInfo(trapped_ion.AllQubitsRotXInstruction, all_qubit_gate_duration, 0)
+    ]
+
 
 def test_build_fully_uniform():
     qubit_info = EhiQubitInfo(is_communication=True, decoherence_rate=0.01)
@@ -194,12 +214,15 @@ def test_build_fully_uniform():
             instruction=nv.ControlledRotXInstruction, duration=2e4, decoherence=0.05
         )
     ]
+    all_qubit_gate_infos = [EhiGateInfo(trapped_ion.AllQubitsRotXInstruction, 1e5, 0)]
+
     ehi = EhiBuilder.fully_uniform(
         num_qubits=3,
         flavour=NVFlavour,
         qubit_info=qubit_info,
         single_gate_infos=single_gate_infos,
         two_gate_infos=two_gate_infos,
+        all_qubit_gate_infos=all_qubit_gate_infos,
     )
 
     assert len(ehi.qubit_infos) == 3
@@ -216,6 +239,8 @@ def test_build_fully_uniform():
             multi = MultiQubit([i, j])
             gates = [info.instruction for info in ehi.multi_gate_infos[multi]]
             assert nv.ControlledRotXInstruction in gates
+
+    assert ehi.all_qubit_gate_infos == all_qubit_gate_infos
 
 
 def test_perfect_star():
@@ -354,6 +379,27 @@ def test_find_gates():
         assert ehi.find_multi_gate([i, 0], nv.ControlledRotYInstruction) is None
 
 
+def test_find_all_qubit_gates():
+    qubit_info = EhiQubitInfo(is_communication=True, decoherence_rate=0.01)
+    all_qubit_gate_infos = [
+        EhiGateInfo(trapped_ion.AllQubitsRotXInstruction, 1e5, 0),
+        EhiGateInfo(trapped_ion.AllQubitsRotYInstruction, 1e5, 0),
+        EhiGateInfo(trapped_ion.AllQubitsRotZInstruction, 1e5, 0),
+    ]
+
+    ehi = EhiBuilder.fully_uniform(
+        num_qubits=3,
+        flavour=NVFlavour,
+        qubit_info=qubit_info,
+        single_gate_infos=[],
+        two_gate_infos=[],
+        all_qubit_gate_infos=all_qubit_gate_infos,
+    )
+    assert ehi.find_all_qubit_gate(trapped_ion.AllQubitsRotXInstruction) is not None
+    assert ehi.find_all_qubit_gate(trapped_ion.AllQubitsRotYInstruction) is not None
+    assert ehi.find_all_qubit_gate(trapped_ion.AllQubitsRotZInstruction) is not None
+
+
 def test_network_ehi():
     nodes = {0: "node0", 1: "node1", 2: "node2"}
     network_ehi = EhiNetworkInfo.perfect_fully_connected(nodes=nodes, duration=1000)
@@ -376,4 +422,5 @@ if __name__ == "__main__":
     test_perfect_star()
     test_generic_t1t2_star()
     test_find_gates()
+    test_find_all_qubit_gates()
     test_network_ehi()

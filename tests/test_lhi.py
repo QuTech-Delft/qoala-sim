@@ -22,7 +22,15 @@ from netsquid_magic.state_delivery_sampler import (
 
 from qoala.lang.common import MultiQubit
 from qoala.runtime.config import LatenciesConfig, LinkConfig, NvParams, TopologyConfig
+from qoala.runtime.instructions import (
+    INSTR_BICHROMATIC,
+    INSTR_MEASURE_ALL,
+    INSTR_ROT_X_ALL,
+    INSTR_ROT_Y_ALL,
+    INSTR_ROT_Z_ALL,
+)
 from qoala.runtime.lhi import (
+    INSTR_MEASURE_INSTANT,
     LhiGateInfo,
     LhiLatencies,
     LhiLinkInfo,
@@ -76,14 +84,25 @@ def test_topology():
             "time_independent": True,
         },
     )
+    all_rot_x_gate_info = LhiGateInfo(
+        instruction=INSTR_ROT_X_ALL,
+        duration=1e4,
+        error_model=DepolarNoiseModel,
+        error_model_kwargs={
+            "depolar_rate": 0.2,
+            "time_independent": True,
+        },
+    )
 
     qubit_infos = {0: comm_qubit_info, 1: mem_qubit_info}
     single_gate_infos = {0: [gate_x_info, gate_y_info], 1: [gate_x_info]}
     multi_gate_infos = {MultiQubit([0, 1]): [cnot_gate_info]}
+    all_qubit_gate_infos = [all_rot_x_gate_info]
     topology = LhiTopology(
         qubit_infos=qubit_infos,
         single_gate_infos=single_gate_infos,
         multi_gate_infos=multi_gate_infos,
+        all_qubit_gate_infos=all_qubit_gate_infos,
     )
 
     assert topology.qubit_infos[0].is_communication
@@ -99,6 +118,11 @@ def test_topology():
         info.instruction for info in topology.multi_gate_infos[MultiQubit([0, 1])]
     ]
     assert q01_gates == [INSTR_CNOT]
+
+    assert [INSTR_ROT_X_ALL] == [
+        info.instruction for info in topology.all_qubit_gate_infos
+    ]
+    assert all_rot_x_gate_info == topology.find_all_qubit_gate(INSTR_ROT_X_ALL)
 
 
 def test_topology_from_config():
@@ -118,6 +142,10 @@ def test_topology_from_config():
         info.instruction for info in topology.multi_gate_infos[MultiQubit([0, 1])]
     ]
     assert q01_gates == [INSTR_CNOT]
+
+    assert [INSTR_ROT_X_ALL] == [
+        info.instruction for info in topology.all_qubit_gate_infos
+    ]
 
 
 def test_topology_from_config_2():
@@ -252,12 +280,16 @@ def test_perfect_uniform():
     single_gate_duration = 5e3
     two_qubit_instructions = [INSTR_CNOT, INSTR_CZ]
     two_gate_duration = 2e5
+    all_qubit_instructions = [INSTR_ROT_X_ALL, INSTR_ROT_Y_ALL, INSTR_ROT_Z_ALL]
+    all_qubit_duration = 1e5
     topology = LhiTopologyBuilder.perfect_uniform(
         num_qubits,
         single_qubit_instructions,
         single_gate_duration,
         two_qubit_instructions,
         two_gate_duration,
+        all_qubit_instructions,
+        all_qubit_duration,
     )
 
     assert topology.qubit_infos == {
@@ -297,6 +329,16 @@ def test_perfect_uniform():
         if i != j
     }
 
+    assert topology.all_qubit_gate_infos == [
+        LhiGateInfo(
+            instruction=instr,
+            duration=all_qubit_duration,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={"depolar_rate": 0},
+        )
+        for instr in all_qubit_instructions
+    ]
+
 
 def test_build_fully_uniform():
     qubit_info = LhiQubitInfo(
@@ -327,11 +369,25 @@ def test_build_fully_uniform():
             },
         )
     ]
+
+    all_qubit_gate_infos = [
+        LhiGateInfo(
+            instruction=INSTR_ROT_X_ALL,
+            duration=1e4,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={
+                "depolar_rate": 0.2,
+                "time_independent": True,
+            },
+        )
+    ]
+
     topology = LhiTopologyBuilder.fully_uniform(
         num_qubits=3,
         qubit_info=qubit_info,
         single_gate_infos=single_gate_infos,
         two_gate_infos=two_gate_infos,
+        all_qubit_gate_infos=all_qubit_gate_infos,
     )
 
     assert len(topology.qubit_infos) == 3
@@ -349,6 +405,10 @@ def test_build_fully_uniform():
             multi = MultiQubit([i, j])
             gates = [info.instruction for info in topology.multi_gate_infos[multi]]
             assert INSTR_CNOT in gates
+
+    assert [INSTR_ROT_X_ALL] == [
+        info.instruction for info in topology.all_qubit_gate_infos
+    ]
 
 
 def test_perfect_star():
@@ -449,6 +509,66 @@ def test_generic_t1t2_star():
         )
 
 
+def test_trapped_ion_default_perfect_gates():
+    num_qubits = 3
+
+    topology = LhiTopologyBuilder.trapped_ion_default_perfect_gates(num_qubits)
+
+    single_qubit_instructions = [
+        INSTR_INIT,
+        INSTR_ROT_Z,
+        INSTR_MEASURE,
+        INSTR_MEASURE_INSTANT,
+    ]
+
+    assert topology.qubit_infos == {
+        i: LhiQubitInfo(
+            is_communication=True,
+            error_model=T1T2NoiseModel,
+            error_model_kwargs={"T1": 0, "T2": 0},
+        )
+        for i in range(num_qubits)
+    }
+
+    assert topology.single_gate_infos == {
+        i: [
+            LhiGateInfo(
+                instruction=instr,
+                duration=5e3,
+                error_model=DepolarNoiseModel,
+                error_model_kwargs={"depolar_rate": 0},
+            )
+            for instr in single_qubit_instructions
+        ]
+        for i in range(num_qubits)
+    }
+
+    assert topology.multi_gate_infos == {
+        MultiQubit([i, j]): []
+        for i in range(num_qubits)
+        for j in range(num_qubits)
+        if i != j
+    }
+
+    all_qubit_instructions = [
+        INSTR_INIT,
+        INSTR_MEASURE_ALL,
+        INSTR_ROT_X_ALL,
+        INSTR_ROT_Y_ALL,
+        INSTR_ROT_Z_ALL,
+        INSTR_BICHROMATIC,
+    ]
+    assert topology.all_qubit_gate_infos == [
+        LhiGateInfo(
+            instruction=instr,
+            duration=5e3,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={"depolar_rate": 0},
+        )
+        for instr in all_qubit_instructions
+    ]
+
+
 def test_latencies_from_config():
     cfg = LatenciesConfig(
         host_instr_time=2,
@@ -507,6 +627,7 @@ if __name__ == "__main__":
     test_build_fully_uniform()
     test_perfect_star()
     test_generic_t1t2_star()
+    test_trapped_ion_default_perfect_gates()
     test_latencies_from_config()
     test_link_from_config()
     test_link_from_config_2()

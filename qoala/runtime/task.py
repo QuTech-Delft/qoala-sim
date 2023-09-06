@@ -722,7 +722,6 @@ class TaskDurationEstimator:
         duration = 0.0
         # TODO: refactor this
         for instr in routine.subroutine.instructions:
-            print("instr", instr)
             if (
                 type(instr)
                 in [

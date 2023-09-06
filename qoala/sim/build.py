@@ -97,7 +97,6 @@ def build_qprocessor_from_topology(
                     **gate_info.error_model_kwargs
                 ),
             )
-            print("phys_instr: ", phys_instr, "topology: ", phys_instr.topology)
             phys_instructions.append(phys_instr)
 
     return QuantumProcessor(

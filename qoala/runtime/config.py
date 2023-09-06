@@ -36,6 +36,13 @@ from netsquid_magic.state_delivery_sampler import (
 from pydantic import BaseModel as PydanticBaseModel
 
 from qoala.lang.common import MultiQubit
+from qoala.runtime.instructions import (
+    INSTR_BICHROMATIC,
+    INSTR_MEASURE_ALL,
+    INSTR_ROT_X_ALL,
+    INSTR_ROT_Y_ALL,
+    INSTR_ROT_Z_ALL,
+)
 from qoala.runtime.lhi import (
     INSTR_MEASURE_INSTANT,
     LhiGateConfigInterface,
@@ -51,6 +58,7 @@ from qoala.runtime.ntf import (
     NtfInterface,
     NtfInterfaceConfigInterface,
     NvNtf,
+    TrappedIonNtf,
 )
 from qoala.util.math import fidelity_to_prob_max_mixed
 
@@ -440,6 +448,11 @@ class DefaultInstrConfigRegistry(InstrConfigRegistry):
         "INSTR_CYDIR": INSTR_CYDIR,
         "INSTR_MEASURE": INSTR_MEASURE,
         "INSTR_MEASURE_INSTANT": INSTR_MEASURE_INSTANT,
+        "INSTR_MEASURE_ALL": INSTR_MEASURE_ALL,
+        "INSTR_ROT_X_ALL": INSTR_ROT_X_ALL,
+        "INSTR_ROT_Y_ALL": INSTR_ROT_Y_ALL,
+        "INSTR_ROT_Z_ALL": INSTR_ROT_Z_ALL,
+        "INSTR_BICHROMATIC": INSTR_BICHROMATIC,
     }
 
     @classmethod
@@ -471,6 +484,7 @@ class DefaultNtfRegistry(NtfInterfaceRegistry):
     _MAP = {
         "GenericNtf": GenericNtf,
         "NvNtf": NvNtf,
+        "TrappedIonNtf": TrappedIonNtf,
     }
 
     @classmethod
@@ -522,7 +536,6 @@ class AllQubitGateConfig(BaseModel):
 
     @classmethod
     def from_dict(cls, dict: Any) -> AllQubitGateConfig:
-        print(dict)
         return AllQubitGateConfig(
             gate_configs=[GateConfig.from_dict(d) for d in dict["gate_configs"]],
         )

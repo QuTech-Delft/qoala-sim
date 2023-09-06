@@ -201,7 +201,6 @@ class LhiTopologyBuilder:
             ]
 
         all_qubit_gate_infos: Optional[List[LhiGateInfo]] = None
-        print(cfg.get_all_qubit_gate_configs())
         if cfg.get_all_qubit_gate_configs() is not None:
             all_qubit_gate_infos = []
             for info in cfg.get_all_qubit_gate_configs():
@@ -288,8 +287,8 @@ class LhiTopologyBuilder:
         single_duration: float,
         two_instructions: List[NetSquidInstruction],
         two_duration: float,
-        all_qubit_duration: float = 0,
         all_qubit_instructions: List[NetSquidInstruction] = None,
+        all_qubit_duration: float = 0,
     ) -> LhiTopology:
         if all_qubit_instructions is None:
             return cls.fully_uniform(

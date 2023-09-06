@@ -137,8 +137,8 @@ class EhiBuilder:
         single_duration: float,
         two_instructions: List[Type[NetQASMInstruction]],
         two_duration: float,
-        all_qubit_duration: float = 0,
         all_qubit_instructions: List[Type[NetQASMInstruction]] = None,
+        all_qubit_duration: float = 0,
         latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         if all_qubit_instructions is None:
@@ -190,13 +190,14 @@ class EhiBuilder:
 
         if latencies is None:
             latencies = EhiLatencies.all_zero()
+
         return EhiNodeInfo(
             q_infos,
             flavour,
             sg_infos,
             mg_infos,
             latencies,
-            all_qubit_gate_infos=all_qubit_gate_infos,
+            all_qubit_gate_infos=copy.deepcopy(all_qubit_gate_infos),
         )
 
     @classmethod
