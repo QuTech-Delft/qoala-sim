@@ -39,6 +39,7 @@ class ProcNode(Protocol):
         asynchronous: bool = False,
         deterministic_scheduler: bool = True,
         use_deadlines: bool = True,
+        is_predictable: bool = False,
     ) -> None:
         """ProcNode constructor.
 
@@ -116,6 +117,7 @@ class ProcNode(Protocol):
                 self._network_ehi,
                 deterministic_scheduler,
                 use_deadlines,
+                is_predictable,
             )
         else:
             self._scheduler = scheduler

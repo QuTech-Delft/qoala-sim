@@ -100,6 +100,7 @@ class LhiConverter:
             latencies.host_instr_time,
             latencies.qnos_instr_time,
             latencies.host_peer_latency,
+            latencies.internal_sched_latency,
         )
 
         return EhiNodeInfo(
@@ -130,9 +131,8 @@ class LhiConverter:
     @classmethod
     def network_to_ehi(cls, info: LhiNetworkInfo) -> EhiNetworkInfo:
         links: Dict[FrozenSet[int], EhiLinkInfo] = {}
-        for ([n1, n2], link_info) in info.links.items():
+        for (node_link, link_info) in info.links.items():
             ehi_link = cls.link_info_to_ehi(link_info)
-            node_link = frozenset([n1, n2])
             links[node_link] = ehi_link
         return EhiNetworkInfo(info.nodes, links)
 

@@ -2,6 +2,7 @@ from typing import List
 
 import pytest
 from netqasm.lang.instr import core, nv, trapped_ion
+
 from netqasm.lang.instr.flavour import NVFlavour
 
 from qoala.lang.common import MultiQubit
@@ -118,6 +119,8 @@ def test_full():
         MultiQubit([0, 1]): multi_gates(),
         MultiQubit([1, 0]): multi_gates(),
     }
+
+    assert um.get_all_qubit_ids() == [0, 1, 2]
 
 
 def test_perfect_qubit():
@@ -408,6 +411,53 @@ def test_network_ehi():
     assert network_ehi.get_link(0, 2) == EhiLinkInfo(duration=1000, fidelity=1.0)
     assert network_ehi.get_link(1, 2) == EhiLinkInfo(duration=1000, fidelity=1.0)
 
+    assert network_ehi.get_all_node_names() == ["node0", "node1", "node2"]
+
+    assert network_ehi.get_node_id("node0") == 0
+    assert network_ehi.get_node_id("node1") == 1
+    assert network_ehi.get_node_id("node2") == 2
+
+
+def test_network_ehi2():
+    nodes = {0: "node0", 1: "node1", 2: "node2"}
+    link_info = EhiLinkInfo(duration=1000, fidelity=0.9)
+    network_ehi = EhiNetworkInfo.fully_connected(nodes=nodes, info=link_info)
+
+    assert network_ehi.get_link(0, 1) == link_info
+    assert network_ehi.get_link(0, 2) == link_info
+    assert network_ehi.get_link(1, 2) == link_info
+
+    assert network_ehi.get_all_node_names() == ["node0", "node1", "node2"]
+
+    assert network_ehi.get_node_id("node0") == 0
+    assert network_ehi.get_node_id("node1") == 1
+    assert network_ehi.get_node_id("node2") == 2
+
+
+def test_network_ehi3():
+    nodes = {0: "node0", 1: "node1", 2: "node2"}
+    network_ehi = EhiNetworkInfo.only_nodes(nodes=nodes)
+
+    with pytest.raises(ValueError):
+        network_ehi.get_link(0, 1)
+
+    link_info = EhiLinkInfo(duration=1000, fidelity=0.7)
+    network_ehi.add_link(0, 1, link_info)
+
+    assert network_ehi.get_link(0, 1) == link_info
+
+    # Already existing link (order does not matter)
+    with pytest.raises(ValueError):
+        network_ehi.add_link(1, 0, link_info)
+
+    # Cannot create link with itself
+    with pytest.raises(ValueError):
+        network_ehi.add_link(0, 0, link_info)
+
+    # Cannot create link with non-existing node
+    with pytest.raises(ValueError):
+        network_ehi.add_link(0, 4, link_info)
+
 
 if __name__ == "__main__":
     test_1_qubit()
@@ -424,3 +474,5 @@ if __name__ == "__main__":
     test_find_gates()
     test_find_all_qubit_gates()
     test_network_ehi()
+    test_network_ehi2()
+    test_network_ehi3()

@@ -8,10 +8,12 @@ from typing import Any, Dict, Generator, List, Optional, Set, Tuple
 
 import netsquid as ns
 from netqasm.lang.operand import Template
+from netsquid.components.cchannel import ClassicalChannel
 from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.lang import hostlang
 from qoala.lang.ehi import (
     EhiNetworkInfo,
     EhiNetworkSchedule,
@@ -55,8 +57,8 @@ from qoala.util.logging import LogManager
 
 class NodeSchedulerComponent(Component):
     """
-    NetSquid component representing for the NodeScheduler.
-    It is used to send messages from node scheduler to processor schedulers.
+    NetSquid component representing for a node scheduler.
+    It is used to send messages from the node scheduler to processor schedulers.
 
     :param name: Name of the component
     :param cpu_scheduler: CPU scheduler that node scheduler will send messages to.
@@ -69,13 +71,22 @@ class NodeSchedulerComponent(Component):
         name,
         cpu_scheduler: ProcessorScheduler,
         qpu_scheduler: ProcessorScheduler,
+        internal_sched_latency: float = 0.0,
     ):
         super().__init__(name=name)
         self.add_ports(["cpu_scheduler_out"])
         self.add_ports(["qpu_scheduler_out"])
 
-        self.ports["cpu_scheduler_out"].connect(cpu_scheduler.node_scheduler_in_port)
-        self.ports["qpu_scheduler_out"].connect(qpu_scheduler.node_scheduler_in_port)
+        node_sched_to_cpu = ClassicalChannel(
+            "node_scheduler_to_cpu_scheduler", delay=internal_sched_latency
+        )
+        self.cpu_scheduler_out_port.connect(node_sched_to_cpu.ports["send"])
+        node_sched_to_cpu.ports["recv"].connect(cpu_scheduler.node_scheduler_in_port)
+        node_sched_to_qpu = ClassicalChannel(
+            "node_scheduler_to_qpu_scheduler", delay=internal_sched_latency
+        )
+        self.qpu_scheduler_out_port.connect(node_sched_to_qpu.ports["send"])
+        node_sched_to_qpu.ports["recv"].connect(qpu_scheduler.node_scheduler_in_port)
 
     @property
     def cpu_scheduler_out_port(self) -> Port:
@@ -199,6 +210,7 @@ class NodeScheduler(Protocol):
             f"{node_name}_scheduler",
             self._cpu_scheduler,
             self._qpu_scheduler,
+            internal_sched_latency=local_ehi.latencies.internal_sched_latency,
         )
 
         self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
@@ -349,13 +361,9 @@ class NodeScheduler(Protocol):
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
 
-        # TODO: rethink how and when Requests are instantiated
-        # inputs = process.prog_instance.inputs
-        # for req in process.get_all_requests().values():
-        #     # TODO: support for other request parameters being templates?
-        #     remote_id = req.request.remote_id
-        #     if isinstance(remote_id, Template):
-        #         req.request.remote_id = inputs.values[remote_id.name]
+        inputs = process.prog_instance.inputs
+        for req in process.prog_instance.program.request_routines.values():
+            req.instantiate(inputs.values)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
@@ -363,11 +371,13 @@ class NodeScheduler(Protocol):
         yield event_expr
 
     def start(self) -> None:
+        # Processor schedulers start first to ensure that they will start running tasks after they receive the first
+        # message from the node scheduler.
+        self._cpu_scheduler.start()
+        self._qpu_scheduler.start()
         if not self._is_predictable:
             super().start()
             self.schedule_all()
-        self._cpu_scheduler.start()
-        self._qpu_scheduler.start()
 
     def stop(self) -> None:
         self._qpu_scheduler.stop()
@@ -415,7 +425,7 @@ class NodeScheduler(Protocol):
     def schedule_next_for(self, pid: int) -> None:
         """
         Schedule the tasks of the next block for program instance with given pid
-        by assigning respective tasks to CPU and QPU schedulers and sends a message
+        by assigning respective tasks to CPU and QPU schedulers and send a message
         to schedulers for informing them about the newly assigned tasks.
 
         :param pid: program instance id
@@ -442,7 +452,7 @@ class NodeScheduler(Protocol):
         A program instance is considered available if it meets two conditions:
         1. It is not finished.
         2. It does not have any dependencies on an unfinished program instance
-        which is the case if the batch of program instances are submitted to run linearly.
+        (it can have such dependencies if the batch of program instances are submitted to run linearly).
 
         :return: None
         """
@@ -839,8 +849,8 @@ class CpuEdfScheduler(EdfScheduler):
         block = process.program.get_block(task.block_name)
         instr = block.instructions[0]
         assert isinstance(instr, ReceiveCMsgOp)
-        assert isinstance(instr.arguments[0], str)
-        csck_id = process.host_mem.read(instr.arguments[0])
+        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+        csck_id = process.host_mem.read(instr.arguments[0].name)
         csck = process.csockets[csck_id]
         remote_name = csck.remote_name
         remote_pid = csck.remote_pid
@@ -950,6 +960,7 @@ class CpuEdfScheduler(EdfScheduler):
             self._status = SchedulerStatus(status=set(), params={})
             self.update_external_predcessors()
             self.update_status()
+            print(self.name, ns.sim_time(), f"status: {self.status.status}")
             self._task_logger.debug(f"status: {self.status.status}")
             if Status.NEXT_TASK in self.status.status:
                 task_id = self.status.params["task_id"]

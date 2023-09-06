@@ -127,6 +127,7 @@ def build_procnode_from_config(
         network_ehi=network_ehi,
         deterministic_scheduler=cfg.determ_sched,
         use_deadlines=cfg.use_deadlines,
+        is_predictable=cfg.is_predictable,
     )
 
     # TODO: refactor this hack
@@ -173,9 +174,7 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         if config.cconns is None:
             return 0.0
         for cconn in config.cconns:
-            if (cconn.node_id1 == node1 and cconn.node_id2 == node2) or (
-                cconn.node_id1 == node1 and cconn.node_id2 == node2
-            ):
+            if {cconn.node_id1, cconn.node_id2} == {node1, node2}:
                 return cconn.latency  # type: ignore
         return 0.0
 

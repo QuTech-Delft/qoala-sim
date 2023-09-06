@@ -104,9 +104,13 @@ def load_program_trapped_ion(path: str) -> QoalaProgram:
 
 
 def setup_network() -> ProcNodeNetwork:
+def setup_network(internal_sched_latency: float = 0) -> ProcNodeNetwork:
     topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
     latencies = LhiLatencies(
-        host_instr_time=1000, qnos_instr_time=2000, host_peer_latency=3000
+        host_instr_time=1000,
+        qnos_instr_time=2000,
+        host_peer_latency=3000,
+        internal_sched_latency=internal_sched_latency,
     )
     link_info = LhiLinkInfo.perfect(duration=20_000)
 
@@ -407,7 +411,7 @@ def test_host_program():
 
     program = load_program("test_scheduling_alice.iqoala")
     pid = 0
-    instance = instantiate(program, alice.local_ehi, pid)
+    instance = instantiate(program, alice.local_ehi, pid, ProgramInput({"bob_id": 1}))
 
     used_blocks = {"blk_host0", "blk_host1"}
 
@@ -437,7 +441,7 @@ def test_lr_program():
 
     program = load_program("test_scheduling_alice.iqoala")
     pid = 0
-    instance = instantiate(program, alice.local_ehi, pid)
+    instance = instantiate(program, alice.local_ehi, pid, ProgramInput({"bob_id": 1}))
 
     used_blocks = {"blk_host2", "blk_add_one"}
 
@@ -1021,17 +1025,34 @@ def test_measure_all():
     pid = 0
     inputs_alice = ProgramInput({"bob_id": 1})
     instance_alice = instantiate(program_alice, alice.local_ehi, pid, inputs_alice)
+    ns.sim_run()
+    alice_outcome = alice.memmgr.get_process(pid).host_mem.read("m0")
+    alice_outcome2 = alice.memmgr.get_process(pid).host_mem.read("m1")
+    alice_outcome3 = alice.memmgr.get_process(pid).host_mem.read("m2")
+    assert alice_outcome == alice_outcome2 == alice_outcome3 == 0
+
+def test_internal_sched_latency():
+    network = setup_network(internal_sched_latency=500)
+    alice = network.nodes["alice"]
+
+    program_alice = load_program("test_internal_sched_latency.iqoala")
+
+    pid = 0
+    instance_alice = instantiate(program_alice, alice.local_ehi, pid)
 
     alice.scheduler.submit_program_instance(instance_alice, 0)
 
     ns.sim_reset()
     assert ns.sim_time() == 0
     network.start()
+
+    network.nodes["bob"].stop()
     ns.sim_run()
-    alice_outcome = alice.memmgr.get_process(pid).host_mem.read("m0")
-    alice_outcome2 = alice.memmgr.get_process(pid).host_mem.read("m1")
-    alice_outcome3 = alice.memmgr.get_process(pid).host_mem.read("m2")
-    assert alice_outcome == alice_outcome2 == alice_outcome3 == 0
+
+    total_host_instr_time = 4 * 1000
+    total_internal_sched_latency = 2 * 500  # 2 CL blocks => 2 * 500
+    total_time = total_host_instr_time + total_internal_sched_latency
+    assert ns.sim_time() == total_time
 
 
 if __name__ == "__main__":
@@ -1058,3 +1079,4 @@ if __name__ == "__main__":
     test_blt_instruction_1()
     test_blt_instruction_2()
     test_measure_all()
+    test_internal_sched_latency()

@@ -5,6 +5,8 @@ from typing import List, Optional, Union
 
 from netqasm.lang.subroutine import Subroutine
 
+from qoala.lang.hostlang import IqoalaVector
+
 
 @dataclass
 class RoutineMetadata:
@@ -26,26 +28,18 @@ class RoutineMetadata:
 
 
 @dataclass(frozen=True)
-class LrReturnVector:
-    name: str
-    size: int
-
-    def __str__(self) -> str:
-        return f"{self.name}<{self.size}>"
-
-
-@dataclass(frozen=True)
 class LocalRoutine:
     name: str
     subroutine: Subroutine
-    return_vars: List[Union[str, LrReturnVector]]
+    return_vars: List[Union[str, IqoalaVector]]
     metadata: RoutineMetadata
     request_name: Optional[str] = None
 
     def get_return_size(self) -> int:
         size = 0
         for v in self.return_vars:
-            if isinstance(v, LrReturnVector):
+            if isinstance(v, IqoalaVector):
+                assert isinstance(v.size, int)
                 size += v.size
             else:
                 size += 1

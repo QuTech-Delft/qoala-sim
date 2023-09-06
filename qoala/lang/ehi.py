@@ -36,10 +36,11 @@ class EhiLatencies:
     host_instr_time: float  # duration of classical Host instr execution (CL)
     qnos_instr_time: float  # duration of classical Qnos instr execution (QL)
     host_peer_latency: float  # processing time for Host messages from remote node (CC)
+    internal_sched_latency: float  # processing time for messaging between node scheduler and processor schedulers
 
     @classmethod
     def all_zero(cls) -> EhiLatencies:
-        return EhiLatencies(0, 0, 0)
+        return EhiLatencies(0, 0, 0, 0)
 
 
 @dataclass(frozen=True)
@@ -437,8 +438,18 @@ class EhiNetworkInfo:
                 return id
         raise ValueError(f"Node with name {name} not found")
 
-    def add_link(self, node1_id, node2_id, link_info: EhiLinkInfo):
+    def add_link(self, node1_id: int, node2_id: int, link_info: EhiLinkInfo) -> None:
+        if node1_id not in self.nodes:
+            raise ValueError(f"Node with ID {node1_id} not found")
+        if node2_id not in self.nodes:
+            raise ValueError(f"Node with ID {node2_id} not found")
+        if node1_id == node2_id:
+            raise ValueError("Cannot add link between same node")
         node_link = frozenset([node1_id, node2_id])
+        if node_link in self.links:
+            raise ValueError(
+                f"Link between nodes {node1_id} and {node2_id} already exists"
+            )
         self.links[node_link] = link_info
 
     def get_all_node_names(self) -> List[str]:

@@ -448,12 +448,16 @@ class LhiLatenciesConfigInterface(ABC):
     def get_host_peer_latency(self) -> float:
         raise NotImplementedError
 
+    def get_internal_sched_latency(self):
+        raise NotImplementedError
+
 
 @dataclass
 class LhiLatencies:
     host_instr_time: float = 0  # duration of classical Host instr execution
     qnos_instr_time: float = 0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0  # processing time for Host messages from remote node
+    internal_sched_latency: float = 0  # processing time for messaging between node scheduler and processor schedulers
 
     @classmethod
     def from_config(cls, cfg: LhiLatenciesConfigInterface) -> LhiLatencies:
@@ -461,13 +465,14 @@ class LhiLatencies:
             host_instr_time=cfg.get_host_instr_time(),
             qnos_instr_time=cfg.get_qnos_instr_time(),
             host_peer_latency=cfg.get_host_peer_latency(),
+            internal_sched_latency=cfg.get_internal_sched_latency(),
         )
 
     @classmethod
     def all_zero(cls) -> LhiLatencies:
         # NOTE: can also just use LhiLatencies() which will default all values to 0
         # However, using this classmethod makes this behavior more explicit and clear.
-        return LhiLatencies(0, 0, 0)
+        return LhiLatencies(0, 0, 0, 0)
 
 
 class LhiLinkConfigInterface(ABC):
@@ -569,7 +574,17 @@ class LhiNetworkInfo:
         return cls.fully_connected(nodes, link)
 
     def add_link(self, node1_id, node2_id, link_info: LhiLinkInfo):
+        if node1_id not in self.nodes:
+            raise ValueError(f"Node with ID {node1_id} not found")
+        if node2_id not in self.nodes:
+            raise ValueError(f"Node with ID {node2_id} not found")
+        if node1_id == node2_id:
+            raise ValueError("Cannot add link between same node")
         node_link = frozenset([node1_id, node2_id])
+        if node_link in self.links:
+            raise ValueError(
+                f"Link between nodes {node1_id} and {node2_id} already exists"
+            )
         self.links[node_link] = link_info
 
     def get_link(self, node_id1: int, node_id2: int) -> LhiLinkInfo:

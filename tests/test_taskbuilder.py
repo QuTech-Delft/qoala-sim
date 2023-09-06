@@ -18,6 +18,7 @@ from qoala.runtime.task import (
     PreCallTask,
     SinglePairCallbackTask,
     SinglePairTask,
+    TaskDurationEstimator,
     TaskGraph,
     TaskGraphBuilder,
 )
@@ -61,8 +62,10 @@ def test_qoala_tasks_1_pair_callback():
         text = file.read()
     program = QoalaParser(text).parse()
 
+    cb = program.local_routines["meas_1_pair"]
+
     cpu_time = alice.local_ehi.latencies.host_instr_time
-    cb_time = alice.local_ehi.latencies.qnos_instr_time
+    cb_time = TaskDurationEstimator.lr_duration(alice.local_ehi, cb)
     pair_time = alice.network_ehi.get_link(0, 1).duration
 
     pid = 3
@@ -109,8 +112,12 @@ def test_qoala_tasks_2_pairs_callback():
         text = file.read()
     program = QoalaParser(text).parse()
 
+    cb1 = program.local_routines["meas_1_pair"]
+    cb2 = program.local_routines["meas_2_pairs"]
     cpu_time = alice.local_ehi.latencies.host_instr_time
-    cb_time = alice.local_ehi.latencies.qnos_instr_time
+
+    cb1_time = TaskDurationEstimator.lr_duration(alice.local_ehi, cb1)
+    cb2_time = TaskDurationEstimator.lr_duration(alice.local_ehi, cb2)
     pair_time = alice.network_ehi.get_link(0, 1).duration
 
     pid = 3
@@ -123,14 +130,14 @@ def test_qoala_tasks_2_pairs_callback():
         PreCallTask(0, pid, "blk_2_pairs_wait_all", 0, cpu_time),
         PostCallTask(1, pid, "blk_2_pairs_wait_all", 0, cpu_time),
         MultiPairTask(2, pid, 0, 2 * pair_time),
-        MultiPairCallbackTask(3, pid, "meas_2_pairs", 0, cb_time),
+        MultiPairCallbackTask(3, pid, "meas_2_pairs", 0, cb2_time),
         # blk_2_pairs_sequential
         PreCallTask(4, pid, "blk_2_pairs_sequential", 4, cpu_time),
         PostCallTask(5, pid, "blk_2_pairs_sequential", 4, cpu_time),
         SinglePairTask(6, pid, 0, 4, pair_time),
-        SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
+        SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb1_time),
         SinglePairTask(8, pid, 1, 4, pair_time),
-        SinglePairCallbackTask(9, pid, "meas_1_pair", 1, 4, cb_time),
+        SinglePairCallbackTask(9, pid, "meas_1_pair", 1, 4, cb1_time),
     ]
 
     expected_precedences = [

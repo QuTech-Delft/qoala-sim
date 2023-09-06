@@ -15,6 +15,7 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     ClassicalIqoalaOp,
+    IqoalaSingleton,
     ReceiveCMsgOp,
     SendCMsgOp,
 )
@@ -326,7 +327,7 @@ def test_initialize():
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    instrs = [AssignCValueOp("x", 3)]
+    instrs = [AssignCValueOp(IqoalaSingleton("x"), 3)]
     subrt1 = simple_subroutine(
         "subrt1",
         """
@@ -378,7 +379,13 @@ def test_initialize():
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     rrcall = RrCallTuple.no_alloc("req1")
-    netsquid_run(netstack_processor.assign_request_routine(process, rrcall))
+    global_args = process.prog_instance.inputs.values
+    netstack_processor.instantiate_routine(process, rrcall, global_args)
+    netsquid_run(
+        netstack_processor.handle_single_pair(
+            process, "req1", 0
+        )  # not s  ure about the 0
+    )
 
     assert process.host_mem.read("x") == 3
     assert process.qnos_mem.get_reg_value("R5") == 42
@@ -426,7 +433,9 @@ def test_classical_comm():
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    alice_instrs = [SendCMsgOp("csocket_id", "message")]
+    alice_instrs = [
+        SendCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("message"))
+    ]
     alice_meta = ProgramMeta(
         name="alice",
         parameters=["csocket_id", "message"],
@@ -444,7 +453,9 @@ def test_classical_comm():
     alice_procnode.add_process(alice_process)
     alice_host_processor.initialize(alice_process)
 
-    bob_instrs = [ReceiveCMsgOp("csocket_id", "result")]
+    bob_instrs = [
+        ReceiveCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("result"))
+    ]
     bob_meta = ProgramMeta(
         name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
     )
@@ -534,7 +545,9 @@ def test_classical_comm_three_nodes():
     ehi = LhiConverter.to_ehi(topology, ntf, latencies)
     unit_module = UnitModule.from_full_ehi(ehi)
 
-    alice_instrs = [SendCMsgOp("csocket_id", "message")]
+    alice_instrs = [
+        SendCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("message"))
+    ]
     alice_meta = ProgramMeta(
         name="alice",
         parameters=["csocket_id", "message"],
@@ -552,7 +565,7 @@ def test_classical_comm_three_nodes():
     alice_procnode.add_process(alice_process)
     alice_host_processor.initialize(alice_process)
 
-    bob_instrs = [SendCMsgOp("csocket_id", "message")]
+    bob_instrs = [SendCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("message"))]
     bob_meta = ProgramMeta(
         name="bob",
         parameters=["csocket_id", "message"],
@@ -571,8 +584,10 @@ def test_classical_comm_three_nodes():
     bob_host_processor.initialize(bob_process)
 
     charlie_instrs = [
-        ReceiveCMsgOp("csocket_id_alice", "result_alice"),
-        ReceiveCMsgOp("csocket_id_bob", "result_bob"),
+        ReceiveCMsgOp(
+            IqoalaSingleton("csocket_id_alice"), IqoalaSingleton("result_alice")
+        ),
+        ReceiveCMsgOp(IqoalaSingleton("csocket_id_bob"), IqoalaSingleton("result_bob")),
     ]
     charlie_meta = ProgramMeta(
         name="bob",
@@ -626,7 +641,11 @@ def test_epr():
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
             rrcall = RrCallTuple.no_alloc("req1")
-            yield from self.netstack.processor.assign_request_routine(process, rrcall)
+            global_args = process.prog_instance.inputs.values
+            self.netstack.processor.instantiate_routine(process, rrcall, global_args)
+            yield from self.netstack.processor.handle_single_pair(
+                process, "req1", 0
+            )  # not s  ure about the 0
 
     alice_procnode = create_procnode(
         "alice",
@@ -774,7 +793,7 @@ META_END
 ^b0 {type = CL}:
     remote_id = assign_cval() : {client_id}
 ^b1 {type = QC}:
-    run_request(tuple<>) : req1
+    run_request() : req1
 
 REQUEST req1
   callback_type: wait_all
@@ -806,7 +825,11 @@ REQUEST req1
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
             rrcall = RrCallTuple.no_alloc("req1")
-            yield from self.netstack.processor.assign_request_routine(process, rrcall)
+            global_args = process.prog_instance.inputs.values
+            self.netstack.processor.instantiate_routine(process, rrcall, global_args)
+            yield from self.netstack.processor.handle_single_pair(
+                process, "req1", 0
+            )  # not s  ure about the 0
 
     server_procnode = create_procnode(
         "server",
@@ -837,7 +860,7 @@ META_END
 ^b0 {type = CL}:
     remote_id = assign_cval() : {server_id}
 ^b1 {type = QL}:
-    run_request(tuple<>) : req1
+    run_request() : req1
 
 REQUEST req1
   callback_type: wait_all
