@@ -20,7 +20,7 @@ class IMeasAll(Instruction):
 
     @property
     def num_positions(self) -> int:
-        """number of targeted memory positions_of_connections. If -1, number is unrestricted."""
+        """number of targeted memory positions. If -1, number is unrestricted."""
         return -1
 
     def execute(
@@ -53,7 +53,7 @@ class IRotationAllGate(Instruction):
 
     @property
     def num_positions(self) -> int:
-        """number of targeted memory positions_of_connections. If -1, number is unrestricted."""
+        """number of targeted memory positions. If -1, number is unrestricted."""
         return -1
 
     def execute(
@@ -86,7 +86,7 @@ class IBichromaticGate(Instruction):
 
     @property
     def num_positions(self) -> int:
-        """number of targeted memory positions_of_connections. If -1, number is unrestricted."""
+        """number of targeted memory positions. If -1, number is unrestricted."""
         return -1
 
     def construct_operator(self, n: int, angle: float) -> ops.Operator:
@@ -122,7 +122,7 @@ class IBichromaticGate(Instruction):
         """Execute instruction on a quantum memory.
 
         :param quantum_memory: NetSquid Quantum memory to execute instruction on.
-        :param positions: Memory positions_of_connections to execute instruction on.
+        :param positions: Memory positions to do instruction on. Can be empty.
         """
 
         operator = self.construct_operator(n=len(positions), angle=angle)
