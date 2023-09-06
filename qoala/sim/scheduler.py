@@ -361,13 +361,9 @@ class NodeScheduler(Protocol):
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
 
-        # TODO: rethink how and when Requests are instantiated
-        # inputs = process.prog_instance.inputs
-        # for req in process.get_all_requests().values():
-        #     # TODO: support for other request parameters being templates?
-        #     remote_id = req.request.remote_id
-        #     if isinstance(remote_id, Template):
-        #         req.request.remote_id = inputs.values[remote_id.name]
+        inputs = process.prog_instance.inputs
+        for req in process.prog_instance.program.request_routines.values():
+            req.instantiate(inputs.values)
 
     def wait(self, delta_time: float) -> Generator[EventExpression, None, None]:
         self._schedule_after(delta_time, EVENT_WAIT)
