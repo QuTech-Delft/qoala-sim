@@ -16,8 +16,6 @@ from qoala.sim.host.hostinterface import HostInterface, HostLatencies
 from qoala.sim.process import QoalaProcess
 from qoala.util.logging import LogManager
 
-import netsquid as ns
-
 
 class HostProcessor:
     """Does not have state itself. Acts on and changes process objects."""

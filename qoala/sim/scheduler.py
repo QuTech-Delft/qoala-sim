@@ -287,7 +287,7 @@ class NodeScheduler(Protocol):
             # TODO: fidelity
             epr_sockets[i] = EprSocket(i, remote_id, prog_instance.pid, remote_pid, 1.0)
 
-        result = ProgramResult(values={}, times={})
+        result = ProgramResult(values={})
 
         return QoalaProcess(
             prog_instance=prog_instance,

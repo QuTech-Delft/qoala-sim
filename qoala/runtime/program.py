@@ -19,7 +19,6 @@ class ProgramInput:
 @dataclass
 class ProgramResult:
     values: Dict[str, Any]
-    times: Optional[Dict[str, float]] = None
 
 
 @dataclass
