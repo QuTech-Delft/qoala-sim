@@ -161,9 +161,7 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         if config.cconns is None:
             return 0.0
         for cconn in config.cconns:
-            if (cconn.node_id1 == node1 and cconn.node_id2 == node2) or (
-                cconn.node_id1 == node1 and cconn.node_id2 == node2
-            ):
+            if {cconn.node_id1, cconn.node_id2} == {node1, node2}:
                 return cconn.latency  # type: ignore
         return 0.0
 

@@ -179,14 +179,20 @@ def execute_process(
 
 
 def execute_process_with_latencies(
-    processor: GenericProcessor, process: QoalaProcess
+    processor: GenericProcessor,
+    process: QoalaProcess,
+    input_addr: Optional[MemAddr] = None,
+    result_addr: Optional[MemAddr] = None,
 ) -> int:
+    if input_addr is None:
+        input_addr = MemAddr(0)
+    if result_addr is None:
+        result_addr = MemAddr(0)
     all_routines = process.program.local_routines
     routine = all_routines["subrt"]
-    # input/result arrays not used
-    # TODO: add tests that do use these
+
     inputs = process.inputs.values
-    processor.instantiate_routine(process, routine, inputs, MemAddr(0), MemAddr(0))
+    processor.instantiate_routine(process, routine, inputs, input_addr, result_addr)
 
     netqasm_instructions = routine.subroutine.instructions
 
@@ -325,6 +331,28 @@ def test_mul():
     assert process.prog_memory.qnos_mem.get_reg_value("R2") == 10
 
 
+def test_mul_with_latencies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+
+    subrt = """
+    set R0 2
+    set R1 5
+    mul R2 R0 R1
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    assert ns.sim_time() == 0
+    execute_process_with_latencies(processor, process)
+    assert ns.sim_time() == 5e3 * 3
+
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 10
+
+
 def test_div():
     processor, unit_module = setup_components(star_topology(2))
 
@@ -336,6 +364,28 @@ def test_div():
     process = create_process_with_subrt(0, subrt, unit_module)
     processor._interface.memmgr.add_process(process)
     execute_process(processor, process)
+    assert process.prog_memory.qnos_mem.get_reg_value("R2") == 5
+
+
+def test_div_with_latencies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+
+    subrt = """
+    set R0 15
+    set R1 3
+    div R2 R0 R1
+    """
+    process = create_process_with_subrt(0, subrt, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    assert ns.sim_time() == 0
+    execute_process_with_latencies(processor, process)
+    assert ns.sim_time() == 5e3 * 3
+
     assert process.prog_memory.qnos_mem.get_reg_value("R2") == 5
 
 
@@ -452,12 +502,34 @@ def test_program_inputs():
     assert process.qnos_mem.get_reg_value("R0") == 3
 
 
+def test_program_inputs_with_latencies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+
+    subrt = """
+    set R0 {global_arg}
+    """
+    inputs = ProgramInput({"global_arg": 3})
+
+    process = create_process_with_subrt(0, subrt, unit_module, inputs)
+    processor._interface.memmgr.add_process(process)
+
+    assert ns.sim_time() == 0
+    execute_process_with_latencies(processor, process)
+    assert ns.sim_time() == 5e3
+
+    assert process.qnos_mem.get_reg_value("R0") == 3
+
+
 def test_program_routine_params():
     processor, unit_module = setup_components(star_topology(2))
 
     routine = """
 SUBROUTINE subrt
-    params: arg0
+    params: 
     returns: 
     uses: 
     keeps:
@@ -475,6 +547,44 @@ SUBROUTINE subrt
     shared_mem.write_lr_in(input_addr, [3])
 
     execute_process(processor, process, input_addr=input_addr, result_addr=0)
+
+    assert process.qnos_mem.get_reg_value("R0") == 3
+
+
+def test_program_routine_params_with_latencies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+
+    routine = """
+SUBROUTINE subrt
+    params: 
+    returns: 
+    uses: 
+    keeps:
+    request: 
+  NETQASM_START
+    load R0 @input[0]
+  NETQASM_END
+    """
+
+    process = create_process_with_local_routine(0, routine, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    shared_mem = process.prog_memory.shared_mem
+    input_addr = shared_mem.allocate_lr_in(1)
+    shared_mem.write_lr_in(input_addr, [3])
+
+    assert ns.sim_time() == 0
+    execute_process_with_latencies(
+        processor, process, input_addr=input_addr, result_addr=None
+    )
+    # The load R0 @input[0] is converted to 2 instructions as follows:
+    #  set R1 0
+    #  load R0 @input[R1]
+    assert ns.sim_time() == 5e3 * 2
 
     assert process.qnos_mem.get_reg_value("R0") == 3
 
@@ -516,18 +626,69 @@ SUBROUTINE subrt
     assert process.qnos_mem.get_reg_value("C1") == 14
 
 
+def test_program_routine_params_and_results_with_latecies():
+    ns.sim_reset()
+
+    processor, unit_module = setup_components(
+        star_topology(2), latencies=QnosLatencies(qnos_instr_time=5e3)
+    )
+    # TODO: fill in params and returns when Host/Array conversion is implemented
+    routine = """
+SUBROUTINE subrt
+    params:
+    returns: 
+    uses: 
+    keeps:
+    request: 
+  NETQASM_START
+    load R0 @input[0]
+    load R1 @input[1]
+    add C0 R0 R0
+    add C1 R1 R1
+    store C0 @output[0]
+    store C1 @output[1]
+  NETQASM_END
+    """
+
+    process = create_process_with_local_routine(0, routine, unit_module)
+    processor._interface.memmgr.add_process(process)
+
+    shared_mem = process.prog_memory.shared_mem
+
+    input_addr = shared_mem.allocate_lr_in(2)
+    shared_mem.write_lr_in(input_addr, [3, 7])
+
+    result_addr = shared_mem.allocate_lr_out(2)
+
+    assert ns.sim_time() == 0
+    execute_process_with_latencies(
+        processor, process, input_addr=input_addr, result_addr=result_addr
+    )
+
+    # load and store instructions are converted to 2 instructions each
+    assert ns.sim_time() == 5e3 * 10
+
+    assert process.qnos_mem.get_reg_value("C0") == 6
+    assert process.qnos_mem.get_reg_value("C1") == 14
+
+
 if __name__ == "__main__":
     test_set_reg()
     test_set_reg_with_latencies()
     test_add()
     test_add_with_latencies()
     test_mul()
+    test_mul_with_latencies()
     test_div()
+    test_div_with_latencies()
     test_div_rounded()
     test_rem()
     test_no_branch()
     test_branch()
     test_branch_with_latencies()
     test_program_inputs()
+    test_program_inputs_with_latencies()
     test_program_routine_params()
+    test_program_routine_params_with_latencies()
     test_program_routine_params_and_results()
+    test_program_routine_params_and_results_with_latecies()

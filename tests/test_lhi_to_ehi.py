@@ -79,6 +79,60 @@ def test_topology_to_ehi():
     assert ehi.latencies.host_peer_latency == 4
 
 
+def test_qubit_to_ehi():
+    lhi_qubit = LhiTopologyBuilder.t1t2_qubit(is_communication=False, t1=3, t2=4)
+    ehi_qubit = LhiConverter.qubit_info_to_ehi(lhi_qubit)
+
+    assert not ehi_qubit.is_communication
+    # currently it converts T1 into decoherence rate
+    assert ehi_qubit.decoherence_rate == 3
+
+    lhi_qubit2 = LhiTopologyBuilder.perfect_qubit(is_communication=True)
+    ehi_qubit2 = LhiConverter.qubit_info_to_ehi(lhi_qubit2)
+
+    assert ehi_qubit2.is_communication
+    # currently it converts T1 into decoherence rate
+    assert ehi_qubit2.decoherence_rate == 0
+
+
+def test_gate_to_ehi():
+    instructions = [INSTR_INIT, INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z, INSTR_MEASURE]
+    lhi_gates = LhiTopologyBuilder.perfect_gates(
+        duration=5,
+        instructions=instructions,
+    )
+
+    nvNtf = NvNtf()
+    ehi_gates = [
+        LhiConverter.gate_info_to_ehi(lhi_gate, nvNtf) for lhi_gate in lhi_gates
+    ]
+
+    assert ehi_gates == [
+        EhiGateInfo(
+            nvNtf.native_to_netqasm(lhi_gate.instruction)[0],
+            lhi_gate.duration,
+            0,
+        )
+        for lhi_gate in lhi_gates
+    ]
+
+    lhi_gates2 = LhiTopologyBuilder.depolar_gates(
+        duration=5, instructions=instructions, depolar_rate=0.5
+    )
+    ehi_gates2 = [
+        LhiConverter.gate_info_to_ehi(lhi_gate, nvNtf) for lhi_gate in lhi_gates2
+    ]
+
+    assert ehi_gates2 == [
+        EhiGateInfo(
+            nvNtf.native_to_netqasm(lhi_gate.instruction)[0],
+            lhi_gate.duration,
+            0.5,
+        )
+        for lhi_gate in lhi_gates2
+    ]
+
+
 def test_link_info_to_ehi_perfect():
     cfg = LinkConfig.perfect_config(state_delay=1200)
     lhi_info = LhiLinkInfo.from_config(cfg)
@@ -120,7 +174,8 @@ def test_network_to_ehi():
     perfect_link = LhiLinkInfo.perfect(1000)
     nodes = {0: "node0", 1: "node1"}
     lhi_network = LhiNetworkInfo(
-        nodes=nodes, links={(0, 1): depolar_link, (1, 3): perfect_link}
+        nodes=nodes,
+        links={frozenset([0, 1]): depolar_link, frozenset([1, 3]): perfect_link},
     )
 
     ehi_network = LhiConverter.network_to_ehi(lhi_network)
@@ -138,6 +193,8 @@ def test_network_to_ehi():
 
 if __name__ == "__main__":
     test_topology_to_ehi()
+    test_qubit_to_ehi()
+    test_gate_to_ehi()
     test_link_info_to_ehi_perfect()
     test_link_info_to_ehi_depolarise()
     test_network_to_ehi()

@@ -100,10 +100,14 @@ def test_static_nv():
     assert qdevice.qprocessor.num_positions == num_qubits
     with pytest.raises(MissingInstructionError):
         qdevice.qprocessor.get_instruction_duration(ns_instr.INSTR_CNOT, [0, 1])
+
+    with pytest.raises(MissingInstructionError):
         qdevice.qprocessor.get_instruction_duration(ns_instr.INSTR_CXDIR, [1, 0])
 
     # Should not raise error:
-    qdevice.qprocessor.get_instruction_duration(ns_instr.INSTR_CXDIR, [0, 1])
+    assert (
+        qdevice.qprocessor.get_instruction_duration(ns_instr.INSTR_CXDIR, [0, 1]) == 1e5
+    )
 
     assert qdevice.get_qubit_count() == num_qubits
     assert qdevice.get_comm_qubit_count() == 1
@@ -136,6 +140,7 @@ def test_initalize_generic():
     netsquid_run(qdevice.execute_commands(commands))
     ns.sim_run()
 
+    # Qubit 0 should be initalized and have state |1>
     q0 = qdevice.get_local_qubit(0)
     assert has_state(q0, ketstates.s1)
 
@@ -567,6 +572,44 @@ def test_non_initalized():
         netsquid_run(qdevice.execute_commands(commands))
 
 
+def test_is_allowed():
+    num_qubits = 3
+    qdevice_gen = perfect_uniform_qdevice(num_qubits)
+    qdevice_nv = perfect_nv_star_qdevice(num_qubits)
+
+    assert all(
+        qdevice_gen.is_allowed(QDeviceCommand(ns_instr.INSTR_INIT, [i]))
+        for i in range(num_qubits)
+    )
+    assert all(
+        qdevice_nv.is_allowed(QDeviceCommand(ns_instr.INSTR_INIT, [i]))
+        for i in range(num_qubits)
+    )
+
+    assert all(
+        qdevice_gen.is_allowed(QDeviceCommand(ns_instr.INSTR_X, [i]))
+        for i in range(num_qubits)
+    )
+
+    assert not any(
+        qdevice_nv.is_allowed(QDeviceCommand(ns_instr.INSTR_X, [i]))
+        for i in range(num_qubits)
+    )
+
+    assert not any(
+        qdevice_gen.is_allowed(QDeviceCommand(ns_instr.INSTR_S, [i]))
+        for i in range(num_qubits)
+    )
+
+    assert not any(
+        qdevice_nv.is_allowed(QDeviceCommand(ns_instr.INSTR_S, [i]))
+        for i in range(num_qubits)
+    )
+
+    # 5 is not in topology
+    assert not qdevice_gen.is_allowed(QDeviceCommand(ns_instr.INSTR_X, [5]))
+
+
 if __name__ == "__main__":
     test_static_generic()
     test_static_nv()
@@ -581,3 +624,4 @@ if __name__ == "__main__":
     test_unsupported_commands_generic()
     test_unsupported_commands_nv()
     test_non_initalized()
+    test_is_allowed()

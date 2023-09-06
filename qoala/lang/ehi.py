@@ -388,8 +388,18 @@ class EhiNetworkInfo:
                 return id
         raise ValueError(f"Node with name {name} not found")
 
-    def add_link(self, node1_id, node2_id, link_info: EhiLinkInfo):
+    def add_link(self, node1_id: int, node2_id: int, link_info: EhiLinkInfo) -> None:
+        if node1_id not in self.nodes:
+            raise ValueError(f"Node with ID {node1_id} not found")
+        if node2_id not in self.nodes:
+            raise ValueError(f"Node with ID {node2_id} not found")
+        if node1_id == node2_id:
+            raise ValueError("Cannot add link between same node")
         node_link = frozenset([node1_id, node2_id])
+        if node_link in self.links:
+            raise ValueError(
+                f"Link between nodes {node1_id} and {node2_id} already exists"
+            )
         self.links[node_link] = link_info
 
     def get_all_node_names(self) -> List[str]:

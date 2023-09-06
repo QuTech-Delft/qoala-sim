@@ -379,7 +379,13 @@ def test_initialize():
     netsquid_run(qnos_processor.assign_routine_instr(process, "subrt1", 0))
 
     rrcall = RrCallTuple.no_alloc("req1")
-    netsquid_run(netstack_processor.assign_request_routine(process, rrcall))
+    global_args = process.prog_instance.inputs.values
+    netstack_processor.instantiate_routine(process, rrcall, global_args)
+    netsquid_run(
+        netstack_processor.handle_single_pair(
+            process, "req1", 0
+        )  # not s  ure about the 0
+    )
 
     assert process.host_mem.read("x") == 3
     assert process.qnos_mem.get_reg_value("R5") == 42
@@ -635,7 +641,11 @@ def test_epr():
         def run(self) -> Generator[EventExpression, None, None]:
             process = self.memmgr.get_process(0)
             rrcall = RrCallTuple.no_alloc("req1")
-            yield from self.netstack.processor.assign_request_routine(process, rrcall)
+            global_args = process.prog_instance.inputs.values
+            self.netstack.processor.instantiate_routine(process, rrcall, global_args)
+            yield from self.netstack.processor.handle_single_pair(
+                process, "req1", 0
+            )  # not s  ure about the 0
 
     alice_procnode = create_procnode(
         "alice",
@@ -815,7 +825,11 @@ REQUEST req1
             process = self.memmgr.get_process(0)
             self.scheduler.initialize_process(process)
             rrcall = RrCallTuple.no_alloc("req1")
-            yield from self.netstack.processor.assign_request_routine(process, rrcall)
+            global_args = process.prog_instance.inputs.values
+            self.netstack.processor.instantiate_routine(process, rrcall, global_args)
+            yield from self.netstack.processor.handle_single_pair(
+                process, "req1", 0
+            )  # not s  ure about the 0
 
     server_procnode = create_procnode(
         "server",

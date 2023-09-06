@@ -1,17 +1,28 @@
 from typing import Generator, List, Optional
 
 import pytest
+from netqasm.lang.subroutine import Subroutine
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import UnitModule
+from qoala.lang.hostlang import IqoalaVector
 from qoala.lang.program import ProgramMeta, QoalaProgram
-from qoala.lang.request import EprRole, EprType, QoalaRequest, RequestVirtIdMapping
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    QoalaRequest,
+    RequestRoutine,
+    RequestVirtIdMapping,
+)
+from qoala.lang.routine import LocalRoutine, RoutineMetadata
 from qoala.runtime.lhi import LhiTopology, LhiTopologyBuilder
 from qoala.runtime.lhi_to_ehi import LhiConverter
-from qoala.runtime.memory import ProgramMemory
-from qoala.runtime.message import Message
+from qoala.runtime.memory import ProgramMemory, RunningRequestRoutine
+from qoala.runtime.message import Message, RrCallTuple
 from qoala.runtime.ntf import GenericNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance, ProgramResult
+from qoala.runtime.sharedmem import MemAddr
 from qoala.sim.entdist.entdist import EntDistRequest
 from qoala.sim.eprsocket import EprSocket
 from qoala.sim.memmgr import AllocError, MemoryManager
@@ -78,8 +89,15 @@ def star_topology(num_qubits: int) -> LhiTopology:
     )
 
 
-def create_process(pid: int, unit_module: UnitModule) -> QoalaProcess:
-    program = QoalaProgram(blocks=[], local_routines={}, meta=ProgramMeta.empty("prog"))
+def create_process(
+    pid: int, unit_module: UnitModule, local_routines=None, request_routines=None
+) -> QoalaProcess:
+    program = QoalaProgram(
+        blocks=[],
+        local_routines=local_routines,
+        meta=ProgramMeta.empty("prog"),
+        request_routines=request_routines,
+    )
     instance = ProgramInstance(
         pid=pid,
         program=program,
@@ -118,7 +136,7 @@ def create_simple_request(
 
 
 def test__allocate_for_pair():
-    topology = generic_topology(5)
+    topology = generic_topology(10)
     qdevice = MockQDevice(topology)
     ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
     unit_module = UnitModule.from_full_ehi(ehi)
@@ -151,6 +169,16 @@ def test__allocate_for_pair():
     assert memmgr.phys_id_for(process.pid, virt_id=1) == 1
     assert processor._allocate_for_pair(process, request2, index=1) == 2
     assert memmgr.phys_id_for(process.pid, virt_id=2) == 2
+
+    request3 = create_simple_request(
+        remote_id=1,
+        num_pairs=2,
+        virt_ids=RequestVirtIdMapping.from_str("custom 5, 7"),
+    )
+    assert processor._allocate_for_pair(process, request3, index=0) == 5
+    assert memmgr.phys_id_for(process.pid, virt_id=5) == 3
+    assert processor._allocate_for_pair(process, request3, index=1) == 7
+    assert memmgr.phys_id_for(process.pid, virt_id=7) == 4
 
 
 def test__create_entdist_request():
@@ -185,6 +213,73 @@ def test__create_entdist_request():
     )
 
 
+def test_instantiate():
+    topology = generic_topology(5)
+    qdevice = MockQDevice(topology)
+    ehi = LhiConverter.to_ehi(topology, ntf=GenericNtf())
+    unit_module = UnitModule.from_full_ehi(ehi)
+    memmgr = MemoryManager("alice", qdevice)
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    local_routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
+    )
+
+    request = QoalaRequest(
+        name="req",
+        remote_id=1,
+        epr_socket_id=0,
+        num_pairs=3,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
+        fidelity=0.65,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+    )
+    routine = RequestRoutine(
+        "req",
+        request,
+        [IqoalaVector("outcomes", 1)],
+        CallbackType.WAIT_ALL,
+        "subrt1",
+    )
+
+    process = create_process(
+        0,
+        unit_module,
+        local_routines={"subrt1": local_routine},
+        request_routines={"req": routine},
+    )
+    memmgr.add_process(process)
+
+    interface = MockNetstackInterface(qdevice, memmgr)
+    latencies = NetstackLatencies.all_zero()
+    processor = NetstackProcessor(interface, latencies)
+
+    rrcall = RrCallTuple(
+        "req",
+        MemAddr(0),
+        MemAddr(1),
+        [MemAddr(2), MemAddr(3), MemAddr(4)],
+        [MemAddr(5), MemAddr(6), MemAddr(7)],
+    )
+
+    processor.instantiate_routine(process, rrcall, args={})
+
+    runningReq = process.qnos_mem.get_running_request_routine("req")
+    assert runningReq == RunningRequestRoutine(
+        routine=routine,
+        params_addr=rrcall.input_addr,
+        result_addr=rrcall.result_addr,
+        cb_input_addrs=rrcall.cb_input_addrs,
+        cb_output_addrs=rrcall.cb_output_addrs,
+    )
+
+    assert runningReq.routine is not routine
+
+
 if __name__ == "__main__":
     test__allocate_for_pair()
     test__create_entdist_request()
+    test_instantiate()

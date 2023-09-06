@@ -15,6 +15,7 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
+    BusyOp,
     ClassicalIqoalaOp,
     IqoalaSingleton,
     IqoalaTuple,
@@ -202,6 +203,35 @@ def test_assign_cvalue_with_latencies():
     assert ns.sim_time() == 500
 
 
+def test_busy():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+    program = create_program(instrs=[BusyOp(500)])
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign_instr_index(process, 0))
+    assert ns.sim_time() == 500
+
+
+def test_busy_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    latencies = HostLatencies(host_instr_time=1000, host_peer_latency=3000)
+    processor = HostProcessor(interface, latencies)
+    program = create_program(instrs=[BusyOp(500)])
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign_instr_index(process, 0))
+    assert ns.sim_time() == 500  # latencies are not important for busy op
+
+
 def test_send_msg():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero())
@@ -216,6 +246,26 @@ def test_send_msg():
 
     yield_from(processor.assign_instr_index(process, 0))
     assert interface.send_events[0] == InterfaceEvent("bob", Message(0, 0, content=12))
+
+
+def test_send_msg_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    latencies = HostLatencies(host_instr_time=500, host_peer_latency=1e6)
+    processor = HostProcessor(interface, latencies)
+    meta = ProgramMeta.empty("alice")
+    meta.csockets = {0: "bob"}
+    program = create_program(
+        instrs=[SendCMsgOp(IqoalaSingleton("bob"), IqoalaSingleton("msg"))], meta=meta
+    )
+    process = create_process(program, interface, inputs={"bob": 0, "msg": 12})
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign_instr_index(process, 0))
+    assert interface.send_events[0] == InterfaceEvent("bob", Message(0, 0, content=12))
+    assert ns.sim_time() == 500  # no host_peer_latency used!
 
 
 def test_recv_msg():
@@ -278,6 +328,32 @@ def test_add_cvalue():
     assert process.prog_memory.host_mem.read("sum") == 5
 
 
+def test_add_cvalue_with_inputs():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
+    program = create_program(
+        instrs=[
+            AddCValueOp(
+                IqoalaSingleton("sum"), IqoalaSingleton("a"), IqoalaSingleton("b")
+            ),
+        ]
+    )
+    process = create_process(
+        program,
+        interface,
+        inputs={"a": 2, "b": 3},
+    )
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign_instr_index(process, 0))
+
+    assert process.prog_memory.host_mem.read("sum") == 5
+    assert ns.sim_time() == 500
+
+
 def test_add_cvalue_with_latencies():
     ns.sim_reset()
 
@@ -323,6 +399,51 @@ def test_multiply_const():
     assert process.prog_memory.host_mem.read("result") == -4
 
 
+def test_multiply_const_with_inputs():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
+    program = create_program(
+        instrs=[
+            MultiplyConstantCValueOp(
+                IqoalaSingleton("result"), IqoalaSingleton("a"), -1
+            )
+        ]
+    )
+    process = create_process(program, interface, inputs={"a": 4})
+    processor.initialize(process)
+
+    for i in range(len(program.instructions)):
+        netsquid_run(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("result") == -4
+    assert ns.sim_time() == len(program.instructions) * 500
+
+
+def test_multiply_const_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
+    program = create_program(
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("a"), 4),
+            MultiplyConstantCValueOp(
+                IqoalaSingleton("result"), IqoalaSingleton("a"), -1
+            ),
+        ]
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    for i in range(len(program.instructions)):
+        netsquid_run(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("result") == -4
+    assert ns.sim_time() == len(program.instructions) * 500
+
+
 def test_bit_cond_mult():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero())
@@ -354,6 +475,77 @@ def test_bit_cond_mult():
 
     assert process.prog_memory.host_mem.read("result1") == 4
     assert process.prog_memory.host_mem.read("result2") == -7
+
+
+def test_bit_cond_mult_with_inputs():
+    ns.sim_reset()
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
+    program = create_program(
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("var2"), 7),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result1"),
+                IqoalaSingleton("var1"),
+                IqoalaSingleton("cond1"),
+                -1,
+            ),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result2"),
+                IqoalaSingleton("var2"),
+                IqoalaSingleton("cond2"),
+                -1,
+            ),
+        ]
+    )
+    process = create_process(
+        program, interface, inputs={"var1": 4, "cond1": 0, "cond2": 1}
+    )
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    for i in range(len(program.instructions)):
+        netsquid_run(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("result1") == 4
+    assert process.prog_memory.host_mem.read("result2") == -7
+    assert ns.sim_time() == len(program.instructions) * 500
+
+
+def test_bit_cond_mult_with_latencies():
+    ns.sim_reset()
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
+    program = create_program(
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("var1"), 4),
+            AssignCValueOp(IqoalaSingleton("var2"), 7),
+            AssignCValueOp(IqoalaSingleton("cond1"), 0),
+            AssignCValueOp(IqoalaSingleton("cond2"), 1),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result1"),
+                IqoalaSingleton("var1"),
+                IqoalaSingleton("cond1"),
+                -1,
+            ),
+            BitConditionalMultiplyConstantCValueOp(
+                IqoalaSingleton("result2"),
+                IqoalaSingleton("var2"),
+                IqoalaSingleton("cond2"),
+                -1,
+            ),
+        ]
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    for i in range(len(program.instructions)):
+        netsquid_run(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("result1") == 4
+    assert process.prog_memory.host_mem.read("result2") == -7
+    assert ns.sim_time() == len(program.instructions) * 500
 
 
 def test_prepare_lr_call():
@@ -454,9 +646,11 @@ def test_prepare_rr_call():
     # Host processor should have allocated shared memory space.
     assert rrcall.routine_name == "req"
     assert len(process.shared_mem.raw_arrays.raw_memory[rrcall.result_addr]) == 10
+    assert rrcall.cb_input_addrs == []
+    assert rrcall.cb_output_addrs == []
 
 
-def test_prepare_rr_call_with_callbacks():
+def test_prepare_rr_call_with_callbacks_seq():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero())
 
@@ -496,8 +690,70 @@ def test_prepare_rr_call_with_callbacks():
     # 3 entries for each of the callbacks
     assert all(len(raw_memory[addr]) == 3 for addr in rrcall.cb_output_addrs)
 
+    assert len(process.shared_mem._cr_in_addrs) == 10
 
-def test_post_rr_call_with_callbacks():
+    assert rrcall.cb_input_addrs == process.shared_mem._cr_in_addrs
+
+    # 1 address for each of the callbacks in total 10 addresses
+    assert len(rrcall.cb_input_addrs) == 10
+    assert len(rrcall.cb_output_addrs) == 10
+
+
+def test_prepare_rr_call_with_callbacks_wait_all():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    local_routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
+    )
+
+    request = create_simple_request(
+        remote_id=0,
+        num_pairs=10,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
+    )
+    routine = RequestRoutine(
+        "req",
+        request,
+        [IqoalaVector("req_return", 2)],
+        CallbackType.WAIT_ALL,
+        "subrt1",
+    )
+
+    # We expect 3 (callback) + 2 (request) = 5 results
+    instr = RunRequestOp(
+        result=IqoalaVector("outcomes", 5), values=IqoalaTuple([]), routine="req"
+    )
+
+    program = create_program(
+        instrs=[instr], subroutines={"subrt1": local_routine}, requests={"req": routine}
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    rrcall = processor.prepare_rr_call(process, program.instructions[0])
+
+    # Host processor should have allocated shared memory space.
+    assert rrcall.routine_name == "req"
+    raw_memory = process.shared_mem.raw_arrays.raw_memory
+    # 2 entries for the RR itself
+    assert len(raw_memory[rrcall.result_addr]) == 2
+    # 3 entries for each of the callbacks
+    assert all(len(raw_memory[addr]) == 3 for addr in rrcall.cb_output_addrs)
+
+    assert len(process.shared_mem._cr_in_addrs) == 1
+    assert rrcall.cb_input_addrs == process.shared_mem._cr_in_addrs
+
+    # just one call of the callback
+    assert len(rrcall.cb_input_addrs) == 1
+    assert len(rrcall.cb_output_addrs) == 1
+
+
+def test_post_rr_call_with_callbacks_seq():
     interface = MockHostInterface()
     processor = HostProcessor(interface, HostLatencies.all_zero())
 
@@ -537,6 +793,54 @@ def test_post_rr_call_with_callbacks():
 
     # Host memory should contain the results.
     assert process.host_mem.read_vec("outcomes") == [i for i in range(30)]
+
+
+def test_post_rr_call_with_callbacks_wait_all():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+
+    subrt = Subroutine()
+    metadata = RoutineMetadata.use_none()
+    local_routine = LocalRoutine(
+        "subrt1", subrt, return_vars=[IqoalaVector("res", 3)], metadata=metadata
+    )
+
+    request = create_simple_request(
+        remote_id=0,
+        num_pairs=10,
+        virt_ids=RequestVirtIdMapping.from_str("increment 0"),
+        typ=EprType.MEASURE_DIRECTLY,
+        role=EprRole.CREATE,
+    )
+    routine = RequestRoutine(
+        "req",
+        request,
+        [IqoalaVector("req_result", 2)],
+        CallbackType.WAIT_ALL,
+        "subrt1",
+    )
+
+    # We expect 3 (callback) + 2 (request) = 5 results
+    instr = RunRequestOp(
+        result=IqoalaVector("outcomes", 5), values=IqoalaTuple([]), routine="req"
+    )
+
+    program = create_program(
+        instrs=[instr], subroutines={"subrt1": local_routine}, requests={"req": routine}
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    rrcall = processor.prepare_rr_call(process, program.instructions[0])
+    # Mock RR execution by writing results to shared memory.
+    process.shared_mem.write_rr_out(rrcall.result_addr, [0, 1])
+    data = [2, 3, 4]
+    process.shared_mem.write_lr_out(rrcall.cb_output_addrs[0], data)
+
+    processor.post_rr_call(process, program.instructions[0], rrcall)
+
+    # Host memory should contain the results.
+    assert process.host_mem.read_vec("outcomes") == [i for i in range(5)]
 
 
 def test_return_result():
@@ -597,17 +901,27 @@ if __name__ == "__main__":
     test_initialize()
     test_assign_cvalue()
     test_assign_cvalue_with_latencies()
+    test_busy()
+    test_busy_with_latencies()
     test_send_msg()
+    test_send_msg_with_latencies()
     test_recv_msg()
     test_recv_msg_with_latencies()
     test_add_cvalue()
+    test_add_cvalue_with_inputs()
     test_add_cvalue_with_latencies()
     test_multiply_const()
+    test_multiply_const_with_inputs()
+    test_multiply_const_with_latencies()
     test_bit_cond_mult()
+    test_bit_cond_mult_with_inputs()
+    test_bit_cond_mult_with_latencies()
     test_prepare_lr_call()
     test_post_lr_call()
     test_prepare_rr_call()
-    test_prepare_rr_call_with_callbacks()
-    test_post_rr_call_with_callbacks()
+    test_prepare_rr_call_with_callbacks_seq()
+    test_prepare_rr_call_with_callbacks_wait_all()
+    test_post_rr_call_with_callbacks_seq()
+    test_post_rr_call_with_callbacks_wait_all()
     test_return_result()
     test_vector_element()

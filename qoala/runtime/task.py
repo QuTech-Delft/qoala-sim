@@ -1090,13 +1090,15 @@ class QoalaGraphFromProgramBuilder:
         instr = block.instructions[0]
         assert isinstance(instr, RunRequestOp)
         req_routine = program.request_routines[instr.req_routine]
-        callback = req_routine.callback
+        callback_name = req_routine.callback
 
         if ehi is not None:
             # TODO: make more accurate!
             pre_duration = ehi.latencies.host_instr_time
             post_duration = ehi.latencies.host_instr_time
-            cb_duration = ehi.latencies.qnos_instr_time
+            if callback_name is not None:
+                callback = program.local_routines[callback_name]
+                cb_duration = TaskDurationEstimator.lr_duration(ehi, callback)
         else:
             pre_duration = None
             post_duration = None
@@ -1138,10 +1140,10 @@ class QoalaGraphFromProgramBuilder:
             # RR task should come after precall task
             self._graph.get_tinfo(rr_id).predecessors.add(precall_id)
 
-            if callback is not None:
+            if callback_name is not None:
                 cb_id = self.unique_id()
                 cb_task = MultiPairCallbackTask(
-                    cb_id, pid, callback, shared_ptr, cb_duration
+                    cb_id, pid, callback_name, shared_ptr, cb_duration
                 )
                 self._graph.add_tasks([cb_task])
                 # callback task should come after RR task
@@ -1170,10 +1172,10 @@ class QoalaGraphFromProgramBuilder:
                 # Note: the RR pair tasks do not have precedence
                 # constraints among each other.
                 self._graph.get_tinfo(rr_pair_id).predecessors.add(precall_id)
-                if callback is not None:
+                if callback_name is not None:
                     pair_cb_id = self.unique_id()
                     pair_cb_task = SinglePairCallbackTask(
-                        pair_cb_id, pid, callback, i, shared_ptr, cb_duration
+                        pair_cb_id, pid, callback_name, i, shared_ptr, cb_duration
                     )
                     self._graph.add_tasks([pair_cb_task])
                     # Callback task for pair should come after corresponding

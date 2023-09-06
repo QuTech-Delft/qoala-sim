@@ -137,6 +137,12 @@ def test_alloc_free_0():
     assert mgr.virt_id_for(pid, 0) is None
     assert mgr.virt_id_for(pid, 1) is None
 
+    with pytest.raises(RuntimeError):
+        assert mgr.phys_id_for(pid, 2) is None
+
+    with pytest.raises(RuntimeError):
+        assert mgr.virt_id_for(pid, 2) is None
+
     mgr.allocate(pid, 0)
     assert mgr.phys_id_for(pid, 0) == 0
     assert mgr.phys_id_for(pid, 1) is None
@@ -148,6 +154,9 @@ def test_alloc_free_0():
     assert mgr.phys_id_for(pid, 1) is None
     assert mgr.virt_id_for(pid, 0) is None
     assert mgr.virt_id_for(pid, 1) is None
+
+    with pytest.raises(AssertionError):
+        mgr.free(pid, 5)
 
 
 def test_alloc_free_0_1():
@@ -182,8 +191,9 @@ def test_alloc_non_existing():
 def test_alloc_already_allocated():
     pid, mgr = setup_manager()
 
+    mgr.allocate(pid, 1)
+
     with pytest.raises(AllocError):
-        mgr.allocate(pid, 1)
         mgr.allocate(pid, 1)
 
 
