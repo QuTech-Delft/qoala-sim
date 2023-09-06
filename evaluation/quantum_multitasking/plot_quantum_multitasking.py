@@ -116,11 +116,12 @@ def plot_heatmap(
     # ax.set_ylim(0.75, 0.9)
     # ax.legend(loc="upper left")
 
-    create_png("LAST")
-    create_png(timestamp)
+    tel_or_loc = "tel" if plot_tel else "loc"
+    create_png(f"LAST_{tel_or_loc}")
+    create_png(f"{timestamp}_{tel_or_loc}")
 
 
-def heat_map(num_range: int, plot_tel: bool):
+def heat_map(num_range: int):
     datas: List[Data] = []
     for tel in range(1, num_range + 1):
         for loc in range(1, num_range + 1):
@@ -128,11 +129,16 @@ def heat_map(num_range: int, plot_tel: bool):
             datas.append(data)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    create_meta("LAST_meta", datas, plot_tel)
-    create_meta(f"{timestamp}_meta", datas, plot_tel)
-    plot_heatmap(timestamp, datas, num_range, plot_tel)
+    # Plot Teleportation success probability
+    create_meta("LAST_tel_meta", datas, plot_tel=True)
+    create_meta(f"{timestamp}_tel_meta", datas, plot_tel=True)
+    plot_heatmap(timestamp, datas, num_range, plot_tel=True)
+
+    # Plot Local success probability
+    create_meta("LAST_loc_meta", datas, plot_tel=False)
+    create_meta(f"{timestamp}_loc_meta", datas, plot_tel=False)
+    plot_heatmap(timestamp, datas, num_range, plot_tel=False)
 
 
 if __name__ == "__main__":
-    heat_map(10, plot_tel=True)
-    # heat_map(10, plot_tel=False)
+    heat_map(15)

@@ -1,10 +1,12 @@
 #!/bin/bash
 
-num_runs=100
+START_TIME=$SECONDS
+
+num_runs=200
 
 # teleport_values=(1 2 3 4 5)
-num_teleport=10
-num_local=10
+num_teleport=15
+num_local=15
 
 commands=()
 
@@ -22,4 +24,8 @@ done
 
 wait
 
-echo "done"
+END_TIME=$SECONDS
+
+ELAPSED_TIME=$((END_TIME - START_TIME))
+
+echo "done in $ELAPSED_TIME seconds"

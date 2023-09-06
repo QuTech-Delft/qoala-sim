@@ -1,6 +1,6 @@
 META_START
     name: local
-    parameters: busy_duration
+    parameters: duration
     csockets: 
     epr_sockets: 
 META_END
