@@ -423,7 +423,7 @@ class EntDist(Protocol):
             for slot in range(num_pairs):
                 if total_elapsed_time_in_request - link_generation_time_dictionary[slot] > window if link_generation_time_dictionary[slot] is not None else False:
                     # If links are too old, then release use of memory slot
-                    node1_mem.mem_positions[node1_phys_id[slot]].in_use = False
+                    node1_mem.mem_positions[node1_phys_id[slot]].in_use = False   # TODO: separate bool for "alive"
                     node2_mem.mem_positions[node2_phys_id[slot]].in_use = False
                     link_generation_time_dictionary[slot] = None
                     self._logger.warning(f"Dumped pair in slot {slot}")
