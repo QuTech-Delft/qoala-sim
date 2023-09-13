@@ -142,6 +142,7 @@ class NodeScheduler(Protocol):
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}({node_name})"
         )
+        self._task_logger = LogManager.get_task_logger(f"{node_name}_NodeScheduler")
 
         self._host = host
         self._qnos = qnos
@@ -166,6 +167,8 @@ class NodeScheduler(Protocol):
         self._prog_instance_dependency: Dict[
             int, int
         ] = {}  # program ID -> dependent program ID
+
+        self._const_batch: Optional[ProgramBatch] = None
 
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
@@ -264,6 +267,27 @@ class NodeScheduler(Protocol):
         self._batch_counter += 1
         return batch
 
+    def submit_const_batch(self, batch_info: BatchInfo) -> ProgramBatch:
+        prog_instances: List[ProgramInstance] = []
+
+        for i in range(batch_info.num_iterations):
+            pid = self._prog_instance_counter
+
+            instance = ProgramInstance(
+                pid=pid,
+                program=batch_info.program,
+                inputs=batch_info.inputs[i],
+                unit_module=batch_info.unit_module,
+            )
+            self._prog_instance_counter += 1
+            prog_instances.append(instance)
+
+        batch = ProgramBatch(
+            batch_id=self._batch_counter, info=batch_info, instances=prog_instances
+        )
+        self._const_batch = batch
+        return batch
+
     def get_batches(self) -> Dict[int, ProgramBatch]:
         return self._batches
 
@@ -324,6 +348,12 @@ class NodeScheduler(Protocol):
                 else:
                     self._prog_instance_dependency[prog_instance.pid] = -1
 
+        if self._const_batch is not None:
+            for i, prog_instance in enumerate(self._const_batch.instances):
+                process = self.create_process(prog_instance)
+                self.memmgr.add_process(process)
+                self.initialize_process(process)
+
     def collect_timestamps(self, batch_id: int) -> List[Optional[Tuple[float, float]]]:
         batch = self._batches[batch_id]
         timestamps: List[Optional[Tuple[float, float]]] = []
@@ -359,6 +389,21 @@ class NodeScheduler(Protocol):
         self.collect_batch_results()
         return self._batch_results
 
+    def get_all_non_const_pids(self) -> List[int]:
+        pids = self.memmgr.get_all_program_ids()
+        if self._const_batch is None:
+            return pids
+        else:
+            const_pids = [inst.pid for inst in self._const_batch.instances]
+            return [pid for pid in pids if pid not in const_pids]
+
+    def is_from_const_batch(self, pid: int) -> bool:
+        if self._const_batch is None:
+            return False
+        # else:
+        const_pids = [inst.pid for inst in self._const_batch.instances]
+        return pid in const_pids
+
     def initialize_process(self, process: QoalaProcess) -> None:
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
@@ -390,10 +435,16 @@ class NodeScheduler(Protocol):
         while True:
             if (
                 self._last_cpu_task_pid != -1
-                and self.is_program_instance_finished(self._last_cpu_task_pid)
+                and (
+                    self.is_from_const_batch(self._last_cpu_task_pid)
+                    or self.is_program_instance_finished(self._last_cpu_task_pid)
+                )
             ) or (
                 self._last_qpu_task_pid != -1
-                and self.is_program_instance_finished(self._last_qpu_task_pid)
+                and (
+                    self.is_from_const_batch(self._last_qpu_task_pid)
+                    or self.is_program_instance_finished(self._last_qpu_task_pid)
+                )
             ):
                 self.schedule_all()
             ev_expr = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
@@ -410,7 +461,9 @@ class NodeScheduler(Protocol):
                 now
             )
             # If there is a task that is finished at the current time, assign the next
-            if self._last_cpu_task_pid != -1:
+            if self._last_cpu_task_pid != -1 and not self.is_from_const_batch(
+                self._last_cpu_task_pid
+            ):
                 self.schedule_next_for(self._last_cpu_task_pid)
 
             self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
@@ -421,6 +474,7 @@ class NodeScheduler(Protocol):
             if (
                 self._last_qpu_task_pid != -1
                 and self._last_qpu_task_pid != self._last_cpu_task_pid
+                and not self.is_from_const_batch(self._last_qpu_task_pid)
             ):
                 self.schedule_next_for(self._last_qpu_task_pid)
 
@@ -461,7 +515,8 @@ class NodeScheduler(Protocol):
         all_new_cpu_tasks: Dict[int, TaskInfo] = {}
         all_new_qpu_tasks: Dict[int, TaskInfo] = {}
 
-        for pid in self.memmgr.get_all_program_ids():
+        # for pid in self.memmgr.get_all_program_ids():
+        for pid in self.get_all_non_const_pids():
             # If there is a dependency, check if it is finished
             dependency_pid = self._prog_instance_dependency[pid]
             if dependency_pid != -1:
@@ -541,8 +596,12 @@ class NodeScheduler(Protocol):
             graph = self._task_from_block_builder.build(
                 prog_instance, current_block_index, self._network_ehi
             )
-            new_cpu_tasks.update(graph.partial_graph(ProcessorType.CPU).get_tasks())
-            new_qpu_tasks.update(graph.partial_graph(ProcessorType.QPU).get_tasks())
+            cpu_graph = graph.partial_graph(ProcessorType.CPU).get_tasks()
+            qpu_graph = graph.partial_graph(ProcessorType.QPU).get_tasks()
+            self._task_logger.debug(f"adding CPU tasks {cpu_graph}")
+            self._task_logger.debug(f"adding QPU tasks {qpu_graph}")
+            new_cpu_tasks.update(cpu_graph)
+            new_qpu_tasks.update(qpu_graph)
 
             self._current_block_index[pid] += 1
 
@@ -923,13 +982,23 @@ class CpuEdfScheduler(EdfScheduler):
             for tid in no_predecessors
             if tid not in event_blocked_on_message and tid not in with_future_start
         ]
+        ready_task_dict = {tid: str(tg.get_tinfo(tid).task) for tid in ready}
+        self._task_logger.debug(f"ready tasks: {ready}\n{ready_task_dict}")
 
         if len(ready) > 0:
             # self._task_logger.warning(f"ready tasks: {ready}")
             # From the readily executable tasks, choose which one to execute
-            with_deadline = [t for t in ready if tg.get_tinfo(t).deadline is not None]
+            with_deadline = [
+                t
+                for t in ready
+                if tg.get_tinfo(t).deadline is not None
+                or len(tg.get_tinfo(t).rel_deadlines) > 0
+                or len(tg.get_tinfo(t).ext_rel_deadlines) > 0
+            ]
             if not self._use_deadlines:
                 with_deadline = []
+
+            self._task_logger.debug(f"ready tasks with deadline: {with_deadline}")
 
             to_return: int
 

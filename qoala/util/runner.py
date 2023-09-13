@@ -15,7 +15,7 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import TaskGraphBuilder
+from qoala.runtime.task import TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 
 from qoala.util.logging import LogManager
@@ -169,7 +169,7 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
     batch_info_const = create_batch(
         const_prog_node2, unit_module2, const_prog_node2_inputs, num_const_tasks
     )
-    batch_const = procnode2.submit_batch(batch_info_const)
+    batch_const = procnode2.submit_const_batch(batch_info_const)
 
     # Init
 
@@ -181,20 +181,37 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
 
     # Upload tasks
 
-    tasks1 = procnode1.scheduler.get_tasks_to_schedule()
-    if linear:
-        merged1 = TaskGraphBuilder.merge_linear(tasks1)
-    else:
-        merged1 = TaskGraphBuilder.merge(tasks1)
-    procnode1.scheduler.upload_task_graph(merged1)
+    # tasks1 = procnode1.scheduler.get_tasks_to_schedule()
+    # if linear:
+    #     merged1 = TaskGraphBuilder.merge_linear(tasks1)
+    # else:
+    #     merged1 = TaskGraphBuilder.merge(tasks1)
+    # procnode1.scheduler.upload_task_graph(merged1)
 
-    tasks2 = procnode2.scheduler.get_tasks_to_schedule_for(batch_node2.batch_id)
-    if linear:
-        merged2 = TaskGraphBuilder.merge_linear(tasks2)
-    else:
-        merged2 = TaskGraphBuilder.merge(tasks2)
+    # tasks2 = procnode2.scheduler.get_tasks_to_schedule_for(batch_node2.batch_id)
+    # if linear:
+    #     merged2 = TaskGraphBuilder.merge_linear(tasks2)
+    # else:
+    #     merged2 = TaskGraphBuilder.merge(tasks2)
 
-    tasks_const = procnode2.scheduler.get_tasks_to_schedule_for(batch_const.batch_id)
+    tasks_const: List[TaskGraph] = []
+    task_counter = 0
+    local_ehi = procnode2.scheduler._local_ehi
+    network_ehi = procnode2.scheduler._network_ehi
+    for i, inst in enumerate(batch_const.instances):
+        tasks = TaskGraphBuilder.from_program(
+            batch_const.info.program,
+            inst.pid,
+            local_ehi,
+            network_ehi,
+            first_task_id=task_counter,
+            prog_input=batch_const.info.inputs[i].values,
+        )
+        task_counter += len(tasks.get_tasks())
+        tasks_const.append(tasks)
+    procnode2.scheduler._task_from_block_builder._task_id_counter = task_counter
+
+    # tasks_const = procnode2.scheduler.get_tasks_to_schedule_for(batch_const.batch_id)
     merged_const = TaskGraphBuilder.merge_linear(tasks_const)
     start = const_start
     for tid, tinfo in merged_const.get_tasks().items():
@@ -203,14 +220,19 @@ def run_two_node_app_separate_inputs_plus_constant_tasks(
             # Force the busy tasks to start earlier by setting their start times as deadlines
             merged_const.get_tinfo(tid).deadline = start
         start += const_period
+
+    procnode2.scheduler.upload_task_graph(merged_const)
+
     # for tid, tinfo in merged_const.get_tasks().items():
     #     print(f"tid: {tid}, tinfo: {tinfo}")
-    if sched_typ == SchedulerType.NO_SCHED:
-        merged_with_const = TaskGraphBuilder.merge_linear([merged2, merged_const])
-    else:
-        merged_with_const = TaskGraphBuilder.merge([merged2, merged_const])
+    # if sched_typ == SchedulerType.NO_SCHED:
+    #     merged_with_const = TaskGraphBuilder.merge_linear([merged2, merged_const])
+    # else:
+    #     merged_with_const = TaskGraphBuilder.merge([merged2, merged_const])
 
-    procnode2.scheduler.upload_task_graph(merged_with_const)
+    # procnode2.scheduler.upload_task_graph(merged_with_const)
+
+    # Run
 
     network.start()
     ns.sim_run()

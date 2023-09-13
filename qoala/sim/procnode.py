@@ -245,10 +245,13 @@ class ProcNode(Protocol):
     def submit_batch(self, batch_info: BatchInfo) -> ProgramBatch:
         return self.scheduler.submit_batch(batch_info)
 
+    def submit_const_batch(self, batch_info: BatchInfo) -> ProgramBatch:
+        return self.scheduler.submit_const_batch(batch_info)
+
     def initialize_processes(
         self,
         remote_pids: Optional[Dict[int, List[int]]] = None,
-        linear: bool = False
+        linear: bool = False,
         # batch ID -> PID list
     ) -> None:
         self.scheduler.create_processes_for_batches(remote_pids, linear)

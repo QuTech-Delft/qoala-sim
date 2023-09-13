@@ -1,0 +1,9 @@
+META_START
+    name: cpu_busy
+    parameters: duration
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = CL}:
+    busy() : duration
