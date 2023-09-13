@@ -36,7 +36,7 @@ def setup_alice_bob() -> Tuple[ClassicalSocket, ClassicalSocket]:
     alice.remote = bob
     bob.remote = alice
 
-    return (ClassicalSocket(alice, "bob", 0, 0), ClassicalSocket(bob, "alice", 0, 0))
+    return ClassicalSocket(alice, "bob", 0, 0), ClassicalSocket(bob, "alice", 0, 0)
 
 
 def test_send_str():
@@ -117,7 +117,7 @@ def test_multiple_pids():
 
 
 if __name__ == "__main__":
-    # test_send_str()
-    # test_send_int()
-    # test_send_float()
+    test_send_str()
+    test_send_int()
+    test_send_float()
     test_multiple_pids()

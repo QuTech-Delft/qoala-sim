@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Set
 
 from netsquid.protocols import Protocol
 
@@ -86,6 +86,9 @@ class MemoryManager(Protocol):
     def get_process(self, pid: int) -> QoalaProcess:
         return self._processes[pid]
 
+    def get_all_program_ids(self) -> List[int]:
+        return list(self._processes.keys())
+
     def allocate(self, pid: int, virt_id: int) -> int:
         vmap = self._process_mappings[pid]
         # Check if the virtual ID is in the unit module
@@ -160,7 +163,12 @@ class MemoryManager(Protocol):
         return phys_id
 
     def virt_id_for(self, pid: int, phys_id: int) -> Optional[int]:
+        if phys_id not in self._qdevice.get_all_qubit_ids():
+            raise RuntimeError(f"phys ID {phys_id} not in QDevice")
         if virt_loc := self._physical_mapping[phys_id]:
             if virt_loc.pid == pid:
                 return virt_loc.virt_id
         return None
+
+    def get_all_qubit_ids(self) -> Set[int]:
+        return self._qdevice.get_all_qubit_ids()

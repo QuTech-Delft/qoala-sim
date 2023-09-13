@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.task import TaskGraph
 
 
 @dataclass
@@ -41,7 +40,6 @@ class ProgramInstance:
     program: QoalaProgram
     inputs: ProgramInput
     unit_module: UnitModule
-    task_graph: TaskGraph
 
 
 @dataclass

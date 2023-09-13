@@ -5,6 +5,7 @@ from netsquid.components.instructions import (
     INSTR_INIT,
     INSTR_MEASURE,
     INSTR_ROT_X,
+    INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -23,6 +24,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
+from qoala.runtime.instructions import INSTR_MEASURE_ALL, INSTR_ROT_X_ALL
 from qoala.runtime.lhi import (
     LhiGateInfo,
     LhiLatencies,
@@ -37,6 +39,7 @@ from qoala.sim.build import (
     build_network_from_config,
     build_network_from_lhi,
     build_procnode_from_config,
+    build_procnode_from_lhi,
     build_qprocessor_from_topology,
 )
 
@@ -70,6 +73,7 @@ def uniform_topology(num_qubits: int) -> LhiTopology:
             },
         )
     ]
+
     return LhiTopologyBuilder.fully_uniform(
         num_qubits=num_qubits,
         qubit_info=qubit_info,
@@ -83,6 +87,8 @@ def test_build_from_topology():
     topology = uniform_topology(num_qubits)
     proc: QuantumProcessor = build_qprocessor_from_topology("proc", topology)
     assert proc.num_positions == num_qubits
+
+    assert proc.name == "proc"
 
     for i in range(num_qubits):
         assert (
@@ -98,6 +104,32 @@ def test_build_from_topology():
     )
 
 
+def test_build_from_topology_with_all_qubit_gates():
+    num_qubits = 3
+    topology = LhiTopologyBuilder.perfect_uniform(
+        num_qubits=num_qubits,
+        single_instructions=[INSTR_INIT, INSTR_MEASURE, INSTR_ROT_Z],
+        single_duration=5e3,
+        two_instructions=[],
+        two_duration=100e3,
+        all_qubit_instructions=[INSTR_ROT_X_ALL, INSTR_MEASURE_ALL],
+        all_qubit_duration=50e3,
+    )
+    proc: QuantumProcessor = build_qprocessor_from_topology("proc", topology)
+    assert proc.num_positions == num_qubits
+
+    for i in range(num_qubits):
+        assert (
+            proc.get_instruction_duration(INSTR_ROT_Z, [i])
+            == topology.find_single_gate(i, INSTR_ROT_Z).duration
+        )
+        with pytest.raises(MissingInstructionError):
+            proc.get_instruction_duration(INSTR_X, [i])
+
+    assert proc.get_instruction_duration(INSTR_ROT_X_ALL, [0, 1, 2]) == 50e3
+    assert proc.get_instruction_duration(INSTR_MEASURE_ALL, [0, 1, 2]) == 50e3
+
+
 def test_build_perfect_topology():
     num_qubits = 3
     topology = LhiTopologyBuilder.perfect_uniform(
@@ -109,6 +141,8 @@ def test_build_perfect_topology():
     )
     proc: QuantumProcessor = build_qprocessor_from_topology("proc", topology)
     assert proc.num_positions == num_qubits
+
+    assert proc.name == "proc"
 
     for i in range(num_qubits):
         assert (
@@ -150,6 +184,9 @@ def test_build_nv_perfect():
         assert proc.get_instruction_duration(INSTR_INIT, [i]) == parms.mem_init_duration
         assert (
             proc.get_instruction_duration(INSTR_ROT_X, [i]) == parms.mem_gate_duration
+        )
+        assert (
+            proc.get_instruction_duration(INSTR_MEASURE, [i]) == parms.mem_meas_duration
         )
 
     with pytest.raises(MissingInstructionError):
@@ -342,6 +379,39 @@ def test_build_network_from_lhi():
     assert alice.local_ehi.latencies.host_peer_latency == 20_000
 
 
+def test_build_procnode_from_lhi():
+    topology = LhiTopologyBuilder.perfect_uniform_default_gates(num_qubits=3)
+    latencies = LhiLatencies(
+        host_instr_time=500,
+        qnos_instr_time=1000,
+        host_peer_latency=20_000,
+    )
+    nodes = {42: "alice", 43: "bob"}
+
+    network_lhi = LhiNetworkInfo.perfect_fully_connected(nodes, 100_000)
+
+    alice_procnode = build_procnode_from_lhi(
+        name="alice",
+        id=42,
+        topology=topology,
+        latencies=latencies,
+        network_lhi=network_lhi,
+        ntf=GenericNtf(),
+    )
+
+    assert alice_procnode.qdevice.qprocessor.name == "alice_processor"
+    assert alice_procnode.qdevice.qprocessor.num_positions == 3
+
+    assert alice_procnode.network_ehi.get_link(42, 43).duration == 100_000
+
+    assert alice_procnode.local_ehi.latencies.host_instr_time == 500
+    assert alice_procnode.local_ehi.latencies.qnos_instr_time == 1000
+    assert alice_procnode.local_ehi.latencies.host_peer_latency == 20_000
+
+    assert alice_procnode.node.netstack_peer_in_port("bob") is not None
+    assert alice_procnode.node.netstack_peer_out_port("bob") is not None
+
+
 if __name__ == "__main__":
     test_build_from_topology()
     test_build_perfect_topology()
@@ -350,3 +420,4 @@ if __name__ == "__main__":
     test_build_network_from_config()
     test_build_network_perfect_links()
     test_build_network_from_lhi()
+    test_build_procnode_from_lhi()

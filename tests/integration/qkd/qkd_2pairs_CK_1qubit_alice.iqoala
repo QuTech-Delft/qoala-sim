@@ -6,16 +6,16 @@ META_START
 META_END
 
 ^b1 {type = QC}:
-    run_request(tuple<>) : req
+    run_request() : req
 
 ^b2 {type = QL}:
-    tuple<m0> = run_subroutine(tuple<>) : post_epr
+    tuple<m0> = run_subroutine() : post_epr
 
 ^b3 {type = QC}:
-    run_request(tuple<>) : req
+    run_request() : req
 
 ^b4 {type = QL}:
-    tuple<m1> = run_subroutine(tuple<>) : post_epr
+    tuple<m1> = run_subroutine() : post_epr
 
 ^b5 {type = CL}:
     return_result(m0)
@@ -34,7 +34,7 @@ SUBROUTINE post_epr
   NETQASM_END
 
 REQUEST req
-  callback_type: sequential
+  callback_type:
   callback: 
   return_vars:
   remote_id: {bob_id}

@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from netqasm.lang.operand import Template
 
+from qoala.lang.hostlang import IqoalaVector
+
 
 class CallbackType(Enum):
     SEQUENTIAL = 0
@@ -105,8 +107,8 @@ class QoalaRequest:
     epr_socket_id: Union[int, Template]
     num_pairs: Union[int, Template]
     virt_ids: RequestVirtIdMapping
-    timeout: float
-    fidelity: float
+    timeout: Union[float, Template]
+    fidelity: Union[float, Template]
     typ: EprType
     role: EprRole
 
@@ -142,21 +144,12 @@ class QoalaRequest:
         return self.serialize()
 
 
-@dataclass(frozen=True)
-class RrReturnVector:
-    name: str
-    size: Union[int, Template]
-
-    def __str__(self) -> str:
-        return f"{self.name}<{self.size}>"
-
-
 @dataclass
 class RequestRoutine:
     name: str
     request: QoalaRequest
 
-    return_vars: List[Union[str, RrReturnVector]]
+    return_vars: List[Union[str, IqoalaVector]]
 
     callback_type: CallbackType
     callback: Optional[str]  # Local Routine name
@@ -164,20 +157,20 @@ class RequestRoutine:
     def instantiate(self, values: Dict[str, Any]) -> None:
         for i in range(len(self.return_vars)):
             ret_var = self.return_vars[i]
-            if isinstance(ret_var, RrReturnVector):
+            if isinstance(ret_var, IqoalaVector):
                 if isinstance(ret_var.size, Template):
                     size = values[ret_var.size.name]
                     print(f"instantiating ret_var {ret_var.name} with size {size}")
-                    self.return_vars[i] = RrReturnVector(ret_var.name, size)
+                    self.return_vars[i] = IqoalaVector(ret_var.name, size)
         self.request.instantiate(values)
 
     def get_return_size(self, prog_input: Optional[Dict[str, int]] = None) -> int:
         size = 0
         for v in self.return_vars:
-            if isinstance(v, RrReturnVector):
+            if isinstance(v, IqoalaVector):
                 if isinstance(v.size, int):
                     size += v.size
-                else:
+                elif isinstance(v.size, Template):
                     # Size is a template. It should be in the Program Input.
                     assert prog_input is not None
                     size += prog_input[v.size.name]

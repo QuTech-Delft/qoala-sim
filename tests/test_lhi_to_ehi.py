@@ -1,6 +1,6 @@
 import pytest
-from netqasm.lang.instr import core, nv
-from netqasm.lang.instr.flavour import NVFlavour
+from netqasm.lang.instr import core, nv, trapped_ion
+from netqasm.lang.instr.flavour import NVFlavour, TrappedIonFlavour
 from netsquid.components.instructions import (
     INSTR_CXDIR,
     INSTR_INIT,
@@ -13,6 +13,7 @@ from netsquid.components.instructions import (
 from qoala.lang.common import MultiQubit
 from qoala.lang.ehi import EhiGateInfo, EhiQubitInfo
 from qoala.runtime.config import DepolariseSamplerConfig, LinkConfig
+from qoala.runtime.instructions import INSTR_ROT_X_ALL
 from qoala.runtime.lhi import (
     LhiLatencies,
     LhiLinkInfo,
@@ -20,7 +21,7 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
 )
 from qoala.runtime.lhi_to_ehi import LhiConverter
-from qoala.runtime.ntf import NvNtf
+from qoala.runtime.ntf import NvNtf, TrappedIonNtf
 from qoala.util.math import prob_max_mixed_to_fidelity
 
 
@@ -79,6 +80,114 @@ def test_topology_to_ehi():
     assert ehi.latencies.host_peer_latency == 4
 
 
+def test_topology_to_ehi_trapped_ion():
+    topology = LhiTopologyBuilder.perfect_uniform(
+        num_qubits=2,
+        single_instructions=[
+            INSTR_INIT,
+            INSTR_ROT_Z,
+            INSTR_MEASURE,
+        ],
+        single_duration=5e3,
+        two_instructions=[],
+        two_duration=0,
+        all_qubit_instructions=[INSTR_ROT_X_ALL],
+        all_qubit_duration=50e3,
+    )
+
+    latencies = LhiLatencies(
+        host_instr_time=2,
+        qnos_instr_time=3,
+        host_peer_latency=4,
+    )
+
+    interface = TrappedIonNtf()
+    ehi = LhiConverter.to_ehi(topology, interface, latencies)
+
+    assert ehi.qubit_infos == {
+        0: EhiQubitInfo(is_communication=True, decoherence_rate=0),
+        1: EhiQubitInfo(is_communication=True, decoherence_rate=0),
+    }
+
+    assert ehi.flavour == TrappedIonFlavour
+
+    single_gates = [
+        EhiGateInfo(instr, 5e3, 0)
+        for instr in [
+            core.InitInstruction,
+            trapped_ion.RotZInstruction,
+            core.MeasInstruction,
+        ]
+    ]
+    assert ehi.single_gate_infos == {0: single_gates, 1: single_gates}
+
+    assert ehi.multi_gate_infos == {
+        MultiQubit([0, 1]): [],
+        MultiQubit([1, 0]): [],
+    }
+
+    all_qubit_gates = [EhiGateInfo(trapped_ion.AllQubitsRotXInstruction, 50e3, 0)]
+    assert all_qubit_gates == ehi.all_qubit_gate_infos
+
+    assert ehi.latencies.host_instr_time == 2
+    assert ehi.latencies.qnos_instr_time == 3
+    assert ehi.latencies.host_peer_latency == 4
+
+
+def test_qubit_to_ehi():
+    lhi_qubit = LhiTopologyBuilder.t1t2_qubit(is_communication=False, t1=3, t2=4)
+    ehi_qubit = LhiConverter.qubit_info_to_ehi(lhi_qubit)
+
+    assert not ehi_qubit.is_communication
+    # currently it converts T1 into decoherence rate
+    assert ehi_qubit.decoherence_rate == 3
+
+    lhi_qubit2 = LhiTopologyBuilder.perfect_qubit(is_communication=True)
+    ehi_qubit2 = LhiConverter.qubit_info_to_ehi(lhi_qubit2)
+
+    assert ehi_qubit2.is_communication
+    # currently it converts T1 into decoherence rate
+    assert ehi_qubit2.decoherence_rate == 0
+
+
+def test_gate_to_ehi():
+    instructions = [INSTR_INIT, INSTR_ROT_X, INSTR_ROT_Y, INSTR_ROT_Z, INSTR_MEASURE]
+    lhi_gates = LhiTopologyBuilder.perfect_gates(
+        duration=5,
+        instructions=instructions,
+    )
+
+    nvNtf = NvNtf()
+    ehi_gates = [
+        LhiConverter.gate_info_to_ehi(lhi_gate, nvNtf) for lhi_gate in lhi_gates
+    ]
+
+    assert ehi_gates == [
+        EhiGateInfo(
+            nvNtf.native_to_netqasm(lhi_gate.instruction)[0],
+            lhi_gate.duration,
+            0,
+        )
+        for lhi_gate in lhi_gates
+    ]
+
+    lhi_gates2 = LhiTopologyBuilder.depolar_gates(
+        duration=5, instructions=instructions, depolar_rate=0.5
+    )
+    ehi_gates2 = [
+        LhiConverter.gate_info_to_ehi(lhi_gate, nvNtf) for lhi_gate in lhi_gates2
+    ]
+
+    assert ehi_gates2 == [
+        EhiGateInfo(
+            nvNtf.native_to_netqasm(lhi_gate.instruction)[0],
+            lhi_gate.duration,
+            0.5,
+        )
+        for lhi_gate in lhi_gates2
+    ]
+
+
 def test_link_info_to_ehi_perfect():
     cfg = LinkConfig.perfect_config(state_delay=1200)
     lhi_info = LhiLinkInfo.from_config(cfg)
@@ -120,7 +229,8 @@ def test_network_to_ehi():
     perfect_link = LhiLinkInfo.perfect(1000)
     nodes = {0: "node0", 1: "node1"}
     lhi_network = LhiNetworkInfo(
-        nodes=nodes, links={(0, 1): depolar_link, (1, 3): perfect_link}
+        nodes=nodes,
+        links={frozenset([0, 1]): depolar_link, frozenset([1, 3]): perfect_link},
     )
 
     ehi_network = LhiConverter.network_to_ehi(lhi_network)
@@ -138,6 +248,9 @@ def test_network_to_ehi():
 
 if __name__ == "__main__":
     test_topology_to_ehi()
+    test_topology_to_ehi_trapped_ion()
+    test_qubit_to_ehi()
+    test_gate_to_ehi()
     test_link_info_to_ehi_perfect()
     test_link_info_to_ehi_depolarise()
     test_network_to_ehi()

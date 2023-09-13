@@ -173,10 +173,10 @@ def test_connection_with_channel():
 
     class BobHostInterface(HostInterface):
         def run(self) -> Generator[EventExpression, None, None]:
-            print(f"before receiving: {ns.sim_time()}")
+            assert ns.sim_time() == 0
             msg = yield from self.receive_peer_msg("alice")
-            print(f"{self.name}: received msg with content: {msg.content}")
-            print(f"after receiving: {ns.sim_time()}")
+            assert msg == Message(0, 0, "hello")
+            assert ns.sim_time() == 1000
 
     alice_intf = AliceHostInterface(alice_comp, ehi_network)
     bob_intf = BobHostInterface(bob_comp, ehi_network)
@@ -211,7 +211,7 @@ def test_connection_with_pids():
             # Send message from PID 0 (alice) to PID 0 (bob)
             self.send_peer_msg("bob", Message(0, 0, "hello (0, 0)"))
 
-            self.wait(500)
+            yield from self.wait(500)
 
             # Send message from PID 2 (alice) to PID 1 (bob)
             self.send_peer_msg("bob", Message(2, 1, "hello (2, 1)"))
@@ -219,13 +219,19 @@ def test_connection_with_pids():
     class BobHostInterface(HostInterface):
         def run(self) -> Generator[EventExpression, None, None]:
             assert len(self.get_available_messages("alice")) == 0
+            assert ns.sim_time() == 0
             yield from self.wait_for_msg("alice")
-            assert self.get_available_messages("alice") == [(0, 0), (2, 1)]
+            assert ns.sim_time() == 1000
+            assert self.get_available_messages("alice") == [(0, 0)]
             msg00 = self.pop_msg("alice", 0, 0)
+            assert msg00 == Message(0, 0, "hello (0, 0)")
+
+            yield from self.wait_for_msg("alice")
+            assert ns.sim_time() == 1500  # 1000 + 500
+            assert self.get_available_messages("alice") == [(2, 1)]
             msg21 = self.pop_msg("alice", 2, 1)
             print(f"{self.name}: received msg (0, 0) with content: {msg00.content}")
             print(f"{self.name}: received msg (2, 1) with content: {msg21.content}")
-            assert msg00 == Message(0, 0, "hello (0, 0)")
             assert msg21 == Message(2, 1, "hello (2, 1)")
 
     alice_intf = AliceHostInterface(alice_comp, ehi_network)

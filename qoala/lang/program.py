@@ -8,6 +8,7 @@ from qoala.lang.hostlang import (
     BasicBlock,
     BasicBlockType,
     ClassicalIqoalaOp,
+    IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
     ReturnResultOp,
@@ -80,6 +81,9 @@ class QoalaProgram:
     def get_block(self, name: str) -> BasicBlock:
         return self._block_mapping[name]
 
+    def get_block_id(self, name: str) -> int:
+        return self._blocks.index(self._block_mapping[name])
+
     @property
     def instructions(self) -> List[ClassicalIqoalaOp]:
         instrs = []
@@ -133,17 +137,18 @@ class QoalaProgramBuilder:
     def single_routine(cls, routine: LocalRoutine, args: List[int]) -> QoalaProgram:
         meta = ProgramMeta.empty("name")
         prepare_args: List[ClassicalIqoalaOp] = []
-        arg_names = [f"arg_{i}" for i in range(len(args))]
+        arg_singletons = [IqoalaSingleton(f"arg_{i}") for i in range(len(args))]
 
         for i in range(len(args)):
-            prepare_args.append(AssignCValueOp(arg_names[i], args[i]))
+            prepare_args.append(AssignCValueOp(arg_singletons[i], args[i]))
 
         result_vec = IqoalaVector("result", routine.get_return_size())
+        arg_names = [arg.name for arg in arg_singletons]
         args_tup = IqoalaTuple(arg_names)
         call_instr = RunSubroutineOp(
             result=result_vec, values=args_tup, subrt=routine.name
         )
-        return_instr = ReturnResultOp("result")
+        return_instr = ReturnResultOp(IqoalaSingleton("result"))
 
         instructions = prepare_args + [call_instr, return_instr]
 

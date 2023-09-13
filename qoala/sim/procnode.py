@@ -40,6 +40,7 @@ class ProcNode(Protocol):
         deterministic_scheduler: bool = True,
         use_deadlines: bool = True,
         prio_epr: bool = False,
+        is_predictable: bool = False,
     ) -> None:
         """ProcNode constructor.
 
@@ -118,6 +119,7 @@ class ProcNode(Protocol):
                 deterministic_scheduler,
                 use_deadlines,
                 prio_epr,
+                is_predictable,
             )
         else:
             self._scheduler = scheduler
@@ -245,9 +247,11 @@ class ProcNode(Protocol):
 
     def initialize_processes(
         self,
-        remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+        remote_pids: Optional[Dict[int, List[int]]] = None,
+        linear: bool = False
+        # batch ID -> PID list
     ) -> None:
-        self.scheduler.create_processes_for_batches(remote_pids)
+        self.scheduler.create_processes_for_batches(remote_pids, linear)
 
     def add_process(self, process: QoalaProcess) -> None:
         self.memmgr.add_process(process)

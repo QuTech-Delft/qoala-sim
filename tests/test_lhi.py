@@ -1,5 +1,6 @@
 import os
 
+import pytest
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
@@ -22,7 +23,15 @@ from netsquid_magic.state_delivery_sampler import (
 
 from qoala.lang.common import MultiQubit
 from qoala.runtime.config import LatenciesConfig, LinkConfig, NvParams, TopologyConfig
+from qoala.runtime.instructions import (
+    INSTR_BICHROMATIC,
+    INSTR_MEASURE_ALL,
+    INSTR_ROT_X_ALL,
+    INSTR_ROT_Y_ALL,
+    INSTR_ROT_Z_ALL,
+)
 from qoala.runtime.lhi import (
+    INSTR_MEASURE_INSTANT,
     LhiGateInfo,
     LhiLatencies,
     LhiLinkInfo,
@@ -76,14 +85,25 @@ def test_topology():
             "time_independent": True,
         },
     )
+    all_rot_x_gate_info = LhiGateInfo(
+        instruction=INSTR_ROT_X_ALL,
+        duration=1e4,
+        error_model=DepolarNoiseModel,
+        error_model_kwargs={
+            "depolar_rate": 0.2,
+            "time_independent": True,
+        },
+    )
 
     qubit_infos = {0: comm_qubit_info, 1: mem_qubit_info}
     single_gate_infos = {0: [gate_x_info, gate_y_info], 1: [gate_x_info]}
     multi_gate_infos = {MultiQubit([0, 1]): [cnot_gate_info]}
+    all_qubit_gate_infos = [all_rot_x_gate_info]
     topology = LhiTopology(
         qubit_infos=qubit_infos,
         single_gate_infos=single_gate_infos,
         multi_gate_infos=multi_gate_infos,
+        all_qubit_gate_infos=all_qubit_gate_infos,
     )
 
     assert topology.qubit_infos[0].is_communication
@@ -99,6 +119,11 @@ def test_topology():
         info.instruction for info in topology.multi_gate_infos[MultiQubit([0, 1])]
     ]
     assert q01_gates == [INSTR_CNOT]
+
+    assert [INSTR_ROT_X_ALL] == [
+        info.instruction for info in topology.all_qubit_gate_infos
+    ]
+    assert all_rot_x_gate_info == topology.find_all_qubit_gate(INSTR_ROT_X_ALL)
 
 
 def test_topology_from_config():
@@ -118,6 +143,10 @@ def test_topology_from_config():
         info.instruction for info in topology.multi_gate_infos[MultiQubit([0, 1])]
     ]
     assert q01_gates == [INSTR_CNOT]
+
+    assert [INSTR_ROT_X_ALL] == [
+        info.instruction for info in topology.all_qubit_gate_infos
+    ]
 
 
 def test_topology_from_config_2():
@@ -252,12 +281,16 @@ def test_perfect_uniform():
     single_gate_duration = 5e3
     two_qubit_instructions = [INSTR_CNOT, INSTR_CZ]
     two_gate_duration = 2e5
+    all_qubit_instructions = [INSTR_ROT_X_ALL, INSTR_ROT_Y_ALL, INSTR_ROT_Z_ALL]
+    all_qubit_duration = 1e5
     topology = LhiTopologyBuilder.perfect_uniform(
         num_qubits,
         single_qubit_instructions,
         single_gate_duration,
         two_qubit_instructions,
         two_gate_duration,
+        all_qubit_instructions,
+        all_qubit_duration,
     )
 
     assert topology.qubit_infos == {
@@ -297,6 +330,16 @@ def test_perfect_uniform():
         if i != j
     }
 
+    assert topology.all_qubit_gate_infos == [
+        LhiGateInfo(
+            instruction=instr,
+            duration=all_qubit_duration,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={"depolar_rate": 0},
+        )
+        for instr in all_qubit_instructions
+    ]
+
 
 def test_build_fully_uniform():
     qubit_info = LhiQubitInfo(
@@ -327,11 +370,25 @@ def test_build_fully_uniform():
             },
         )
     ]
+
+    all_qubit_gate_infos = [
+        LhiGateInfo(
+            instruction=INSTR_ROT_X_ALL,
+            duration=1e4,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={
+                "depolar_rate": 0.2,
+                "time_independent": True,
+            },
+        )
+    ]
+
     topology = LhiTopologyBuilder.fully_uniform(
         num_qubits=3,
         qubit_info=qubit_info,
         single_gate_infos=single_gate_infos,
         two_gate_infos=two_gate_infos,
+        all_qubit_gate_infos=all_qubit_gate_infos,
     )
 
     assert len(topology.qubit_infos) == 3
@@ -349,6 +406,10 @@ def test_build_fully_uniform():
             multi = MultiQubit([i, j])
             gates = [info.instruction for info in topology.multi_gate_infos[multi]]
             assert INSTR_CNOT in gates
+
+    assert [INSTR_ROT_X_ALL] == [
+        info.instruction for info in topology.all_qubit_gate_infos
+    ]
 
 
 def test_perfect_star():
@@ -449,6 +510,83 @@ def test_generic_t1t2_star():
         )
 
 
+def test_trapped_ion_default_perfect_gates():
+    num_qubits = 3
+
+    topology = LhiTopologyBuilder.trapped_ion_default_perfect_gates(num_qubits)
+
+    single_qubit_instructions = [
+        INSTR_INIT,
+        INSTR_ROT_Z,
+        INSTR_MEASURE,
+        INSTR_MEASURE_INSTANT,
+    ]
+
+    assert topology.qubit_infos == {
+        i: LhiQubitInfo(
+            is_communication=True,
+            error_model=T1T2NoiseModel,
+            error_model_kwargs={"T1": 0, "T2": 0},
+        )
+        for i in range(num_qubits)
+    }
+
+    assert topology.single_gate_infos == {
+        i: [
+            LhiGateInfo(
+                instruction=instr,
+                duration=5e3,
+                error_model=DepolarNoiseModel,
+                error_model_kwargs={"depolar_rate": 0},
+            )
+            for instr in single_qubit_instructions
+        ]
+        for i in range(num_qubits)
+    }
+
+    assert topology.multi_gate_infos == {
+        MultiQubit([i, j]): []
+        for i in range(num_qubits)
+        for j in range(num_qubits)
+        if i != j
+    }
+
+    all_qubit_instructions = [
+        INSTR_INIT,
+        INSTR_MEASURE_ALL,
+        INSTR_ROT_X_ALL,
+        INSTR_ROT_Y_ALL,
+        INSTR_ROT_Z_ALL,
+        INSTR_BICHROMATIC,
+    ]
+    assert topology.all_qubit_gate_infos == [
+        LhiGateInfo(
+            instruction=instr,
+            duration=5e3,
+            error_model=DepolarNoiseModel,
+            error_model_kwargs={"depolar_rate": 0},
+        )
+        for instr in all_qubit_instructions
+    ]
+
+
+def test_latencies():
+    latencies = LhiLatencies()
+    assert latencies.host_instr_time == 0
+    assert latencies.qnos_instr_time == 0
+    assert latencies.host_peer_latency == 0
+
+    latencies2 = LhiLatencies.all_zero()
+    assert latencies2.host_instr_time == 0
+    assert latencies2.qnos_instr_time == 0
+    assert latencies2.host_peer_latency == 0
+
+    latencies3 = LhiLatencies(host_instr_time=1, qnos_instr_time=2, host_peer_latency=3)
+    assert latencies3.host_instr_time == 1
+    assert latencies3.qnos_instr_time == 2
+    assert latencies3.host_peer_latency == 3
+
+
 def test_latencies_from_config():
     cfg = LatenciesConfig(
         host_instr_time=2,
@@ -460,6 +598,24 @@ def test_latencies_from_config():
     assert latencies.host_instr_time == 2
     assert latencies.qnos_instr_time == 3
     assert latencies.host_peer_latency == 4
+
+
+def test_link():
+    link = LhiLinkInfo.perfect(5)
+    assert link.state_delay == 5
+    assert link.sampler_factory == PerfectStateSamplerFactory
+    assert link.sampler_kwargs == {"cycle_time": 0}
+
+    link2 = LhiLinkInfo.depolarise(
+        cycle_time=10, prob_max_mixed=0.3, prob_success=0.1, state_delay=5
+    )
+    assert link2.state_delay == 5
+    assert link2.sampler_factory == DepolariseWithFailureStateSamplerFactory
+    assert link2.sampler_kwargs == {
+        "cycle_time": 10,
+        "prob_max_mixed": 0.3,
+        "prob_success": 0.1,
+    }
 
 
 def test_link_from_config():
@@ -493,6 +649,43 @@ def test_network_lhi():
     assert network_lhi.get_link(1, 2) == LhiLinkInfo.perfect(duration=1000)
 
 
+def test_network_lhi2():
+    nodes = {0: "node0", 1: "node1", 2: "node2"}
+    link_info = LhiLinkInfo.perfect(duration=10)
+    network = LhiNetworkInfo.fully_connected(nodes=nodes, info=link_info)
+
+    assert network.get_link(0, 1) == link_info
+    assert network.get_link(0, 2) == link_info
+    assert network.get_link(1, 2) == link_info
+
+
+def test_network_lhi3():
+    nodes = {0: "node0", 1: "node1", 2: "node2"}
+    network = LhiNetworkInfo(nodes=nodes, links={})
+
+    with pytest.raises(ValueError):
+        network.get_link(0, 1)
+
+    link_info = LhiLinkInfo.perfect(duration=10)
+    network.add_link(0, 1, link_info)
+
+    assert network.get_link(0, 1) == link_info
+
+    assert network.get_link(1, 0) == network.get_link(0, 1)
+
+    # Already existing link (order does not matter)
+    with pytest.raises(ValueError):
+        network.add_link(1, 0, link_info)
+
+    # Cannot create link with itself
+    with pytest.raises(ValueError):
+        network.add_link(0, 0, link_info)
+
+    # Cannot create link with non-existing node
+    with pytest.raises(ValueError):
+        network.add_link(0, 4, link_info)
+
+
 if __name__ == "__main__":
     test_topology()
     test_topology_from_config()
@@ -507,7 +700,12 @@ if __name__ == "__main__":
     test_build_fully_uniform()
     test_perfect_star()
     test_generic_t1t2_star()
+    test_trapped_ion_default_perfect_gates()
+    test_latencies()
     test_latencies_from_config()
+    test_link()
     test_link_from_config()
     test_link_from_config_2()
     test_network_lhi()
+    test_network_lhi2()
+    test_network_lhi3()

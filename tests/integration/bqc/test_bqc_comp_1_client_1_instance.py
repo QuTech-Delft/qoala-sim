@@ -17,7 +17,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import ProgramInput, ProgramInstance
-from qoala.runtime.task import TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 
 
@@ -62,7 +61,6 @@ def instantiate(
         program,
         inputs,
         unit_module=unit_module,
-        task_graph=TaskGraph(),
     )
 
 
@@ -114,24 +112,6 @@ def run_bqc(
     server_procnode.scheduler.submit_program_instance(
         server_instance, remote_pid=client_instance.pid
     )
-
-    tasks_server = TaskGraphBuilder.from_program(
-        server_program,
-        0,
-        server_procnode.local_ehi,
-        server_procnode.network_ehi,
-        client_id,
-    )
-    tasks_client = TaskGraphBuilder.from_program(
-        client_program,
-        0,
-        client_procnode.local_ehi,
-        client_procnode.network_ehi,
-        server_id,
-    )
-
-    server_procnode.scheduler.upload_task_graph(tasks_server)
-    client_procnode.scheduler.upload_task_graph(tasks_client)
 
     network.start()
     ns.sim_run()

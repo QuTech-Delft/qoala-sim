@@ -6,31 +6,31 @@ META_START
 META_END
 
 ^b0 {type = QL}:
-    tuple<> = run_subroutine(tuple<>) : prepare
+    run_subroutine() : prepare
 
 ^b1 {type = CL}:
     busy() : 1_000_000_000
 
 ^b2 {type = QL}:
-    tuple<m_x> = run_subroutine(tuple<>) : measure_x
+    tuple<m_x> = run_subroutine() : measure_x
 
 ^b3 {type = QL}:
-    tuple<> = run_subroutine(tuple<>) : prepare
+    run_subroutine() : prepare
 
 ^b4 {type = CL}:
     busy() : 1_000_000_000
 
 ^b5 {type = QL}:
-    tuple<m_y> = run_subroutine(tuple<>) : measure_y
+    tuple<m_y> = run_subroutine() : measure_y
 
 ^b6 {type = QL}:
-    tuple<> = run_subroutine(tuple<>) : prepare
+    run_subroutine() : prepare
 
 ^b7 {type = CL}:
     busy() : 1_000_000_000
 
 ^b8 {type = QL}:
-    tuple<m_z> = run_subroutine(tuple<>) : measure_z
+    tuple<m_z> = run_subroutine() : measure_z
 
 ^b9 {type = CL}:
     return_result(m_x)

@@ -6,7 +6,7 @@ META_START
 META_END
 
 ^b0 {type = QL}:
-    m<5> = run_subroutine(tuple<>) : subrt0
+    m<5> = run_subroutine() : subrt0
 
 ^b2 {type = CL}:
     return_result(m)

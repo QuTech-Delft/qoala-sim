@@ -6,7 +6,7 @@ META_START
 META_END
 
 ^b0 {type = QL}:
-    outcomes<3> = run_subroutine(tuple<>) : subrt0
+    outcomes<3> = run_subroutine() : subrt0
 
 ^b3 {type = CL}:
     return_result(outcomes)

@@ -15,6 +15,7 @@ from netsquid_magic.state_delivery_sampler import (
 
 from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
+from qoala.runtime.message import Message
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import (
     DelayedSampler,
@@ -116,6 +117,7 @@ def test_add_sampler_many_nodes():
 
     link = frozenset([nodes[0].ID, nodes[1].ID])
     assert entdist._samplers[link] == entdist.get_sampler(nodes[0].ID, nodes[1].ID)
+    assert entdist._samplers[link] == entdist.get_sampler(nodes[1].ID, nodes[0].ID)
 
     with pytest.raises(ValueError):
         entdist.get_sampler(nodes[0].ID, nodes[9].ID)
@@ -420,6 +422,9 @@ def test_serve_request():
     netsquid_run(entdist.serve_request(joint_request))
     assert ns.sim_time() == 1000
 
+    assert alice.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+
     alice_qubit = alice.qmemory.peek([0])[0]
     bob_qubit = bob.qmemory.peek([0])[0]
     assert has_multi_state([alice_qubit, bob_qubit], B00_DENS)
@@ -466,6 +471,61 @@ def test_serve_request_multiple_nodes():
     assert has_multi_state([bob_qubits[1], david_qubits[1]], B00_DENS)
 
 
+def test_entdist_run():
+    alice, bob, charlie = create_n_nodes(3, num_qubits=2)
+    entdist = create_entdist(nodes=[alice, bob, charlie])
+    link_info = LhiLinkInfo.perfect(1000)
+    for (node1, node2) in itertools.combinations([alice, bob, charlie], 2):
+        entdist.add_sampler(node1.ID, node2.ID, link_info)
+
+    req_ab = EntDistRequest(alice.ID, bob.ID, 0, [0], [0])
+    req_ba = EntDistRequest(bob.ID, alice.ID, 0, [0], [0])
+
+    req_ac = EntDistRequest(alice.ID, charlie.ID, 1, [1], [0])
+    req_ca = EntDistRequest(charlie.ID, alice.ID, 0, [0], [1])
+
+    req_bc = EntDistRequest(bob.ID, charlie.ID, 1, [1], [1])
+    req_cb = EntDistRequest(charlie.ID, bob.ID, 1, [1], [1])
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not alice.qmemory.mem_positions[1].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[1].in_use
+    assert not charlie.qmemory.mem_positions[0].in_use
+    assert not charlie.qmemory.mem_positions[1].in_use
+
+    # Bit of hack to send entrequest message to entdist
+    alice_port = alice.add_ports("entdist_port")[0]
+    bob_port = bob.add_ports("entdist_port")[0]
+    charlie_port = charlie.add_ports("entdist_port")[0]
+
+    alice_port.connect(entdist._comp.node_in_port(alice.name))
+    bob_port.connect(entdist._comp.node_in_port(bob.name))
+    charlie_port.connect(entdist._comp.node_in_port(charlie.name))
+
+    alice_port.tx_output(Message(-1, -1, req_ab))
+    bob_port.tx_output(Message(-1, -1, req_ba))
+    alice_port.tx_output(Message(-1, -1, req_ac))
+    charlie_port.tx_output(Message(-1, -1, req_ca))
+    bob_port.tx_output(Message(-1, -1, req_bc))
+    charlie_port.tx_output(Message(-1, -1, req_cb))
+
+    entdist.start()
+    ns.sim_run()
+
+    # Since messages are sent instantly we can find the total time by 3 * 1000
+    assert ns.sim_time() == 3000
+
+    assert alice.qmemory.mem_positions[0].in_use
+    assert alice.qmemory.mem_positions[1].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[1].in_use
+    assert charlie.qmemory.mem_positions[0].in_use
+    assert charlie.qmemory.mem_positions[1].in_use
+
+
 if __name__ == "__main__":
     test_add_sampler()
     test_add_sampler_many_nodes()
@@ -481,3 +541,4 @@ if __name__ == "__main__":
     test_get_next_joint_request_2()
     test_serve_request()
     test_serve_request_multiple_nodes()
+    test_entdist_run()

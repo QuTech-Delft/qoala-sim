@@ -1,9 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Type
 
-from netqasm.lang.instr import core, nv, vanilla
+from netqasm.lang.instr import core, nv, trapped_ion, vanilla
 from netqasm.lang.instr.base import NetQASMInstruction
-from netqasm.lang.instr.flavour import Flavour, NVFlavour, VanillaFlavour
+from netqasm.lang.instr.flavour import (
+    Flavour,
+    NVFlavour,
+    TrappedIonFlavour,
+    VanillaFlavour,
+)
 from netsquid.components.instructions import (
     INSTR_CNOT,
     INSTR_CXDIR,
@@ -21,6 +26,13 @@ from netsquid.components.instructions import (
 )
 from netsquid.components.instructions import Instruction as NetSquidInstruction
 
+from qoala.runtime.instructions import (
+    INSTR_BICHROMATIC,
+    INSTR_MEASURE_ALL,
+    INSTR_ROT_X_ALL,
+    INSTR_ROT_Y_ALL,
+    INSTR_ROT_Z_ALL,
+)
 from qoala.runtime.lhi import INSTR_MEASURE_INSTANT
 
 
@@ -114,6 +126,46 @@ class NvNtf(NtfInterface):
 
     def flavour(self) -> Type[Flavour]:
         return NVFlavour  # type: ignore
+
+    def native_to_netqasm(
+        self, ns_instr: Type[NetSquidInstruction]
+    ) -> List[Type[NetQASMInstruction]]:
+        return self._NS_NQ_MAP[ns_instr]
+
+    def netqasm_to_native(
+        self, nq_instr: Type[NetQASMInstruction]
+    ) -> List[Type[NetSquidInstruction]]:
+        return self._NQ_NS_MAP[nq_instr]
+
+
+class TrappedIonNtf(NtfInterface):
+    #  TODO Check if this is correct
+    _NS_NQ_MAP: Dict[Type[NetSquidInstruction], List[Type[NetQASMInstruction]]] = {
+        INSTR_INIT: [core.InitInstruction, trapped_ion.AllQubitsInitInstruction],
+        INSTR_ROT_Z: [trapped_ion.RotZInstruction],
+        INSTR_BICHROMATIC: [trapped_ion.BichromaticInstruction],
+        INSTR_MEASURE_ALL: [trapped_ion.AllQubitsMeasInstruction],
+        INSTR_ROT_X_ALL: [trapped_ion.AllQubitsRotXInstruction],
+        INSTR_ROT_Y_ALL: [trapped_ion.AllQubitsRotYInstruction],
+        INSTR_ROT_Z_ALL: [trapped_ion.AllQubitsRotZInstruction],
+        INSTR_MEASURE: [core.MeasInstruction],
+        INSTR_MEASURE_INSTANT: [core.MeasInstruction],
+    }
+
+    _NQ_NS_MAP: Dict[Type[NetSquidInstruction], List[Type[NetQASMInstruction]]] = {
+        core.InitInstruction: [INSTR_INIT],
+        trapped_ion.AllQubitsInitInstruction: [INSTR_INIT],
+        trapped_ion.RotZInstruction: [INSTR_ROT_Z],
+        core.MeasInstruction: [INSTR_MEASURE],
+        trapped_ion.AllQubitsMeasInstruction: [INSTR_MEASURE_ALL],
+        trapped_ion.AllQubitsRotXInstruction: [INSTR_ROT_X_ALL],
+        trapped_ion.AllQubitsRotYInstruction: [INSTR_ROT_Y_ALL],
+        trapped_ion.AllQubitsRotZInstruction: [INSTR_ROT_Z_ALL],
+        trapped_ion.BichromaticInstruction: [INSTR_BICHROMATIC],
+    }
+
+    def flavour(self) -> Type[Flavour]:
+        return TrappedIonFlavour  # type: ignore
 
     def native_to_netqasm(
         self, ns_instr: Type[NetSquidInstruction]

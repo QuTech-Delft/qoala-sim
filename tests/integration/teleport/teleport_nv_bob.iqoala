@@ -9,7 +9,7 @@ META_END
     csocket = assign_cval() : 0
 
 ^b1 {type = QC}:
-    run_request(tuple<>) : epr_gen
+    run_request() : epr_gen
 
 ^b2 {type = CC}:
     m0 = recv_cmsg(csocket)
@@ -103,7 +103,7 @@ SUBROUTINE measure
   NETQASM_END
 
 REQUEST epr_gen
-  callback_type: sequential
+  callback_type:
   callback: 
   return_vars: 
   remote_id: {alice_id}

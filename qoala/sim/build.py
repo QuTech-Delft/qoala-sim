@@ -69,6 +69,7 @@ def build_qprocessor_from_topology(
                 quantum_noise_model=gate_info.error_model(
                     **gate_info.error_model_kwargs
                 ),
+                parallel=True,
             )
             phys_instructions.append(phys_instr)
 
@@ -80,6 +81,18 @@ def build_qprocessor_from_topology(
                 instruction=gate_info.instruction,
                 duration=gate_info.duration,
                 topology=[qubit_ids],
+                quantum_noise_model=gate_info.error_model(
+                    **gate_info.error_model_kwargs
+                ),
+            )
+            phys_instructions.append(phys_instr)
+
+    if topology.all_qubit_gate_infos is not None:
+        for gate_info in topology.all_qubit_gate_infos:
+            phys_instr = PhysicalInstruction(
+                instruction=gate_info.instruction,
+                duration=gate_info.duration,
+                topology=[tuple(range(num_qubits))],
                 quantum_noise_model=gate_info.error_model(
                     **gate_info.error_model_kwargs
                 ),
@@ -115,6 +128,7 @@ def build_procnode_from_config(
         deterministic_scheduler=cfg.determ_sched,
         use_deadlines=cfg.use_deadlines,
         prio_epr=cfg.prio_epr,
+        is_predictable=cfg.is_predictable,
     )
 
     # TODO: refactor this hack
@@ -161,9 +175,7 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
         if config.cconns is None:
             return 0.0
         for cconn in config.cconns:
-            if (cconn.node_id1 == node1 and cconn.node_id2 == node2) or (
-                cconn.node_id1 == node1 and cconn.node_id2 == node2
-            ):
+            if {cconn.node_id1, cconn.node_id2} == {node1, node2}:
                 return cconn.latency  # type: ignore
         return 0.0
 

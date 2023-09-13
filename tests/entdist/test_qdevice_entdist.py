@@ -6,6 +6,7 @@ from netsquid.nodes import Node
 
 from qoala.lang.ehi import EhiNetworkInfo
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
+from qoala.runtime.message import Message
 from qoala.sim.build import build_qprocessor_from_topology
 from qoala.sim.entdist.entdist import EntDist, EntDistRequest
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -144,6 +145,64 @@ def test2():
     assert n3_q1 is None
 
 
+def test_run():
+    qdevices = create_n_qdevices(4, num_qubits=2)
+    assert all(qdevice.get_qubit_count() == 2 for qdevice in qdevices)
+
+    entdist = create_entdist(qdevices)
+
+    ids = [qdevices[i].node.ID for i in range(4)]
+
+    req_01 = EntDistRequest(ids[0], ids[1], 0, [2], [0])
+    req_10 = EntDistRequest(ids[1], ids[0], 0, [0], [2])
+    req_02 = EntDistRequest(ids[0], ids[2], 1, [1], [1])
+    req_20 = EntDistRequest(ids[2], ids[0], 0, [1], [1])
+    req_13 = EntDistRequest(ids[1], ids[3], 1, [0], [1])
+    req_31 = EntDistRequest(ids[3], ids[1], 1, [1], [0])
+
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+
+    node0, node1, node2, node3 = [qdevice.node for qdevice in qdevices]
+
+    port0 = node0.add_ports("entdist_port")[0]
+    port1 = node1.add_ports("entdist_port")[0]
+    port2 = node2.add_ports("entdist_port")[0]
+    port3 = node3.add_ports("entdist_port")[0]
+
+    port0.connect(entdist._comp.node_in_port(node0.name))
+    port1.connect(entdist._comp.node_in_port(node1.name))
+    port2.connect(entdist._comp.node_in_port(node2.name))
+    port3.connect(entdist._comp.node_in_port(node3.name))
+
+    port0.tx_output(Message(-1, -1, req_01))
+    port1.tx_output(Message(-1, -1, req_10))
+    port0.tx_output(Message(-1, -1, req_02))
+    port2.tx_output(Message(-1, -1, req_20))
+    port1.tx_output(Message(-1, -1, req_13))
+    port3.tx_output(Message(-1, -1, req_31))
+
+    entdist.start()
+    ns.sim_run()
+
+    n0_q0 = qdevices[0].get_local_qubit(0)
+    n0_q1 = qdevices[0].get_local_qubit(1)
+    n1_q0 = qdevices[1].get_local_qubit(0)
+    n1_q1 = qdevices[1].get_local_qubit(1)
+    n2_q0 = qdevices[2].get_local_qubit(0)
+    n2_q1 = qdevices[2].get_local_qubit(1)
+    n3_q0 = qdevices[3].get_local_qubit(0)
+    n3_q1 = qdevices[3].get_local_qubit(1)
+
+    assert has_multi_state([n0_q0, n1_q0], B00_DENS)
+    assert has_multi_state([n0_q1, n2_q0], B00_DENS)
+    assert has_multi_state([n1_q1, n3_q1], B00_DENS)
+
+    assert n2_q1 is None
+    assert n3_q0 is None
+
+
 if __name__ == "__main__":
     test1()
     test2()
+    test_run()
