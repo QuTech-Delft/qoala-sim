@@ -334,7 +334,7 @@ def test_qpu_scheduler():
 
 
 def test_qpu_scheduler_2_processes():
-    LogManager.enable_task_logger(True)
+    LogManager.set_task_log_level("INFO")
 
     procnode = ObjectBuilder.simple_procnode("alice", 1)
     program = get_lr_program()

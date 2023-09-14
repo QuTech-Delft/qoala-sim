@@ -1,10 +1,10 @@
 from __future__ import annotations
-from argparse import ArgumentParser
 
 import json
 import math
 import os
 import time
+from argparse import ArgumentParser
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -258,10 +258,10 @@ def run(
     num_iterations: int,
     save: bool = True,
 ):
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("classical_multitasking_2.log")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_tasks_to_file("classical_multitasking_tasks_2.log")
+    LogManager.set_log_level("DEBUG")
+    LogManager.log_to_file("classical_multitasking_2.log")
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_tasks_to_file("classical_multitasking_tasks_2.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -289,7 +289,7 @@ def run(
         5,
         10,
     ]  # fraction of cc_latency
-    # busy_factors = [0.1]
+    busy_factors = [0.1]
 
     for sched_typ in sched_types:
         # for const_rate_factor in const_rate_factors:

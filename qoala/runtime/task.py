@@ -42,7 +42,7 @@ class QoalaTask:
 
     def __str__(self) -> str:
         s = f"{self.__class__.__name__}(pid={self.pid}, tid={self.task_id})"
-        if not self.is_epr_task():
+        if not self.is_epr_task() and hasattr(self, "block_name"):
             s += f"block={self.block_name}"
         return s
 
@@ -799,7 +799,7 @@ class TaskGraphFromBlockBuilder:
             graph.add_tasks([HostLocalTask(task_id, pid, block.name, duration)])
 
             if block.deadlines is not None:
-                graph.get_tinfo(task_id).rel_deadlines[0] = 0
+                graph.get_tinfo(task_id).deadline = 0
         elif block.typ == BasicBlockType.CC:
             assert len(block.instructions) == 1
             instr = block.instructions[0]
@@ -812,7 +812,8 @@ class TaskGraphFromBlockBuilder:
             task_id = self.unique_id()
             graph.add_tasks([HostEventTask(task_id, pid, block.name, duration)])
             if block.deadlines is not None:
-                graph.get_tinfo(task_id).rel_deadlines[0] = 0
+                # TODO: fix this hack
+                graph.get_tinfo(task_id).deadline = 0
         elif block.typ == BasicBlockType.QL:
             assert len(block.instructions) == 1
             instr = block.instructions[0]
@@ -854,9 +855,10 @@ class TaskGraphFromBlockBuilder:
             graph.get_tinfo(postcall_id).predecessors.add(lr_id)
 
             if block.deadlines is not None:
-                graph.get_tinfo(precall_id).rel_deadlines[0] = 0
-                graph.get_tinfo(lr_id).rel_deadlines[0] = 0
-                graph.get_tinfo(postcall_id).rel_deadlines[0] = 0
+                # TODO: fix this hack
+                graph.get_tinfo(precall_id).deadline = 0
+                graph.get_tinfo(lr_id).deadline = 0
+                graph.get_tinfo(postcall_id).deadline = 0
         elif block.typ == BasicBlockType.QC:
             assert len(block.instructions) == 1
             instr = block.instructions[0]
@@ -903,8 +905,9 @@ class TaskGraphFromBlockBuilder:
             graph.add_tasks([postcall_task])
 
             if block.deadlines is not None:
-                graph.get_tinfo(precall_id).rel_deadlines[0] = 0
-                graph.get_tinfo(postcall_id).rel_deadlines[0] = 0
+                # TODO: fix this hack
+                graph.get_tinfo(precall_id).deadline = 0
+                graph.get_tinfo(postcall_id).deadline = 0
 
             if req_routine.callback_type == CallbackType.WAIT_ALL:
                 rr_id = self.unique_id()
@@ -920,7 +923,8 @@ class TaskGraphFromBlockBuilder:
                     )
                     graph.add_tasks([cb_task])
                     if block.deadlines is not None:
-                        graph.get_tinfo(cb_id).rel_deadlines[0] = 0
+                        # TODO: fix this hack
+                        graph.get_tinfo(cb_id).deadline = 0
                     # callback task should come after RR task
                     graph.get_tinfo(cb_id).predecessors.add(rr_id)
                     # postcall task should come after callback task
@@ -944,7 +948,8 @@ class TaskGraphFromBlockBuilder:
                     )
                     graph.add_tasks([rr_pair_task])
                     if block.deadlines is not None:
-                        graph.get_tinfo(rr_pair_id).rel_deadlines[0] = 0
+                        # TODO: fix this hack
+                        graph.get_tinfo(rr_pair_id).deadline = 0
                     # RR pair task should come after precall task.
                     # Note: the RR pair tasks do not have precedence
                     # constraints among each other.
@@ -956,7 +961,8 @@ class TaskGraphFromBlockBuilder:
                         )
                         graph.add_tasks([pair_cb_task])
                         if block.deadlines is not None:
-                            graph.get_tinfo(pair_cb_id).rel_deadlines[0] = 0
+                            # TODO: fix this hack
+                            graph.get_tinfo(pair_cb_id).deadline = 0
                         # Callback task for pair should come after corresponding
                         # RR pair task. Note: the pair callback tasks do not have
                         # precedence constraints among each other.
@@ -1060,6 +1066,7 @@ class QoalaGraphFromProgramBuilder:
                 )
                 self._graph.add_tasks([precall_task])
                 for other_task, dl in deadlines.items():
+                    # TODO: fix this hack
                     self._graph.get_tinfo(precall_id).rel_deadlines[other_task] = dl
 
                 lr_id = self.unique_id()

@@ -789,6 +789,56 @@ class ProcessorScheduler(Protocol):
         event_expr = EventExpression(source=self, event_type=EVENT_WAIT)
         yield event_expr
 
+    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
+        assert self._task_graph is not None
+        tinfo = self._task_graph.get_tinfo(task_id)
+        task = tinfo.task
+
+        self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
+
+        before = ns.sim_time()
+
+        start_time = self._task_graph.get_tinfo(task.task_id).start_time
+        is_busy_task = start_time is not None
+        self._logger.info(f"executing task {task}")
+        if is_busy_task:
+            self._task_logger.info(f"BUSY start  {task} (start time: {start_time})")
+        else:
+            self._task_logger.info(f"start  {task}")
+        if self.name == "bob_qpu":
+            self._task_logger.warning(f"start  {task}")
+        elif self.name == "bob_cpu":
+            if isinstance(task, HostEventTask):
+                self._task_logger.warning(f"start  {task}")
+        self._task_starts[task.task_id] = before
+        self.record_start_timestamp(task.pid, before)
+
+        # Execute the task
+        success = yield from self._driver.handle_task(task)
+        if success:
+            after = ns.sim_time()
+
+            self.record_end_timestamp(task.pid, after)
+            self.last_finished_task_pid = (task.pid, after)
+            duration = after - before
+            self._task_graph.decrease_deadlines(duration)
+            self._task_graph.remove_task(task_id)
+
+            self._finished_tasks.append(task.task_id)
+            self.send_signal(SIGNAL_TASK_COMPLETED)
+            self._logger.info(f"finished task {task}")
+            if is_busy_task:
+                self._task_logger.info(f"BUSY finish {task}")
+            else:
+                self._task_logger.info(f"finish {task}")
+            if self.name == "bob_qpu":
+                self._task_logger.warning(f"finish {task}")
+
+            self._tasks_executed[task.task_id] = task
+            self._task_ends[task.task_id] = after
+        else:
+            self._task_logger.info("task failed")
+
 
 class Status(Enum):
     GRAPH_EMPTY = auto()
@@ -844,56 +894,6 @@ class EdfScheduler(ProcessorScheduler):
                 ext for ext in ext_preds if not self._other_scheduler.has_finished(ext)
             }
             tg.get_tinfo(r).ext_predecessors = new_ext_preds
-
-    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
-        assert self._task_graph is not None
-        tinfo = self._task_graph.get_tinfo(task_id)
-        task = tinfo.task
-
-        self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
-
-        before = ns.sim_time()
-
-        start_time = self._task_graph.get_tinfo(task.task_id).start_time
-        is_busy_task = start_time is not None
-        self._logger.info(f"executing task {task}")
-        if is_busy_task:
-            self._task_logger.info(f"BUSY start  {task} (start time: {start_time})")
-        else:
-            self._task_logger.info(f"start  {task}")
-        if self.name == "bob_qpu":
-            self._task_logger.warning(f"start  {task}")
-        elif self.name == "bob_cpu":
-            if isinstance(task, HostEventTask):
-                self._task_logger.warning(f"start  {task}")
-        self._task_starts[task.task_id] = before
-        self.record_start_timestamp(task.pid, before)
-
-        # Execute the task
-        success = yield from self._driver.handle_task(task)
-        if success:
-            after = ns.sim_time()
-
-            self.record_end_timestamp(task.pid, after)
-            self.last_finished_task_pid = (task.pid, after)
-            duration = after - before
-            self._task_graph.decrease_deadlines(duration)
-            self._task_graph.remove_task(task_id)
-
-            self._finished_tasks.append(task.task_id)
-            self.send_signal(SIGNAL_TASK_COMPLETED)
-            self._logger.info(f"finished task {task}")
-            if is_busy_task:
-                self._task_logger.info(f"BUSY finish {task}")
-            else:
-                self._task_logger.info(f"finish {task}")
-            if self.name == "bob_qpu":
-                self._task_logger.warning(f"finish {task}")
-
-            self._tasks_executed[task.task_id] = task
-            self._task_ends[task.task_id] = after
-        else:
-            self._task_logger.info("task failed")
 
 
 class CpuEdfScheduler(EdfScheduler):

@@ -5,5 +5,5 @@ META_START
     epr_sockets: 
 META_END
 
-^b0 {type = CL}:
+^b0 {type = CL, deadlines = [b0: 0]}:
     busy() : duration

@@ -217,7 +217,6 @@ def qkd_2pairs_ck_1qubit_cb():
 
 def qkd_2pairs_ck_2qubits_app_move():
     ns.sim_reset()
-    LogManager.enable_task_logger(True)
 
     num_iterations = 10
     alice_file = "qkd_2pairs_CK_2qubits_app_move_alice.iqoala"

@@ -107,7 +107,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
 
 def test_teleport():
     LogManager.set_log_level("DEBUG")
-    LogManager.enable_task_logger(True)
+    LogManager.set_task_log_level("DEBUG")
     LogManager.log_to_file("teleport.log")
     LogManager.log_tasks_to_file("teleport_tasks.log")
     num_iterations = 2
@@ -121,7 +121,7 @@ def test_teleport():
 
 
 def test_teleport_different_inputs():
-    LogManager.enable_task_logger(True)
+    LogManager.set_task_log_level("DEBUG")
     num_iterations = 2
 
     result = run_teleport(num_iterations=num_iterations, different_inputs=True)

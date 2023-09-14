@@ -60,7 +60,7 @@ def test_update_status_two_roots():
 
 
 def test_edf_1():
-    LogManager.enable_task_logger(True)
+    LogManager.set_task_log_level("INFO")
     graph = TaskGraph()
     graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
     graph.add_precedences([(0, 1)])
