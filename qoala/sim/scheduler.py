@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import random
+import re
+from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any, Dict, Generator, List, Optional, Set, Tuple
@@ -131,6 +133,7 @@ class NodeScheduler(Protocol):
         network_ehi: EhiNetworkInfo,
         deterministic: bool = True,
         use_deadlines: bool = True,
+        fcfs: bool = False,
         prio_epr: bool = False,
         is_predictable: bool = False,
     ) -> None:
@@ -182,7 +185,8 @@ class NodeScheduler(Protocol):
         node_id = self.host._comp.node_id
 
         cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
-        self._cpu_scheduler = CpuEdfScheduler(
+        cpu_sched_typ = CpuFcfsScheduler if fcfs else CpuEdfScheduler
+        self._cpu_scheduler = cpu_sched_typ(
             f"{node_name}_cpu",
             node_id,
             cpudriver,
@@ -702,6 +706,8 @@ class ProcessorScheduler(Protocol):
 
         self._comp = ProcessorSchedulerComponent(name + "_comp")
 
+        self._status: SchedulerStatus = SchedulerStatus(status=set(), params={})
+
     @property
     def node_scheduler_in_port(self) -> Port:
         return self._comp.node_scheduler_in_port
@@ -709,6 +715,24 @@ class ProcessorScheduler(Protocol):
     @property
     def driver(self) -> Driver:
         return self._driver
+
+    @property
+    def status(self) -> SchedulerStatus:
+        return self._status
+
+    def update_external_predcessors(self) -> None:
+        if self._other_scheduler is None:
+            return
+        assert self._task_graph is not None
+
+        tg = self._task_graph
+
+        for r in tg.get_roots(ignore_external=True):
+            ext_preds = tg.get_tinfo(r).ext_predecessors
+            new_ext_preds = {
+                ext for ext in ext_preds if not self._other_scheduler.has_finished(ext)
+            }
+            tg.get_tinfo(r).ext_predecessors = new_ext_preds
 
     def upload_task_graph(self, graph: TaskGraph) -> None:
         """
@@ -875,28 +899,9 @@ class EdfScheduler(ProcessorScheduler):
             deterministic=deterministic,
             use_deadlines=use_deadlines,
         )
-        self._status: SchedulerStatus = SchedulerStatus(status=set(), params={})
-
-    @property
-    def status(self) -> SchedulerStatus:
-        return self._status
-
-    def update_external_predcessors(self) -> None:
-        if self._other_scheduler is None:
-            return
-        assert self._task_graph is not None
-
-        tg = self._task_graph
-
-        for r in tg.get_roots(ignore_external=True):
-            ext_preds = tg.get_tinfo(r).ext_predecessors
-            new_ext_preds = {
-                ext for ext in ext_preds if not self._other_scheduler.has_finished(ext)
-            }
-            tg.get_tinfo(r).ext_predecessors = new_ext_preds
 
 
-class CpuEdfScheduler(EdfScheduler):
+class CpuScheduler(ProcessorScheduler):
     def __init__(
         self,
         name: str,
@@ -938,8 +943,11 @@ class CpuEdfScheduler(EdfScheduler):
             self._task_logger.debug(f"task {tid} blocked")
             return False
 
-    def update_status(self) -> None:
+    @abstractmethod
+    def choose_next_task(self, ready_tasks: List[int]) -> None:
+        raise NotImplementedError
 
+    def update_status(self) -> None:
         tg = self._task_graph
 
         if tg is None or len(tg.get_tasks()) == 0:
@@ -988,44 +996,7 @@ class CpuEdfScheduler(EdfScheduler):
         if len(ready) > 0:
             # self._task_logger.warning(f"ready tasks: {ready}")
             # From the readily executable tasks, choose which one to execute
-            with_deadline = [
-                t
-                for t in ready
-                if tg.get_tinfo(t).deadline is not None
-                or len(tg.get_tinfo(t).rel_deadlines) > 0
-                or len(tg.get_tinfo(t).ext_rel_deadlines) > 0
-            ]
-            if not self._use_deadlines:
-                with_deadline = []
-
-            self._task_logger.debug(f"ready tasks with deadline: {with_deadline}")
-
-            to_return: int
-
-            if len(with_deadline) > 0:
-                # Sort them by deadline and return the one with the earliest deadline
-                deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
-                sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
-                if self.name in ["bob_cpu", "bob_qpu"]:
-                    self._task_logger.info(
-                        f"tasks with deadlines: {sorted_by_deadline}"
-                    )
-                to_return = sorted_by_deadline[0][0]
-                self._logger.debug(f"Return task {to_return}")
-                self._task_logger.debug(f"Return task {to_return}")
-            else:
-                # No deadlines
-                if self._deterministic:
-                    to_return = ready[0]
-                else:
-                    index = random.randint(0, len(ready) - 1)
-                    to_return = ready[index]
-                self._logger.debug(f"Return task {to_return}")
-                self._task_logger.debug(f"Return task {to_return}")
-            self._status = SchedulerStatus(
-                status={Status.NEXT_TASK}, params={"task_id": to_return}
-            )
-            return
+            self.choose_next_task(ready)
         else:
             if len(blocked_on_other_core) > 0:
                 self._logger.debug("Waiting other core")
@@ -1083,6 +1054,104 @@ class CpuEdfScheduler(EdfScheduler):
                         )
                 else:
                     yield ev_expr
+
+
+class CpuEdfScheduler(CpuScheduler):
+    def __init__(
+        self,
+        name: str,
+        node_id: int,
+        driver: CpuDriver,
+        memmgr: MemoryManager,
+        host_interface: HostInterface,
+        deterministic: bool = True,
+        use_deadlines: bool = True,
+    ) -> None:
+        super().__init__(
+            name=name,
+            node_id=node_id,
+            driver=driver,
+            memmgr=memmgr,
+            host_interface=host_interface,
+            deterministic=deterministic,
+            use_deadlines=use_deadlines,
+        )
+
+    def choose_next_task(self, ready_tasks: List[int]) -> None:
+        tg = self._task_graph
+
+        with_deadline = [
+            t
+            for t in ready_tasks
+            if tg.get_tinfo(t).deadline is not None
+            or len(tg.get_tinfo(t).rel_deadlines) > 0
+            or len(tg.get_tinfo(t).ext_rel_deadlines) > 0
+        ]
+        if not self._use_deadlines:
+            with_deadline = []
+
+        self._task_logger.debug(f"ready tasks with deadline: {with_deadline}")
+
+        to_return: int
+
+        if len(with_deadline) > 0:
+            # Sort them by deadline and return the one with the earliest deadline
+            deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
+            sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
+            if self.name in ["bob_cpu", "bob_qpu"]:
+                self._task_logger.info(f"tasks with deadlines: {sorted_by_deadline}")
+            to_return = sorted_by_deadline[0][0]
+            self._logger.debug(f"Return task {to_return}")
+            self._task_logger.debug(f"Return task {to_return}")
+        else:
+            # No deadlines
+            if self._deterministic:
+                to_return = ready_tasks[0]
+            else:
+                index = random.randint(0, len(ready_tasks) - 1)
+                to_return = ready_tasks[index]
+            self._logger.debug(f"Return task {to_return}")
+            self._task_logger.debug(f"Return task {to_return}")
+        self._status = SchedulerStatus(
+            status={Status.NEXT_TASK}, params={"task_id": to_return}
+        )
+
+
+class CpuFcfsScheduler(CpuScheduler):
+    def __init__(
+        self,
+        name: str,
+        node_id: int,
+        driver: CpuDriver,
+        memmgr: MemoryManager,
+        host_interface: HostInterface,
+        deterministic: bool = True,
+        use_deadlines: bool = True,
+    ) -> None:
+        super().__init__(
+            name=name,
+            node_id=node_id,
+            driver=driver,
+            memmgr=memmgr,
+            host_interface=host_interface,
+            deterministic=deterministic,
+            use_deadlines=use_deadlines,
+        )
+
+        self._task_queue: List[int] = []  # list of task IDs
+
+    def choose_next_task(self, ready_tasks: List[int]) -> None:
+        for tid in ready_tasks:
+            if tid not in self._task_queue:
+                self._task_queue.append(tid)
+
+        self._task_logger.debug(f"task queue: {self._task_queue}")
+        next_task = self._task_queue.pop(0)
+        self._task_logger.debug(f"popping: {next_task}")
+
+        self._status = SchedulerStatus(
+            status={Status.NEXT_TASK}, params={"task_id": next_task}
+        )
 
 
 class QpuEdfScheduler(EdfScheduler):

@@ -1,10 +1,10 @@
 from __future__ import annotations
-from argparse import ArgumentParser
 
 import json
 import math
 import os
 import time
+from argparse import ArgumentParser
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from operator import is_
 from typing import Dict, List, Optional
 
 from netsquid.components import QuantumProcessor
@@ -39,6 +40,7 @@ class ProcNode(Protocol):
         asynchronous: bool = False,
         deterministic_scheduler: bool = True,
         use_deadlines: bool = True,
+        fcfs: bool = False,
         prio_epr: bool = False,
         is_predictable: bool = False,
     ) -> None:
@@ -109,17 +111,18 @@ class ProcNode(Protocol):
 
         if scheduler is None:
             self._scheduler = NodeScheduler(
-                self._node.name,
-                self._host,
-                self._qnos,
-                self._netstack,
-                self._memmgr,
-                self._local_ehi,
-                self._network_ehi,
-                deterministic_scheduler,
-                use_deadlines,
-                prio_epr,
-                is_predictable,
+                node_name=self._node.name,
+                host=self._host,
+                qnos=self._qnos,
+                netstack=self._netstack,
+                memmgr=self._memmgr,
+                local_ehi=self._local_ehi,
+                network_ehi=self._network_ehi,
+                deterministic=deterministic_scheduler,
+                use_deadlines=use_deadlines,
+                fcfs=fcfs,
+                prio_epr=prio_epr,
+                is_predictable=is_predictable,
             )
         else:
             self._scheduler = scheduler

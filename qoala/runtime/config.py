@@ -1328,6 +1328,7 @@ class ProcNodeConfig(BaseModel):
     ntf: NtfConfig
     determ_sched: bool = True
     use_deadlines: bool = True
+    fcfs: bool = False
     prio_epr: bool = False
     is_predictable: bool = False
 
