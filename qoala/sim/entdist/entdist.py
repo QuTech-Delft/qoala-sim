@@ -92,6 +92,9 @@ class DelayedSampler:
     sampler: StateDeliverySampler
     delay: float
 
+@dataclass
+class TimedEntDistRequest:
+    request: EntDistRequest
 
 
 class EntDist(Protocol):
@@ -125,6 +128,9 @@ class EntDist(Protocol):
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}(EntDist)"
         )
+
+        self._outstanding_requests: Dict[JointRequest,int] = {}  # req.: remaining time bins
+        self._number_of_generated_pairs: [JointRequest] = []  # a request in here means there is a pair to deliver in that time slot.
 
     @property
     def comp(self) -> EntDistComponent:
@@ -530,6 +536,20 @@ class EntDist(Protocol):
         # No joint requests found
         return None
 
+    def get_all_joint_requests(self) -> Tuple[Optional[List[JointRequest]],List[int]]:
+        _all_joint_requests: List[JointRequest] = []
+        while True:
+            next_joint_request = self.get_next_joint_request()
+            if next_joint_request is not None:
+                _all_joint_requests.append(next_joint_request)
+            else:
+                break
+
+        outstanding_nodes = [x for x in self._requests.keys() if self._requests[x] != []]
+
+        return (_all_joint_requests if _all_joint_requests != [] else None), outstanding_nodes
+
+
     def serve_request(
         self, request: JointRequest, fixed_length_qc_blocks: bool = False, cutoff: Union[int, None] = None
     ) -> Generator[EventExpression, None, None]:
@@ -591,6 +611,69 @@ class EntDist(Protocol):
     def stop(self) -> None:
         self._interface.stop()
         super().stop()
+
+    def _run_with_netschedule_parallel(self) -> Generator[EventExpression, None, None]:
+        assert self._netschedule is not None
+
+        while True:
+            # Wait until a message arrives.
+            yield from self._interface.wait_for_any_msg()
+
+            # Wait until the next time bin.
+            now = ns.sim_time()
+            # self._logger.warning(now)
+            next_slot_time, next_slot = self._netschedule.next_bin(now)
+
+            if next_slot_time - now > 0:
+                yield from self._interface.wait(next_slot_time - now + 1)
+            elif next_slot_time - now < 0:
+                raise RuntimeError()
+
+            messages = self._interface.pop_all_messages()
+
+            requesting_nodes: List[int] = []
+            for msg in messages:
+                self._logger.info(f"received new msg from node: {msg}")
+                request: EntDistRequest = msg.content
+                requesting_nodes.append(request.local_node_id)
+
+                if request.matches_timebin(next_slot):
+                    self._logger.warning(f"putting request: {request}")
+                    self.put_request(request)
+                else:
+                    self._logger.warning(f"not handling msg {msg} (wrong timebin)")
+
+            all_new_joint_requests, outstanding_nodes = self.get_all_joint_requests()
+
+
+            for node_id in outstanding_nodes:
+                node = self._interface.remote_id_to_peer_name(node_id)
+                self._interface.send_node_msg(node, Message(-1, -1, None))
+                self._logger.warning(f"Reject demand from node {node_id} as no joint request")
+            self.clear_requests()
+
+            for request in all_new_joint_requests:
+                request: JointRequest
+                try:
+                    self._outstanding_requests[request] = self._netschedule.length_of_qc_blocks[(request.node1_id, request.node1_pid,request.node2_id,request.node2_pid)]
+                except KeyError as F:
+                    self._logger.warning(f"No specified QC block length for {(request.node1_id, request.node1_pid,request.node2_id,request.node2_pid)}, defaulting to None")
+
+
+
+
+
+            # joint_request = self.get_next_joint_request()
+            # if joint_request is not None:
+            #     self._logger.warning("serving request")
+            #     yield from self.serve_request(joint_request, fixed_length_qc_blocks=True)
+            #     self._logger.warning("served request")
+            # else:
+            #     for node_id in requesting_nodes:
+            #         node = self._interface.remote_id_to_peer_name(node_id)
+            #         self._interface.send_node_msg(node, Message(-1, -1, None))
+            # self.clear_requests()
+            # yield from self._interface.wait(1)
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         assert self._netschedule is not None
