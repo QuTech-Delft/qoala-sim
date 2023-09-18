@@ -739,6 +739,54 @@ class EntDist(Protocol):
         super().stop()
 
     def _run_with_netschedule_parallel_one_epr_per_timeslot(self) -> Generator[EventExpression, None, None]:
+        """
+        This method is designed to allow the distribution of entanglement to many QC blocks in parallel. It does this
+        in the following manner:
+
+        We add an object OutstandingRequest, which holds the request and information about when it expires and what
+        entanglement has already been generated to help satisfy it (see above for more information).
+
+        We add the list self._oustanding_requests. This list contains the QC blocks which are currently being executed
+        by the nodes and network.
+
+        We add the dictionary self._outstanding_generated_pairs. This is a dictionary from the state_delay to a list of
+        (sample, Outstanding request pairs), which are to be delivered in the current time slot.
+
+        We allow the network schedule bin pattern to be of the form [[b1,b2],[b3,b4],...,], and check admissibility by
+        whether the demand in question matches at least one of b1,b2
+
+        At the start of each time slot we do the following:
+        1. Check for new requests and whether there exists a matching timebin in the network schedule. If so put the
+            request onto the node.
+
+        2. We get all joint requests which have been submitted. If there are requests which cannot be formed into joint
+            requests, then we inform the nodes their request has been rejected. Otherwise, for each new joint request
+            create a new outstanding request, gathering end of QC info from the network schedule if possible, else no
+            end of QC block.
+
+        3. For each outstanding request, we test if it has expired, and if so inform the nodes and remove it from the
+            outstanding requests. Otherwise, we conduct a (biased) coin flip to determine if an epr pair was generated
+            for that demand in this timeslot.
+
+            If an EPR pair was created, we add it to the dictionary of outstanding generated pairs under the correct delay "header", along with the corresponding OutstandingRequest for ease of access.
+
+        4. We run the generator self.deliver_outstanding_pairs. This does the following:
+            For each delay header, we schedule a simulator event at the delay time after the start of the time bin, and
+            wait until the sim time advances to this time. Then for each request which gets a new pair at this time:
+                a) we allocate the EPR pair generated at this time
+                b) we check for pairs which are too old to satisfy the window, if applicable
+                c) we check for packet satisfaction. If so, inform the nodes and remove the request from the list of
+                   outstanding requests.
+
+            If there are no outstanding requests, we move the clock on one timestep to avoid getting stuck until
+            something happens.  [This may be removed if it causes issues once nodes are running properly, but required
+            for testing the EntDist.]
+
+
+
+        """
+
+
         assert self._netschedule is not None
 
         while True:
