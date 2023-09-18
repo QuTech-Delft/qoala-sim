@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, Generator, List, Optional, Tuple, Union
 
@@ -16,7 +17,7 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
-from pydynaa import EventExpression
+from pydynaa import EventExpression, EventType
 from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkTimebin
 from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
@@ -72,7 +73,12 @@ class WindowedJointRequest(JointRequest):
     window: int
     num_pairs: int
 
-
+@dataclass
+class OutstandingRequest:
+    request: JointRequest
+    end_of_qc: float
+    link_generation_times: List[float]
+    next_qubit_index: Optional[int] = None
 
 @dataclass
 class EprDeliverySample:
@@ -129,8 +135,8 @@ class EntDist(Protocol):
             f"{self.__class__.__name__}(EntDist)"
         )
 
-        self._outstanding_requests: Dict[JointRequest,int] = {}  # req.: remaining time bins
-        self._number_of_generated_pairs: [JointRequest] = []  # a request in here means there is a pair to deliver in that time slot.
+        self._outstanding_requests: List[OutstandingRequest] = []  # OutstandingRequest(req., end of QC,link_gen_times)
+        self._outstanding_generated_pairs: Dict[float,List[Tuple[EprDeliverySample, OutstandingRequest]]] = {}  # delay:(sample, req.); a request in here means there is a pair to deliver in this time slot.
 
     @property
     def comp(self) -> EntDistComponent:
@@ -190,6 +196,126 @@ class EntDist(Protocol):
         q0, q1 = qubitapi.create_qubits(2)
         qubitapi.assign_qstate([q0, q1], state)
         return q0, q1
+
+
+    def test_single_time_slot(
+            self,
+            node1_id: int,
+            node2_id: int,
+    ) -> Tuple[Optional[EventType], Optional[float], Optional[EprDeliverySample]]:
+        timed_sampler = self.get_sampler(node1_id, node2_id)
+        sample = self.sample_state(timed_sampler.sampler)
+
+        if sample.duration != 0.: # Sample time is zero if there were no failures, i.e. the state was immediately produced.
+
+            return None, None, None
+
+        else:
+
+            return EPR_DELIVERY, timed_sampler.delay, sample
+
+    def deliver_outstanding_pairs(self) -> Generator[EventExpression, None, None]:
+
+        delivery_times = list(self._outstanding_generated_pairs.keys())
+        delivery_times.sort()
+
+        delivery_times_offset =[ delivery_times[0]] + ([delivery_times[i] - delivery_times[i-1] for i in range(1,len(delivery_times))] if len(delivery_times) > 1 else [])
+
+        assert len(delivery_times) == len(delivery_times_offset)
+
+        for delay_to_next_pair, real_delay in zip(delivery_times_offset, delivery_times):
+            self._schedule_after(delay_to_next_pair, EPR_DELIVERY)
+            event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
+
+            yield event_expr
+
+            now = ns.sim_time()
+
+            for sample, outstanding_request in self._outstanding_generated_pairs[real_delay]:
+
+                epr = self.create_epr_pair_with_state(sample.state)
+
+                node1_id = outstanding_request.request.node1_id
+                node2_id = outstanding_request.request.node2_id
+
+                node1_pid = outstanding_request.request.node1_pid
+                node2_pid = outstanding_request.request.node2_pid
+
+                if isinstance(outstanding_request.request, WindowedJointRequest):
+
+                    node1_phys_id = outstanding_request.request.node1_qubit_id[outstanding_request.next_qubit_index]
+                    node2_phys_id = outstanding_request.request.node2_qubit_id[outstanding_request.next_qubit_index]
+
+                    outstanding_request.next_qubit_index = (outstanding_request.next_qubit_index + 1) % len(outstanding_request.request.node2_qubit_id)
+
+                else:
+
+                    node1_phys_id = outstanding_request.request.node1_qubit_id
+                    node2_phys_id = outstanding_request.request.node2_qubit_id
+
+
+                node1_mem = self._nodes[node1_id].qmemory
+                node2_mem = self._nodes[node2_id].qmemory
+
+                if not (0 <= node1_phys_id < node1_mem.num_positions):
+                    raise ValueError(
+                        f"qubit location id of {node1_phys_id} is not present in \
+                                    quantum memory of node ID {node1_id}."
+                    )
+                if not (0 <= node2_phys_id < node2_mem.num_positions):
+                    raise ValueError(
+                        f"qubit location id of {node2_phys_id} is not present in \
+                                    quantum memory of node ID {node2_id}."
+                    )
+                node1_mem.mem_positions[node1_phys_id].in_use = True
+                node2_mem.mem_positions[node2_phys_id].in_use = True
+
+                node1_mem.put(qubits=epr[0], positions=node1_phys_id)
+                node2_mem.put(qubits=epr[1], positions=node2_phys_id)
+
+                self._logger.warning(f"Created pair for demand {(node1_id,node1_pid, node2_id, node2_pid)}")
+
+                outstanding_request.link_generation_times.append(now)
+
+                satisfied_packet = False
+
+                if isinstance(outstanding_request.request, WindowedJointRequest):
+                    for t in outstanding_request.link_generation_times:
+                        if now - t > outstanding_request.request.window:
+                            outstanding_request.link_generation_times.remove(t)
+                            self._logger.warning(f"Dumped pair created at time {t} for demand {(node1_id,node1_pid, node2_id, node2_pid)} due to exceeding window")
+
+                    if len(outstanding_request.link_generation_times) == outstanding_request.request.num_pairs:
+                        satisfied_packet=True
+
+                else:
+                    satisfied_packet = True  # Non-windowed packet should be single pair only...
+
+                if satisfied_packet:
+
+                    node1 = self._interface.remote_id_to_peer_name(node1_id)
+                    node2 = self._interface.remote_id_to_peer_name(node2_id)
+                    # TODO: use PIDs??
+                    self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
+                    self._interface.send_node_msg(node2, Message(-1, -1, outstanding_request.request.node2_pid))
+
+                    self._logger.warning(f"Packet of entanglement successfully created for demand {(node1_id,node1_pid, node2_id, node2_pid)}")
+
+                    self._outstanding_requests.remove(outstanding_request)
+
+            self._outstanding_generated_pairs.pop(real_delay)
+
+        assert len(self._outstanding_generated_pairs.keys()) == 0
+
+
+
+
+
+
+
+
+
+
 
     def deliver(
         self,
@@ -612,12 +738,18 @@ class EntDist(Protocol):
         self._interface.stop()
         super().stop()
 
-    def _run_with_netschedule_parallel(self) -> Generator[EventExpression, None, None]:
+    def _run_with_netschedule_parallel_one_epr_per_timeslot(self) -> Generator[EventExpression, None, None]:
         assert self._netschedule is not None
 
         while True:
-            # Wait until a message arrives.
-            yield from self._interface.wait_for_any_msg()
+
+
+
+            if not self._outstanding_requests:
+                # Wait until a message arrives.
+                yield from self._interface.wait_for_any_msg()
+
+
 
             # Wait until the next time bin.
             now = ns.sim_time()
@@ -625,9 +757,11 @@ class EntDist(Protocol):
             next_slot_time, next_slot = self._netschedule.next_bin(now)
 
             if next_slot_time - now > 0:
-                yield from self._interface.wait(next_slot_time - now + 1)
+                yield from self._interface.wait(next_slot_time - now)
             elif next_slot_time - now < 0:
                 raise RuntimeError()
+
+            print(ns.sim_time())
 
             messages = self._interface.pop_all_messages()
 
@@ -637,11 +771,19 @@ class EntDist(Protocol):
                 request: EntDistRequest = msg.content
                 requesting_nodes.append(request.local_node_id)
 
-                if request.matches_timebin(next_slot):
-                    self._logger.warning(f"putting request: {request}")
-                    self.put_request(request)
+                if isinstance(next_slot, list):
+
+                    if any(request.matches_timebin(b) for b in next_slot):
+                        self._logger.warning(f"putting request: {request}")
+                        self.put_request(request)
+                    else:
+                        self._logger.warning(f"not handling msg {msg} (wrong timebin)")
                 else:
-                    self._logger.warning(f"not handling msg {msg} (wrong timebin)")
+                    if request.matches_timebin(next_slot):
+                        self._logger.warning(f"putting request: {request}")
+                        self.put_request(request)
+                    else:
+                        self._logger.warning(f"not handling msg {msg} (wrong timebin)")
 
             all_new_joint_requests, outstanding_nodes = self.get_all_joint_requests()
 
@@ -652,28 +794,52 @@ class EntDist(Protocol):
                 self._logger.warning(f"Reject demand from node {node_id} as no joint request")
             self.clear_requests()
 
-            for request in all_new_joint_requests:
-                request: JointRequest
-                try:
-                    self._outstanding_requests[request] = self._netschedule.length_of_qc_blocks[(request.node1_id, request.node1_pid,request.node2_id,request.node2_pid)]
-                except KeyError as F:
-                    self._logger.warning(f"No specified QC block length for {(request.node1_id, request.node1_pid,request.node2_id,request.node2_pid)}, defaulting to None")
+            if all_new_joint_requests:
+
+                for request in all_new_joint_requests:
+                    request: JointRequest
+                    try:
+                        self._outstanding_requests.append(OutstandingRequest(request, ns.sim_time() + self._netschedule.length_of_qc_blocks[(request.node1_id, request.node1_pid, request.node2_id, request.node2_pid)], [], 0))
+                    except KeyError as F:
+                        self._logger.warning(f"No specified QC block length for {(request.node1_id, request.node1_pid,request.node2_id,request.node2_pid)}, defaulting to None")
+                        self._outstanding_requests.append(OutstandingRequest(request, math.inf, []))
+
+            # Determine if a request has expired, or if a pair is delivered for that request.
+
+            for outstanding_request in self._outstanding_requests:
+                if outstanding_request.end_of_qc <= ns.sim_time():
+                    self._outstanding_requests.remove(outstanding_request)
+
+                    node1 = self._interface.remote_id_to_peer_name(outstanding_request.request.node1_id)
+                    node2 = self._interface.remote_id_to_peer_name(outstanding_request.request.node2_id)
+                    self._interface.send_node_msg(node1, Message(-1, -1, None))
+                    self._interface.send_node_msg(node2, Message(-1, -1, None))
+
+                    self._logger.warning(f"Entanglement Packet Generation Failed for demand {(outstanding_request.request.node1_id, outstanding_request.request.node1_pid, outstanding_request.request.node2_id,outstanding_request.request.node2_pid)}")
+
+
+                else:
+
+                    outcome, delay, sample = self.test_single_time_slot(
+                        outstanding_request.request.node1_id,
+                        outstanding_request.request.node2_id
+                    )
+                    if outcome is not None:
+                        if delay in self._outstanding_generated_pairs.keys():
+                            self._outstanding_generated_pairs[delay].append((sample, outstanding_request))
+                        else:
+                            self._outstanding_generated_pairs[delay] = [(sample, outstanding_request)]
+
+
+                if self._outstanding_generated_pairs:
+                   yield from self.deliver_outstanding_pairs()
+                else:
+                    yield from self._interface.wait(1)
 
 
 
 
 
-            # joint_request = self.get_next_joint_request()
-            # if joint_request is not None:
-            #     self._logger.warning("serving request")
-            #     yield from self.serve_request(joint_request, fixed_length_qc_blocks=True)
-            #     self._logger.warning("served request")
-            # else:
-            #     for node_id in requesting_nodes:
-            #         node = self._interface.remote_id_to_peer_name(node_id)
-            #         self._interface.send_node_msg(node, Message(-1, -1, None))
-            # self.clear_requests()
-            # yield from self._interface.wait(1)
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         assert self._netschedule is not None
@@ -699,6 +865,10 @@ class EntDist(Protocol):
                 self._logger.info(f"received new msg from node: {msg}")
                 request: EntDistRequest = msg.content
                 requesting_nodes.append(request.local_node_id)
+
+                if isinstance(next_slot, list):
+                    raise NotImplementedError  # This should use
+                    # self._run_with_netschedule_parallel_one_epr_per_timeslot() instead.
 
                 if request.matches_timebin(next_slot):
                     self._logger.warning(f"putting request: {request}")
@@ -730,4 +900,4 @@ class EntDist(Protocol):
         if self._netschedule is None:
             yield from self._run_without_netschedule()
         else:
-            yield from self._run_with_netschedule()
+            yield from self._run_with_netschedule_parallel_one_epr_per_timeslot()
