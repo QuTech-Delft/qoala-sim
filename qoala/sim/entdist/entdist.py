@@ -847,7 +847,7 @@ class EntDist(Protocol):
                 for request in all_new_joint_requests:
                     request: JointRequest
                     try:
-                        self._outstanding_requests.append(OutstandingRequest(request, ns.sim_time() + self._netschedule.length_of_qc_blocks[(request.node1_id, request.node1_pid, request.node2_id, request.node2_pid)], [], 0))
+                        self._outstanding_requests.append(OutstandingRequest(request, ns.sim_time() + self._netschedule.length_of_qc_blocks[(request.node1_id, request.node1_pid, request.node2_id, request.node2_pid)]-1, [], 0))
                     except KeyError as F:
                         self._logger.warning(f"No specified QC block length for {(request.node1_id, request.node1_pid,request.node2_id,request.node2_pid)}, defaulting to None")
                         self._outstanding_requests.append(OutstandingRequest(request, math.inf, []))
@@ -855,8 +855,32 @@ class EntDist(Protocol):
             # Determine if a request has expired, or if a pair is delivered for that request.
 
             for outstanding_request in self._outstanding_requests:
+                outcome, delay, sample = self.test_single_time_slot(
+                    outstanding_request.request.node1_id,
+                    outstanding_request.request.node2_id
+                )
+                if outcome is not None:
+                    if delay in self._outstanding_generated_pairs.keys():
+                        self._outstanding_generated_pairs[delay].append((sample, outstanding_request))
+                    else:
+                        self._outstanding_generated_pairs[delay] = [(sample, outstanding_request)]
+
+
+            if self._outstanding_generated_pairs:
+               yield from self.deliver_outstanding_pairs()
+
+            now = ns.sim_time()
+
+            next_slot_time, _ = self._netschedule.next_bin(now, future=True)
+            if next_slot_time - now - 1 > 0:
+                yield from self._interface.wait(next_slot_time - now - 1)  # Should advance to 1ns before the end of current time slot.
+
+            expired_requests = []
+            for outstanding_request in self._outstanding_requests:
+                if ns.sim_time() > 700_000:
+                    pass
+
                 if outstanding_request.end_of_qc <= ns.sim_time():
-                    self._outstanding_requests.remove(outstanding_request)
 
                     node1 = self._interface.remote_id_to_peer_name(outstanding_request.request.node1_id)
                     node2 = self._interface.remote_id_to_peer_name(outstanding_request.request.node2_id)
@@ -864,25 +888,14 @@ class EntDist(Protocol):
                     self._interface.send_node_msg(node2, Message(-1, -1, None))
 
                     self._logger.warning(f"Entanglement Packet Generation Failed for demand {(outstanding_request.request.node1_id, outstanding_request.request.node1_pid, outstanding_request.request.node2_id,outstanding_request.request.node2_pid)}")
+                    expired_requests.append(outstanding_request)
+
+            for e in expired_requests:
+                self._outstanding_requests.remove(e)  # Need to do this with a separate list rather than removing in iterator above as otherwise does not iterate over the entire list,
+                                                      # causing some requests to survive for an extra  timestep.
 
 
-                else:
 
-                    outcome, delay, sample = self.test_single_time_slot(
-                        outstanding_request.request.node1_id,
-                        outstanding_request.request.node2_id
-                    )
-                    if outcome is not None:
-                        if delay in self._outstanding_generated_pairs.keys():
-                            self._outstanding_generated_pairs[delay].append((sample, outstanding_request))
-                        else:
-                            self._outstanding_generated_pairs[delay] = [(sample, outstanding_request)]
-
-
-                if self._outstanding_generated_pairs:
-                   yield from self.deliver_outstanding_pairs()
-                else:
-                    yield from self._interface.wait(1)
 
 
 
