@@ -940,3 +940,5 @@ if __name__ == "__main__":
     test_run_parallel()
     test_run_parallel2()
 
+    test_acceptance_list_netschedule()
+
