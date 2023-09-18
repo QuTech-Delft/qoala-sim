@@ -797,7 +797,61 @@ def test_run_parallel():
     ns.sim_run()
 
     assert entdist._outstanding_requests == []
-    assert ns.sim_time() <= 800_001  # +1 comes from the step by one at the end after  failing the last PGA
+    assert ns.sim_time() < 800_000  # Should end at t=799_999 at the latest.
+
+def test_run_parallel2():
+
+
+    alice, bob, charlie, dave = create_n_nodes(4, num_qubits=5)
+    entdist = create_entdist(nodes=[alice, bob, charlie, dave])
+    link_info1 = LhiLinkInfo.depolarise(100_000,0.1,0.1,99_999)
+    link_info2 = LhiLinkInfo.depolarise(100_000,0.1,0.1,79_999)
+    for (node1, node2) in itertools.combinations([alice, bob, charlie, dave], 2):
+        if not ((node1.ID == 0 and node2.ID == 1) or (node1.ID == 1 and node2.ID == 0)):
+            entdist.add_sampler(node1.ID, node2.ID, link_info1)
+        else:
+            entdist.add_sampler(node1.ID, node2.ID, link_info2)
+
+    req_ab = WindowedEntDistRequest(alice.ID, bob.ID, [1,2,3], 0, 0,500_000,3)
+    req_ba = WindowedEntDistRequest(bob.ID, alice.ID, [1,2,3], 0, 0,500_000,3)
+
+    req_cd = WindowedEntDistRequest(charlie.ID, dave.ID, [1,2,3], 0, 0,500_000,3)
+    req_dc = WindowedEntDistRequest(dave.ID, charlie.ID, [1,2,3], 0, 0,500_000,3)
+
+    req_ad = EntDistRequest(alice.ID, dave.ID, 0, 0, 0)
+    req_da = EntDistRequest(dave.ID, alice.ID, 0, 0, 0)
+
+
+    entdist._netschedule = EhiNetworkSchedule(100_000,0,[[EhiNetworkTimebin(frozenset({0,1}),pids={0:0,1:0}),EhiNetworkTimebin(frozenset({2,3}),pids={2:0,3:0})]],100_000,{(0,0,1,0):800_000,(2,0,3,0):800_000})
+
+    ns.sim_reset()
+
+
+    assert ns.sim_time() == 0
+
+    # Bit of hack to send entrequest message to entdist
+    alice_port = alice.add_ports("entdist_port")[0]
+    bob_port = bob.add_ports("entdist_port")[0]
+    charlie_port = charlie.add_ports("entdist_port")[0]
+    dave_port = dave.add_ports("entdist_port")[0]
+
+    alice_port.connect(entdist._comp.node_in_port(alice.name))
+    bob_port.connect(entdist._comp.node_in_port(bob.name))
+    charlie_port.connect(entdist._comp.node_in_port(charlie.name))
+    dave_port.connect(entdist._comp.node_in_port(dave.name))
+
+    alice_port.tx_output(Message(-1, -1, req_ab))
+    alice_port.tx_output(Message(-1, -1, req_ad))
+    bob_port.tx_output(Message(-1, -1, req_ba))
+    charlie_port.tx_output(Message(-1,-1,req_cd))
+    dave_port.tx_output(Message(-1,-1,req_dc))
+    dave_port.tx_output(Message(-1,-1,req_da))
+
+    entdist.start()
+    ns.sim_run()
+
+    assert entdist._outstanding_requests == []
+    assert ns.sim_time() < 800_000  # +1 comes from the step by one at the end after  failing the last PGA
 
 
 
@@ -881,3 +935,8 @@ if __name__ == "__main__":
 
 
     test_deliver_all_outstanding_qubits()
+    test_deliver_all_outstanding_qubits()
+
+    test_run_parallel()
+    test_run_parallel2()
+
