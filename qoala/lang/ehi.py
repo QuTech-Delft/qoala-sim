@@ -362,8 +362,13 @@ class EhiNetworkSchedule:
     # TODO: Allow for session PGA/QC to change lengths during the schedule?
     # TODO: Is the key the correct format here, or better to use EhiNetworkTimebin?
 
-    def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
+    def next_bin(self, time: int, future: bool = False) -> Tuple[int, EhiNetworkTimebin]:
+        """
+        future: Optional bool. Defaults to False, if set to true, then returns the next time bin in the future,
+                i.e. if currently at start of a time bin, then return the next one.
+        """
         global_offset = time - self.first_bin
+
 
         # print(time)
 
@@ -378,6 +383,9 @@ class EhiNetworkSchedule:
         # It could be that we're already in the last bin. Then the next bin
         # is the first bin of the next pattern repetition.
         next_bin_index = ceil(time_since_pattern_start / self.bin_length)
+
+        if time_since_pattern_start % self.bin_length == 0 and future:  # If we are on a border and
+            next_bin_index += 1
 
         if next_bin_index >= len(self.bin_pattern):
             next_bin_start = curr_pattern_start + self.repeat_period
