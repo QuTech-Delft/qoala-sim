@@ -353,7 +353,7 @@ class EhiNetworkSchedule:
     bin_length: int
     first_bin: int
 
-    bin_pattern: List[EhiNetworkTimebin]
+    bin_pattern: List[EhiNetworkTimebin] | List[List[EhiNetworkTimebin]]
     repeat_period: int
 
     length_of_qc_blocks: Dict[Tuple[int, int, int, int], float] | None = None
