@@ -13,7 +13,7 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
-from qoala.lang.ehi import EhiNetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkSchedule, EhiNetworkTimebin
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.message import Message
 from qoala.sim.build import build_qprocessor_from_topology
@@ -25,6 +25,7 @@ from qoala.sim.entdist.entdist import (
     EprDeliverySample,
     JointRequest,
     WindowedJointRequest,
+    OutstandingRequest,
 )
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.util.math import (
@@ -610,6 +611,193 @@ def test_serve_windowed_request():
 
     #TODO: automated verification that window is being adhered to (from logs can verify that fact but need automated scripts)
 
+def test_deliver_all_outstanding_qubits():
+    alice, bob, charlie, dave = create_n_nodes(4, num_qubits=5)
+
+    entdist = create_entdist(nodes=[alice, bob,charlie,dave])
+    link_info = LhiLinkInfo.depolarise(100_000,0.1,0.3,100_000)
+    for (node1, node2) in itertools.combinations([alice, bob, charlie, dave], 2):
+        entdist.add_sampler(node1.ID, node2.ID, link_info)
+
+    req1 = OutstandingRequest(JointRequest(0,1,0,0,0,0), 200_000.,[],0)
+    req2 = OutstandingRequest(WindowedJointRequest(2,3,[0,1],[2,3],0,0,500_000,3),700_000,[],0)
+
+    entdist._outstanding_requests = [req1,req2]
+
+    sample1 = entdist.sample_state(entdist.get_sampler(0,1).sampler)
+    sample2 = entdist.sample_state(entdist.get_sampler(2,3).sampler)
+
+    entdist._outstanding_generated_pairs = {79_999:[(sample1,req1)], 99_999:[(sample2,req2)]}
+
+    ns.sim_reset()
+
+    netsquid_run(entdist.deliver_outstanding_pairs())
+
+    assert req1 not in entdist._outstanding_requests
+    assert req2 in entdist._outstanding_requests
+
+    assert ns.sim_time() == 99_999
+
+
+def test_deliver_all_outstanding_qubits_2():
+    alice, bob = create_n_nodes(2, num_qubits=5)
+
+    entdist = create_entdist(nodes=[alice, bob])
+
+
+    entdist._netschedule = EhiNetworkSchedule(100_000,0,[EhiNetworkTimebin(frozenset({0,1}),pids={0:0,1:0})],100_000,None)
+
+    link_info = LhiLinkInfo.depolarise(100_000,0.1,0.3,100_000)
+    for (node1, node2) in itertools.combinations([alice, bob], 2):
+        entdist.add_sampler(node1.ID, node2.ID, link_info)
+
+    req1 = OutstandingRequest(WindowedJointRequest(0,1,[0,1,2],[2,3,4],0,0,500_000,3),800_000,[],0)
+    sample1 = entdist.sample_state(entdist.get_sampler(0,1).sampler)
+
+
+    entdist._outstanding_requests = [req1]
+    entdist._outstanding_generated_pairs = {99_999:[(sample1,req1)]}
+
+    ns.sim_reset()
+
+    netsquid_run(entdist.deliver_outstanding_pairs())
+
+    assert ns.sim_time() == 99_999
+
+    next_slot_time, next_slot = entdist._netschedule.next_bin(ns.sim_time())
+
+
+    netsquid_run(entdist._interface.wait(next_slot_time - ns.sim_time()))
+
+    entdist._outstanding_generated_pairs = {399_999:[(sample1,req1)]}
+    netsquid_run(entdist.deliver_outstanding_pairs())
+
+    assert ns.sim_time() == 499_999
+    assert req1.link_generation_times == [99_999,499_999]
+
+    next_slot_time, next_slot = entdist._netschedule.next_bin(ns.sim_time())
+
+
+    netsquid_run(entdist._interface.wait(next_slot_time - ns.sim_time()))
+
+    entdist._outstanding_generated_pairs = {199_999:[(sample1,req1)]}
+    netsquid_run(entdist.deliver_outstanding_pairs())
+
+    assert ns.sim_time() == 699_999
+    assert req1.link_generation_times == [499_999,699_999]
+
+    next_slot_time, next_slot = entdist._netschedule.next_bin(ns.sim_time())
+
+
+    netsquid_run(entdist._interface.wait(next_slot_time - ns.sim_time()))
+
+    entdist._outstanding_generated_pairs = {99_999:[(sample1,req1)]}
+    netsquid_run(entdist.deliver_outstanding_pairs())
+
+    assert ns.sim_time() == 799_999
+    assert req1.link_generation_times == [499_999,699_999,799_999]
+    assert req1 not in entdist._outstanding_requests
+
+
+def test_acceptance_list_netschedule():
+
+    alice, bob, charlie, dave = create_n_nodes(4, num_qubits=5)
+    entdist = create_entdist(nodes=[alice, bob, charlie, dave])
+    link_info = LhiLinkInfo.depolarise(100_000,0.1,0.3,99_999)
+    for (node1, node2) in itertools.combinations([alice, bob, charlie, dave], 2):
+        entdist.add_sampler(node1.ID, node2.ID, link_info)
+
+    req_ab = EntDistRequest(alice.ID, bob.ID, 0, 0, 0)
+    req_ba = EntDistRequest(bob.ID, alice.ID, 0, 0, 0)
+
+    req_cd = WindowedEntDistRequest(charlie.ID, dave.ID, [1,2,3], 0, 0,500_000,3)
+    req_dc = WindowedEntDistRequest(dave.ID, charlie.ID, [1,2,3], 0, 0,500_000,3)
+
+    req_ad = EntDistRequest(alice.ID, dave.ID, 0, 0, 0)
+    req_da = EntDistRequest(dave.ID, alice.ID, 0, 0, 0)
+
+
+    entdist._netschedule = EhiNetworkSchedule(100_000,0,[[EhiNetworkTimebin(frozenset({0,1}),pids={0:0,1:0}),EhiNetworkTimebin(frozenset({2,3}),pids={2:0,3:0})]],100_000,{(0,0,1,0):400_000,(2,0,3,0):800_000})
+
+    ns.sim_reset()
+
+
+    assert ns.sim_time() == 0
+
+    # Bit of hack to send entrequest message to entdist
+    alice_port = alice.add_ports("entdist_port")[0]
+    bob_port = bob.add_ports("entdist_port")[0]
+    charlie_port = charlie.add_ports("entdist_port")[0]
+    dave_port = dave.add_ports("entdist_port")[0]
+
+    alice_port.connect(entdist._comp.node_in_port(alice.name))
+    bob_port.connect(entdist._comp.node_in_port(bob.name))
+    charlie_port.connect(entdist._comp.node_in_port(charlie.name))
+    dave_port.connect(entdist._comp.node_in_port(dave.name))
+
+    alice_port.tx_output(Message(-1, -1, req_ab))
+    alice_port.tx_output(Message(-1, -1, req_ad))
+    bob_port.tx_output(Message(-1, -1, req_ba))
+    charlie_port.tx_output(Message(-1,-1,req_cd))
+    dave_port.tx_output(Message(-1,-1,req_dc))
+    dave_port.tx_output(Message(-1,-1,req_da))
+
+    entdist.start()
+
+    ns.sim_run(end_time=1)
+
+    assert entdist._outstanding_requests == [OutstandingRequest(create_joint_request(0,1,0,0,0,0),400_000,[],0),OutstandingRequest(create_joint_windowed_request(2,3,[1,2,3],[1,2,3],0,0,500_000,3),800_000,[],0)]  # Checks that the correct demands were accepted.
+
+
+def test_run_parallel():
+
+
+    alice, bob, charlie, dave = create_n_nodes(4, num_qubits=5)
+    entdist = create_entdist(nodes=[alice, bob, charlie, dave])
+    link_info = LhiLinkInfo.depolarise(100_000,0.1,0.3,99_999)
+    for (node1, node2) in itertools.combinations([alice, bob, charlie, dave], 2):
+        entdist.add_sampler(node1.ID, node2.ID, link_info)
+
+    req_ab = EntDistRequest(alice.ID, bob.ID, 0, 0, 0)
+    req_ba = EntDistRequest(bob.ID, alice.ID, 0, 0, 0)
+
+    req_cd = WindowedEntDistRequest(charlie.ID, dave.ID, [1,2,3], 0, 0,500_000,3)
+    req_dc = WindowedEntDistRequest(dave.ID, charlie.ID, [1,2,3], 0, 0,500_000,3)
+
+    req_ad = EntDistRequest(alice.ID, dave.ID, 0, 0, 0)
+    req_da = EntDistRequest(dave.ID, alice.ID, 0, 0, 0)
+
+
+    entdist._netschedule = EhiNetworkSchedule(100_000,0,[[EhiNetworkTimebin(frozenset({0,1}),pids={0:0,1:0}),EhiNetworkTimebin(frozenset({2,3}),pids={2:0,3:0})]],100_000,{(0,0,1,0):400_000,(2,0,3,0):800_000})
+
+    ns.sim_reset()
+
+
+    assert ns.sim_time() == 0
+
+    # Bit of hack to send entrequest message to entdist
+    alice_port = alice.add_ports("entdist_port")[0]
+    bob_port = bob.add_ports("entdist_port")[0]
+    charlie_port = charlie.add_ports("entdist_port")[0]
+    dave_port = dave.add_ports("entdist_port")[0]
+
+    alice_port.connect(entdist._comp.node_in_port(alice.name))
+    bob_port.connect(entdist._comp.node_in_port(bob.name))
+    charlie_port.connect(entdist._comp.node_in_port(charlie.name))
+    dave_port.connect(entdist._comp.node_in_port(dave.name))
+
+    alice_port.tx_output(Message(-1, -1, req_ab))
+    alice_port.tx_output(Message(-1, -1, req_ad))
+    bob_port.tx_output(Message(-1, -1, req_ba))
+    charlie_port.tx_output(Message(-1,-1,req_cd))
+    dave_port.tx_output(Message(-1,-1,req_dc))
+    dave_port.tx_output(Message(-1,-1,req_da))
+
+    entdist.start()
+    ns.sim_run()
+
+    assert entdist._outstanding_requests == []
+    assert ns.sim_time() <= 800_001  # +1 comes from the step by one at the end after  failing the last PGA
 
 
 
@@ -690,3 +878,6 @@ if __name__ == "__main__":
     test_serve_windowed_request()
 
     test_entdist_run()
+
+
+    test_deliver_all_outstanding_qubits()
