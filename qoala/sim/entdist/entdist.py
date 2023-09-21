@@ -668,6 +668,7 @@ class EntDist(Protocol):
             next_joint_request = self.get_next_joint_request()
             if next_joint_request is not None:
                 _all_joint_requests.append(next_joint_request)
+                self._logger.warning(f"Accepted joint request from demand {(next_joint_request.node1_id,next_joint_request.node1_pid,next_joint_request.node2_id,next_joint_request.node2_pid)}")
             else:
                 break
 
@@ -809,13 +810,14 @@ class EntDist(Protocol):
             elif next_slot_time - now < 0:
                 raise RuntimeError()
 
-#            print(ns.sim_time())
+            # print(ns.sim_time())
 
             messages = self._interface.pop_all_messages()
 
             requesting_nodes: List[int] = []
+            wrong_timebin_nodes: List[int] = []
             for msg in messages:
-                self._logger.info(f"received new msg from node: {msg}")
+                self._logger.warning(f"received new msg from node: {msg}")
                 request: EntDistRequest = msg.content
                 requesting_nodes.append(request.local_node_id)
 
@@ -825,13 +827,15 @@ class EntDist(Protocol):
                         self._logger.warning(f"putting request: {request}")
                         self.put_request(request)
                     else:
-                        self._logger.warning(f"not handling msg {msg} (wrong timebin)")
+                        self._logger.warning(f"not handling msg {msg} (wrong timebin - {next_slot})")
+                        wrong_timebin_nodes.append(request.local_node_id)
                 else:
                     if request.matches_timebin(next_slot):
                         self._logger.warning(f"putting request: {request}")
                         self.put_request(request)
                     else:
-                        self._logger.warning(f"not handling msg {msg} (wrong timebin)")
+                        self._logger.warning(f"not handling msg {msg} (wrong timebin - {next_slot})")
+                        wrong_timebin_nodes.append(request.local_node_id)
 
             all_new_joint_requests, outstanding_nodes = self.get_all_joint_requests()
 
@@ -839,7 +843,13 @@ class EntDist(Protocol):
             for node_id in outstanding_nodes:
                 node = self._interface.remote_id_to_peer_name(node_id)
                 self._interface.send_node_msg(node, Message(-1, -1, None))
-                self._logger.warning(f"Reject demand from node {node_id} as no joint request")
+                self._logger.info(f"sending message to reject demand from node {node_id} as no joint request")
+            self.clear_requests()
+
+            for node_id in wrong_timebin_nodes:
+                node = self._interface.remote_id_to_peer_name(node_id)
+                self._interface.send_node_msg(node, Message(-1, -1, None))
+                self._logger.info(f"Sending message rejecting demand from node {node_id} as in wrong timebin")
             self.clear_requests()
 
             if all_new_joint_requests:
@@ -877,6 +887,8 @@ class EntDist(Protocol):
 
             expired_requests = []
             for outstanding_request in self._outstanding_requests:
+
+
                 if outstanding_request.end_of_qc <= ns.sim_time():
 
                     node1 = self._interface.remote_id_to_peer_name(outstanding_request.request.node1_id)
