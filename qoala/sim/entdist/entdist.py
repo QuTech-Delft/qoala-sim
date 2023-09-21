@@ -809,7 +809,7 @@ class EntDist(Protocol):
             elif next_slot_time - now < 0:
                 raise RuntimeError()
 
-            print(ns.sim_time())
+            # print(ns.sim_time())
 
             messages = self._interface.pop_all_messages()
 
@@ -877,8 +877,6 @@ class EntDist(Protocol):
 
             expired_requests = []
             for outstanding_request in self._outstanding_requests:
-                if ns.sim_time() > 700_000:
-                    pass
 
                 if outstanding_request.end_of_qc <= ns.sim_time():
 
