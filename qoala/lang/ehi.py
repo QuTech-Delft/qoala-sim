@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import ceil, floor
 from typing import Dict, FrozenSet, List, Optional, Tuple, Type
 
+import numpy as np
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
 
@@ -406,7 +407,7 @@ class EhiNetworkSchedule:
             current_bin_index = 0  # If we don't have enough bins to fill the repeat_period, then if the query time is in the gap between the end of the schedule and the end of the repeat period, then the next bin is the first, i.e. index 0.
 
         for i, pat_bin in enumerate(self.bin_pattern):
-            if bin == pat_bin:
+            if bin in pat_bin if isinstance(pat_bin, list) else bin == pat_bin:  # For parallel operations each element in the bin pattern is a list of bins, so need to check inclusion rather than equality, whilst maintaining compatibility with single bin-per-slot patterns
                 if first_bin_index is None:
                     first_bin_index = i
                 if bin_index is None and i >= current_bin_index:
