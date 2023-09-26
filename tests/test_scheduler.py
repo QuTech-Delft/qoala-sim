@@ -29,7 +29,7 @@ from qoala.runtime.task import (
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
-from qoala.sim.scheduler import CpuEdfScheduler, QpuEdfScheduler
+from qoala.sim.scheduler import CpuEdfScheduler, QpuScheduler
 from qoala.util.builder import ObjectBuilder
 from qoala.util.logging import LogManager
 
@@ -316,7 +316,7 @@ def test_qpu_scheduler():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = QpuEdfScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
+    qpu_scheduler = QpuScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
     qpu_scheduler.add_tasks(qpu_graph.get_tasks())
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)
@@ -385,7 +385,7 @@ def test_qpu_scheduler_2_processes():
         procnode.memmgr,
         procnode.memmgr,
     )
-    qpu_scheduler = QpuEdfScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
+    qpu_scheduler = QpuScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
     qpu_scheduler.add_tasks(qpu_graph.get_tasks())
 
     cpu_scheduler.set_other_scheduler(qpu_scheduler)

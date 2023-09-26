@@ -204,7 +204,7 @@ class NodeScheduler(Protocol):
             netstack.processor,
             memmgr,
         )
-        self._qpu_scheduler = QpuEdfScheduler(
+        self._qpu_scheduler = QpuScheduler(
             f"{node_name}_qpu",
             node_id,
             qpudriver,
@@ -881,26 +881,6 @@ class SchedulerStatus:
     params: Dict[str, Any]
 
 
-class EdfScheduler(ProcessorScheduler):
-    def __init__(
-        self,
-        name: str,
-        node_id: int,
-        driver: Driver,
-        memmgr: MemoryManager,
-        deterministic: bool = True,
-        use_deadlines: bool = True,
-    ) -> None:
-        super().__init__(
-            name=name,
-            node_id=node_id,
-            driver=driver,
-            memmgr=memmgr,
-            deterministic=deterministic,
-            use_deadlines=use_deadlines,
-        )
-
-
 class CpuScheduler(ProcessorScheduler):
     def __init__(
         self,
@@ -1154,7 +1134,7 @@ class CpuFcfsScheduler(CpuScheduler):
         )
 
 
-class QpuEdfScheduler(EdfScheduler):
+class QpuScheduler(ProcessorScheduler):
     def __init__(
         self,
         name: str,
