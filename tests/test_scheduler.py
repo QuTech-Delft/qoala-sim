@@ -311,7 +311,6 @@ def test_qpu_scheduler():
     qpu_driver = QpuDriver(
         "alice",
         mem,
-        procnode.host.processor,
         procnode.qnos.processor,
         procnode.memmgr,
         procnode.memmgr,
@@ -380,7 +379,6 @@ def test_qpu_scheduler_2_processes():
     qpu_driver = QpuDriver(
         "alice",
         mem,
-        procnode.host.processor,
         procnode.qnos.processor,
         procnode.memmgr,
         procnode.memmgr,

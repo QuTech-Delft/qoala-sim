@@ -199,7 +199,6 @@ class NodeScheduler(Protocol):
         qpudriver = QpuDriver(
             node_name,
             scheduler_memory,
-            host.processor,
             qnos.processor,
             netstack.processor,
             memmgr,

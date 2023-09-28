@@ -166,14 +166,12 @@ class QpuDriver(Driver):
         self,
         node_name: str,
         memory: SharedSchedulerMemory,
-        hostprocessor: HostProcessor,
         qnosprocessor: QnosProcessor,
         netstackprocessor: NetstackProcessor,
         memmgr: MemoryManager,
     ) -> None:
         super().__init__(name=f"{node_name}_qpu_driver", memory=memory)
 
-        self._hostprocessor = hostprocessor
         self._qnosprocessor = qnosprocessor
         self._netstackprocessor = netstackprocessor
         self._memmgr = memmgr
