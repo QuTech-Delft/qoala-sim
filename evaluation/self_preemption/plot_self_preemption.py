@@ -111,9 +111,11 @@ def plot_sweep_net_bin_period(timestamp: str, data: Data) -> None:
     ax.set_ylabel("Makespan (ms)")
 
     fmts = ["o-b", "o-r", "o-k"]
+    # fmts = ["o-b", "o-r", "o-k", "o-m", "o-g", "o-y"]
     # fmts = [".-b", ".-r", ".-k"]
     # fmts = ["-b", "-r", "-k"]
     labels = ["1 qubit", "2 qubits", "5 qubits"]
+    # labels = ["1 qubit", "2 qubits", "", "", "5 qubits", ""]
 
     nbf = [nbf for nbf in data.meta.net_bin_factors]
     for num_qubits, fmt, label in zip(data.meta.bob_qubit_nums, fmts, labels):
@@ -160,7 +162,17 @@ def sweep_net_bin_factor_prio_epr():
     plot_sweep_net_bin_period(timestamp, data)
 
 
+def sweep_net_bin_factor_per_qubit_num():
+    data = load_data("data/net_bin_factor_per_qubit_num/LAST.json")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    create_meta("LAST_meta", data)
+    create_meta(f"{timestamp}_meta", data)
+    plot_sweep_net_bin_period(timestamp, data)
+
+
 if __name__ == "__main__":
     # sweep_network_period()
-    sweep_net_bin_factor()
+    # sweep_net_bin_factor()
     # sweep_net_bin_factor_prio_epr()
+    sweep_net_bin_factor_per_qubit_num()

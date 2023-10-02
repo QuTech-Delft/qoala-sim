@@ -1,17 +1,17 @@
 from __future__ import annotations
-from argparse import ArgumentParser
-import numpy as np
 
 import json
 import math
 import os
 import time
+from argparse import ArgumentParser
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 import netsquid as ns
+import numpy as np
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
@@ -25,7 +25,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.runner import run_two_node_app_separate_inputs_plus_local_program
+from qoala.util.runner import run_two_node_app_separate_inputs
 
 
 def create_procnode_cfg(
@@ -69,13 +69,11 @@ def load_program(path: str) -> QoalaProgram:
 class TeleportResult:
     alice_result: BatchResult
     bob_result: BatchResult
-    local_result: BatchResult
     total_duration: float
 
 
 def run_apps(
     num_iterations: int,
-    num_local_iterations: int,
     num_qubits_bob: int,
     t1: float,
     t2: float,
@@ -83,7 +81,6 @@ def run_apps(
     network_bin_len: int,
     network_period: int,
     network_first_bin: int,
-    local_busy_duration: int,
     prio_epr: bool,
 ) -> TeleportResult:
     ns.sim_reset()
@@ -127,7 +124,6 @@ def run_apps(
 
     alice_program = load_program("programs/teleport_alice.iqoala")
     bob_program = load_program("programs/teleport_bob.iqoala")
-    local_program = load_program("programs/local_quantum.iqoala")
 
     alice_inputs = [
         ProgramInput({"bob_id": bob_id, "state": i % 6}) for i in range(num_iterations)
@@ -136,34 +132,20 @@ def run_apps(
         ProgramInput({"alice_id": alice_id, "state": i % 6})
         for i in range(num_iterations)
     ]
-    local_inputs = [
-        ProgramInput({"duration": local_busy_duration})
-        for _ in range(num_local_iterations)
-    ]
 
-    app_result = run_two_node_app_separate_inputs_plus_local_program(
+    app_result = run_two_node_app_separate_inputs(
         num_iterations=num_iterations,
-        num_local_iterations=num_local_iterations,
-        node1="alice",
-        node2="bob",
-        prog_node1=alice_program,
-        prog_node1_inputs=alice_inputs,
-        prog_node2=bob_program,
-        prog_node2_inputs=bob_inputs,
-        local_prog_node2=local_program,
-        local_prog_node2_inputs=local_inputs,
+        programs={"alice": alice_program, "bob": bob_program},
+        program_inputs={"alice": alice_inputs, "bob": bob_inputs},
         network_cfg=network_cfg,
-        linear_for={"alice": False, "bob": False},
+        linear=False,
     )
 
     alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
-    local_result = app_result.batch_results["local"]
     # print(local_result)
 
-    return TeleportResult(
-        alice_result, bob_result, local_result, app_result.total_duration
-    )
+    return TeleportResult(alice_result, bob_result, app_result.total_duration)
 
 
 @dataclass
@@ -220,7 +202,6 @@ def wilson_score_interval(p_hat, n, z):
 def get_metrics(
     num_runs: int,
     num_iterations: int,
-    num_local_iterations: int,
     num_qubits_bob: int,
     t1: int,
     t2: int,
@@ -228,7 +209,6 @@ def get_metrics(
     network_bin_len: int,
     network_period: int,
     network_first_bin: int,
-    local_busy_duration: int,
     prio_epr: bool,
 ) -> DataPoint:
     teleport_successes: List[bool] = []
@@ -240,7 +220,6 @@ def get_metrics(
 
         result = run_apps(
             num_iterations=num_iterations,
-            num_local_iterations=num_local_iterations,
             num_qubits_bob=num_qubits_bob,
             t1=t1,
             t2=t2,
@@ -248,18 +227,12 @@ def get_metrics(
             network_period=network_period,
             network_bin_len=network_bin_len,
             network_first_bin=network_first_bin,
-            local_busy_duration=local_busy_duration,
             prio_epr=prio_epr,
         )
         teleport_results = result.bob_result.results
         outcomes = [result.values["outcome"] for result in teleport_results]
         assert len(outcomes) == num_iterations
         teleport_successes.extend([outcomes[i] == 0 for i in range(num_iterations)])
-
-        local_results = result.local_result.results
-        outcomes = [result.values["outcome"] for result in local_results]
-        assert len(outcomes) == num_local_iterations
-        local_successes.extend([outcomes[i] == 1 for i in range(num_local_iterations)])
 
         makespans.append(result.total_duration)
 
@@ -321,12 +294,6 @@ def run(
     num_runs: int,
     num_qubits: Optional[int] = None,
 ):
-    # LogManager.set_log_level("INFO")
-    # LogManager.log_to_file("quantum_multitasking.log")
-    # LogManager.set_task_log_level("INFO")
-    # LogManager.set_task_log_level("WARNING")
-    # LogManager.log_tasks_to_file("quantum_multitasking_tasks.log")
-
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -334,18 +301,13 @@ def run(
     t2 = 1e8
 
     num_iterations = 5
-    num_local_iterations = 0
-    # num_qubits_bob = 10
     if num_qubits is not None:
         bob_qubit_nums = [num_qubits]
     else:
         bob_qubit_nums = [1, 2, 5]
     latency_factor = 0.1  # CC = 10_000_000
-    # net_bin_factors = [0.4, 0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6]
-    # net_bin_factors = list(np.linspace(0.2, 0.8, 11))
-    net_bin_factors = list(np.linspace(0.2, 0.8, 1))
+    net_bin_factors = list(np.linspace(0.2, 0.6, 41))
     net_bin_factors = [round(f, 2) for f in net_bin_factors]
-    local_busy_duration = 1_000_000
     network_gap = 0
 
     data_points: List[DataPoint] = []
@@ -359,7 +321,6 @@ def run(
             data_point = get_metrics(
                 num_runs=num_runs,
                 num_iterations=num_iterations,
-                num_local_iterations=num_local_iterations,
                 num_qubits_bob=num_qubits_bob,
                 t1=t1,
                 t2=t2,
@@ -367,7 +328,6 @@ def run(
                 network_bin_len=network_bin_len,
                 network_period=network_period,
                 network_first_bin=network_first_bin,
-                local_busy_duration=local_busy_duration,
                 prio_epr=prio_epr,
             )
             makespan = data_point.makespan
@@ -409,7 +369,7 @@ def run(
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--num_qubits", "-q", type=int, required=True)
+    parser.add_argument("--num_qubits", "-q", type=int, required=False)
     parser.add_argument("--num_runs", "-n", type=int, required=True)
 
     args = parser.parse_args()
