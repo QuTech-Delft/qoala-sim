@@ -2,7 +2,8 @@
 
 START_TIME=$SECONDS
 
-num_runs=200
+# num_runs=200
+num_runs=1
 
 # teleport_values=(1 2 3 4 5)
 num_teleport=15

@@ -304,30 +304,6 @@ def run_two_node_app_separate_inputs_plus_local_program(
     remote_pids2 = {batch_node1.batch_id: [p.pid for p in batch_node1.instances]}
     procnode2.initialize_processes(remote_pids2)
 
-    # Upload tasks
-
-    tasks1 = procnode1.scheduler.get_tasks_to_schedule()
-    if linear or linear_for[node1]:
-        merged1 = TaskGraphBuilder.merge_linear(tasks1)
-    else:
-        merged1 = TaskGraphBuilder.merge(tasks1)
-    procnode1.scheduler.upload_task_graph(merged1)
-
-    tasks2 = procnode2.scheduler.get_tasks_to_schedule_for(batch_node2.batch_id)
-    if linear or linear_for[node2]:
-        merged2 = TaskGraphBuilder.merge_linear(tasks2)
-    else:
-        merged2 = TaskGraphBuilder.merge(tasks2)
-
-    tasks_local = procnode2.scheduler.get_tasks_to_schedule_for(batch_local.batch_id)
-    if linear_local:
-        merged_local = TaskGraphBuilder.merge_linear(tasks_local)
-    else:
-        merged_local = TaskGraphBuilder.merge(tasks_local)
-    merged_with_local = TaskGraphBuilder.merge([merged2, merged_local])
-
-    procnode2.scheduler.upload_task_graph(merged_with_local)
-
     network.start()
     ns.sim_run()
 
