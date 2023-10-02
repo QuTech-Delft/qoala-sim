@@ -1,10 +1,10 @@
 from __future__ import annotations
-from argparse import ArgumentParser
 
 import json
 import math
 import os
 import time
+from argparse import ArgumentParser
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -23,14 +23,17 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.util.logging import LogManager
 from qoala.util.runner import (
     SchedulerType,
+    run_single_node_app,
+    run_two_node_app_separate_inputs,
     run_two_node_app_separate_inputs_plus_constant_tasks,
 )
 
 
 def create_procnode_cfg(
-    name: str, id: int, t1: float, t2: float, determ: bool, deadlines: bool
+    name: str, id: int, t1: float, t2: float, determ: bool, deadlines: bool, fcfs: bool
 ) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
@@ -42,6 +45,7 @@ def create_procnode_cfg(
         ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=determ,
         use_deadlines=deadlines,
+        fcfs=fcfs,
     )
 
 
@@ -76,11 +80,14 @@ def run_apps(
     alice_id = 1
     bob_id = 0
 
+    fcfs = sched_typ == SchedulerType.FCFS
+
+    # Alice never uses FCFS!
     alice_node_cfg = create_procnode_cfg(
-        "alice", alice_id, t1, t2, determ=True, deadlines=True
+        "alice", alice_id, t1, t2, determ=True, deadlines=True, fcfs=False
     )
     bob_node_cfg = create_procnode_cfg(
-        "bob", bob_id, t1, t2, determ=True, deadlines=True
+        "bob", bob_id, t1, t2, determ=True, deadlines=True, fcfs=fcfs
     )
 
     cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, cc_latency)
@@ -112,28 +119,52 @@ def run_apps(
         ProgramInput({"duration": busy_duration}) for _ in range(num_const_tasks)
     ]
 
-    app_result = run_two_node_app_separate_inputs_plus_constant_tasks(
-        num_iterations=1,
-        num_const_tasks=num_const_tasks,
-        node1="alice",
-        node2="bob",
-        prog_node1=alice_program,
-        prog_node1_inputs=alice_inputs,
-        prog_node2=bob_program,
-        prog_node2_inputs=bob_inputs,
-        const_prog_node2=busy_program,
-        const_prog_node2_inputs=busy_inputs,
-        const_period=const_period,
-        const_start=const_start,
-        network_cfg=network_cfg,
-        sched_typ=sched_typ,
-        linear=True,
-    )
+    if sched_typ == SchedulerType.QOALA or sched_typ == SchedulerType.FCFS:
+        app_result = run_two_node_app_separate_inputs_plus_constant_tasks(
+            num_iterations=1,
+            num_const_tasks=num_const_tasks,
+            node1="alice",
+            node2="bob",
+            prog_node1=alice_program,
+            prog_node1_inputs=alice_inputs,
+            prog_node2=bob_program,
+            prog_node2_inputs=bob_inputs,
+            const_prog_node2=busy_program,
+            const_prog_node2_inputs=busy_inputs,
+            const_period=const_period,
+            const_start=const_start,
+            network_cfg=network_cfg,
+            sched_typ=sched_typ,
+            linear=True,
+        )
+        alice_result = app_result.batch_results["alice"]
+        bob_result = app_result.batch_results["bob"]
 
-    alice_result = app_result.batch_results["alice"]
-    bob_result = app_result.batch_results["bob"]
+        return ProgResult(alice_result, bob_result, [], app_result.total_duration)
+    else:
+        app_result_quantum = run_two_node_app_separate_inputs(
+            num_iterations=1,
+            programs={"alice": alice_program, "bob": bob_program},
+            program_inputs={"alice": alice_inputs, "bob": bob_inputs},
+            network_cfg=network_cfg,
+            linear=True,
+        )
+        app_result_classical = run_single_node_app(
+            num_iterations=num_const_tasks,
+            program_name="bob",
+            program=busy_program,
+            program_input=ProgramInput({"duration": busy_duration}),
+            network_cfg=network_cfg,
+            linear=True,
+        )
+        alice_result = app_result_quantum.batch_results["alice"]
+        bob_result = app_result_quantum.batch_results["bob"]
 
-    return ProgResult(alice_result, bob_result, [], app_result.total_duration)
+        total_duration = (
+            app_result_classical.total_duration + app_result_quantum.total_duration
+        )
+
+        return ProgResult(alice_result, bob_result, [], total_duration)
 
 
 @dataclass
@@ -233,7 +264,7 @@ def get_metrics(
     lower_rounded = round(succ_prob_lower, 3)
     upper_rounded = round(succ_prob_upper, 3)
     succprob_rounded = round(avg_succ_prob, 3)
-    print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
+    # print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
 
     total_makespan = sum(makespans)
 
@@ -253,18 +284,20 @@ def get_metrics(
 
 def run(
     output_dir: str,
-    sched_types: List[SchedulerType],
+    sched_typ: SchedulerType,
     num_iterations: int,
     save: bool = True,
+    log: bool = False,
 ):
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_to_file("classical_multitasking.log")
-    # LogManager.enable_task_logger(True)
-    # LogManager.log_tasks_to_file("classical_multitasking_tasks.log")
+    if log:
+        LogManager.set_log_level("DEBUG")
+        LogManager.log_to_file("classical_multitasking_2.log")
+        LogManager.set_task_log_level("DEBUG")
+        LogManager.log_tasks_to_file("classical_multitasking_tasks_2.log")
 
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print(timestamp)
+    # print(timestamp)
 
     data_points: List[DataPoint] = []
 
@@ -277,7 +310,7 @@ def run(
 
     # Variables
     busy_factors = [
-        0.05,
+        # 0.05,
         0.1,
         0.15,
         0.2,
@@ -288,26 +321,29 @@ def run(
         5,
         10,
     ]  # fraction of cc_latency
+    # busy_factors = [0.5]
+    # busy_factors = [0.1]
 
-    for sched_typ in sched_types:
-        # for const_rate_factor in const_rate_factors:
-        for busy_factor in busy_factors:
-            data_point = get_metrics(
-                num_iterations=num_iterations,
-                t1=t1,
-                t2=t2,
-                latency_factor=latency_factor,
-                num_const_tasks=num_const_tasks,
-                const_rate_factor=const_rate_factor,
-                busy_factor=busy_factor,
-                sched_typ=sched_typ,
-            )
+    for i, busy_factor in enumerate(busy_factors):
+        print(
+            f"{sched_typ:30}: data point {i}/{len(busy_factors)}", end="\r", flush=True
+        )
+        data_point = get_metrics(
+            num_iterations=num_iterations,
+            t1=t1,
+            t2=t2,
+            latency_factor=latency_factor,
+            num_const_tasks=num_const_tasks,
+            const_rate_factor=const_rate_factor,
+            busy_factor=busy_factor,
+            sched_typ=sched_typ,
+        )
 
-            data_points.append(data_point)
+        data_points.append(data_point)
 
-        end_time = time.time()
-        sim_duration = end_time - start_time
-        print(f"total duration: {sim_duration}s")
+    end_time = time.time()
+    sim_duration = end_time - start_time
+    # print(f"total duration: {sim_duration}s")
 
     if not save:
         return
@@ -336,7 +372,7 @@ def run(
     with open(timestamp_path, "w") as datafile:
         json.dump(json_data, datafile)
 
-    print(f"data written to {timestamp_path} and {last_path}")
+    print(f"data written to {timestamp_path} and {last_path}", end="\r", flush=True)
 
 
 if __name__ == "__main__":
@@ -350,34 +386,39 @@ if __name__ == "__main__":
     )
     parser.add_argument("--num_iterations", "-n", type=int, required=True)
     parser.add_argument("--dump", "-d", action="store_true")
+    parser.add_argument("--log", "-l", action="store_true")
 
     args = parser.parse_args()
 
     num_iterations = args.num_iterations
     save = args.dump
+    log = args.log
 
-    print(
-        f"scheduler: {args.scheduler}, num_iterations: {args.num_iterations}, dump: {args.dump}"
-    )
+    # print(
+    #     f"scheduler: {args.scheduler}, num_iterations: {args.num_iterations}, dump: {args.dump}"
+    # )
 
     if args.scheduler == "no_sched":
         run(
             output_dir="no_sched",
-            sched_types=[SchedulerType.NO_SCHED],
+            sched_typ=SchedulerType.NO_SCHED,
             num_iterations=num_iterations,
             save=save,
+            log=log,
         )
     elif args.scheduler == "fcfs":
         run(
             output_dir="fcfs",
-            sched_types=[SchedulerType.FCFS],
+            sched_typ=SchedulerType.FCFS,
             num_iterations=num_iterations,
             save=save,
+            log=log,
         )
     elif args.scheduler == "qoala":
         run(
             output_dir="qoala",
-            sched_types=[SchedulerType.QOALA],
+            sched_typ=SchedulerType.QOALA,
             num_iterations=num_iterations,
             save=save,
+            log=log,
         )
