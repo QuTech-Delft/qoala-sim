@@ -35,10 +35,10 @@ def load_program(path: str) -> QoalaProgram:
 
 
 def create_batch(
-    program: QoalaProgram,
-    unit_module: UnitModule,
-    inputs: List[ProgramInput],
-    num_iterations: int,
+        program: QoalaProgram,
+        unit_module: UnitModule,
+        inputs: List[ProgramInput],
+        num_iterations: int,
 ) -> BatchInfo:
     return BatchInfo(
         program=program,
@@ -49,13 +49,12 @@ def create_batch(
     )
 
 
-
 def run_two_node_app_separate_inputs(
-    num_iterations: int,
-    programs: Dict[str, QoalaProgram],
-    program_inputs: Dict[str, List[ProgramInput]],
-    network_cfg: ProcNodeNetworkConfig,
-    linear: bool = False,
+        num_iterations: int,
+        programs: Dict[str, QoalaProgram],
+        program_inputs: Dict[str, List[ProgramInput]],
+        network_cfg: ProcNodeNetworkConfig,
+        linear: bool = False,
 ) -> AppResult:
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
@@ -114,13 +113,14 @@ def run_two_node_app_separate_inputs(
     total_duration = ns.sim_time()
     return AppResult(results, statistics, total_duration)
 
+
 def run_two_node_app_separate_inputs_netschedule(
-    num_iterations: int,
-    programs: Dict[str, QoalaProgram],
-    program_inputs: Dict[str, List[ProgramInput]],
-    network_cfg: ProcNodeNetworkConfig,
-    linear: bool = False,
-    netschedule: EhiNetworkSchedule | None = None,
+        num_iterations: int,
+        programs: Dict[str, QoalaProgram],
+        program_inputs: Dict[str, List[ProgramInput]],
+        network_cfg: ProcNodeNetworkConfig,
+        linear: bool = False,
+        netschedule: EhiNetworkSchedule | None = None,
 ) -> AppResult:
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
@@ -131,8 +131,6 @@ def run_two_node_app_separate_inputs_netschedule(
         network = build_network_from_config(network_cfg)
     else:
         network = build_network_from_config_netschedule(network_cfg, netschedule)
-
-
 
     names = list(programs.keys())
     assert len(names) == 2
@@ -165,7 +163,6 @@ def run_two_node_app_separate_inputs_netschedule(
 
         merged: TaskGraph
 
-
         logger = LogManager.get_stack_logger()
         for batch_id, prog_batch in procnode.scheduler.get_batches().items():
             task_graph = prog_batch.instances[0].task_graph
@@ -189,16 +186,15 @@ def run_two_node_app_separate_inputs_netschedule(
     return AppResult(results, statistics, total_duration)
 
 
-
 def run_1_server_n_clients(
-    client_names: List[str],
-    client_program: QoalaProgram,
-    server_name: str,
-    server_program: QoalaProgram,
-    client_inputs: Dict[str, List[ProgramInput]],
-    server_inputs: List[ProgramInput],
-    network_cfg: ProcNodeNetworkConfig,
-    linear: bool = False,
+        client_names: List[str],
+        client_program: QoalaProgram,
+        server_name: str,
+        server_program: QoalaProgram,
+        client_inputs: Dict[str, List[ProgramInput]],
+        server_inputs: List[ProgramInput],
+        network_cfg: ProcNodeNetworkConfig,
+        linear: bool = False,
 ) -> AppResult:
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
@@ -253,14 +249,13 @@ def run_1_server_n_clients(
 
 
 def run_two_node_app(
-    num_iterations: int,
-    programs: Dict[str, QoalaProgram],
-    program_inputs: Dict[str, ProgramInput],
-    network_cfg: ProcNodeNetworkConfig,
-    linear: bool = False,
-    netschedule: EhiNetworkSchedule | None = None,
+        num_iterations: int,
+        programs: Dict[str, QoalaProgram],
+        program_inputs: Dict[str, ProgramInput],
+        network_cfg: ProcNodeNetworkConfig,
+        linear: bool = False,
+        netschedule: EhiNetworkSchedule | None = None,
 ) -> AppResult:
-
     names = list(programs.keys())
     new_inputs = {
         name: [program_inputs[name] for _ in range(num_iterations)] for name in names
@@ -276,12 +271,12 @@ def run_two_node_app(
 
 
 def run_single_node_app_separate_inputs(
-    num_iterations: int,
-    program_name: str,
-    program: QoalaProgram,
-    program_input: List[ProgramInput],
-    network_cfg: ProcNodeNetworkConfig,
-    linear: bool = False,
+        num_iterations: int,
+        program_name: str,
+        program: QoalaProgram,
+        program_input: List[ProgramInput],
+        network_cfg: ProcNodeNetworkConfig,
+        linear: bool = False,
 ) -> AppResult:
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
@@ -319,12 +314,12 @@ def run_single_node_app_separate_inputs(
 
 
 def run_single_node_app(
-    num_iterations: int,
-    program_name: str,
-    program: QoalaProgram,
-    program_input: ProgramInput,
-    network_cfg: ProcNodeNetworkConfig,
-    linear: bool = False,
+        num_iterations: int,
+        program_name: str,
+        program: QoalaProgram,
+        program_input: ProgramInput,
+        network_cfg: ProcNodeNetworkConfig,
+        linear: bool = False,
 ) -> AppResult:
     new_inputs = [program_input for _ in range(num_iterations)]
 

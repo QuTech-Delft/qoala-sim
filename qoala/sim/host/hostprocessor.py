@@ -23,10 +23,10 @@ class HostProcessor:
     """Does not have state itself. Acts on and changes process objects."""
 
     def __init__(
-        self,
-        interface: HostInterface,
-        latencies: HostLatencies,
-        asynchronous: bool = False,
+            self,
+            interface: HostInterface,
+            latencies: HostLatencies,
+            asynchronous: bool = False,
     ) -> None:
         self._interface = interface
         self._latencies = latencies
@@ -46,7 +46,7 @@ class HostProcessor:
 
     @staticmethod
     def _read_value_from_host_mem(
-        arg: Union[IqoalaSingleton, IqoalaVectorElement], host_mem: HostMemory
+            arg: Union[IqoalaSingleton, IqoalaVectorElement], host_mem: HostMemory
     ) -> int:
         if isinstance(arg, hostlang.IqoalaSingleton):
             return host_mem.read(arg.name)
@@ -56,14 +56,14 @@ class HostProcessor:
             return host_mem.read_vec(loc)[index]
 
     def assign_instr_index(
-        self, process: QoalaProcess, instr_idx: int
+            self, process: QoalaProcess, instr_idx: int
     ) -> Generator[EventExpression, None, None]:
         program = process.prog_instance.program
         instr = program.instructions[instr_idx]
         yield from self.assign_instr(process, instr)
 
     def assign_block(
-        self, process: QoalaProcess, block_name: str
+            self, process: QoalaProcess, block_name: str
     ) -> Generator[EventExpression, None, None]:
         block = process.program.get_block(block_name)
 
@@ -73,7 +73,7 @@ class HostProcessor:
                 break
 
     def assign_instr(
-        self, process: QoalaProcess, instr: hostlang.ClassicalIqoalaOp
+            self, process: QoalaProcess, instr: hostlang.ClassicalIqoalaOp
     ) -> Generator[EventExpression, None, None]:
         csockets = process.csockets
         host_mem = process.prog_memory.host_mem
@@ -243,7 +243,7 @@ class HostProcessor:
             yield from self._branch(process, instr, "__gt__")
 
     def _branch(
-        self, process: QoalaProcess, instr: ClassicalIqoalaOp, comparison_op: str
+            self, process: QoalaProcess, instr: ClassicalIqoalaOp, comparison_op: str
     ) -> Generator[EventExpression, None, None]:
         instr_time = self._latencies.host_instr_time
         first_half = instr_time / 2
@@ -271,7 +271,7 @@ class HostProcessor:
         yield from self._interface.wait(second_half)
 
     def prepare_lr_call(
-        self, process: QoalaProcess, instr: hostlang.RunSubroutineOp
+            self, process: QoalaProcess, instr: hostlang.RunSubroutineOp
     ) -> LrCallTuple:
         host_mem = process.prog_memory.host_mem
 
@@ -306,10 +306,10 @@ class HostProcessor:
         return LrCallTuple(subrt_name, input_addr, result_addr)
 
     def post_lr_call(
-        self,
-        process: QoalaProcess,
-        instr: hostlang.RunSubroutineOp,
-        lrcall: LrCallTuple,
+            self,
+            process: QoalaProcess,
+            instr: hostlang.RunSubroutineOp,
+            lrcall: LrCallTuple,
     ) -> None:
         shared_mem = process.prog_memory.shared_mem
 
@@ -335,7 +335,7 @@ class HostProcessor:
             raise RuntimeError
 
     def prepare_rr_call(
-        self, process: QoalaProcess, instr: hostlang.RunRequestOp
+            self, process: QoalaProcess, instr: hostlang.RunRequestOp
     ) -> RrCallTuple:
         host_mem = process.prog_memory.host_mem
 
@@ -417,7 +417,7 @@ class HostProcessor:
         )
 
     def post_rr_call(
-        self, process: QoalaProcess, instr: hostlang.RunRequestOp, rrcall: RrCallTuple
+            self, process: QoalaProcess, instr: hostlang.RunRequestOp, rrcall: RrCallTuple
     ) -> None:
         shared_mem = process.prog_memory.shared_mem
         routine = process.get_request_routine(rrcall.routine_name)
@@ -478,9 +478,9 @@ class HostProcessor:
             raise RuntimeError
 
     def _calculate_result_size(
-        self,
-        results: hostlang.IqoalaVar,
-        prog_input: Optional[Dict[str, int]] = None,
+            self,
+            results: hostlang.IqoalaVar,
+            prog_input: Optional[Dict[str, int]] = None,
     ) -> int:
         if results is None:
             return 0

@@ -37,7 +37,7 @@ from qoala.util.math import prob_max_mixed_to_fidelity
 class LhiConverter:
     @classmethod
     def error_model_to_rate(
-        cls, model: Type[QuantumErrorModel], model_kwargs: Dict[str, Any]
+            cls, model: Type[QuantumErrorModel], model_kwargs: Dict[str, Any]
     ) -> float:
         if model == DepolarNoiseModel:
             return model_kwargs["depolar_rate"]  # type: ignore
@@ -68,10 +68,10 @@ class LhiConverter:
 
     @classmethod
     def to_ehi(
-        cls,
-        topology: LhiTopology,
-        ntf: NtfInterface,
-        latencies: Optional[LhiLatencies] = None,
+            cls,
+            topology: LhiTopology,
+            ntf: NtfInterface,
+            latencies: Optional[LhiLatencies] = None,
     ) -> EhiNodeInfo:
         if latencies is None:
             latencies = LhiLatencies.all_zero()
@@ -118,7 +118,7 @@ class LhiConverter:
             return EhiLinkInfo(duration=info.state_delay, fidelity=1.0)
         elif info.sampler_factory == DepolariseWithFailureStateSamplerFactory:
             expected_gen_duration = (
-                info.sampler_kwargs["cycle_time"] / info.sampler_kwargs["prob_success"]
+                    info.sampler_kwargs["cycle_time"] / info.sampler_kwargs["prob_success"]
             )
             duration = expected_gen_duration + info.state_delay
             fidelity = prob_max_mixed_to_fidelity(

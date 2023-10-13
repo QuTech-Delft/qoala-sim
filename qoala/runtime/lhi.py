@@ -92,7 +92,7 @@ class LhiTopologyConfigInterface(ABC):
 
     @abstractmethod
     def get_multi_gate_configs(
-        self,
+            self,
     ) -> Dict[MultiQubit, List[LhiGateConfigInterface]]:
         raise NotImplementedError
 
@@ -128,7 +128,7 @@ class LhiTopology:
     all_qubit_gate_infos: Optional[List[LhiGateInfo]] = None
 
     def find_single_gate(
-        self, qubit_id: int, instr: Type[NetSquidInstruction]
+            self, qubit_id: int, instr: Type[NetSquidInstruction]
     ) -> Optional[LhiGateInfo]:
         if qubit_id not in self.single_gate_infos:
             return None
@@ -138,7 +138,7 @@ class LhiTopology:
         return None
 
     def find_multi_gate(
-        self, qubit_ids: List[int], instr: Type[NetSquidInstruction]
+            self, qubit_ids: List[int], instr: Type[NetSquidInstruction]
     ) -> Optional[LhiGateInfo]:
         multi = MultiQubit(qubit_ids)
         if multi not in self.multi_gate_infos:
@@ -149,7 +149,7 @@ class LhiTopology:
         return None
 
     def find_all_qubit_gate(
-        self, instr: Type[NetSquidInstruction]
+            self, instr: Type[NetSquidInstruction]
     ) -> Optional[LhiGateInfo]:
         if self.all_qubit_gate_infos is None:
             return None
@@ -234,10 +234,10 @@ class LhiTopologyBuilder:
 
     @classmethod
     def depolar_gates(
-        cls,
-        duration: float,
-        instructions: List[NetSquidInstruction],
-        depolar_rate: float,
+            cls,
+            duration: float,
+            instructions: List[NetSquidInstruction],
+            depolar_rate: float,
     ) -> List[LhiGateInfo]:
         return [
             LhiGateInfo(
@@ -251,7 +251,7 @@ class LhiTopologyBuilder:
 
     @classmethod
     def perfect_gates(
-        cls, duration: float, instructions: List[NetSquidInstruction]
+            cls, duration: float, instructions: List[NetSquidInstruction]
     ) -> List[LhiGateInfo]:
         return cls.depolar_gates(
             duration=duration, instructions=instructions, depolar_rate=0
@@ -281,14 +281,14 @@ class LhiTopologyBuilder:
 
     @classmethod
     def perfect_uniform(
-        cls,
-        num_qubits,
-        single_instructions: List[NetSquidInstruction],
-        single_duration: float,
-        two_instructions: List[NetSquidInstruction],
-        two_duration: float,
-        all_qubit_instructions: List[NetSquidInstruction] = None,
-        all_qubit_duration: float = 0,
+            cls,
+            num_qubits,
+            single_instructions: List[NetSquidInstruction],
+            single_duration: float,
+            two_instructions: List[NetSquidInstruction],
+            two_duration: float,
+            all_qubit_instructions: List[NetSquidInstruction] = None,
+            all_qubit_duration: float = 0,
     ) -> LhiTopology:
         if all_qubit_instructions is None:
             return cls.fully_uniform(
@@ -315,12 +315,12 @@ class LhiTopologyBuilder:
 
     @classmethod
     def fully_uniform(
-        cls,
-        num_qubits,
-        qubit_info: LhiQubitInfo,
-        single_gate_infos: List[LhiGateInfo],
-        two_gate_infos: List[LhiGateInfo],
-        all_qubit_gate_infos: List[LhiGateInfo] = None,
+            cls,
+            num_qubits,
+            qubit_info: LhiQubitInfo,
+            single_gate_infos: List[LhiGateInfo],
+            two_gate_infos: List[LhiGateInfo],
+            all_qubit_gate_infos: List[LhiGateInfo] = None,
     ) -> LhiTopology:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}
@@ -335,14 +335,14 @@ class LhiTopologyBuilder:
 
     @classmethod
     def perfect_star(
-        cls,
-        num_qubits: int,
-        comm_instructions: List[NetSquidInstruction],
-        comm_duration: float,
-        mem_instructions: List[NetSquidInstruction],
-        mem_duration: float,
-        two_instructions: List[NetSquidInstruction],
-        two_duration: float,
+            cls,
+            num_qubits: int,
+            comm_instructions: List[NetSquidInstruction],
+            comm_duration: float,
+            mem_instructions: List[NetSquidInstruction],
+            mem_duration: float,
+            two_instructions: List[NetSquidInstruction],
+            two_duration: float,
     ) -> LhiTopology:
         comm_qubit_info = cls.perfect_qubit(is_communication=True)
         mem_qubit_info = cls.perfect_qubit(is_communication=False)
@@ -366,21 +366,21 @@ class LhiTopologyBuilder:
 
     @classmethod
     def generic_t1t2_star(
-        cls,
-        num_qubits: int,
-        comm_t1: float,
-        comm_t2: float,
-        mem_t1: float,
-        mem_t2: float,
-        comm_instructions: List[NetSquidInstruction],
-        comm_duration: float,
-        comm_instr_depolar_rate: float,
-        mem_instructions: List[NetSquidInstruction],
-        mem_duration: float,
-        mem_instr_depolar_rate: float,
-        two_instructions: List[NetSquidInstruction],
-        two_duration: float,
-        two_instr_depolar_rate: float,
+            cls,
+            num_qubits: int,
+            comm_t1: float,
+            comm_t2: float,
+            mem_t1: float,
+            mem_t2: float,
+            comm_instructions: List[NetSquidInstruction],
+            comm_duration: float,
+            comm_instr_depolar_rate: float,
+            mem_instructions: List[NetSquidInstruction],
+            mem_duration: float,
+            mem_instr_depolar_rate: float,
+            two_instructions: List[NetSquidInstruction],
+            two_duration: float,
+            two_instr_depolar_rate: float,
     ) -> LhiTopology:
         comm_qubit_info = cls.t1t2_qubit(is_communication=True, t1=comm_t1, t2=comm_t2)
         mem_qubit_info = cls.t1t2_qubit(is_communication=False, t1=mem_t1, t2=mem_t2)
@@ -531,11 +531,11 @@ class LhiLinkInfo:
 
     @classmethod
     def depolarise(
-        cls,
-        cycle_time: float,
-        prob_max_mixed: float,
-        prob_success: float,
-        state_delay: float,
+            cls,
+            cycle_time: float,
+            prob_max_mixed: float,
+            prob_success: float,
+            state_delay: float,
     ) -> LhiLinkInfo:
         return LhiLinkInfo(
             sampler_factory=DepolariseWithFailureStateSamplerFactory,
@@ -558,7 +558,7 @@ class LhiNetworkInfo:
 
     @classmethod
     def fully_connected(
-        cls, nodes: Dict[int, str], info: LhiLinkInfo
+            cls, nodes: Dict[int, str], info: LhiLinkInfo
     ) -> LhiNetworkInfo:
         links: Dict[FrozenSet[int], LhiLinkInfo] = {}
         for n1, n2 in itertools.combinations(nodes.keys(), 2):
@@ -568,7 +568,7 @@ class LhiNetworkInfo:
 
     @classmethod
     def perfect_fully_connected(
-        cls, nodes: Dict[int, str], duration: float
+            cls, nodes: Dict[int, str], duration: float
     ) -> LhiNetworkInfo:
         link = LhiLinkInfo.perfect(duration)
         return cls.fully_connected(nodes, link)
@@ -612,7 +612,7 @@ class LhiNetworkSchedule:
 
     @classmethod
     def from_config(
-        cls, config: LhiNetworkScheduleConfigInterface
+            cls, config: LhiNetworkScheduleConfigInterface
     ) -> LhiNetworkSchedule:
         return LhiNetworkSchedule(
             config.to_bin_length(),

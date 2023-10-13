@@ -24,7 +24,7 @@ class IMeasAll(Instruction):
         return -1
 
     def execute(
-        self, quantum_memory: QuantumMemory, positions: List[int], **kwargs
+            self, quantum_memory: QuantumMemory, positions: List[int], **kwargs
     ) -> List[List[int]]:
         """Execute instruction on a quantum memory.
 
@@ -57,11 +57,11 @@ class IRotationAllGate(Instruction):
         return -1
 
     def execute(
-        self,
-        quantum_memory: QuantumMemory,
-        positions: List[int],
-        angle: float,
-        **kwargs
+            self,
+            quantum_memory: QuantumMemory,
+            positions: List[int],
+            angle: float,
+            **kwargs
     ) -> None:
         """Execute instruction on a quantum memory.
 
@@ -113,11 +113,11 @@ class IBichromaticGate(Instruction):
         return operator
 
     def execute(
-        self,
-        quantum_memory: QuantumMemory,
-        positions: List[int],
-        angle: float,
-        **kwargs
+            self,
+            quantum_memory: QuantumMemory,
+            positions: List[int],
+            angle: float,
+            **kwargs
     ) -> None:
         """Execute instruction on a quantum memory.
 

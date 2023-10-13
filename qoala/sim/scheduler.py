@@ -67,11 +67,11 @@ class NodeSchedulerComponent(Component):
     """
 
     def __init__(
-        self,
-        name,
-        cpu_scheduler: ProcessorScheduler,
-        qpu_scheduler: ProcessorScheduler,
-        internal_sched_latency: float = 0.0,
+            self,
+            name,
+            cpu_scheduler: ProcessorScheduler,
+            qpu_scheduler: ProcessorScheduler,
+            internal_sched_latency: float = 0.0,
     ):
         super().__init__(name=name)
         self.add_ports(["cpu_scheduler_out"])
@@ -121,17 +121,17 @@ class NodeSchedulerComponent(Component):
 
 class NodeScheduler(Protocol):
     def __init__(
-        self,
-        node_name: str,
-        host: Host,
-        qnos: Qnos,
-        netstack: Netstack,
-        memmgr: MemoryManager,
-        local_ehi: EhiNodeInfo,
-        network_ehi: EhiNetworkInfo,
-        deterministic: bool = True,
-        use_deadlines: bool = True,
-        is_predictable: bool = False,
+            self,
+            node_name: str,
+            host: Host,
+            qnos: Qnos,
+            netstack: Netstack,
+            memmgr: MemoryManager,
+            local_ehi: EhiNodeInfo,
+            network_ehi: EhiNetworkInfo,
+            deterministic: bool = True,
+            use_deadlines: bool = True,
+            is_predictable: bool = False,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
@@ -266,7 +266,7 @@ class NodeScheduler(Protocol):
         return self._batches
 
     def create_process(
-        self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
+            self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
     ) -> QoalaProcess:
         prog_memory = ProgramMemory(prog_instance.pid)
         meta = prog_instance.program.meta
@@ -298,9 +298,9 @@ class NodeScheduler(Protocol):
         )
 
     def create_processes_for_batches(
-        self,
-        remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
-        linear: bool = False,
+            self,
+            remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+            linear: bool = False,
     ) -> None:
         prev_prog_instance_id = -1
         for batch_id, batch in self._batches.items():
@@ -387,11 +387,11 @@ class NodeScheduler(Protocol):
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             if (
-                self._last_cpu_task_pid != -1
-                and self.is_program_instance_finished(self._last_cpu_task_pid)
+                    self._last_cpu_task_pid != -1
+                    and self.is_program_instance_finished(self._last_cpu_task_pid)
             ) or (
-                self._last_qpu_task_pid != -1
-                and self.is_program_instance_finished(self._last_qpu_task_pid)
+                    self._last_qpu_task_pid != -1
+                    and self.is_program_instance_finished(self._last_qpu_task_pid)
             ):
                 self.schedule_all()
             ev_expr = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
@@ -417,8 +417,8 @@ class NodeScheduler(Protocol):
             # If there is a task that is finished at the current time, assign the next, but we do not need to assign
             # again if it is the same pid as the one that came from CPU
             if (
-                self._last_qpu_task_pid != -1
-                and self._last_qpu_task_pid != self._last_cpu_task_pid
+                    self._last_qpu_task_pid != -1
+                    and self._last_qpu_task_pid != self._last_cpu_task_pid
             ):
                 self.schedule_next_for(self._last_qpu_task_pid)
 
@@ -486,7 +486,7 @@ class NodeScheduler(Protocol):
             self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
 
     def find_next_tasks_for(
-        self, pid: int
+            self, pid: int
     ) -> Tuple[Optional[Dict[int, TaskInfo]], Optional[Dict[int, TaskInfo]]]:
         """
         Finds the tasks of the next block for program instance with given pid,
@@ -500,8 +500,8 @@ class NodeScheduler(Protocol):
         new_qpu_tasks: Dict[int, TaskInfo] = {}
 
         if (
-            pid in self.host.interface.program_instance_jumps
-            and self.host.interface.program_instance_jumps[pid] != -1
+                pid in self.host.interface.program_instance_jumps
+                and self.host.interface.program_instance_jumps[pid] != -1
         ):
             self._current_block_index[pid] = self.host.interface.program_instance_jumps[
                 pid
@@ -565,7 +565,7 @@ class NodeScheduler(Protocol):
         )
 
     def submit_program_instance(
-        self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
+            self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
     ) -> None:
         process = self.create_process(prog_instance, remote_pid)
         self.memmgr.add_process(process)
@@ -606,13 +606,13 @@ class ProcessorSchedulerComponent(Component):
 
 class ProcessorScheduler(Protocol):
     def __init__(
-        self,
-        name: str,
-        node_id: int,
-        driver: Driver,
-        memmgr: MemoryManager,
-        deterministic: bool = True,
-        use_deadlines: bool = True,
+            self,
+            name: str,
+            node_id: int,
+            driver: Driver,
+            memmgr: MemoryManager,
+            deterministic: bool = True,
+            use_deadlines: bool = True,
     ) -> None:
         super().__init__(name=name)
         self.add_signal(SIGNAL_TASK_COMPLETED)
@@ -748,13 +748,13 @@ class SchedulerStatus:
 
 class EdfScheduler(ProcessorScheduler):
     def __init__(
-        self,
-        name: str,
-        node_id: int,
-        driver: Driver,
-        memmgr: MemoryManager,
-        deterministic: bool = True,
-        use_deadlines: bool = True,
+            self,
+            name: str,
+            node_id: int,
+            driver: Driver,
+            memmgr: MemoryManager,
+            deterministic: bool = True,
+            use_deadlines: bool = True,
     ) -> None:
         super().__init__(
             name=name,
@@ -822,14 +822,14 @@ class EdfScheduler(ProcessorScheduler):
 
 class CpuEdfScheduler(EdfScheduler):
     def __init__(
-        self,
-        name: str,
-        node_id: int,
-        driver: CpuDriver,
-        memmgr: MemoryManager,
-        host_interface: HostInterface,
-        deterministic: bool = True,
-        use_deadlines: bool = True,
+            self,
+            name: str,
+            node_id: int,
+            driver: CpuDriver,
+            memmgr: MemoryManager,
+            host_interface: HostInterface,
+            deterministic: bool = True,
+            use_deadlines: bool = True,
     ) -> None:
         super().__init__(
             name=name,
@@ -890,7 +890,7 @@ class CpuEdfScheduler(EdfScheduler):
             tid: tg.get_tinfo(tid).start_time  # type: ignore
             for tid in no_predecessors
             if tg.get_tinfo(tid).start_time is not None
-            and tg.get_tinfo(tid).start_time > now
+               and tg.get_tinfo(tid).start_time > now
         }
         wait_for_start: Optional[Tuple[int, float]] = None  # (task ID, start time)
         if len(with_future_start) > 0:
@@ -996,14 +996,14 @@ class CpuEdfScheduler(EdfScheduler):
 
 class QpuEdfScheduler(EdfScheduler):
     def __init__(
-        self,
-        name: str,
-        node_id: int,
-        driver: QpuDriver,
-        memmgr: MemoryManager,
-        network_schedule: Optional[EhiNetworkSchedule] = None,
-        deterministic: bool = True,
-        use_deadlines: bool = True,
+            self,
+            name: str,
+            node_id: int,
+            driver: QpuDriver,
+            memmgr: MemoryManager,
+            network_schedule: Optional[EhiNetworkSchedule] = None,
+            deterministic: bool = True,
+            use_deadlines: bool = True,
     ) -> None:
         super().__init__(
             name=name,
@@ -1164,7 +1164,6 @@ class QpuEdfScheduler(EdfScheduler):
         for e in epr_no_preds_not_blocked:
             if self._network_schedule is not None:
                 # Find the time until the next netschedule timebin that allows this EPR task.
-
 
                 bin = self.timebin_for_task(e)
                 self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")

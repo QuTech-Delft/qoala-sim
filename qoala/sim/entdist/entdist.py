@@ -37,25 +37,27 @@ class EntDistRequest:
 
     def is_opposite(self, req: EntDistRequest) -> bool:
         return (
-            self.local_node_id == req.remote_node_id
-            and self.remote_node_id == req.local_node_id
-            and self.local_pid == req.remote_pid
-            and self.remote_pid == req.local_pid
+                self.local_node_id == req.remote_node_id
+                and self.remote_node_id == req.local_node_id
+                and self.local_pid == req.remote_pid
+                and self.remote_pid == req.local_pid
         )
 
     def matches_timebin(self, bin: EhiNetworkTimebin) -> bool:
         if frozenset({self.local_node_id, self.remote_node_id}) != bin.nodes:
             return False
         return (
-            bin.pids[self.local_node_id] == self.local_pid
-            and bin.pids[self.remote_node_id] == self.remote_pid
+                bin.pids[self.local_node_id] == self.local_pid
+                and bin.pids[self.remote_node_id] == self.remote_pid
         )
+
 
 @dataclass(frozen=True)
 class WindowedEntDistRequest(EntDistRequest):
     local_qubit_id: List[int]
     window: int
     num_pairs: int
+
 
 @dataclass(frozen=True)
 class JointRequest:
@@ -66,6 +68,7 @@ class JointRequest:
     node1_pid: int
     node2_pid: int
 
+
 @dataclass(frozen=True)
 class WindowedJointRequest(JointRequest):
     node1_qubit_id: List[int]
@@ -73,12 +76,14 @@ class WindowedJointRequest(JointRequest):
     window: int
     num_pairs: int
 
+
 @dataclass
 class OutstandingRequest:
     request: JointRequest
     end_of_qc: float
     link_generation_times: List[float]
     next_qubit_index: Optional[int] = None
+
 
 @dataclass
 class EprDeliverySample:
@@ -98,6 +103,7 @@ class DelayedSampler:
     sampler: StateDeliverySampler
     delay: float
 
+
 @dataclass
 class TimedEntDistRequest:
     request: EntDistRequest
@@ -105,10 +111,10 @@ class TimedEntDistRequest:
 
 class EntDist(Protocol):
     def __init__(
-        self,
-        nodes: List[Node],
-        ehi_network: EhiNetworkInfo,
-        comp: EntDistComponent,
+            self,
+            nodes: List[Node],
+            ehi_network: EhiNetworkInfo,
+            comp: EntDistComponent,
     ) -> None:
         super().__init__(name=f"{comp.name}_protocol")
 
@@ -136,7 +142,8 @@ class EntDist(Protocol):
         )
 
         self._outstanding_requests: List[OutstandingRequest] = []  # OutstandingRequest(req., end of QC,link_gen_times)
-        self._outstanding_generated_pairs: Dict[float,List[Tuple[EprDeliverySample, OutstandingRequest]]] = {}  # delay:(sample, req.); a request in here means there is a pair to deliver in this time slot.
+        self._outstanding_generated_pairs: Dict[float, List[Tuple[
+            EprDeliverySample, OutstandingRequest]]] = {}  # delay:(sample, req.); a request in here means there is a pair to deliver in this time slot.
 
     @property
     def comp(self) -> EntDistComponent:
@@ -146,12 +153,12 @@ class EntDist(Protocol):
         self._requests = {id: [] for id in self._nodes.keys()}
 
     def _add_sampler(
-        self,
-        node1_id: int,
-        node2_id: int,
-        factory: IStateDeliverySamplerFactory,
-        kwargs: Dict[str, Any],
-        delay: float,
+            self,
+            node1_id: int,
+            node2_id: int,
+            factory: IStateDeliverySamplerFactory,
+            kwargs: Dict[str, Any],
+            delay: float,
     ) -> None:
         if node1_id == node2_id:
             raise ValueError("Cannot add sampler for same node.")
@@ -197,7 +204,6 @@ class EntDist(Protocol):
         qubitapi.assign_qstate([q0, q1], state)
         return q0, q1
 
-
     def test_single_time_slot(
             self,
             node1_id: int,
@@ -206,7 +212,7 @@ class EntDist(Protocol):
         timed_sampler = self.get_sampler(node1_id, node2_id)
         sample = self.sample_state(timed_sampler.sampler)
 
-        if sample.duration != 0.: # Sample time is zero if there were no failures, i.e. the state was immediately produced.
+        if sample.duration != 0.:  # Sample time is zero if there were no failures, i.e. the state was immediately produced.
 
             return None, None, None
 
@@ -219,7 +225,9 @@ class EntDist(Protocol):
         delivery_times = list(self._outstanding_generated_pairs.keys())
         delivery_times.sort()
 
-        delivery_times_offset =[ delivery_times[0]] + ([delivery_times[i] - delivery_times[i-1] for i in range(1,len(delivery_times))] if len(delivery_times) > 1 else [])
+        delivery_times_offset = [delivery_times[0]] + (
+            [delivery_times[i] - delivery_times[i - 1] for i in range(1, len(delivery_times))] if len(
+                delivery_times) > 1 else [])
 
         assert len(delivery_times) == len(delivery_times_offset)
 
@@ -246,13 +254,13 @@ class EntDist(Protocol):
                     node1_phys_id = outstanding_request.request.node1_qubit_id[outstanding_request.next_qubit_index]
                     node2_phys_id = outstanding_request.request.node2_qubit_id[outstanding_request.next_qubit_index]
 
-                    outstanding_request.next_qubit_index = (outstanding_request.next_qubit_index + 1) % len(outstanding_request.request.node2_qubit_id)
+                    outstanding_request.next_qubit_index = (outstanding_request.next_qubit_index + 1) % len(
+                        outstanding_request.request.node2_qubit_id)
 
                 else:
 
                     node1_phys_id = outstanding_request.request.node1_qubit_id
                     node2_phys_id = outstanding_request.request.node2_qubit_id
-
 
                 node1_mem = self._nodes[node1_id].qmemory
                 node2_mem = self._nodes[node2_id].qmemory
@@ -273,7 +281,7 @@ class EntDist(Protocol):
                 node1_mem.put(qubits=epr[0], positions=node1_phys_id)
                 node2_mem.put(qubits=epr[1], positions=node2_phys_id)
 
-                self._logger.warning(f"Created pair for demand {(node1_id,node1_pid, node2_id, node2_pid)}")
+                self._logger.warning(f"Created pair for demand {(node1_id, node1_pid, node2_id, node2_pid)}")
 
                 outstanding_request.link_generation_times.append(now)
 
@@ -283,23 +291,24 @@ class EntDist(Protocol):
                     for t in outstanding_request.link_generation_times:
                         if now - t > outstanding_request.request.window:
                             outstanding_request.link_generation_times.remove(t)
-                            self._logger.warning(f"Dumped pair created at time {t} for demand {(node1_id,node1_pid, node2_id, node2_pid)} due to exceeding window")
+                            self._logger.warning(
+                                f"Dumped pair created at time {t} for demand {(node1_id, node1_pid, node2_id, node2_pid)} due to exceeding window")
 
                     if len(outstanding_request.link_generation_times) == outstanding_request.request.num_pairs:
-                        satisfied_packet=True
+                        satisfied_packet = True
 
                 else:
                     satisfied_packet = True  # Non-windowed packet should be single pair only...
 
                 if satisfied_packet:
-
                     node1 = self._interface.remote_id_to_peer_name(node1_id)
                     node2 = self._interface.remote_id_to_peer_name(node2_id)
                     # TODO: use PIDs??
                     self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
                     self._interface.send_node_msg(node2, Message(-1, -1, outstanding_request.request.node2_pid))
 
-                    self._logger.warning(f"Packet of entanglement successfully created for demand {(node1_id,node1_pid, node2_id, node2_pid)}")
+                    self._logger.warning(
+                        f"Packet of entanglement successfully created for demand {(node1_id, node1_pid, node2_id, node2_pid)}")
 
                     self._outstanding_requests.remove(outstanding_request)
 
@@ -307,24 +316,14 @@ class EntDist(Protocol):
 
         assert len(self._outstanding_generated_pairs.keys()) == 0
 
-
-
-
-
-
-
-
-
-
-
     def deliver(
-        self,
-        node1_id: int,
-        node1_phys_id: int,
-        node2_id: int,
-        node2_phys_id: int,
-        node1_pid: int,
-        node2_pid: int,
+            self,
+            node1_id: int,
+            node1_phys_id: int,
+            node2_id: int,
+            node2_phys_id: int,
+            node1_pid: int,
+            node2_pid: int,
     ) -> Generator[EventExpression, None, None]:
         timed_sampler = self.get_sampler(node1_id, node2_id)
         sample = self.sample_state(timed_sampler.sampler)
@@ -366,16 +365,15 @@ class EntDist(Protocol):
         self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
         self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
 
-
     def deliver_with_failure(
-        self,
-        node1_id: int,
-        node1_phys_id: int,
-        node2_id: int,
-        node2_phys_id: int,
-        node1_pid: int,
-        node2_pid: int,
-        cutoff: float | None = None,
+            self,
+            node1_id: int,
+            node1_phys_id: int,
+            node2_id: int,
+            node2_phys_id: int,
+            node1_pid: int,
+            node2_pid: int,
+            cutoff: float | None = None,
     ) -> Generator[EventExpression, None, None]:
         """
         Will return a failure if the length of time it would take to generate an entangled link is longer than the time allowed by cutoff. If cutoff is None, then will attempt to get the cutoff from the network schedule.
@@ -388,19 +386,20 @@ class EntDist(Protocol):
         self._logger.info(f"total duration: {timed_sampler.delay}")
         total_delay = sample.duration + timed_sampler.delay
 
-        if cutoff is None and (self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
+        if cutoff is None and (
+        self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
             try:
                 cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
                 self._logger.warning(
                     f"Set max QC length to {cutoff}")
             except KeyError:
                 cutoff = None
-                self._logger.warning(f"No known QC length for session {(node1_id, node1_pid, node2_id, node2_pid)}, defaulting to None")
-
+                self._logger.warning(
+                    f"No known QC length for session {(node1_id, node1_pid, node2_id, node2_pid)}, defaulting to None")
 
         if cutoff is not None:
             if total_delay > cutoff:
-                self._schedule_after(cutoff-1, CUTOFF_REACHED)
+                self._schedule_after(cutoff - 1, CUTOFF_REACHED)
                 #  Cutoff-1 to stop off-by-one errors once it tries to request the next entanglement.
                 event_expr = EventExpression(source=self, event_type=CUTOFF_REACHED)
                 yield event_expr
@@ -412,8 +411,6 @@ class EntDist(Protocol):
                 self._interface.send_node_msg(node2, Message(-1, -1, None))
 
                 self._logger.warning("Entanglement Generation Failed")
-
-
 
                 return
 
@@ -450,36 +447,38 @@ class EntDist(Protocol):
         self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
 
     def deliver_with_failure_windowed(
-        self,
-        node1_id: int,
-        node1_phys_id: List[int],
-        node2_id: int,
-        node2_phys_id: List[int],
-        node1_pid: int,
-        node2_pid: int,
-        window: int,
-        num_pairs: int,
-        cutoff: float | None = None,
+            self,
+            node1_id: int,
+            node1_phys_id: List[int],
+            node2_id: int,
+            node2_phys_id: List[int],
+            node1_pid: int,
+            node2_pid: int,
+            window: int,
+            num_pairs: int,
+            cutoff: float | None = None,
     ) -> Generator[EventExpression, None, None]:
         """
         Will return a failure if the length of time it would take to generate an entangled link is longer than the time allowed by cutoff. If cutoff is None, then will attempt to get the cutoff from the network schedule.
         """
 
-        if cutoff is None and (self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
+        if cutoff is None and (
+        self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
             try:
                 cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
                 self._logger.warning(
                     f"Set max QC length to {cutoff}")
             except KeyError:
                 cutoff = None
-                self._logger.warning(f"No known QC length for session {(node1_id, node1_pid, node2_id, node2_pid)}, defaulting to None")
+                self._logger.warning(
+                    f"No known QC length for session {(node1_id, node1_pid, node2_id, node2_pid)}, defaulting to None")
 
         assert num_pairs == len(node1_phys_id) == len(node2_phys_id)
 
         total_elapsed_time_in_request = 0
         links_generated = -1
-        link_generation_time_dictionary: Dict[int, Union[int, None]] = {x:None for x in range(num_pairs)}  # Just need to track the ages on one side.
-
+        link_generation_time_dictionary: Dict[int, Union[int, None]] = {x: None for x in range(
+            num_pairs)}  # Just need to track the ages on one side.
 
         node1_mem = self._nodes[node1_id].qmemory
         node2_mem = self._nodes[node2_id].qmemory
@@ -489,14 +488,14 @@ class EntDist(Protocol):
             sample = self.sample_state(timed_sampler.sampler)
             links_generated += 1
 
-
             self._logger.info(f"sample duration: {sample.duration}")
             self._logger.info(f"total duration: {timed_sampler.delay}")
 
             time_to_get_pair = sample.duration + timed_sampler.delay
             total_elapsed_time_in_request += sample.duration + timed_sampler.delay
 
-            self._logger.info(f"Next pair ({links_generated}) would be generated at time {total_elapsed_time_in_request} after start of PGA")
+            self._logger.info(
+                f"Next pair ({links_generated}) would be generated at time {total_elapsed_time_in_request} after start of PGA")
 
             if not (total_elapsed_time_in_request < cutoff if cutoff is not None else True):
                 for memory_slot in range(num_pairs):
@@ -506,11 +505,10 @@ class EntDist(Protocol):
 
                 time_to_cutoff = cutoff - (total_elapsed_time_in_request - time_to_get_pair)
 
-                self._schedule_after(time_to_cutoff-1, CUTOFF_REACHED)
+                self._schedule_after(time_to_cutoff - 1, CUTOFF_REACHED)
                 #  Cutoff-1 to stop off-by-one errors once it tries to request the next entanglement.
                 event_expr = EventExpression(source=self, event_type=CUTOFF_REACHED)
                 yield event_expr
-
 
                 node1 = self._interface.remote_id_to_peer_name(node1_id)
                 node2 = self._interface.remote_id_to_peer_name(node2_id)
@@ -522,18 +520,16 @@ class EntDist(Protocol):
 
                 return
 
-
-
             memory_slot = links_generated % num_pairs
             epr = self.create_epr_pair_with_state(sample.state)
-
 
             self._schedule_after(time_to_get_pair, EPR_DELIVERY)
             #  Cutoff-1 to stop off-by-one errors once it tries to request the next entanglement.
             event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
             yield event_expr
 
-            self._logger.warning(f"Generated pair number {links_generated} for a windowed packet in slot index {memory_slot}")
+            self._logger.warning(
+                f"Generated pair number {links_generated} for a windowed packet in slot index {memory_slot}")
             link_generation_time_dictionary[memory_slot] = total_elapsed_time_in_request
 
             if not (0 <= node1_phys_id[memory_slot] < node1_mem.num_positions):
@@ -553,15 +549,16 @@ class EntDist(Protocol):
             node2_mem.put(qubits=epr[1], positions=node2_phys_id[memory_slot])
 
             for slot in range(num_pairs):
-                if total_elapsed_time_in_request - link_generation_time_dictionary[slot] > window if link_generation_time_dictionary[slot] is not None else False:
+                if total_elapsed_time_in_request - link_generation_time_dictionary[slot] > window if \
+                link_generation_time_dictionary[slot] is not None else False:
                     # If links are too old, then release use of memory slot
-                    node1_mem.mem_positions[node1_phys_id[slot]].in_use = False   # TODO: separate bool for "alive"
+                    node1_mem.mem_positions[node1_phys_id[slot]].in_use = False  # TODO: separate bool for "alive"
                     node2_mem.mem_positions[node2_phys_id[slot]].in_use = False
                     link_generation_time_dictionary[slot] = None
                     self._logger.warning(f"Dumped pair in slot {slot}")
 
-            if all(node1_mem.mem_positions[node1_phys_id[slot]].in_use for slot in range(num_pairs)) and all(node2_mem.mem_positions[node2_phys_id[slot]].in_use for slot in range(num_pairs)):
-
+            if all(node1_mem.mem_positions[node1_phys_id[slot]].in_use for slot in range(num_pairs)) and all(
+                    node2_mem.mem_positions[node2_phys_id[slot]].in_use for slot in range(num_pairs)):
                 # Then all slots in use and holding recent enough pairs to form a valid packet:
 
                 self._logger.warning("Packet of entanglement successfully created")
@@ -573,11 +570,6 @@ class EntDist(Protocol):
                 self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
 
                 return
-
-
-
-
-
 
     def put_request(self, request: EntDistRequest) -> None:
         if request.local_node_id not in self._nodes:
@@ -662,13 +654,14 @@ class EntDist(Protocol):
         # No joint requests found
         return None
 
-    def get_all_joint_requests(self) -> Tuple[Optional[List[JointRequest]],List[int]]:
+    def get_all_joint_requests(self) -> Tuple[Optional[List[JointRequest]], List[int]]:
         _all_joint_requests: List[JointRequest] = []
         while True:
             next_joint_request = self.get_next_joint_request()
             if next_joint_request is not None:
                 _all_joint_requests.append(next_joint_request)
-                self._logger.warning(f"Accepted joint request from demand {(next_joint_request.node1_id,next_joint_request.node1_pid,next_joint_request.node2_id,next_joint_request.node2_pid)}")
+                self._logger.warning(
+                    f"Accepted joint request from demand {(next_joint_request.node1_id, next_joint_request.node1_pid, next_joint_request.node2_id, next_joint_request.node2_pid)}")
             else:
                 break
 
@@ -676,9 +669,8 @@ class EntDist(Protocol):
 
         return (_all_joint_requests if _all_joint_requests != [] else None), outstanding_nodes
 
-
     def serve_request(
-        self, request: JointRequest, fixed_length_qc_blocks: bool = False, cutoff: Union[int, None] = None
+            self, request: JointRequest, fixed_length_qc_blocks: bool = False, cutoff: Union[int, None] = None
     ) -> Generator[EventExpression, None, None]:
         if fixed_length_qc_blocks:
             if isinstance(request, WindowedJointRequest):
@@ -787,18 +779,13 @@ class EntDist(Protocol):
 
         """
 
-
         assert self._netschedule is not None
 
         while True:
 
-
-
             if not self._outstanding_requests:
                 # Wait until a message arrives.
                 yield from self._interface.wait_for_any_msg()
-
-
 
             # Wait until the next time bin.
             now = ns.sim_time()
@@ -839,7 +826,6 @@ class EntDist(Protocol):
 
             all_new_joint_requests, outstanding_nodes = self.get_all_joint_requests()
 
-
             for node_id in outstanding_nodes:
                 node = self._interface.remote_id_to_peer_name(node_id)
                 self._interface.send_node_msg(node, Message(-1, -1, None))
@@ -857,9 +843,14 @@ class EntDist(Protocol):
                 for request in all_new_joint_requests:
                     request: JointRequest
                     try:
-                        self._outstanding_requests.append(OutstandingRequest(request, ns.sim_time() + self._netschedule.length_of_qc_blocks[(request.node1_id, request.node1_pid, request.node2_id, request.node2_pid)]-1, [], 0))
+                        self._outstanding_requests.append(OutstandingRequest(request, ns.sim_time() +
+                                                                             self._netschedule.length_of_qc_blocks[(
+                                                                             request.node1_id, request.node1_pid,
+                                                                             request.node2_id, request.node2_pid)] - 1,
+                                                                             [], 0))
                     except KeyError as F:
-                        self._logger.warning(f"No specified QC block length for {(request.node1_id, request.node1_pid,request.node2_id,request.node2_pid)}, defaulting to None")
+                        self._logger.warning(
+                            f"No specified QC block length for {(request.node1_id, request.node1_pid, request.node2_id, request.node2_pid)}, defaulting to None")
                         self._outstanding_requests.append(OutstandingRequest(request, math.inf, []))
 
             # Determine if a request has expired, or if a pair is delivered for that request.
@@ -875,41 +866,33 @@ class EntDist(Protocol):
                     else:
                         self._outstanding_generated_pairs[delay] = [(sample, outstanding_request)]
 
-
             if self._outstanding_generated_pairs:
-               yield from self.deliver_outstanding_pairs()
+                yield from self.deliver_outstanding_pairs()
 
             now = ns.sim_time()
 
             next_slot_time, _ = self._netschedule.next_bin(now, future=True)
             if next_slot_time - now - 1 > 0:
-                yield from self._interface.wait(next_slot_time - now - 1)  # Should advance to 1ns before the end of current time slot.
+                yield from self._interface.wait(
+                    next_slot_time - now - 1)  # Should advance to 1ns before the end of current time slot.
 
             expired_requests = []
             for outstanding_request in self._outstanding_requests:
 
-
                 if outstanding_request.end_of_qc <= ns.sim_time():
-
                     node1 = self._interface.remote_id_to_peer_name(outstanding_request.request.node1_id)
                     node2 = self._interface.remote_id_to_peer_name(outstanding_request.request.node2_id)
                     self._interface.send_node_msg(node1, Message(-1, -1, None))
                     self._interface.send_node_msg(node2, Message(-1, -1, None))
 
-                    self._logger.warning(f"Entanglement Packet Generation Failed for demand {(outstanding_request.request.node1_id, outstanding_request.request.node1_pid, outstanding_request.request.node2_id,outstanding_request.request.node2_pid)}")
+                    self._logger.warning(
+                        f"Entanglement Packet Generation Failed for demand {(outstanding_request.request.node1_id, outstanding_request.request.node1_pid, outstanding_request.request.node2_id, outstanding_request.request.node2_pid)}")
                     expired_requests.append(outstanding_request)
 
             for e in expired_requests:
-                self._outstanding_requests.remove(e)  # Need to do this with a separate list rather than removing in iterator above as otherwise does not iterate over the entire list,
-                                                      # causing some requests to survive for an extra  timestep.
-
-
-
-
-
-
-
-
+                self._outstanding_requests.remove(
+                    e)  # Need to do this with a separate list rather than removing in iterator above as otherwise does not iterate over the entire list,
+                # causing some requests to survive for an extra  timestep.
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         assert self._netschedule is not None

@@ -105,7 +105,7 @@ class QDevice:
         self.qprocessor.mem_positions[id].in_use = in_use
 
     def execute_commands(
-        self, commands: List[QDeviceCommand], parallel: bool = False
+            self, commands: List[QDeviceCommand], parallel: bool = False
     ) -> Generator[EventExpression, None, Optional[Union[int, List[int]]]]:
         prog = QuantumProgram(parallel=parallel)
 
@@ -156,7 +156,7 @@ class QDevice:
         return None
 
     def execute_program(
-        self, prog: QuantumProgram
+            self, prog: QuantumProgram
     ) -> Generator[EventExpression, None, None]:
         raise DeprecationWarning
 

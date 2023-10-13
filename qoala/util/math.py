@@ -53,14 +53,14 @@ def has_state(qubit: Qubit, state: np.ndarray, margin: float = 0.001) -> bool:
 
 
 def has_multi_state(
-    qubits: List[Qubit], state: np.ndarray, margin: float = 0.001
+        qubits: List[Qubit], state: np.ndarray, margin: float = 0.001
 ) -> bool:
     fidelity = qubitapi.fidelity(qubits, state, squared=True)
     return math.isclose(1.0, fidelity, abs_tol=margin)
 
 
 def density_matrices_equal(
-    state1: np.ndarray, state2: np.ndarray, margin: float = 0.001
+        state1: np.ndarray, state2: np.ndarray, margin: float = 0.001
 ) -> bool:
     distance = np.linalg.norm(state1 - state2, 1) / 2
     return math.isclose(0, distance, abs_tol=margin)

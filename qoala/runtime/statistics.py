@@ -5,13 +5,13 @@ from qoala.runtime.task import QoalaTask
 
 class SchedulerStatistics:
     def __init__(
-        self,
-        cpu_tasks_executed: Dict[int, QoalaTask],
-        qpu_tasks_executed: Dict[int, QoalaTask],
-        cpu_task_starts: Dict[int, float],
-        qpu_task_starts: Dict[int, float],
-        cpu_task_ends: Dict[int, float],
-        qpu_task_ends: Dict[int, float],
+            self,
+            cpu_tasks_executed: Dict[int, QoalaTask],
+            qpu_tasks_executed: Dict[int, QoalaTask],
+            cpu_task_starts: Dict[int, float],
+            qpu_task_starts: Dict[int, float],
+            cpu_task_ends: Dict[int, float],
+            qpu_task_ends: Dict[int, float],
     ) -> None:
         # task ID -> task
         self._cpu_tasks_executed = cpu_tasks_executed

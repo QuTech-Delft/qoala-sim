@@ -40,10 +40,10 @@ class VirtualLocation:
 
 class MemoryManager(Protocol):
     def __init__(
-        self,
-        node_name: str,
-        qdevice: QDevice,
-        ehi: Optional[EhiNodeInfo] = None,  # TODO refactor?
+            self,
+            node_name: str,
+            qdevice: QDevice,
+            ehi: Optional[EhiNodeInfo] = None,  # TODO refactor?
     ) -> None:
         self._node_name = node_name
         self._processes: Dict[int, QoalaProcess] = {}

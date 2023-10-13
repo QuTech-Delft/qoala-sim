@@ -32,9 +32,9 @@ class HostInterface(ComponentProtocol):
     """NetSquid protocol representing a Host."""
 
     def __init__(
-        self,
-        comp: HostComponent,
-        ehi_network: EhiNetworkInfo,
+            self,
+            comp: HostComponent,
+            ehi_network: EhiNetworkInfo,
     ) -> None:
         """Host protocol constructor.
 
@@ -96,7 +96,7 @@ class HostInterface(ComponentProtocol):
         return self._get_evexpr_for_any_msg(self._listener_names, self._signal_names)
 
     def handle_msg_evexpr(
-        self, evexpr: EventExpression
+            self, evexpr: EventExpression
     ) -> Generator[EventExpression, None, None]:
         yield from self._handle_msg_evexpr(evexpr, self._listener_names)
 

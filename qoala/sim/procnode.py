@@ -26,20 +26,20 @@ class ProcNode(Protocol):
     """NetSquid protocol representing a node with a software stack."""
 
     def __init__(
-        self,
-        name: str,
-        qprocessor: QuantumProcessor,
-        qdevice_topology: LhiTopology,
-        latencies: LhiLatencies,
-        ntf_interface: NtfInterface,
-        network_ehi: EhiNetworkInfo,
-        node: Optional[ProcNodeComponent] = None,
-        node_id: Optional[int] = None,
-        scheduler: Optional[NodeScheduler] = None,
-        asynchronous: bool = False,
-        deterministic_scheduler: bool = True,
-        use_deadlines: bool = True,
-        is_predictable: bool = False,
+            self,
+            name: str,
+            qprocessor: QuantumProcessor,
+            qdevice_topology: LhiTopology,
+            latencies: LhiLatencies,
+            ntf_interface: NtfInterface,
+            network_ehi: EhiNetworkInfo,
+            node: Optional[ProcNodeComponent] = None,
+            node_id: Optional[int] = None,
+            scheduler: Optional[NodeScheduler] = None,
+            asynchronous: bool = False,
+            deterministic_scheduler: bool = True,
+            use_deadlines: bool = True,
+            is_predictable: bool = False,
     ) -> None:
         """ProcNode constructor.
 
@@ -244,10 +244,10 @@ class ProcNode(Protocol):
         return self.scheduler.submit_batch(batch_info)
 
     def initialize_processes(
-        self,
-        remote_pids: Optional[Dict[int, List[int]]] = None,
-        linear: bool = False
-        # batch ID -> PID list
+            self,
+            remote_pids: Optional[Dict[int, List[int]]] = None,
+            linear: bool = False
+            # batch ID -> PID list
     ) -> None:
         self.scheduler.create_processes_for_batches(remote_pids, linear)
 

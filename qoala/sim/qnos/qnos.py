@@ -20,14 +20,14 @@ class Qnos(Protocol):
     """NetSquid protocol representing a QNodeOS instance."""
 
     def __init__(
-        self,
-        comp: QnosComponent,
-        ehi_network: EhiNetworkInfo,
-        memmgr: MemoryManager,
-        qdevice: QDevice,
-        latencies: QnosLatencies,
-        ntf_interface: NtfInterface,
-        asynchronous: bool = False,
+            self,
+            comp: QnosComponent,
+            ehi_network: EhiNetworkInfo,
+            memmgr: MemoryManager,
+            qdevice: QDevice,
+            latencies: QnosLatencies,
+            ntf_interface: NtfInterface,
+            asynchronous: bool = False,
     ) -> None:
         """Qnos protocol constructor.
 
@@ -48,7 +48,7 @@ class Qnos(Protocol):
         self.create_processor(ntf_interface, latencies)
 
     def create_processor(
-        self, ntf_interface: NtfInterface, latencies: QnosLatencies
+            self, ntf_interface: NtfInterface, latencies: QnosLatencies
     ) -> None:
         if isinstance(ntf_interface, GenericNtf):
             self._processor = GenericProcessor(

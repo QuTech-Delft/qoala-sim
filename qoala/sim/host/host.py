@@ -13,11 +13,11 @@ class Host(Protocol):
     """NetSquid protocol representing a Host."""
 
     def __init__(
-        self,
-        comp: HostComponent,
-        ehi_network: EhiNetworkInfo,
-        latencies: HostLatencies,
-        asynchronous: bool = False,
+            self,
+            comp: HostComponent,
+            ehi_network: EhiNetworkInfo,
+            latencies: HostLatencies,
+            asynchronous: bool = False,
     ) -> None:
         """Host protocol constructor.
 
@@ -56,6 +56,6 @@ class Host(Protocol):
         super().stop()
 
     def create_csocket(
-        self, remote_name: str, pid: int, remote_pid: int
+            self, remote_name: str, pid: int, remote_pid: int
     ) -> ClassicalSocket:
         return ClassicalSocket(self._interface, remote_name, pid, remote_pid)

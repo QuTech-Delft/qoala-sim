@@ -17,7 +17,7 @@ from qoala.util.logging import LogManager
 
 class NetstackProcessor:
     def __init__(
-        self, interface: NetstackInterface, latencies: NetstackLatencies
+            self, interface: NetstackInterface, latencies: NetstackLatencies
     ) -> None:
         self._interface = interface
         self._latencies = latencies
@@ -48,7 +48,7 @@ class NetstackProcessor:
         return self._interface.qdevice
 
     def _execute_entdist_request(
-        self, request: EntDistRequest
+            self, request: EntDistRequest
     ) -> Generator[EventExpression, None, bool]:
         self._interface.send_entdist_msg(Message(-1, -1, request))
         result = yield from self._interface.receive_entdist_msg()
@@ -56,7 +56,7 @@ class NetstackProcessor:
         return result.content is not None
 
     def _allocate_for_pair(
-        self, process: QoalaProcess, request: QoalaRequest, index: int
+            self, process: QoalaProcess, request: QoalaRequest, index: int
     ) -> int:
         memmgr = self._interface.memmgr
         pid = process.pid
@@ -67,7 +67,7 @@ class NetstackProcessor:
         return virt_id
 
     def _create_entdist_request(
-        self, process: QoalaProcess, request: QoalaRequest, virt_id: int
+            self, process: QoalaProcess, request: QoalaRequest, virt_id: int
     ) -> EntDistRequest:
         memmgr = self._interface.memmgr
         pid = process.pid
@@ -84,14 +84,13 @@ class NetstackProcessor:
         )
 
     def _create_windowed_entdist_request(
-        self, process: QoalaProcess, request: QoalaRequest, virt_ids: List[int]
+            self, process: QoalaProcess, request: QoalaRequest, virt_ids: List[int]
     ) -> EntDistRequest:
         memmgr = self._interface.memmgr
         pid = process.pid
         phys_ids = []
         for virt_id in virt_ids:
             phys_ids.append(memmgr.phys_id_for(pid, virt_id))
-
 
         epr_sck = process.epr_sockets[request.epr_socket_id]
 
@@ -106,7 +105,7 @@ class NetstackProcessor:
         )
 
     def measure_epr_qubit(
-        self, process: QoalaProcess, virt_id: int
+            self, process: QoalaProcess, virt_id: int
     ) -> Generator[EventExpression, None, int]:
         phys_id = self._interface.memmgr.phys_id_for(process.pid, virt_id)
         # Should have been allocated by `_handle_multi_pair_md`
@@ -119,7 +118,7 @@ class NetstackProcessor:
         return m
 
     def _handle_multi_pair_ck(
-        self, process: QoalaProcess, routine_name: str
+            self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -138,7 +137,7 @@ class NetstackProcessor:
         return True
 
     def _handle_multi_pair_ck_windowed(
-        self, process: QoalaProcess, routine_name: str
+            self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -162,7 +161,7 @@ class NetstackProcessor:
         return True
 
     def _handle_multi_pair_md(
-        self, process: QoalaProcess, routine_name: str
+            self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -195,7 +194,7 @@ class NetstackProcessor:
         return True
 
     def handle_multi_pair(
-        self, process: QoalaProcess, routine_name: str
+            self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -213,7 +212,7 @@ class NetstackProcessor:
         return result
 
     def handle_multi_pair_callback(
-        self, process: QoalaProcess, routine_name: str, qnosprocessor: QnosProcessor
+            self, process: QoalaProcess, routine_name: str, qnosprocessor: QnosProcessor
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -239,7 +238,7 @@ class NetstackProcessor:
                 self._interface.memmgr.free(process.pid, virt_id)
 
     def handle_single_pair(
-        self, process: QoalaProcess, routine_name: str, index: int
+            self, process: QoalaProcess, routine_name: str, index: int
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -253,11 +252,11 @@ class NetstackProcessor:
         return result
 
     def handle_single_pair_callback(
-        self,
-        process: QoalaProcess,
-        routine_name: str,
-        qnosprocessor: QnosProcessor,
-        index: int,
+            self,
+            process: QoalaProcess,
+            routine_name: str,
+            qnosprocessor: QnosProcessor,
+            index: int,
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -282,10 +281,10 @@ class NetstackProcessor:
                 self._interface.memmgr.free(process.pid, virt_id)
 
     def instantiate_routine(
-        self,
-        process: QoalaProcess,
-        rrcall: RrCallTuple,
-        args: Dict[str, Any],
+            self,
+            process: QoalaProcess,
+            rrcall: RrCallTuple,
+            args: Dict[str, Any],
     ) -> None:
         """Instantiates and activates routine."""
         routine = process.get_request_routine(rrcall.routine_name)
@@ -302,7 +301,7 @@ class NetstackProcessor:
         process.qnos_mem.add_running_request_routine(running_routine)
 
     def _handle_req_routine_md(
-        self, process: QoalaProcess, routine_name: str
+            self, process: QoalaProcess, routine_name: str
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -331,10 +330,10 @@ class NetstackProcessor:
         shared_mem.write_rr_out(results_addr, outcomes)
 
     def _handle_req_routine_ck(
-        self,
-        process: QoalaProcess,
-        routine_name: str,
-        qnosprocessor: Optional[QnosProcessor] = None,
+            self,
+            process: QoalaProcess,
+            routine_name: str,
+            qnosprocessor: Optional[QnosProcessor] = None,
     ) -> Generator[EventExpression, None, None]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -354,8 +353,8 @@ class NetstackProcessor:
                     cb_routine = process.get_local_routine(routine.callback)
                     for virt_id in cb_routine.metadata.qubit_use:
                         if (
-                            self._interface.memmgr.phys_id_for(process.pid, virt_id)
-                            is None
+                                self._interface.memmgr.phys_id_for(process.pid, virt_id)
+                                is None
                         ):
                             self._interface.memmgr.allocate(process.pid, virt_id)
 
@@ -403,10 +402,10 @@ class NetstackProcessor:
                         self._interface.memmgr.free(process.pid, virt_id)
 
     def assign_request_routine(
-        self,
-        process: QoalaProcess,
-        rrcall: RrCallTuple,
-        qnosprocessor: Optional[QnosProcessor] = None,
+            self,
+            process: QoalaProcess,
+            rrcall: RrCallTuple,
+            qnosprocessor: Optional[QnosProcessor] = None,
     ) -> Generator[EventExpression, None, None]:
         routine = process.get_request_routine(rrcall.routine_name)
         global_args = process.prog_instance.inputs.values

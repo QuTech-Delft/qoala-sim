@@ -84,7 +84,7 @@ class EhiNodeInfo:
         return None
 
     def find_all_qubit_gate(
-        self, instr: Type[NetQASMInstruction]
+            self, instr: Type[NetQASMInstruction]
     ) -> Optional[EhiGateInfo]:
         if self.all_qubit_gate_infos is None:
             return None
@@ -132,16 +132,16 @@ class EhiBuilder:
 
     @classmethod
     def perfect_uniform(
-        cls,
-        num_qubits,
-        flavour: Type[Flavour],
-        single_instructions: List[Type[NetQASMInstruction]],
-        single_duration: float,
-        two_instructions: List[Type[NetQASMInstruction]],
-        two_duration: float,
-        all_qubit_instructions: List[Type[NetQASMInstruction]] = None,
-        all_qubit_duration: float = 0,
-        latencies: Optional[EhiLatencies] = None,
+            cls,
+            num_qubits,
+            flavour: Type[Flavour],
+            single_instructions: List[Type[NetQASMInstruction]],
+            single_duration: float,
+            two_instructions: List[Type[NetQASMInstruction]],
+            two_duration: float,
+            all_qubit_instructions: List[Type[NetQASMInstruction]] = None,
+            all_qubit_duration: float = 0,
+            latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         if all_qubit_instructions is None:
             return cls.fully_uniform(
@@ -172,14 +172,14 @@ class EhiBuilder:
 
     @classmethod
     def fully_uniform(
-        cls,
-        num_qubits,
-        qubit_info: EhiQubitInfo,
-        flavour: Type[Flavour],
-        single_gate_infos: List[EhiGateInfo],
-        two_gate_infos: List[EhiGateInfo],
-        all_qubit_gate_infos: List[EhiGateInfo] = None,
-        latencies: Optional[EhiLatencies] = None,
+            cls,
+            num_qubits,
+            qubit_info: EhiQubitInfo,
+            flavour: Type[Flavour],
+            single_gate_infos: List[EhiGateInfo],
+            two_gate_infos: List[EhiGateInfo],
+            all_qubit_gate_infos: List[EhiGateInfo] = None,
+            latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}
@@ -370,7 +370,6 @@ class EhiNetworkSchedule:
         """
         global_offset = time - self.first_bin
 
-
         # print(time)
 
         # Get the start of the current iteration of the repeating pattern.
@@ -407,7 +406,8 @@ class EhiNetworkSchedule:
             current_bin_index = 0  # If we don't have enough bins to fill the repeat_period, then if the query time is in the gap between the end of the schedule and the end of the repeat period, then the next bin is the first, i.e. index 0.
 
         for i, pat_bin in enumerate(self.bin_pattern):
-            if bin in pat_bin if isinstance(pat_bin, list) else bin == pat_bin:  # For parallel operations each element in the bin pattern is a list of bins, so need to check inclusion rather than equality, whilst maintaining compatibility with single bin-per-slot patterns
+            if bin in pat_bin if isinstance(pat_bin,
+                                            list) else bin == pat_bin:  # For parallel operations each element in the bin pattern is a list of bins, so need to check inclusion rather than equality, whilst maintaining compatibility with single bin-per-slot patterns
                 if first_bin_index is None:
                     first_bin_index = i
                 if bin_index is None and i >= current_bin_index:

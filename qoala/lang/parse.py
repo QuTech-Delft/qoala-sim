@@ -165,7 +165,7 @@ class IqoalaMetaParser:
 
 class IqoalaInstrParser:
     def __init__(
-        self, text: str, defined_vectors: Dict[str, hl.IqoalaVector] = None
+            self, text: str, defined_vectors: Dict[str, hl.IqoalaVector] = None
     ) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
@@ -371,7 +371,7 @@ class HostCodeParser:
         assert open_bracket >= 0
         close_bracket = text.find("]")
         assert close_bracket >= 0
-        items = text[open_bracket + 1 : close_bracket].split(",")
+        items = text[open_bracket + 1: close_bracket].split(",")
         deadlines = {}
         for item in items:
             blk, dl = [i.strip() for i in item.split(":")]
@@ -379,7 +379,7 @@ class HostCodeParser:
         return deadlines
 
     def _parse_block_annotations(
-        self, annotations: str
+            self, annotations: str
     ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]]]:
         annotations_parts = annotations.split(",")
         if annotations_parts[0].count("=") != 1:
@@ -403,7 +403,7 @@ class HostCodeParser:
         return typ, deadlines
 
     def _parse_block_header(
-        self, line: str
+            self, line: str
     ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]]]:
         # return (block name, block type, block deadline)
         if not line.startswith("^"):
@@ -427,7 +427,7 @@ class HostCodeParser:
             raise QoalaParseError("'}' must occur after '{' in block header.")
 
         annotations_str = header_parts[1][:close_brace]
-        if header_parts[1][close_brace + 1 :] != ":":
+        if header_parts[1][close_brace + 1:] != ":":
             raise QoalaParseError("Block header must end with ':'.")
         typ, deadline = self._parse_block_annotations(annotations_str)
         return name, typ, deadline
@@ -489,7 +489,7 @@ class LocalRoutineParser:
         return [v.strip() for v in values]
 
     def _parse_subrt_meta_line_with_vecs(
-        self, key: str, line: str
+            self, key: str, line: str
     ) -> List[Union[str, IqoalaVector]]:
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
@@ -551,7 +551,7 @@ class LocalRoutineParser:
         name_line = self._read_line()
         if not name_line.startswith("SUBROUTINE "):
             raise QoalaParseError("SubRoutine Meta must start with 'SUBROUTINE'.")
-        name = name_line[len("SUBROUTINE") + 1 :].strip()
+        name = name_line[len("SUBROUTINE") + 1:].strip()
         if not is_valid_name(name):
             raise QoalaParseError(f"Value {name} is not a valid SubRoutine name.")
         params_line = self._parse_subrt_meta_line("params", self._read_line())
@@ -667,7 +667,7 @@ class RequestRoutineParser:
         return [v.strip() for v in values]
 
     def _parse_request_line_with_vecs(
-        self, key: str, line: str
+            self, key: str, line: str
     ) -> List[Union[str, IqoalaVector]]:
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
@@ -772,13 +772,12 @@ class RequestRoutineParser:
 
         return int(value)
 
-
     def _parse_int_list_value(self, key: str, line: str) -> List[int]:
         strings = self._parse_request_line(key, line)
         return [int(s) for s in strings]
 
     def _parse_single_float_value(
-        self, key: str, line: str, allow_template: bool = False
+            self, key: str, line: str, allow_template: bool = False
     ) -> Union[float, Template]:
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
@@ -861,7 +860,7 @@ class RequestRoutineParser:
         name_line = self._read_line()
         if not name_line.startswith("REQUEST "):
             raise QoalaParseError("Request Routine Meta must start with 'REQUEST'.")
-        name = name_line[len("REQUEST") + 1 :].strip()
+        name = name_line[len("REQUEST") + 1:].strip()
         if not is_valid_name(name):
             raise QoalaParseError(f"Value {name} is not a valid Request Routine name.")
 
@@ -922,13 +921,13 @@ class RequestRoutineParser:
 
 class QoalaParser:
     def __init__(
-        self,
-        text: Optional[str] = None,
-        meta_text: Optional[str] = None,
-        host_text: Optional[str] = None,
-        subrt_text: Optional[str] = None,
-        req_text: Optional[str] = None,
-        flavour: Optional[Flavour] = None,
+            self,
+            text: Optional[str] = None,
+            meta_text: Optional[str] = None,
+            host_text: Optional[str] = None,
+            subrt_text: Optional[str] = None,
+            req_text: Optional[str] = None,
+            flavour: Optional[Flavour] = None,
     ) -> None:
         if text is not None:
             if any(t is not None for t in (meta_text, host_text, subrt_text, req_text)):
@@ -939,10 +938,10 @@ class QoalaParser:
             meta_text, host_text, subrt_text, req_text = self._split_text(text)
         else:
             if (
-                meta_text is None
-                or host_text is None
-                or subrt_text is None
-                or req_text is None
+                    meta_text is None
+                    or host_text is None
+                    or subrt_text is None
+                    or req_text is None
             ):
                 raise QoalaParseError(
                     "If text is not provided to QoalaParser, then all of meta_text, "
@@ -976,7 +975,7 @@ class QoalaParser:
                 first_req_line = i
                 break
 
-        meta_text = "\n".join(lines[0 : meta_end_line + 1])
+        meta_text = "\n".join(lines[0: meta_end_line + 1])
         host_end_line: Optional[int] = None
         if first_subrt_line is None and first_req_line is None:
             # no subroutines and no requests
@@ -998,9 +997,9 @@ class QoalaParser:
             req_text = "\n".join(lines[first_req_line:])
             host_end_line = first_subrt_line
         if host_end_line is not None:
-            host_text = "\n".join(lines[meta_end_line + 1 : host_end_line])
+            host_text = "\n".join(lines[meta_end_line + 1: host_end_line])
         else:
-            host_text = "\n".join(lines[meta_end_line + 1 :])
+            host_text = "\n".join(lines[meta_end_line + 1:])
 
         return meta_text, host_text, subrt_text, req_text
 

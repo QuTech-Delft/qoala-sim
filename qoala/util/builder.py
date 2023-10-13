@@ -27,7 +27,7 @@ class ObjectBuilder:
 
     @classmethod
     def simple_program_instance(
-        cls, program: QoalaProgram, pid: int = 0, inputs: Optional[ProgramInput] = None
+            cls, program: QoalaProgram, pid: int = 0, inputs: Optional[ProgramInput] = None
     ) -> ProgramInstance:
         topology = LhiTopologyBuilder.perfect_uniform_default_gates(1)
         ehi = LhiConverter.to_ehi(topology, GenericNtf())

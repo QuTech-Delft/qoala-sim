@@ -14,12 +14,12 @@ class Netstack(Protocol):
     """NetSquid protocol representing the QNodeOS network stack."""
 
     def __init__(
-        self,
-        comp: NetstackComponent,
-        ehi_network: EhiNetworkInfo,
-        memmgr: MemoryManager,
-        qdevice: QDevice,
-        latencies: NetstackLatencies,
+            self,
+            comp: NetstackComponent,
+            ehi_network: EhiNetworkInfo,
+            memmgr: MemoryManager,
+            qdevice: QDevice,
+            latencies: NetstackLatencies,
     ) -> None:
         """Network stack protocol constructor. Typically created indirectly through
         constructing a `Qnos` instance.

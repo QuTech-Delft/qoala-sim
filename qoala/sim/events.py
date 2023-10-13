@@ -4,7 +4,6 @@ EVENT_WAIT = EventType("SCHEDULER_WAIT", "scheduler wait")
 EPR_DELIVERY = EventType("EPR_DELIVERY", "EPR delivery")
 CUTOFF_REACHED = EventType("CUTOFF_REACHED", description="Entanglement generation cutoff reached")
 
-
 # Signals inside a single node
 SIGNAL_HOST_HOST_MSG = "EvHostHostMsg"
 SIGNAL_HOST_QNOS_MSG = "EvHostQnosMsg"

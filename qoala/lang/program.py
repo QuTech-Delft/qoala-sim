@@ -33,19 +33,19 @@ class ProgramMeta:
         s = "META_START"
         s += f"\nname: {self.name}"
         s += f"\nparameters: {', '.join(self.parameters)}"
-        s += f"\ncsockets: {', '.join(f'{k} -> {v}' for k,v in self.csockets.items())}"
-        s += f"\nepr_sockets: {', '.join(f'{k} -> {v}' for k,v in self.epr_sockets.items())}"
+        s += f"\ncsockets: {', '.join(f'{k} -> {v}' for k, v in self.csockets.items())}"
+        s += f"\nepr_sockets: {', '.join(f'{k} -> {v}' for k, v in self.epr_sockets.items())}"
         s += "\nMETA_END"
         return s
 
 
 class QoalaProgram:
     def __init__(
-        self,
-        meta: ProgramMeta,
-        blocks: List[BasicBlock],
-        local_routines: Optional[Dict[str, LocalRoutine]] = None,
-        request_routines: Optional[Dict[str, RequestRoutine]] = None,
+            self,
+            meta: ProgramMeta,
+            blocks: List[BasicBlock],
+            local_routines: Optional[Dict[str, LocalRoutine]] = None,
+            request_routines: Optional[Dict[str, RequestRoutine]] = None,
     ) -> None:
         self._meta: ProgramMeta = meta
 
@@ -124,11 +124,11 @@ class QoalaProgram:
 
     def serialize(self) -> str:
         return (
-            self.meta.serialize()
-            + "\n"
-            + self.serialize_host_code()
-            + "\n"
-            + self.serialize_subroutines()
+                self.meta.serialize()
+                + "\n"
+                + self.serialize_host_code()
+                + "\n"
+                + self.serialize_subroutines()
         )
 
 

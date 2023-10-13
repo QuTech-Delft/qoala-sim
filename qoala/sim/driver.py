@@ -68,11 +68,11 @@ class Driver(Protocol):
 
 class CpuDriver(Driver):
     def __init__(
-        self,
-        node_name: str,
-        memory: SharedSchedulerMemory,
-        hostprocessor: HostProcessor,
-        memmgr: MemoryManager,
+            self,
+            node_name: str,
+            memory: SharedSchedulerMemory,
+            hostprocessor: HostProcessor,
+            memmgr: MemoryManager,
     ) -> None:
         super().__init__(name=f"{node_name}_cpu_driver", memory=memory)
 
@@ -163,13 +163,13 @@ class CpuDriver(Driver):
 
 class QpuDriver(Driver):
     def __init__(
-        self,
-        node_name: str,
-        memory: SharedSchedulerMemory,
-        hostprocessor: HostProcessor,
-        qnosprocessor: QnosProcessor,
-        netstackprocessor: NetstackProcessor,
-        memmgr: MemoryManager,
+            self,
+            node_name: str,
+            memory: SharedSchedulerMemory,
+            hostprocessor: HostProcessor,
+            qnosprocessor: QnosProcessor,
+            netstackprocessor: NetstackProcessor,
+            memmgr: MemoryManager,
     ) -> None:
         super().__init__(name=f"{node_name}_qpu_driver", memory=memory)
 
@@ -179,7 +179,7 @@ class QpuDriver(Driver):
         self._memmgr = memmgr
 
     def allocate_qubits_for_routine(
-        self, process: QoalaProcess, routine_name: str
+            self, process: QoalaProcess, routine_name: str
     ) -> None:
         routine = process.get_local_routine(routine_name)
         for virt_id in routine.metadata.qubit_use:
@@ -187,7 +187,7 @@ class QpuDriver(Driver):
                 self._memmgr.allocate(process.pid, virt_id)
 
     def free_qubits_after_routine(
-        self, process: QoalaProcess, routine_name: str
+            self, process: QoalaProcess, routine_name: str
     ) -> None:
         routine = process.get_local_routine(routine_name)
         for virt_id in routine.metadata.qubit_use:
@@ -195,7 +195,7 @@ class QpuDriver(Driver):
                 self._memmgr.free(process.pid, virt_id)
 
     def _handle_local_routine(
-        self, task: LocalRoutineTask
+            self, task: LocalRoutineTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
         block = process.program.get_block(task.block_name)
@@ -217,7 +217,7 @@ class QpuDriver(Driver):
         self.free_qubits_after_routine(process, lrcall.routine_name)
 
     def _handle_multi_pair(
-        self, task: MultiPairTask
+            self, task: MultiPairTask
     ) -> Generator[EventExpression, None, bool]:
         process = self._memmgr.get_process(task.pid)
 
@@ -235,7 +235,7 @@ class QpuDriver(Driver):
         return result
 
     def _handle_multi_pair_callback(
-        self, task: MultiPairCallbackTask
+            self, task: MultiPairCallbackTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
 
@@ -248,7 +248,7 @@ class QpuDriver(Driver):
         )
 
     def _handle_single_pair(
-        self, task: SinglePairTask
+            self, task: SinglePairTask
     ) -> Generator[EventExpression, None, bool]:
         process = self._memmgr.get_process(task.pid)
 
@@ -266,7 +266,7 @@ class QpuDriver(Driver):
         return result
 
     def _handle_single_pair_callback(
-        self, task: SinglePairCallbackTask
+            self, task: SinglePairCallbackTask
     ) -> Generator[EventExpression, None, None]:
         process = self._memmgr.get_process(task.pid)
 

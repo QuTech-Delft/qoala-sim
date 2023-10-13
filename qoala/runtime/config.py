@@ -102,6 +102,7 @@ NV_DEFAULT_TWO_GATE_DURATION = int(2e6)
 GENERIC_DEFAULT_ONE_GATE_DURATION = int(5e3)
 GENERIC_DEFAULT_TWO_GATE_DURATION = int(200e3)
 
+
 # NV_LAB_COMM_T1 = 1e6
 # NV_LAB_COMM_T2 = 1e6
 # NV_LAB_MEM_T1 = 1e6
@@ -206,7 +207,7 @@ class QubitConfig(LhiQubitConfigInterface, BaseModel):
 
     @classmethod
     def from_file(
-        cls, path: str, registry: Optional[List[Type[QubitConfigRegistry]]] = None
+            cls, path: str, registry: Optional[List[Type[QubitConfigRegistry]]] = None
     ) -> QubitConfig:
         return cls.from_dict(_read_dict(path), registry)
 
@@ -228,7 +229,7 @@ class QubitConfig(LhiQubitConfigInterface, BaseModel):
 
     @classmethod
     def from_dict(
-        cls, dict: Any, registry: Optional[List[Type[QubitConfigRegistry]]] = None
+            cls, dict: Any, registry: Optional[List[Type[QubitConfigRegistry]]] = None
     ) -> QubitConfig:
         is_communication = dict["is_communication"]
         raw_typ = dict["noise_config_cls"]
@@ -317,7 +318,7 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
 
     @classmethod
     def from_file(
-        cls, path: str, registry: Optional[List[Type[GateConfigRegistry]]] = None
+            cls, path: str, registry: Optional[List[Type[GateConfigRegistry]]] = None
     ) -> GateConfig:
         return cls.from_dict(_read_dict(path), registry)
 
@@ -331,7 +332,7 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
 
     @classmethod
     def with_depolar_prob(
-        cls, name: str, duration: int, depolar_prob: float
+            cls, name: str, duration: int, depolar_prob: float
     ) -> GateConfig:
         return GateConfig(
             name=name,
@@ -343,30 +344,30 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
 
     @classmethod
     def with_single_gate_fidelity(
-        cls, name: str, duration: int, fidelity: float
+            cls, name: str, duration: int, fidelity: float
     ) -> GateConfig:
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=1, fid=fidelity)
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
     @classmethod
     def with_two_gate_fidelity(
-        cls, name: str, duration: int, fidelity: float
+            cls, name: str, duration: int, fidelity: float
     ) -> GateConfig:
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=2, fid=fidelity)
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
     @classmethod
     def with_all_qubit_gate_fidelity(
-        cls, name: str, duration: int, fidelity: float, num_qubits: int
+            cls, name: str, duration: int, fidelity: float, num_qubits: int
     ) -> GateConfig:
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=num_qubits, fid=fidelity)
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
     @classmethod
     def from_dict(
-        cls,
-        dict: Any,
-        registry: Optional[List[Type[GateConfigRegistry]]] = None,
+            cls,
+            dict: Any,
+            registry: Optional[List[Type[GateConfigRegistry]]] = None,
     ) -> GateConfig:
         name = dict["name"]
 
@@ -399,8 +400,8 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         )
 
     def to_instruction(
-        self,
-        registry: Optional[List[Type[InstrConfigRegistry]]] = None,
+            self,
+            registry: Optional[List[Type[InstrConfigRegistry]]] = None,
     ) -> Type[NetSquidInstruction]:
         # Try to get the NetSquid Instruction class.
         instr: Optional[Type[NetSquidInstruction]] = None
@@ -555,16 +556,16 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
 
     @classmethod
     def uniform_t1t2_qubits_perfect_gates(
-        cls,
-        num_qubits: int,
-        t1: int,
-        t2: int,
-        single_instructions: List[str],
-        single_duration: int,
-        two_instructions: List[str],
-        two_duration: int,
-        all_qubit_gate_instructions: List[str] = None,
-        all_qubit_gate_duration: int = 0,
+            cls,
+            num_qubits: int,
+            t1: int,
+            t2: int,
+            single_instructions: List[str],
+            single_duration: int,
+            two_instructions: List[str],
+            two_duration: int,
+            all_qubit_gate_instructions: List[str] = None,
+            all_qubit_gate_duration: int = 0,
     ) -> TopologyConfig:
         qubits = [
             QubitIdConfig(
@@ -621,14 +622,14 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
 
     @classmethod
     def perfect_config_uniform(
-        cls,
-        num_qubits: int,
-        single_instructions: List[str],
-        single_duration: int,
-        two_instructions: List[str],
-        two_duration: int,
-        all_qubit_gate_instructions: List[str] = None,
-        all_qubit_gate_duration: int = 0,
+            cls,
+            num_qubits: int,
+            single_instructions: List[str],
+            single_duration: int,
+            two_instructions: List[str],
+            two_duration: int,
+            all_qubit_gate_instructions: List[str] = None,
+            all_qubit_gate_duration: int = 0,
     ) -> TopologyConfig:
         return cls.uniform_t1t2_qubits_perfect_gates(
             num_qubits=num_qubits,
@@ -654,7 +655,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
 
     @classmethod
     def uniform_t1t2_qubits_perfect_gates_default_params(
-        cls, num_qubits: int, t1: int, t2: int
+            cls, num_qubits: int, t1: int, t2: int
     ) -> TopologyConfig:
         return cls.uniform_t1t2_qubits_perfect_gates(
             num_qubits=num_qubits,
@@ -679,34 +680,34 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
 
     @classmethod
     def config_star(
-        cls,
-        num_qubits: int,
-        comm_t1: int,
-        comm_t2: int,
-        mem_t1: int,
-        mem_t2: int,
-        comm_init_fidelity: float,
-        comm_meas_fidelity: float,
-        comm_gate_fidelity: float,
-        comm_instructions: List[str],
-        comm_duration: int,
-        mem_instructions: List[str],
-        mem_duration: int,
-        two_instructions: List[str],
-        two_duration: int,
+            cls,
+            num_qubits: int,
+            comm_t1: int,
+            comm_t2: int,
+            mem_t1: int,
+            mem_t2: int,
+            comm_init_fidelity: float,
+            comm_meas_fidelity: float,
+            comm_gate_fidelity: float,
+            comm_instructions: List[str],
+            comm_duration: int,
+            mem_instructions: List[str],
+            mem_duration: int,
+            two_instructions: List[str],
+            two_duration: int,
     ) -> TopologyConfig:
         pass
 
     @classmethod
     def perfect_config_star(
-        cls,
-        num_qubits: int,
-        comm_instructions: List[str],
-        comm_duration: int,
-        mem_instructions: List[str],
-        mem_duration: int,
-        two_instructions: List[str],
-        two_duration: int,
+            cls,
+            num_qubits: int,
+            comm_instructions: List[str],
+            comm_duration: int,
+            mem_instructions: List[str],
+            mem_duration: int,
+            two_instructions: List[str],
+            two_duration: int,
     ) -> TopologyConfig:
         # comm qubit
         qubits = [
@@ -871,7 +872,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         return infos
 
     def get_multi_gate_configs(
-        self,
+            self,
     ) -> Dict[MultiQubit, List[LhiGateConfigInterface]]:
         infos: Dict[MultiQubit, List[LhiGateConfigInterface]] = {}
         for cfg in self.multi_gates:
@@ -1201,13 +1202,13 @@ class NtfConfig(NtfInterfaceConfigInterface, BaseModel):
 
     @classmethod
     def from_file(
-        cls, path: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+            cls, path: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
     ) -> NtfConfig:
         return cls.from_dict(_read_dict(path), registry)
 
     @classmethod
     def from_cls_name(
-        cls, name: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+            cls, name: str, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
     ) -> NtfConfig:
         # Try to get the type of the ntf interface class.
         typ: Optional[NtfInterface] = None
@@ -1230,7 +1231,7 @@ class NtfConfig(NtfInterfaceConfigInterface, BaseModel):
 
     @classmethod
     def from_dict(
-        cls, dict: Any, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
+            cls, dict: Any, registry: Optional[List[Type[NtfInterfaceRegistry]]] = None
     ) -> NtfConfig:
         raw_typ = dict["ntf_interface_cls"]
         return cls.from_cls_name(raw_typ, registry)
@@ -1428,7 +1429,7 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
 
     @classmethod
     def simple_depolarise_config(
-        cls, fidelity: float, state_delay: float
+            cls, fidelity: float, state_delay: float
     ) -> LinkConfig:
         prob_max_mixed = fidelity_to_prob_max_mixed(2, fidelity)
         sampler_config = DepolariseSamplerConfig(
@@ -1442,11 +1443,11 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
 
     @classmethod
     def depolarise_config(
-        cls,
-        prob_max_mixed: float,
-        attempt_success_prob: float,
-        attempt_duration: float,
-        state_delay: float,
+            cls,
+            prob_max_mixed: float,
+            attempt_success_prob: float,
+            attempt_duration: float,
+            state_delay: float,
     ) -> LinkConfig:
         sampler_config = DepolariseSamplerConfig(
             cycle_time=attempt_duration,
@@ -1461,7 +1462,7 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
 
     @classmethod
     def from_dict(
-        cls, dict: Any, registry: Optional[List[Type[SamplerFactoryRegistry]]] = None
+            cls, dict: Any, registry: Optional[List[Type[SamplerFactoryRegistry]]] = None
     ) -> LinkConfig:
         state_delay = dict["state_delay"]
         raw_typ = dict["sampler_config_cls"]
@@ -1528,7 +1529,7 @@ class ClassicalConnectionConfig(BaseModel):
 
     @classmethod
     def from_nodes(
-        cls, node_id1: int, node_id2: int, latency: float
+            cls, node_id1: int, node_id2: int, latency: float
     ) -> ClassicalConnectionConfig:
         return ClassicalConnectionConfig(
             node_id1=node_id1, node_id2=node_id2, latency=latency
@@ -1595,7 +1596,7 @@ class ProcNodeNetworkConfig(BaseModel):
 
     @classmethod
     def from_nodes_perfect_links(
-        cls, nodes: List[ProcNodeConfig], link_duration: float
+            cls, nodes: List[ProcNodeConfig], link_duration: float
     ) -> ProcNodeNetworkConfig:
         links: List[LinkBetweenNodesConfig] = []
         for node1, node2 in itertools.combinations(nodes, 2):
@@ -1631,4 +1632,3 @@ class ProcNodeNetworkConfig(BaseModel):
                 )
             )
         return ProcNodeNetworkConfig(nodes=nodes, links=links)
-

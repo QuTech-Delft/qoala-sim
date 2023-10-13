@@ -29,11 +29,11 @@ class ProcessorType(Enum):
 
 class QoalaTask:
     def __init__(
-        self,
-        task_id: int,
-        processor_type: ProcessorType,
-        pid: int,
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            processor_type: ProcessorType,
+            pid: int,
+            duration: Optional[float] = None,
     ) -> None:
         self._task_id = task_id
         self._processor_type = processor_type
@@ -69,20 +69,20 @@ class QoalaTask:
         if not isinstance(other, QoalaTask):
             return NotImplemented
         return (
-            self.task_id == other.task_id
-            and self.processor_type == other.processor_type
-            and self.pid == other.pid
-            and self.duration == other.duration
+                self.task_id == other.task_id
+                and self.processor_type == other.processor_type
+                and self.pid == other.pid
+                and self.duration == other.duration
         )
 
 
 class HostLocalTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        block_name: str,
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            block_name: str,
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -104,7 +104,7 @@ class HostLocalTask(QoalaTask):
 
 class HostEventTask(QoalaTask):
     def __init__(
-        self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
+            self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -126,12 +126,12 @@ class HostEventTask(QoalaTask):
 
 class LocalRoutineTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        block_name: str,
-        shared_ptr: int,
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            block_name: str,
+            shared_ptr: int,
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -154,20 +154,20 @@ class LocalRoutineTask(QoalaTask):
         if not isinstance(other, LocalRoutineTask):
             return NotImplemented
         return (
-            super().__eq__(other)
-            and self.block_name == other.block_name
-            and self.shared_ptr == self.shared_ptr
+                super().__eq__(other)
+                and self.block_name == other.block_name
+                and self.shared_ptr == self.shared_ptr
         )
 
 
 class PreCallTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        block_name: str,
-        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            block_name: str,
+            shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -190,20 +190,20 @@ class PreCallTask(QoalaTask):
         if not isinstance(other, PreCallTask):
             return NotImplemented
         return (
-            super().__eq__(other)
-            and self.block_name == other.block_name
-            and self.shared_ptr == self.shared_ptr
+                super().__eq__(other)
+                and self.block_name == other.block_name
+                and self.shared_ptr == self.shared_ptr
         )
 
 
 class PostCallTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        block_name: str,
-        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            block_name: str,
+            shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -226,20 +226,20 @@ class PostCallTask(QoalaTask):
         if not isinstance(other, PostCallTask):
             return NotImplemented
         return (
-            super().__eq__(other)
-            and self.block_name == other.block_name
-            and self.shared_ptr == other.shared_ptr
+                super().__eq__(other)
+                and self.block_name == other.block_name
+                and self.shared_ptr == other.shared_ptr
         )
 
 
 class SinglePairTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        pair_index: int,
-        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            pair_index: int,
+            shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -262,19 +262,19 @@ class SinglePairTask(QoalaTask):
         if not isinstance(other, SinglePairTask):
             return NotImplemented
         return (
-            super().__eq__(other)
-            and self.pair_index == other.pair_index
-            and self.shared_ptr == other.shared_ptr
+                super().__eq__(other)
+                and self.pair_index == other.pair_index
+                and self.shared_ptr == other.shared_ptr
         )
 
 
 class MultiPairTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -296,13 +296,13 @@ class MultiPairTask(QoalaTask):
 
 class SinglePairCallbackTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        callback_name: str,
-        pair_index: int,
-        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            callback_name: str,
+            pair_index: int,
+            shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -330,21 +330,21 @@ class SinglePairCallbackTask(QoalaTask):
         if not isinstance(other, SinglePairCallbackTask):
             return NotImplemented
         return (
-            super().__eq__(other)
-            and self.callback_name == other.callback_name
-            and self.pair_index == other.pair_index
-            and self.shared_ptr == other.shared_ptr
+                super().__eq__(other)
+                and self.callback_name == other.callback_name
+                and self.pair_index == other.pair_index
+                and self.shared_ptr == other.shared_ptr
         )
 
 
 class MultiPairCallbackTask(QoalaTask):
     def __init__(
-        self,
-        task_id: int,
-        pid: int,
-        callback_name: str,
-        shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
-        duration: Optional[float] = None,
+            self,
+            task_id: int,
+            pid: int,
+            callback_name: str,
+            shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+            duration: Optional[float] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
@@ -367,9 +367,9 @@ class MultiPairCallbackTask(QoalaTask):
         if not isinstance(other, MultiPairCallbackTask):
             return NotImplemented
         return (
-            super().__eq__(other)
-            and self.callback_name == other.callback_name
-            and self.shared_ptr == other.shared_ptr
+                super().__eq__(other)
+                and self.callback_name == other.callback_name
+                and self.shared_ptr == other.shared_ptr
         )
 
 
@@ -452,7 +452,7 @@ class TaskGraph:
             self._tasks[y].rel_deadlines[x] = d
 
     def add_ext_rel_deadlines(
-        self, deadlines: List[Tuple[Tuple[int, int], int]]
+            self, deadlines: List[Tuple[Tuple[int, int], int]]
     ) -> None:
         # entry ((x, y), d) means
         # task y must start at most time d time units after task x has finished
@@ -654,7 +654,7 @@ class TaskGraphBuilder:
 
     @classmethod
     def linear_tasks_with_start_times(
-        cls, tasks: List[Tuple[QoalaTask, Optional[int]]]
+            cls, tasks: List[Tuple[QoalaTask, Optional[int]]]
     ) -> TaskGraph:
         tinfos: List[TaskInfo] = []
         for task, start_time in tasks:
@@ -703,13 +703,13 @@ class TaskGraphBuilder:
 
     @classmethod
     def from_program(
-        cls,
-        program: QoalaProgram,
-        pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
-        network_ehi: Optional[EhiNetworkInfo] = None,
-        first_task_id: int = 0,
-        prog_input: Optional[Dict[str, int]] = None,
+            cls,
+            program: QoalaProgram,
+            pid: int,
+            ehi: Optional[EhiNodeInfo] = None,
+            network_ehi: Optional[EhiNetworkInfo] = None,
+            first_task_id: int = 0,
+            prog_input: Optional[Dict[str, int]] = None,
     ) -> TaskGraph:
         return QoalaGraphFromProgramBuilder(first_task_id).build(
             program, pid, ehi, network_ehi, prog_input
@@ -723,18 +723,18 @@ class TaskDurationEstimator:
         # TODO: refactor this
         for instr in routine.subroutine.instructions:
             if (
-                type(instr)
-                in [
-                    core.SetInstruction,
-                    core.StoreInstruction,
-                    core.LoadInstruction,
-                    core.LeaInstruction,
-                ]
-                or isinstance(instr, core.BranchBinaryInstruction)
-                or isinstance(instr, core.BranchUnaryInstruction)
-                or isinstance(instr, core.JmpInstruction)
-                or isinstance(instr, core.ClassicalOpInstruction)
-                or isinstance(instr, core.ClassicalOpModInstruction)
+                    type(instr)
+                    in [
+                core.SetInstruction,
+                core.StoreInstruction,
+                core.LoadInstruction,
+                core.LeaInstruction,
+            ]
+                    or isinstance(instr, core.BranchBinaryInstruction)
+                    or isinstance(instr, core.BranchUnaryInstruction)
+                    or isinstance(instr, core.JmpInstruction)
+                    or isinstance(instr, core.ClassicalOpInstruction)
+                    or isinstance(instr, core.ClassicalOpModInstruction)
             ):
                 duration += ehi.latencies.qnos_instr_time
             else:
@@ -772,10 +772,10 @@ class TaskGraphFromBlockBuilder:
         return task_id
 
     def build(
-        self,
-        program_instance: ProgramInstance,
-        block_index: int,
-        network_ehi: Optional[EhiNetworkInfo] = None,
+            self,
+            program_instance: ProgramInstance,
+            block_index: int,
+            network_ehi: Optional[EhiNetworkInfo] = None,
     ) -> TaskGraph:
         graph = TaskGraph()
         block = program_instance.program.blocks[block_index]
@@ -957,12 +957,12 @@ class QoalaGraphFromProgramBuilder:
         return id
 
     def build(
-        self,
-        program: QoalaProgram,
-        pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
-        network_ehi: Optional[EhiNetworkInfo] = None,
-        prog_input: Optional[Dict[str, int]] = None,
+            self,
+            program: QoalaProgram,
+            pid: int,
+            ehi: Optional[EhiNodeInfo] = None,
+            network_ehi: Optional[EhiNetworkInfo] = None,
+            prog_input: Optional[Dict[str, int]] = None,
     ) -> TaskGraph:
         prev_block_task_id: Optional[int] = None
         for block in program.blocks:
@@ -1081,13 +1081,13 @@ class QoalaGraphFromProgramBuilder:
         return self._graph
 
     def _build_from_qc_task_routine_split(
-        self,
-        program: QoalaProgram,
-        block: BasicBlock,
-        pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
-        network_ehi: Optional[EhiNetworkInfo] = None,
-        prog_input: Optional[Dict[str, int]] = None,
+            self,
+            program: QoalaProgram,
+            block: BasicBlock,
+            pid: int,
+            ehi: Optional[EhiNodeInfo] = None,
+            network_ehi: Optional[EhiNetworkInfo] = None,
+            prog_input: Optional[Dict[str, int]] = None,
     ) -> Tuple[int, int]:
         """Returns (precall_id, post_call_id)"""
         assert len(block.instructions) == 1

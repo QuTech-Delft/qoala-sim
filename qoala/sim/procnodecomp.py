@@ -33,11 +33,11 @@ class ProcNodeComponent(Node):
     """
 
     def __init__(
-        self,
-        name: str,
-        qprocessor: QuantumProcessor,
-        ehi_network: EhiNetworkInfo,
-        node_id: Optional[int] = None,
+            self,
+            name: str,
+            qprocessor: QuantumProcessor,
+            ehi_network: EhiNetworkInfo,
+            node_id: Optional[int] = None,
     ) -> None:
         """ProcNodeComponent constructor. Typically created indirectly through
         constructing a `ProcNode`."""

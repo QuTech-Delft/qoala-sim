@@ -12,9 +12,9 @@ from qoala.sim.events import EVENT_WAIT, SIGNAL_NSTK_ENTD_MSG
 
 class EntDistInterface(ComponentProtocol):
     def __init__(
-        self,
-        comp: EntDistComponent,
-        ehi_network: EhiNetworkInfo,
+            self,
+            comp: EntDistComponent,
+            ehi_network: EhiNetworkInfo,
     ) -> None:
         super().__init__(name=f"{comp.name}_protocol", comp=comp)
         self._comp = comp

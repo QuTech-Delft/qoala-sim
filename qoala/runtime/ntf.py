@@ -43,7 +43,7 @@ class NtfInterface(ABC):
 
     @abstractmethod
     def native_to_netqasm(
-        self, ns_instr: Type[NetSquidInstruction]
+            self, ns_instr: Type[NetSquidInstruction]
     ) -> List[Type[NetQASMInstruction]]:
         """Responsiblity of implementor that return instructions are of the
         flavour returned by flavour()."""
@@ -51,7 +51,7 @@ class NtfInterface(ABC):
 
     @abstractmethod
     def netqasm_to_native(
-        self, nq_instr: Type[NetQASMInstruction]
+            self, nq_instr: Type[NetQASMInstruction]
     ) -> List[Type[NetSquidInstruction]]:
         raise NotImplementedError
 
@@ -91,12 +91,12 @@ class GenericNtf(NtfInterface):
         return VanillaFlavour  # type: ignore
 
     def native_to_netqasm(
-        self, ns_instr: Type[NetSquidInstruction]
+            self, ns_instr: Type[NetSquidInstruction]
     ) -> List[Type[NetQASMInstruction]]:
         return self._NS_NQ_MAP[ns_instr]
 
     def netqasm_to_native(
-        self, nq_instr: Type[NetQASMInstruction]
+            self, nq_instr: Type[NetQASMInstruction]
     ) -> List[Type[NetSquidInstruction]]:
         return self._NQ_NS_MAP[nq_instr]
 
@@ -128,12 +128,12 @@ class NvNtf(NtfInterface):
         return NVFlavour  # type: ignore
 
     def native_to_netqasm(
-        self, ns_instr: Type[NetSquidInstruction]
+            self, ns_instr: Type[NetSquidInstruction]
     ) -> List[Type[NetQASMInstruction]]:
         return self._NS_NQ_MAP[ns_instr]
 
     def netqasm_to_native(
-        self, nq_instr: Type[NetQASMInstruction]
+            self, nq_instr: Type[NetQASMInstruction]
     ) -> List[Type[NetSquidInstruction]]:
         return self._NQ_NS_MAP[nq_instr]
 
@@ -168,12 +168,12 @@ class TrappedIonNtf(NtfInterface):
         return TrappedIonFlavour  # type: ignore
 
     def native_to_netqasm(
-        self, ns_instr: Type[NetSquidInstruction]
+            self, ns_instr: Type[NetSquidInstruction]
     ) -> List[Type[NetQASMInstruction]]:
         return self._NS_NQ_MAP[ns_instr]
 
     def netqasm_to_native(
-        self, nq_instr: Type[NetQASMInstruction]
+            self, nq_instr: Type[NetQASMInstruction]
     ) -> List[Type[NetSquidInstruction]]:
         return self._NQ_NS_MAP[nq_instr]
 

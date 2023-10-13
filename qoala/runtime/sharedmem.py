@@ -55,7 +55,7 @@ class NetQASMArrays:
                 f"Size + offset is larger than the \
                 allocated space in the memory for address {addr}."
             )
-        array = self._memory[addr][offset : offset + size]
+        array = self._memory[addr][offset: offset + size]
         assert all(v is not None for v in array)
         return array  # type: ignore
 

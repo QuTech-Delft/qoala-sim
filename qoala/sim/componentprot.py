@@ -105,7 +105,7 @@ class ComponentProtocol(Protocol):
         self._listeners[name] = listener
 
     def _wait_for_msg(
-        self, listener_name: str, wake_up_signal: str
+            self, listener_name: str, wake_up_signal: str
     ) -> Generator[EventExpression, None, None]:
         listener = self._listeners[listener_name]
         if not listener.buffer.has_any():
@@ -139,7 +139,7 @@ class ComponentProtocol(Protocol):
         return messages
 
     def _get_evexpr_for_any_msg(
-        self, listener_names: List[str], wake_up_signals: List[str]
+            self, listener_names: List[str], wake_up_signals: List[str]
     ) -> Optional[EventExpression]:
         # Returns None if there are already messages and no event expression is needed.
 
@@ -169,7 +169,7 @@ class ComponentProtocol(Protocol):
         return union
 
     def _handle_msg_evexpr(
-        self, evexpr: EventExpression, listener_names: List[str]
+            self, evexpr: EventExpression, listener_names: List[str]
     ) -> Generator[EventExpression, None, None]:
         # Count the number of listeners that has messages in their buffers.
         # This number is equal to the number of events that have fired.
@@ -188,7 +188,7 @@ class ComponentProtocol(Protocol):
             yield evexpr
 
     def _wait_for_msg_any_source(
-        self, listener_names: List[str], wake_up_signals: List[str]
+            self, listener_names: List[str], wake_up_signals: List[str]
     ) -> Generator[EventExpression, None, None]:
         # Get an event expression for any one of the listeners getting a message.
         evexpr = self._get_evexpr_for_any_msg(listener_names, wake_up_signals)

@@ -32,7 +32,7 @@ class QnosInterface(ComponentProtocol):
     """NetSquid protocol representing a QNodeOS processor."""
 
     def __init__(
-        self, comp: QnosComponent, qdevice: QDevice, memmgr: MemoryManager
+            self, comp: QnosComponent, qdevice: QDevice, memmgr: MemoryManager
     ) -> None:
         """Processor protocol constructor. Typically created indirectly through
         constructing a `Qnos` instance.

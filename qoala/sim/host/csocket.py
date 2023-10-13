@@ -11,7 +11,7 @@ class ClassicalSocket:
     """Wrapper around classical ports"""
 
     def __init__(
-        self, host: HostInterface, remote_name: str, pid: int, remote_pid: int
+            self, host: HostInterface, remote_name: str, pid: int, remote_pid: int
     ):
         self._host = host
         self._remote_name = remote_name

@@ -44,7 +44,7 @@ class ClassicalConnection(Connection):
 
 
 def build_qprocessor_from_topology(
-    name: str, topology: LhiTopology
+        name: str, topology: LhiTopology
 ) -> QuantumProcessor:
     num_qubits = len(topology.qubit_infos)
 
@@ -110,7 +110,7 @@ def build_qprocessor_from_topology(
 
 
 def build_procnode_from_config(
-    cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo
+        cfg: ProcNodeConfig, network_ehi: EhiNetworkInfo
 ) -> ProcNode:
     topology = LhiTopologyBuilder.from_config(cfg.topology)
 
@@ -197,7 +197,9 @@ def build_network_from_config(config: ProcNodeNetworkConfig) -> ProcNodeNetwork:
 
     return ProcNodeNetwork(procnodes, entdist)
 
-def build_network_from_config_netschedule(config: ProcNodeNetworkConfig, netschedule:EhiNetworkSchedule | None = None) -> ProcNodeNetwork:
+
+def build_network_from_config_netschedule(config: ProcNodeNetworkConfig,
+                                          netschedule: EhiNetworkSchedule | None = None) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 
     ehi_links: Dict[FrozenSet[int], EhiLinkInfo] = {}
@@ -237,7 +239,7 @@ def build_network_from_config_netschedule(config: ProcNodeNetworkConfig, netsche
             return 0.0
         for cconn in config.cconns:
             if (cconn.node_id1 == node1 and cconn.node_id2 == node2) or (
-                cconn.node_id1 == node1 and cconn.node_id2 == node2
+                    cconn.node_id1 == node1 and cconn.node_id2 == node2
             ):
                 return cconn.latency  # type: ignore
         return 0.0
@@ -260,14 +262,13 @@ def build_network_from_config_netschedule(config: ProcNodeNetworkConfig, netsche
     return ProcNodeNetwork(procnodes, entdist)
 
 
-
 def build_procnode_from_lhi(
-    id: int,
-    name: str,
-    topology: LhiTopology,
-    latencies: LhiLatencies,
-    network_lhi: LhiNetworkInfo,
-    ntf: NtfInterface,
+        id: int,
+        name: str,
+        topology: LhiTopology,
+        latencies: LhiLatencies,
+        network_lhi: LhiNetworkInfo,
+        ntf: NtfInterface,
 ) -> ProcNode:
     qprocessor = build_qprocessor_from_topology(f"{name}_processor", topology)
     network_ehi = LhiConverter.network_to_ehi(network_lhi)
@@ -283,9 +284,9 @@ def build_procnode_from_lhi(
 
 
 def build_network_from_lhi(
-    procnode_infos: List[LhiProcNodeInfo],
-    ntfs: List[NtfInterface],
-    network_lhi: LhiNetworkInfo,
+        procnode_infos: List[LhiProcNodeInfo],
+        ntfs: List[NtfInterface],
+        network_lhi: LhiNetworkInfo,
 ) -> ProcNodeNetwork:
     procnodes: Dict[str, ProcNode] = {}
 

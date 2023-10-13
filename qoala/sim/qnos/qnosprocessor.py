@@ -51,10 +51,10 @@ class QnosProcessor:
     """Does not have state itself."""
 
     def __init__(
-        self,
-        interface: QnosInterface,
-        latencies: QnosLatencies,
-        asynchronous: bool = False,
+            self,
+            interface: QnosInterface,
+            latencies: QnosLatencies,
+            asynchronous: bool = False,
     ) -> None:
         self._interface = interface
         self._latencies = latencies
@@ -91,12 +91,12 @@ class QnosProcessor:
         return self._interface
 
     def instantiate_routine(
-        self,
-        process: QoalaProcess,
-        routine: LocalRoutine,
-        args: Dict[str, Any],
-        input_addr: MemAddr,
-        result_addr: MemAddr,
+            self,
+            process: QoalaProcess,
+            routine: LocalRoutine,
+            args: Dict[str, Any],
+            input_addr: MemAddr,
+            result_addr: MemAddr,
     ) -> None:
         """Instantiates and activates routine."""
         instance = deepcopy(routine)
@@ -106,11 +106,11 @@ class QnosProcessor:
         process.qnos_mem.add_running_local_routine(running_routine)
 
     def assign_local_routine(
-        self,
-        process: QoalaProcess,
-        routine_name: str,
-        input_addr: MemAddr,
-        result_addr: MemAddr,
+            self,
+            process: QoalaProcess,
+            routine_name: str,
+            input_addr: MemAddr,
+            result_addr: MemAddr,
     ) -> Generator[EventExpression, None, None]:
         routine = process.get_local_routine(routine_name)
         global_args = process.prog_instance.inputs.values
@@ -132,7 +132,7 @@ class QnosProcessor:
             )
 
     def assign_routine_instr(
-        self, process: QoalaProcess, subrt_name: str, instr_idx: int
+            self, process: QoalaProcess, subrt_name: str, instr_idx: int
     ) -> Generator[EventExpression, None, int]:
         """Assign the processor to one specific instruction in a local routine."""
         running_routine = process.qnos_mem.get_running_local_routine(subrt_name)
@@ -153,12 +153,12 @@ class QnosProcessor:
         next_instr_idx: int
 
         if (
-            isinstance(instr, core.JmpInstruction)
-            or isinstance(instr, core.BranchUnaryInstruction)
-            or isinstance(instr, core.BranchBinaryInstruction)
+                isinstance(instr, core.JmpInstruction)
+                or isinstance(instr, core.BranchUnaryInstruction)
+                or isinstance(instr, core.BranchBinaryInstruction)
         ):
             if new_line_relative := (
-                yield from self._interpret_branch_instr(pid, instr)
+                    yield from self._interpret_branch_instr(pid, instr)
             ):
                 next_instr_idx = instr_idx + new_line_relative
             else:
@@ -174,7 +174,7 @@ class QnosProcessor:
         return next_instr_idx
 
     def _interpret_instruction(
-        self, pid: int, instr: NetQASMInstruction
+            self, pid: int, instr: NetQASMInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
         if isinstance(instr, core.SetInstruction):
             return self._interpret_set(pid, instr)
@@ -197,7 +197,7 @@ class QnosProcessor:
         elif isinstance(instr, core.ControlledRotationInstruction):
             return self._interpret_controlled_rotation_instr(pid, instr)
         elif isinstance(instr, core.ClassicalOpInstruction) or isinstance(
-            instr, core.ClassicalOpModInstruction
+                instr, core.ClassicalOpModInstruction
         ):
             return self._interpret_binary_classical_instr(pid, instr)
         elif isinstance(instr, core.BreakpointInstruction):
@@ -208,7 +208,7 @@ class QnosProcessor:
             raise RuntimeError(f"Invalid instruction {instr}")
 
     def _interpret_breakpoint(
-        self, pid: int, instr: core.BreakpointInstruction
+            self, pid: int, instr: core.BreakpointInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
         if instr.action.value == 0:
             self._logger.info("BREAKPOINT: no action taken")
@@ -258,7 +258,7 @@ class QnosProcessor:
             raise ValueError
 
     def _interpret_set(
-        self, pid: int, instr: core.SetInstruction
+            self, pid: int, instr: core.SetInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
         self._logger.debug(f"Set register {instr.reg} to {instr.imm}")
         qnos_mem = self._prog_mem().qnos_mem
@@ -270,7 +270,7 @@ class QnosProcessor:
         return None
 
     def _interpret_store(
-        self, pid: int, instr: core.StoreInstruction
+            self, pid: int, instr: core.StoreInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
 
@@ -299,7 +299,7 @@ class QnosProcessor:
         return None
 
     def _interpret_load(
-        self, pid: int, instr: core.LoadInstruction
+            self, pid: int, instr: core.LoadInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
 
@@ -329,7 +329,7 @@ class QnosProcessor:
         return None
 
     def _interpret_lea(
-        self, pid: int, instr: core.LeaInstruction
+            self, pid: int, instr: core.LeaInstruction
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
         self._logger.debug(
@@ -343,13 +343,13 @@ class QnosProcessor:
         return None
 
     def _interpret_branch_instr(
-        self,
-        pid: int,
-        instr: Union[
-            core.BranchUnaryInstruction,
-            core.BranchBinaryInstruction,
-            core.JmpInstruction,
-        ],
+            self,
+            pid: int,
+            instr: Union[
+                core.BranchUnaryInstruction,
+                core.BranchBinaryInstruction,
+                core.JmpInstruction,
+            ],
     ) -> Generator[EventExpression, None, Optional[int]]:
         """Returns line to jump to, or None if no jump happens."""
         qnos_mem = self._prog_mem().qnos_mem
@@ -385,12 +385,12 @@ class QnosProcessor:
             return None
 
     def _interpret_binary_classical_instr(
-        self,
-        pid: int,
-        instr: Union[
-            core.ClassicalOpInstruction,
-            core.ClassicalOpModInstruction,
-        ],
+            self,
+            pid: int,
+            instr: Union[
+                core.ClassicalOpInstruction,
+                core.ClassicalOpModInstruction,
+            ],
     ) -> Optional[Generator[EventExpression, None, None]]:
         qnos_mem = self._prog_mem().qnos_mem
         mod = None
@@ -416,7 +416,7 @@ class QnosProcessor:
         return None
 
     def _compute_binary_classical_instr(
-        self, instr: NetQASMInstruction, a: int, b: int, mod: Optional[int] = 1
+            self, instr: NetQASMInstruction, a: int, b: int, mod: Optional[int] = 1
     ) -> int:
         if isinstance(instr, core.AddInstruction):
             return a + b
@@ -438,15 +438,15 @@ class QnosProcessor:
             raise ValueError(f"{instr} cannot be used as binary classical function")
 
     def _interpret_init(
-        self, pid: int, instr: core.InitInstruction
+            self, pid: int, instr: core.InitInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
     def _do_single_rotation(
-        self,
-        pid: int,
-        instr: core.RotationInstruction,
-        ns_instr: NsInstr,
+            self,
+            pid: int,
+            instr: core.RotationInstruction,
+            ns_instr: NsInstr,
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.reg)
@@ -471,15 +471,15 @@ class QnosProcessor:
         return None
 
     def _interpret_single_rotation_instr(
-        self, pid: int, instr: core.RotationInstruction
+            self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
     def _do_controlled_rotation(
-        self,
-        pid: int,
-        instr: core.ControlledRotationInstruction,
-        ns_instr: NsInstr,
+            self,
+            pid: int,
+            instr: core.ControlledRotationInstruction,
+            ns_instr: NsInstr,
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id0 = qnos_mem.get_reg_value(instr.reg0)
@@ -503,30 +503,30 @@ class QnosProcessor:
         return None
 
     def _interpret_controlled_rotation_instr(
-        self, pid: int, instr: core.ControlledRotationInstruction
+            self, pid: int, instr: core.ControlledRotationInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
     def _get_rotation_angle_from_operands(self, n: int, d: int) -> float:
-        return float(n * PI / (2**d))
+        return float(n * PI / (2 ** d))
 
     def _interpret_meas(
-        self, pid: int, instr: core.MeasInstruction
+            self, pid: int, instr: core.MeasInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
     def _interpret_single_qubit_instr(
-        self, pid: int, instr: core.SingleQubitInstruction
+            self, pid: int, instr: core.SingleQubitInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
     def _interpret_two_qubit_instr(
-        self, pid: int, instr: core.TwoQubitInstruction
+            self, pid: int, instr: core.TwoQubitInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
     def _interpret_other_instr(
-        self, pid: int, instr: NetQASMInstruction
+            self, pid: int, instr: NetQASMInstruction
     ) -> Generator[EventExpression, None, None]:
         raise NotImplementedError
 
@@ -535,7 +535,7 @@ class GenericProcessor(QnosProcessor):
     """A `Processor` for nodes with a generic quantum hardware."""
 
     def _interpret_init(
-        self, pid: int, instr: core.InitInstruction
+            self, pid: int, instr: core.InitInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.reg)
@@ -551,7 +551,7 @@ class GenericProcessor(QnosProcessor):
         return None
 
     def _interpret_meas(
-        self, pid: int, instr: core.MeasInstruction
+            self, pid: int, instr: core.MeasInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.qreg)
@@ -571,7 +571,7 @@ class GenericProcessor(QnosProcessor):
         return None
 
     def _interpret_single_qubit_instr(
-        self, pid: int, instr: core.SingleQubitInstruction
+            self, pid: int, instr: core.SingleQubitInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.qreg)
@@ -595,7 +595,7 @@ class GenericProcessor(QnosProcessor):
         return None
 
     def _interpret_single_rotation_instr(
-        self, pid: int, instr: core.RotationInstruction
+            self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, vanilla.RotXInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_X)
@@ -608,12 +608,12 @@ class GenericProcessor(QnosProcessor):
         return None
 
     def _interpret_controlled_rotation_instr(
-        self, pid: int, instr: core.ControlledRotationInstruction
+            self, pid: int, instr: core.ControlledRotationInstruction
     ) -> Generator[EventExpression, None, None]:
         raise UnsupportedNetqasmInstructionError
 
     def _interpret_two_qubit_instr(
-        self, pid: int, instr: core.TwoQubitInstruction
+            self, pid: int, instr: core.TwoQubitInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id0 = qnos_mem.get_reg_value(instr.reg0)
@@ -639,7 +639,7 @@ class NVProcessor(QnosProcessor):
     """A `Processor` for nodes with a NV hardware."""
 
     def _interpret_init(
-        self, pid: int, instr: core.InitInstruction
+            self, pid: int, instr: core.InitInstruction
     ) -> Generator[EventExpression, None, None]:
         memmgr = self._interface.memmgr
         qnos_mem = self._prog_mem().qnos_mem
@@ -668,7 +668,7 @@ class NVProcessor(QnosProcessor):
         return outcome  # type: ignore
 
     def _move_carbon_to_electron_for_measure(
-        self, carbon_id: int
+            self, carbon_id: int
     ) -> Generator[EventExpression, None, None]:
         commands = [
             QDeviceCommand(INSTR_INIT, [0]),
@@ -682,7 +682,7 @@ class NVProcessor(QnosProcessor):
         return None
 
     def _move_carbon_to_electron(
-        self, carbon_id: int
+            self, carbon_id: int
     ) -> Generator[EventExpression, None, None]:
         # TODO: CHECK SEQUENCE OF GATES!!!
         commands = [
@@ -697,7 +697,7 @@ class NVProcessor(QnosProcessor):
         return None
 
     def _move_electron_to_carbon(
-        self, carbon_id: int
+            self, carbon_id: int
     ) -> Generator[EventExpression, None, None]:
         commands = [
             QDeviceCommand(INSTR_INIT, [carbon_id]),
@@ -710,7 +710,7 @@ class NVProcessor(QnosProcessor):
         return None
 
     def _interpret_meas(
-        self, pid: int, instr: core.MeasInstruction
+            self, pid: int, instr: core.MeasInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.qreg)
@@ -744,7 +744,7 @@ class NVProcessor(QnosProcessor):
         return None
 
     def _interpret_single_rotation_instr(
-        self, pid: int, instr: core.RotationInstruction
+            self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, nv.RotXInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_X)
@@ -756,7 +756,7 @@ class NVProcessor(QnosProcessor):
             raise UnsupportedNetqasmInstructionError
 
     def _interpret_controlled_rotation_instr(
-        self, pid: int, instr: core.ControlledRotationInstruction
+            self, pid: int, instr: core.ControlledRotationInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, nv.ControlledRotXInstruction):
             yield from self._do_controlled_rotation(pid, instr, INSTR_CXDIR)
@@ -770,7 +770,7 @@ class IonTrapProcessor(QnosProcessor):
     """A `Processor` for nodes with a Ion Trap hardware."""
 
     def _interpret_init(
-        self, pid: int, instr: core.InitInstruction
+            self, pid: int, instr: core.InitInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.reg)
@@ -786,7 +786,7 @@ class IonTrapProcessor(QnosProcessor):
         return None
 
     def _interpret_meas(
-        self, pid: int, instr: core.MeasInstruction
+            self, pid: int, instr: core.MeasInstruction
     ) -> Generator[EventExpression, None, None]:
         qnos_mem = self._prog_mem().qnos_mem
         virt_id = qnos_mem.get_reg_value(instr.qreg)
@@ -806,7 +806,7 @@ class IonTrapProcessor(QnosProcessor):
         return None
 
     def _interpret_single_rotation_instr(
-        self, pid: int, instr: core.RotationInstruction
+            self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, trapped_ion.RotZInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_Z)
@@ -836,7 +836,7 @@ class IonTrapProcessor(QnosProcessor):
         return None
 
     def _interpret_all_qubit_rotation(
-        self, instr: trapped_ion.AllQubitsRotationInstruction, ns_instr: NsInstr
+            self, instr: trapped_ion.AllQubitsRotationInstruction, ns_instr: NsInstr
     ):
         qnos_mem = self._prog_mem().qnos_mem
 
@@ -873,7 +873,7 @@ class IonTrapProcessor(QnosProcessor):
         return None
 
     def _interpret_other_instr(
-        self, pid: int, instr: NetQASMInstruction
+            self, pid: int, instr: NetQASMInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, trapped_ion.BichromaticInstruction):
             pass
