@@ -387,7 +387,7 @@ class EntDist(Protocol):
         total_delay = sample.duration + timed_sampler.delay
 
         if cutoff is None and (
-        self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
+                self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
             try:
                 cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
                 self._logger.warning(
@@ -463,7 +463,7 @@ class EntDist(Protocol):
         """
 
         if cutoff is None and (
-        self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
+                self._netschedule.length_of_qc_blocks is not None if self._netschedule is not None else False):
             try:
                 cutoff = self._netschedule.length_of_qc_blocks[(node1_id, node1_pid, node2_id, node2_pid)]
                 self._logger.warning(
@@ -479,6 +479,7 @@ class EntDist(Protocol):
         links_generated = -1
         link_generation_time_dictionary: Dict[int, Union[int, None]] = {x: None for x in range(
             num_pairs)}  # Just need to track the ages on one side.
+        number_of_links_alive = 0
 
         node1_mem = self._nodes[node1_id].qmemory
         node2_mem = self._nodes[node2_id].qmemory
@@ -487,6 +488,7 @@ class EntDist(Protocol):
             timed_sampler = self.get_sampler(node1_id, node2_id)
             sample = self.sample_state(timed_sampler.sampler)
             links_generated += 1
+            number_of_links_alive += 1
 
             self._logger.info(f"sample duration: {sample.duration}")
             self._logger.info(f"total duration: {timed_sampler.delay}")
@@ -542,29 +544,31 @@ class EntDist(Protocol):
                     f"qubit location id of {node2_phys_id} is not present in \
                                     quantum memory of node ID {node2_id}."
                 )
-            node1_mem.mem_positions[node1_phys_id[memory_slot]].in_use = True
-            node2_mem.mem_positions[node2_phys_id[memory_slot]].in_use = True
 
             node1_mem.put(qubits=epr[0], positions=node1_phys_id[memory_slot])
             node2_mem.put(qubits=epr[1], positions=node2_phys_id[memory_slot])
 
             for slot in range(num_pairs):
                 if total_elapsed_time_in_request - link_generation_time_dictionary[slot] > window if \
-                link_generation_time_dictionary[slot] is not None else False:
-                    # If links are too old, then release use of memory slot
-                    node1_mem.mem_positions[node1_phys_id[slot]].in_use = False  # TODO: separate bool for "alive"
-                    node2_mem.mem_positions[node2_phys_id[slot]].in_use = False
+                        link_generation_time_dictionary[slot] is not None else False:
+                    # # If links are too old, then release use of memory slot
+                    # node1_mem.mem_positions[node1_phys_id[slot]].in_use = False  # TODO: separate bool for "alive"
+                    # node2_mem.mem_positions[node2_phys_id[slot]].in_use = False
+                    number_of_links_alive -= 1
                     link_generation_time_dictionary[slot] = None
                     self._logger.warning(f"Dumped pair in slot {slot}")
 
-            if all(node1_mem.mem_positions[node1_phys_id[slot]].in_use for slot in range(num_pairs)) and all(
-                    node2_mem.mem_positions[node2_phys_id[slot]].in_use for slot in range(num_pairs)):
+            if number_of_links_alive == num_pairs:
                 # Then all slots in use and holding recent enough pairs to form a valid packet:
 
                 self._logger.warning("Packet of entanglement successfully created")
                 # Send messages to the nodes indicating a request has been delivered.
                 node1 = self._interface.remote_id_to_peer_name(node1_id)
                 node2 = self._interface.remote_id_to_peer_name(node2_id)
+
+                node1_mem.mem_positions[node1_phys_id[memory_slot]].in_use = True
+                node2_mem.mem_positions[node2_phys_id[memory_slot]].in_use = True
+
                 # TODO: use PIDs??
                 self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
                 self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
@@ -845,8 +849,9 @@ class EntDist(Protocol):
                     try:
                         self._outstanding_requests.append(OutstandingRequest(request, ns.sim_time() +
                                                                              self._netschedule.length_of_qc_blocks[(
-                                                                             request.node1_id, request.node1_pid,
-                                                                             request.node2_id, request.node2_pid)] - 1,
+                                                                                 request.node1_id, request.node1_pid,
+                                                                                 request.node2_id,
+                                                                                 request.node2_pid)] - 1,
                                                                              [], 0))
                     except KeyError as F:
                         self._logger.warning(
