@@ -150,15 +150,11 @@ def run_apps(
 
 @dataclass
 class DataPoint:
-    t2: float
     cc_latency: float
     num_qubits_bob: int
     tel_succ_prob: float
     tel_succ_prob_lower: float
     tel_succ_prob_upper: float
-    loc_succ_prob: float
-    loc_succ_prob_lower: float
-    loc_succ_prob_upper: float
     makespan: float
 
 
@@ -169,7 +165,10 @@ class DataMeta:
     latency_factor: float
     net_bin_factors: List[float]
     prio_epr: bool
-    bob_qubit_nums: List[int]
+    num_qubits: int
+    num_steps: int
+    t1: float
+    t2: float
 
 
 @dataclass
@@ -199,7 +198,7 @@ def wilson_score_interval(p_hat, n, z):
     return (lower_bound, upper_bound)
 
 
-def get_metrics(
+def get_datapoint(
     num_runs: int,
     num_iterations: int,
     num_qubits_bob: int,
@@ -212,7 +211,6 @@ def get_metrics(
     prio_epr: bool,
 ) -> DataPoint:
     teleport_successes: List[bool] = []
-    local_successes: List[bool] = []
     makespans: List[float] = []
 
     for _ in range(num_runs):
@@ -246,101 +244,67 @@ def get_metrics(
     tel_upper_rounded = round(tel_succ_prob_upper, 3)
     tel_succprob_rounded = round(tel_avg_succ_prob, 3)
 
-    if len(local_successes) > 0:
-        loc_avg_succ_prob = sum([s for s in local_successes if s]) / len(
-            local_successes
-        )
-        loc_succ_prob_lower, loc_succ_prob_upper = wilson_score_interval(
-            p_hat=loc_avg_succ_prob, n=len(local_successes), z=1.96
-        )
-        loc_lower_rounded = round(loc_succ_prob_lower, 3)
-        loc_upper_rounded = round(loc_succ_prob_upper, 3)
-        loc_succprob_rounded = round(loc_avg_succ_prob, 3)
-    else:
-        loc_avg_succ_prob = 0
-        loc_succ_prob_lower = 0
-        loc_succ_prob_upper = 0
-        loc_lower_rounded = 0
-        loc_upper_rounded = 0
-        loc_succprob_rounded = 0
-
     makespan = sum(makespans) / len(makespans)
 
     print(
         f"teleport succ prob: {tel_succprob_rounded} ({tel_lower_rounded}, {tel_upper_rounded})"
     )
-    print(
-        f"local succ prob: {loc_succprob_rounded} ({loc_lower_rounded}, {loc_upper_rounded})"
-    )
     print(f"makespan: {makespan:_}")
 
     return DataPoint(
-        t2=t2,
         cc_latency=cc_latency,
         num_qubits_bob=num_qubits_bob,
         tel_succ_prob=tel_avg_succ_prob,
         tel_succ_prob_lower=tel_succ_prob_lower,
         tel_succ_prob_upper=tel_succ_prob_upper,
-        loc_succ_prob=loc_avg_succ_prob,
-        loc_succ_prob_lower=loc_succ_prob_lower,
-        loc_succ_prob_upper=loc_succ_prob_upper,
         makespan=makespan,
     )
 
 
-def run(
-    output_dir: str,
-    prio_epr: bool,
-    num_runs: int,
-    num_qubits: Optional[int] = None,
-):
+def run(output_dir: str, num_runs: int, num_qubits: int, num_steps: int, dump: bool):
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     t1 = 1e10
     t2 = 1e8
+    prio_epr = False
 
     num_iterations = 5
-    if num_qubits is not None:
-        bob_qubit_nums = [num_qubits]
-    else:
-        bob_qubit_nums = [1, 2, 5]
     latency_factor = 0.1  # CC = 10_000_000
-    net_bin_factors = list(np.linspace(0.2, 0.6, 41))
+    net_bin_factors = list(np.linspace(0.2, 0.6, num_steps + 1))
     net_bin_factors = [round(f, 2) for f in net_bin_factors]
     network_gap = 0
 
     data_points: List[DataPoint] = []
 
-    for num_qubits_bob in bob_qubit_nums:
-        for bin_factor in net_bin_factors:
-            network_bin_len = int((latency_factor * t2) * bin_factor)
-            network_first_bin = int(network_bin_len / 2)
-            network_period = (num_iterations + network_gap) * network_bin_len
+    for bin_factor in net_bin_factors:
+        network_bin_len = int((latency_factor * t2) * bin_factor)
+        network_first_bin = int(network_bin_len / 2)
+        network_period = (num_iterations + network_gap) * network_bin_len
 
-            data_point = get_metrics(
-                num_runs=num_runs,
-                num_iterations=num_iterations,
-                num_qubits_bob=num_qubits_bob,
-                t1=t1,
-                t2=t2,
-                latency_factor=latency_factor,
-                network_bin_len=network_bin_len,
-                network_period=network_period,
-                network_first_bin=network_first_bin,
-                prio_epr=prio_epr,
-            )
-            makespan = data_point.makespan
-            num_bins = math.ceil(makespan / network_bin_len)
-            # print(f"total duration: {end_time - start_time}s")
+        data_point = get_datapoint(
+            num_runs=num_runs,
+            num_iterations=num_iterations,
+            num_qubits_bob=num_qubits,
+            t1=t1,
+            t2=t2,
+            latency_factor=latency_factor,
+            network_bin_len=network_bin_len,
+            network_period=network_period,
+            network_first_bin=network_first_bin,
+            prio_epr=prio_epr,
+        )
+        makespan = data_point.makespan
+        num_bins = math.ceil(makespan / network_bin_len)
+        # print(f"total duration: {end_time - start_time}s")
 
-            print(f"cc latency: {latency_factor * t2:_}")
-            print(f"network period: {network_period:_}")
-            print(f"network bin len: {network_bin_len:_}")
-            print(f"makespan: {makespan}")
-            print(f"num bins: {num_bins}")
+        print(f"cc latency: {latency_factor * t2:_}")
+        print(f"network period: {network_period:_}")
+        print(f"network bin len: {network_bin_len:_}")
+        print(f"makespan: {makespan}")
+        print(f"num bins: {num_bins}")
 
-            data_points.append(data_point)
+        data_points.append(data_point)
 
     meta = DataMeta(
         timestamp=timestamp,
@@ -348,38 +312,47 @@ def run(
         latency_factor=latency_factor,
         net_bin_factors=net_bin_factors,
         prio_epr=prio_epr,
-        bob_qubit_nums=bob_qubit_nums,
+        num_qubits=num_qubits,
+        num_steps=num_steps,
+        t1=t1,
+        t2=t2,
     )
 
     end_time = time.time()
     print(f"simulation took {end_time - start_time}s")
 
-    data = Data(meta=meta, data_points=data_points)
-    json_data = asdict(data)
+    if dump:
+        data = Data(meta=meta, data_points=data_points)
+        json_data = asdict(data)
 
-    abs_dir = relative_to_cwd(f"data/{output_dir}")
-    Path(abs_dir).mkdir(parents=True, exist_ok=True)
-    last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
-    with open(last_path, "w") as datafile:
-        json.dump(json_data, datafile)
-    with open(timestamp_path, "w") as datafile:
-        json.dump(json_data, datafile)
+        abs_dir = relative_to_cwd(f"data/{output_dir}")
+        Path(abs_dir).mkdir(parents=True, exist_ok=True)
+        last_path = os.path.join(abs_dir, "LAST.json")
+        timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+        with open(last_path, "w") as datafile:
+            json.dump(json_data, datafile)
+        with open(timestamp_path, "w") as datafile:
+            json.dump(json_data, datafile)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--num_qubits", "-q", type=int, required=False)
+    parser.add_argument("--num_qubits", "-q", type=int, required=True)
+    parser.add_argument("--num_steps", "-s", type=int, required=True)
     parser.add_argument("--num_runs", "-n", type=int, required=True)
+    parser.add_argument("--dump", "-d", action="store_true")
 
     args = parser.parse_args()
 
+    dump = args.dump
     num_qubits = args.num_qubits
+    num_steps = args.num_steps
     num_runs = args.num_runs
 
     run(
-        "net_bin_factor_per_qubit_num",
-        prio_epr=False,
+        f"sweep_bin_length_{num_qubits}_{num_steps}",
         num_runs=num_runs,
         num_qubits=num_qubits,
+        num_steps=num_steps,
+        dump=dump,
     )
