@@ -2,17 +2,16 @@
 
 START_TIME=$SECONDS
 
-# num_runs=200
-num_runs=1
+num_runs=200
+# num_runs=1
 
 # teleport_values=(1 2 3 4 5)
 num_teleport=15
-num_local=15
 
 commands=()
 
 for tel_val in $(seq 1 $num_teleport); do
-    for loc_val in $(seq 1 $num_local); do
+    for loc_val in $(seq 7 9); do
         command="python eval_quantum_multitasking.py -d -t $tel_val -l $loc_val -n $num_runs"
         echo "generated command: $command"
         commands+=("$command")
