@@ -26,4 +26,5 @@ report.xml
 
 .pydeps
 
+/.mypy_cache
 # evaluation/**/*.json
