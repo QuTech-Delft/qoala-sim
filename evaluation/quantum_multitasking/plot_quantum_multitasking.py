@@ -1,5 +1,4 @@
 import json
-import numpy as np
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -8,13 +7,13 @@ from typing import List
 
 import dacite
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 @dataclass
 class DataPoint:
-    t2: float
-    cc_latency: float
-    num_qubits_bob: int
+    num_teleport: int
+    num_local: int
     tel_succ_prob: float
     tel_succ_prob_lower: float
     tel_succ_prob_upper: float
@@ -27,10 +26,18 @@ class DataPoint:
 @dataclass
 class DataMeta:
     timestamp: str
-    num_iterations: int
-    num_local_iterations: int
+    num_teleport: int
+    num_local: int
     num_runs: int
+    t1: float
+    t2: float
     latency_factor: float
+    cc_latency: float
+    local_busy_duration: float
+    network_bin_len: int
+    network_period: int
+    network_first_bin: int
+    num_qubits_bob: int
 
 
 @dataclass

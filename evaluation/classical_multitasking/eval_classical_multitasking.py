@@ -131,8 +131,8 @@ def run_apps(
             prog_node2_inputs=bob_inputs,
             const_prog_node2=busy_program,
             const_prog_node2_inputs=busy_inputs,
-            const_period=const_period,
-            const_start=const_start,
+            const_period=int(const_period),
+            const_start=int(const_start),
             network_cfg=network_cfg,
             sched_typ=sched_typ,
             linear=True,
@@ -223,8 +223,8 @@ def wilson_score_interval(p_hat, n, z):
 
 def get_datapoint(
     num_iterations: int,
-    t1: int,
-    t2: int,
+    t1: float,
+    t2: float,
     cc_latency: float,
     num_const_tasks: int,
     const_period: float,
