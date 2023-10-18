@@ -1,0 +1,26 @@
+META_START
+    name: alice
+    parameters: bob_id
+    csockets: 0 -> bob
+    epr_sockets: 0 -> bob
+META_END
+
+^b1 {type = QC}:
+    outcomes<100> = run_request() : req
+
+^b2 {type = CL}:
+    return_result(outcomes)
+
+
+REQUEST req
+  callback_type:
+  callback: 
+  return_vars: m<100>
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 100
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: measure_directly
+  role: create

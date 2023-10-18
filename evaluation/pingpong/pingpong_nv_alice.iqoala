@@ -1,0 +1,141 @@
+META_START
+    name: alice
+    parameters: bob_id
+    csockets: 0 -> bob
+    epr_sockets: 0 -> bob
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = QL}:
+    run_subroutine() : prepare_qubit
+
+^b2 {type = QC}:
+    run_request() : epr_gen_1
+
+^b3 {type = QL}:
+    tuple<m0; m1> = run_subroutine() : bsm
+
+^b4 {type = CL}:
+    send_cmsg(csocket, m0)
+    send_cmsg(csocket, m1)
+
+^b5 {type = QC}:
+    run_request() : epr_gen_2
+
+^b6 {type = CC}:
+    p1 = recv_cmsg(csocket)
+
+^b7 {type = CC}:
+    p2 = recv_cmsg(csocket)
+
+^b8 {type = QL}:
+    run_subroutine(tuple<p1; p2>) : bsm_corrections
+
+^b9 {type = QL}:
+    tuple<outcome> = run_subroutine() : measure
+
+^b10 {type = CL}:
+    return_result(outcome)
+
+
+SUBROUTINE prepare_qubit
+    params: 
+    returns: 
+    uses: 1
+    keeps: 1
+    request: 
+  NETQASM_START
+    set Q1 1
+    init Q1
+    rot_x Q1 16 4
+  NETQASM_END
+
+SUBROUTINE bsm
+    params: 
+    returns: m0, m1
+    uses: 0, 1
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    rot_y Q1 8 4
+    crot_x Q0 Q1 8 4
+    rot_x Q0 24 4
+    rot_y Q0 24 4
+    rot_x Q0 8 4
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    rot_x Q1 24 4
+    rot_y Q1 24 4
+    rot_y Q1 8 4
+    rot_x Q1 16 4
+    meas Q0 M0
+    meas Q1 M1
+    store M0 @output[0]
+    store M1 @output[1]
+  NETQASM_END
+
+SUBROUTINE bsm_corrections
+    params: p1, p2
+    returns: 
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    set C15 0
+    set C14 1
+    load C0 @input[C15]
+    load C1 @input[C14]
+    set Q0 0
+    set R0 0
+    beq C0 R0 2
+    rot_x Q0 16 4
+    beq C1 R0 4
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+    rot_y Q0 24 4
+    set R15 0
+  NETQASM_END
+
+SUBROUTINE measure
+    params: 
+    returns: outcome
+    uses: 0
+    keeps: 
+    request:
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST epr_gen_1
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+
+REQUEST epr_gen_2
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
