@@ -1,5 +1,6 @@
 import json
 import os
+from argparse import ArgumentParser
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -65,8 +66,8 @@ def create_meta(filename: str, datas: List[Data], plot_tel: bool):
     meta = {}
     meta["datafiles"] = [
         {
-            "num_teleport": data.meta.num_iterations,
-            "num_local": data.meta.num_local_iterations,
+            "num_teleport": data.meta.num_teleport,
+            "num_local": data.meta.num_local,
             "timestamp": data.meta.timestamp,
         }
         for data in datas
@@ -89,7 +90,7 @@ def load_data(path: str) -> Data:
 
 
 def plot_heatmap(
-    timestamp: str, datas: List[Data], num_range: int, plot_tel: bool
+    timestamp: str, datas: List[Data], num_teleport: int, num_local: int, plot_tel: bool
 ) -> None:
     fig, ax = plt.subplots()
 
@@ -97,11 +98,11 @@ def plot_heatmap(
     ax.set_xlabel("Number of teleportation iterations")
     ax.set_ylabel("Number of local iterations")
 
-    plot_data = np.empty((num_range, num_range))
+    plot_data = np.empty((num_local, num_teleport))
 
     for data in datas:
-        tel = data.meta.num_iterations
-        loc = data.meta.num_local_iterations
+        tel = data.meta.num_teleport
+        loc = data.meta.num_local
         tel_succ = data.data_points[0].tel_succ_prob
         loc_succ = data.data_points[0].loc_succ_prob
         if plot_tel:
@@ -117,8 +118,8 @@ def plot_heatmap(
     else:
         ax.set_title("Local success probability", wrap=True)
 
-    ax.set_xticks(np.arange(0.5, num_range + 0.5), range(1, num_range + 1))
-    ax.set_yticks(np.arange(0.5, num_range + 0.5), range(1, num_range + 1))
+    ax.set_xticks(np.arange(0.5, num_teleport + 0.5), range(1, num_teleport + 1))
+    ax.set_yticks(np.arange(0.5, num_local + 0.5), range(1, num_local + 1))
 
     # ax.set_ylim(0.75, 0.9)
     # ax.legend(loc="upper left")
@@ -128,10 +129,10 @@ def plot_heatmap(
     create_png(f"{timestamp}_{tel_or_loc}")
 
 
-def heat_map(num_range: int):
+def heat_map(num_teleport: int, num_local: int):
     datas: List[Data] = []
-    for tel in range(1, num_range + 1):
-        for loc in range(1, num_range + 1):
+    for tel in range(1, num_teleport + 1):
+        for loc in range(1, num_local + 1):
             data = load_data(f"data/sweep_teleport_local_{tel}_{loc}/LAST.json")
             datas.append(data)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -139,13 +140,22 @@ def heat_map(num_range: int):
     # Plot Teleportation success probability
     create_meta("LAST_tel_meta", datas, plot_tel=True)
     create_meta(f"{timestamp}_tel_meta", datas, plot_tel=True)
-    plot_heatmap(timestamp, datas, num_range, plot_tel=True)
+    plot_heatmap(timestamp, datas, num_teleport, num_local, plot_tel=True)
 
     # Plot Local success probability
     create_meta("LAST_loc_meta", datas, plot_tel=False)
     create_meta(f"{timestamp}_loc_meta", datas, plot_tel=False)
-    plot_heatmap(timestamp, datas, num_range, plot_tel=False)
+    plot_heatmap(timestamp, datas, num_teleport, num_local, plot_tel=False)
 
 
 if __name__ == "__main__":
-    heat_map(15)
+    parser = ArgumentParser()
+    parser.add_argument("--num_teleport", "-t", type=int, required=True)
+    parser.add_argument("--num_local", "-l", type=int, required=True)
+
+    args = parser.parse_args()
+
+    num_teleport = args.num_teleport
+    num_local = args.num_local
+
+    heat_map(num_teleport, num_local)

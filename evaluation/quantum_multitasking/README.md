@@ -33,17 +33,40 @@ The `run.sh` script may be used to speed up the simulation, by running the simul
 
 
 # Produce plot
-Given that the folders `data/qoala`, `data/fcfs` and `data/no_sched` exist, a plot can be created with
+Given that the folders `data/sweep_teleport_local_{tel}_{loc}/` exist, a plot can be created with
 
 ```
-python plot_classical_multitasking.py
+python plot_quantum_multitasking.py -t {tel} -l {loc}
 ```
 
-This produces two files:
+where `tel` and `loc` specify the range of data files to use and plot.
+
+For example, when using `-t 3 -l 3`, the data files from
+```
+data/sweep_teleport_local_1_1/
+data/sweep_teleport_local_1_2/
+data/sweep_teleport_local_1_3/
+data/sweep_teleport_local_2_1/
+data/sweep_teleport_local_2_2/
+data/sweep_teleport_local_2_3/
+data/sweep_teleport_local_3_1/
+data/sweep_teleport_local_3_2/
+data/sweep_teleport_local_3_3/
+```
+are used, and a 3x3 heatmap is created.
+
+This produces four files:
 
 ```
-plots/{timestamp}.png
-plots/{timetsamp}_meta.json
+plots/{timestamp}_tel.png
+plots/{timetsamp}_tel_meta.json
+plots/{timestamp}_loc.png
+plots/{timetsamp}_loc_meta.json
 ```
 
-These are the plot in `.png` format and a `_meta.json` file with information about which data files were used to procude the plot. Both files have the timestamp of generating the plot in the filename. The `LAST_meta.json` and `LAST.png` files are copies of the most recent two plot files.
+These are the plot in `.png` format and a `_meta.json` file with information about which data files were used to procude the plot.
+The `tel` files are for the heatmap displaying the teleportation success probability.
+The `loc` files are for the heatmap displaying the local program success probability.
+All files have the timestamp of generating the plot in the filename. The `LAST_meta.json` and `LAST.png` files are copies of the most recent plot files.
+
+To produce the full 15x15 heatmap, use `python plot_quantum_multitasking.py -t 15 -l 15`.

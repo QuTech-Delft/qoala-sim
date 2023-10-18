@@ -158,8 +158,8 @@ def sweep_busy_factor():
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    create_meta("LAST_meta.json", no_sched_data, fcfs_data, qoala_data)
-    create_meta(f"{timestamp}_meta.json", no_sched_data, fcfs_data, qoala_data)
+    create_meta("LAST_meta", no_sched_data, fcfs_data, qoala_data)
+    create_meta(f"{timestamp}_meta", no_sched_data, fcfs_data, qoala_data)
     plot_sweep_busy_factor(timestamp, no_sched_data, fcfs_data, qoala_data)
 
 
