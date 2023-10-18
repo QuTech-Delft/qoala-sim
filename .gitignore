@@ -26,4 +26,4 @@ report.xml
 
 .pydeps
 
-evaluation/**/*.json
+# evaluation/**/*.json
