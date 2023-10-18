@@ -9,11 +9,11 @@ file1=/tmp/status1.txt
 file2=/tmp/status2.txt
 file3=/tmp/status3.txt
 
-python eval_classical_multitasking_2.py -d -n $num_runs -s qoala > $file1 &
+python eval_classical_multitasking.py -d -n $num_runs -s qoala > $file1 &
 PID1=$!
-python eval_classical_multitasking_2.py -d -n $num_runs -s fcfs > $file2 &
+python eval_classical_multitasking.py -d -n $num_runs -s fcfs > $file2 &
 PID2=$!
-python eval_classical_multitasking_2.py -d -n $num_runs -s no_sched > $file3 &
+python eval_classical_multitasking.py -d -n $num_runs -s no_sched > $file3 &
 PID3=$!
 
 while :; do

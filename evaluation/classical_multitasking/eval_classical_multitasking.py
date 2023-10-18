@@ -72,7 +72,7 @@ def run_apps(
     num_const_tasks: int,
     busy_duration: float,
     const_period: float,
-    const_start: int,
+    const_start: float,
     sched_typ: SchedulerType,
 ) -> ProgResult:
     ns.sim_reset()
@@ -169,12 +169,9 @@ def run_apps(
 
 @dataclass
 class DataPoint:
-    t2: float
     sched_typ: str
-    latency_factor: float
-    num_const_tasks: int
-    const_rate_factor: float
     busy_factor: float
+    busy_duration: float
     succ_prob: float
     succ_prob_lower: float
     succ_prob_upper: float
@@ -185,12 +182,15 @@ class DataPoint:
 class DataMeta:
     timestamp: str
     sim_duration: float
-    const_rate_factor: float
     num_iterations: int
     t1: float
     t2: float
     latency_factor: float
     num_const_tasks: int
+    const_rate_factor: float
+    cc_latency: float
+    const_period: float
+    const_start: float
     busy_factors: List[float]
 
 
@@ -221,22 +221,20 @@ def wilson_score_interval(p_hat, n, z):
     return (lower_bound, upper_bound)
 
 
-def get_metrics(
+def get_datapoint(
     num_iterations: int,
     t1: int,
     t2: int,
-    latency_factor: float,
+    cc_latency: float,
     num_const_tasks: int,
-    const_rate_factor: float,
-    busy_factor: float,
+    const_period: float,
+    const_start: float,
     sched_typ: SchedulerType,
-) -> float:
+    busy_factor: float,
+) -> DataPoint:
     successes: List[bool] = []
     makespans: List[float] = []
 
-    cc_latency = latency_factor * t2
-    const_period = cc_latency / const_rate_factor
-    const_start = cc_latency
     busy_duration = busy_factor * cc_latency
 
     for i in range(num_iterations):
@@ -261,20 +259,13 @@ def get_metrics(
     succ_prob_lower, succ_prob_upper = wilson_score_interval(
         p_hat=avg_succ_prob, n=len(successes), z=1.96
     )
-    lower_rounded = round(succ_prob_lower, 3)
-    upper_rounded = round(succ_prob_upper, 3)
-    succprob_rounded = round(avg_succ_prob, 3)
-    # print(f"succ prob: {succprob_rounded} ({lower_rounded}, {upper_rounded})")
 
     total_makespan = sum(makespans)
 
     return DataPoint(
-        t2=t2,
         sched_typ=sched_typ.name,
-        latency_factor=latency_factor,
-        num_const_tasks=num_const_tasks,
-        const_rate_factor=const_rate_factor,
         busy_factor=busy_factor,
+        busy_duration=busy_duration,
         succ_prob=avg_succ_prob,
         succ_prob_lower=succ_prob_lower,
         succ_prob_upper=succ_prob_upper,
@@ -286,7 +277,7 @@ def run(
     output_dir: str,
     sched_typ: SchedulerType,
     num_iterations: int,
-    save: bool = True,
+    dump: bool = True,
     log: bool = False,
 ):
     if log:
@@ -308,6 +299,10 @@ def run(
     num_const_tasks = 100
     const_rate_factor = 10
 
+    cc_latency = latency_factor * t2
+    const_period = cc_latency / const_rate_factor
+    const_start = cc_latency
+
     # Variables
     busy_factors = [
         # 0.05,
@@ -328,51 +323,53 @@ def run(
         print(
             f"{sched_typ:30}: data point {i}/{len(busy_factors)}", end="\r", flush=True
         )
-        data_point = get_metrics(
+        data_point = get_datapoint(
             num_iterations=num_iterations,
             t1=t1,
             t2=t2,
-            latency_factor=latency_factor,
+            cc_latency=cc_latency,
             num_const_tasks=num_const_tasks,
-            const_rate_factor=const_rate_factor,
-            busy_factor=busy_factor,
+            const_period=const_period,
+            const_start=const_start,
             sched_typ=sched_typ,
+            busy_factor=busy_factor,
         )
 
         data_points.append(data_point)
 
     end_time = time.time()
     sim_duration = end_time - start_time
-    # print(f"total duration: {sim_duration}s")
-
-    if not save:
-        return
 
     meta = DataMeta(
         timestamp=timestamp,
         sim_duration=sim_duration,
-        const_rate_factor=const_rate_factor,
         num_iterations=num_iterations,
         t1=t1,
         t2=t2,
         latency_factor=latency_factor,
         num_const_tasks=num_const_tasks,
+        const_rate_factor=const_rate_factor,
+        cc_latency=cc_latency,
+        const_period=const_period,
+        const_start=const_start,
         busy_factors=busy_factors,
     )
-    data = Data(meta=meta, data_points=data_points)
 
-    json_data = asdict(data)
+    if dump:
+        data = Data(meta=meta, data_points=data_points)
 
-    abs_dir = relative_to_cwd(f"data/{output_dir}")
-    Path(abs_dir).mkdir(parents=True, exist_ok=True)
-    last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
-    with open(last_path, "w") as datafile:
-        json.dump(json_data, datafile)
-    with open(timestamp_path, "w") as datafile:
-        json.dump(json_data, datafile)
+        json_data = asdict(data)
 
-    print(f"data written to {timestamp_path} and {last_path}", end="\r", flush=True)
+        abs_dir = relative_to_cwd(f"data/{output_dir}")
+        Path(abs_dir).mkdir(parents=True, exist_ok=True)
+        last_path = os.path.join(abs_dir, "LAST.json")
+        timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+        with open(last_path, "w") as datafile:
+            json.dump(json_data, datafile)
+        with open(timestamp_path, "w") as datafile:
+            json.dump(json_data, datafile)
+
+        print(f"data written to {timestamp_path} and {last_path}", end="\r", flush=True)
 
 
 if __name__ == "__main__":
@@ -391,19 +388,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     num_iterations = args.num_iterations
-    save = args.dump
+    dump = args.dump
     log = args.log
-
-    # print(
-    #     f"scheduler: {args.scheduler}, num_iterations: {args.num_iterations}, dump: {args.dump}"
-    # )
 
     if args.scheduler == "no_sched":
         run(
             output_dir="no_sched",
             sched_typ=SchedulerType.NO_SCHED,
             num_iterations=num_iterations,
-            save=save,
+            dump=dump,
             log=log,
         )
     elif args.scheduler == "fcfs":
@@ -411,7 +404,7 @@ if __name__ == "__main__":
             output_dir="fcfs",
             sched_typ=SchedulerType.FCFS,
             num_iterations=num_iterations,
-            save=save,
+            dump=dump,
             log=log,
         )
     elif args.scheduler == "qoala":
@@ -419,6 +412,6 @@ if __name__ == "__main__":
             output_dir="qoala",
             sched_typ=SchedulerType.QOALA,
             num_iterations=num_iterations,
-            save=save,
+            dump=dump,
             log=log,
         )
