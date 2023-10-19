@@ -185,7 +185,7 @@ class NodeScheduler(Protocol):
 
         cpudriver = CpuDriver(node_name, scheduler_memory, host.processor, memmgr)
         cpu_sched_typ = CpuFcfsScheduler if fcfs else CpuEdfScheduler
-        self._cpu_scheduler = cpu_sched_typ(
+        self._cpu_scheduler: CpuScheduler = cpu_sched_typ(  # type: ignore
             f"{node_name}_cpu",
             node_id,
             cpudriver,

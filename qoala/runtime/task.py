@@ -43,7 +43,7 @@ class QoalaTask:
     def __str__(self) -> str:
         s = f"{self.__class__.__name__}(pid={self.pid}, tid={self.task_id})"
         if not self.is_epr_task() and hasattr(self, "block_name"):
-            s += f"block={self.block_name}"
+            s += f"block={self.block_name}"  # type: ignore
         return s
 
     @property
