@@ -103,7 +103,15 @@ NV_DEFAULT_TWO_GATE_DURATION = int(2e6)
 GENERIC_DEFAULT_ONE_GATE_DURATION = int(5e3)
 GENERIC_DEFAULT_TWO_GATE_DURATION = int(200e3)
 
-TRI_GATES = [
+TRI_SINGLE_GATES = [
+    "INSTR_INIT",
+    "INSTR_ROT_Z",
+    "INSTR_MEASURE",
+    "INSTR_MEASURE_INSTANT",
+]
+
+TRI_ALL_GATES = [
+    "INSTR_INIT",
     "INSTR_MEASURE_ALL",
     "INSTR_ROT_X_ALL",
     "INSTR_ROT_Y_ALL",
@@ -818,11 +826,11 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
     def perfect_tri_default_params(cls, num_qubits: int) -> TopologyConfig:
         return cls.perfect_config_uniform(
             num_qubits=num_qubits,
-            single_instructions=[],
+            single_instructions=TRI_SINGLE_GATES,
             single_duration=0,
             two_instructions=[],
             two_duration=0,
-            all_qubit_gate_instructions=TRI_GATES,
+            all_qubit_gate_instructions=TRI_ALL_GATES,
             all_qubit_gate_duration=0,
         )
 

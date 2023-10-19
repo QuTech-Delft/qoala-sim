@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
+import numpy as np
 import pytest
 from netqasm.lang.instr.flavour import (
     Flavour,
@@ -24,7 +25,7 @@ from netsquid.components.instructions import (
     INSTR_Z,
 )
 from netsquid.nodes import Node
-from netsquid.qubits import ketstates
+from netsquid.qubits import ketstates, qubitapi
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import ProgramMeta, QoalaProgram
@@ -1024,7 +1025,47 @@ def test_rotate_all():
     assert has_state(qubit2, ketstates.y1)
 
 
-def test_bichromatic():
+def test_bichromatic_2_qubits():
+    num_qubits = 2
+    processor, unit_module = setup_components_trapped_ion(num_qubits)
+
+    subrt = """
+        set Q0 0
+        set Q1 1
+        init_all
+
+        // rotate to |+> (note: not full hadamard!)
+        rot_x_all 8 4
+        rot_z Q0 8 4
+        rot_x_all 24 4
+
+        // cnot between q0 and q1
+        rot_x_all 8 4
+        rot_z Q0 8 4
+        rot_x_all 24 4
+        bichromatic 8 4
+        rot_x_all 24 4
+        rot_x_all 8 4
+        rot_z Q0 24 4
+        rot_x_all 24 4
+        """
+    process = create_process_with_trapped_ion_subrt(
+        0, subrt, unit_module, [0, 1], [0, 1]
+    )
+    processor._interface.memmgr.add_process(process)
+    execute_process(processor, process)
+
+    qubit0 = processor.qdevice.get_local_qubit(0)
+    qubit1 = processor.qdevice.get_local_qubit(1)
+
+    assert qubit0 is not None
+    assert qubit1 is not None
+
+    # print(np.around(qubitapi.reduced_dm([qubit0, qubit1]), 2))
+    assert has_multi_state([qubit0, qubit1], ketstates.b00)
+
+
+def test_bichromatic_3_qubits():
     num_qubits = 3
     processor, unit_module = setup_components_trapped_ion(num_qubits)
 
@@ -1090,4 +1131,5 @@ if __name__ == "__main__":
     test_multiple_processes_nv_alloc_error()
     test_initialize_all()
     test_rotate_all()
-    test_bichromatic()
+    test_bichromatic_2_qubits()
+    test_bichromatic_3_qubits()

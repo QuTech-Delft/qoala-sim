@@ -19,7 +19,7 @@ from qoala.util.runner import run_single_node_app
 
 
 def get_config() -> ProcNodeConfig:
-    topology = TopologyConfig.perfect_tri_default_params(5)
+    topology = TopologyConfig.perfect_tri_default_params(2)
     return ProcNodeConfig(
         node_name="alice",
         node_id=0,
@@ -41,11 +41,11 @@ def load_program(name: str) -> QoalaProgram:
 def run():
     ns.sim_reset()
 
-    num_iterations = 1
+    num_iterations = 100
 
     node_cfg = get_config()
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
-    program = load_program("trapped_ion.iqoala")
+    program = load_program("tri_local_cnot.iqoala")
 
     app_results = run_single_node_app(
         num_iterations=num_iterations,
@@ -55,6 +55,9 @@ def run():
         network_cfg=network_cfg,
         linear=True,
     )
+
+    results = app_results.batch_results["alice"].results
+    assert all(r.values["m0"] == r.values["m1"] for r in results)
 
 
 if __name__ == "__main__":
