@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from operator import is_
 from typing import Dict, List, Optional
 
 from netsquid.components import QuantumProcessor

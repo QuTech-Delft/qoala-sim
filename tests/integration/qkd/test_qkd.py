@@ -16,7 +16,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app
 
 

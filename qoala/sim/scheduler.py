@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import random
-import re
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -1330,15 +1329,12 @@ class QpuScheduler(ProcessorScheduler):
                 t for t in non_epr_ready if tg.get_tinfo(t).deadline is not None
             ]
 
-            next_task_id: int
-
             if not self._use_deadlines:
                 with_deadline = []
             if len(with_deadline) > 0:
                 # Sort them by deadline and return the one with the earliest deadline
                 deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
                 sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
-                next_task_id = sorted_by_deadline[0][0]
                 to_return = sorted_by_deadline[0][0]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")

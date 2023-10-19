@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
-import numpy as np
 import pytest
 from netqasm.lang.instr.flavour import (
     Flavour,
@@ -25,7 +24,7 @@ from netsquid.components.instructions import (
     INSTR_Z,
 )
 from netsquid.nodes import Node
-from netsquid.qubits import ketstates, qubitapi
+from netsquid.qubits import ketstates
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.program import ProgramMeta, QoalaProgram

@@ -1,4 +1,3 @@
-import gc
 import os
 import random
 from copy import deepcopy
@@ -7,7 +6,6 @@ from enum import Enum, auto
 from typing import Dict, List, Optional
 
 import netsquid as ns
-from pyparsing import line
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
@@ -17,7 +15,6 @@ from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramI
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
-from qoala.util.logging import LogManager
 
 
 class SchedulerType(Enum):
@@ -294,7 +291,7 @@ def run_two_node_app_separate_inputs_plus_local_program(
     batch_info_local = create_batch(
         local_prog_node2, unit_module2, local_prog_node2_inputs, num_local_iterations
     )
-    batch_local = procnode2.submit_batch(batch_info_local)
+    procnode2.submit_batch(batch_info_local)
 
     # Init
 
