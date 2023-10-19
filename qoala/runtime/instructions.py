@@ -68,7 +68,7 @@ class IRotationAllGate(Instruction):
         :param quantum_memory: NetSquid Quantum memory to execute instruction on.
         :param positions: Memory positions_of_connections to execute instruction on.
         """
-        print("executing rotation instruction with angle: ", angle)
+        # print("executing rotation instruction with angle: ", angle)
         operator = ops.create_rotation_op(angle=angle, rotation_axis=self._axis)
         for pos in positions:
             quantum_memory.operate(positions=pos, operator=operator)
@@ -96,6 +96,32 @@ class IBichromaticGate(Instruction):
         :param n: Number of qubits to apply operator on.
         :param angle: Angle of rotation.
 
+
+        In case of n=2, it constructs the XX gate. Specifically, the matrix:
+        [ cos(angle/2)    0                0               -i sin(angle/2) ]
+        [ 0               cos(angle/2)     -i*sin(angle/2)  0              ]
+        [ 0               -i*sin(angle/2)  cos(angle/2)     0              ]
+        [ -i*sin(angle/2)    0             0                cos(angle/2)   ]
+
+        Note that here "angle/2" is used, in contrast to
+        https://arxiv.org/pdf/1603.07678.pdf and
+        https://ionq.com/docs/getting-started-with-native-gates#entangling-gates !
+
+        I.e. to get an XX(t) gate as specified in the above paper, use angle = 2*t
+        for this BichromaticGate defined here.
+
+        For two qubits, this Bichromatic gates may be used to do a CNOT as follows:
+
+        NETQASM:
+        // cnot between q0 and q1
+        rot_x_all 8 4
+        rot_z Q0 8 4
+        rot_x_all 24 4
+        bichromatic 8 4
+        rot_x_all 24 4
+        rot_x_all 8 4
+        rot_z Q0 24 4
+        rot_x_all 24 4
         """
         sub_matrices = []
         X = np.array([[0, 1], [1, 0]])
@@ -126,7 +152,7 @@ class IBichromaticGate(Instruction):
         """
 
         operator = self.construct_operator(n=len(positions), angle=angle)
-        print("operator: ", operator)
+        # print("operator: \n", np.around(operator.arr, 2))
         quantum_memory.operate(positions=positions, operator=operator)
 
 

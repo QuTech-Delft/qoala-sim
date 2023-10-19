@@ -876,7 +876,7 @@ class IonTrapProcessor(QnosProcessor):
         self, pid: int, instr: NetQASMInstruction
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, trapped_ion.BichromaticInstruction):
-            pass
+            yield from self._interpret_bichromatic_instr(instr)
         elif isinstance(instr, trapped_ion.AllQubitsInitInstruction):
             yield from self._interpret_all_qubit_init()
         elif isinstance(instr, trapped_ion.AllQubitsMeasInstruction):

@@ -19,7 +19,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app, run_two_node_app_separate_inputs
 
 
@@ -113,7 +112,6 @@ def test_teleport():
 
 def test_teleport_different_inputs():
     # LogManager.set_log_level("DEBUG")
-    LogManager.enable_task_logger(True)
     num_iterations = 10
 
     result = run_teleport(num_iterations=num_iterations, different_inputs=True)

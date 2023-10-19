@@ -18,7 +18,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app_separate_inputs
 
 
@@ -84,7 +83,6 @@ def run_rsp(num_iterations: int, angles: List[int]) -> RspResult:
 
 def test_rsp():
     # LogManager.set_log_level("DEBUG")
-    LogManager.enable_task_logger(True)
     # LogManager.log_tasks_to_file("teleport_plus_local.log")
     num_iterations = 20
 

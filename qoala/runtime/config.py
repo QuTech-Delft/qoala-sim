@@ -103,6 +103,22 @@ NV_DEFAULT_TWO_GATE_DURATION = int(2e6)
 GENERIC_DEFAULT_ONE_GATE_DURATION = int(5e3)
 GENERIC_DEFAULT_TWO_GATE_DURATION = int(200e3)
 
+TRI_SINGLE_GATES = [
+    "INSTR_INIT",
+    "INSTR_ROT_Z",
+    "INSTR_MEASURE",
+    "INSTR_MEASURE_INSTANT",
+]
+
+TRI_ALL_GATES = [
+    "INSTR_INIT",
+    "INSTR_MEASURE_ALL",
+    "INSTR_ROT_X_ALL",
+    "INSTR_ROT_Y_ALL",
+    "INSTR_ROT_Z_ALL",
+    "INSTR_BICHROMATIC",
+]
+
 # NV_LAB_COMM_T1 = 1e6
 # NV_LAB_COMM_T2 = 1e6
 # NV_LAB_MEM_T1 = 1e6
@@ -806,6 +822,18 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
             .build()
         )
 
+    @classmethod
+    def perfect_tri_default_params(cls, num_qubits: int) -> TopologyConfig:
+        return cls.perfect_config_uniform(
+            num_qubits=num_qubits,
+            single_instructions=TRI_SINGLE_GATES,
+            single_duration=0,
+            two_instructions=[],
+            two_duration=0,
+            all_qubit_gate_instructions=TRI_ALL_GATES,
+            all_qubit_gate_duration=0,
+        )
+
     # @classmethod
     # def nv_lab_setup(cls, num_qubits: int) -> TopologyConfig:
     #     # comm qubit
@@ -1328,6 +1356,8 @@ class ProcNodeConfig(BaseModel):
     ntf: NtfConfig
     determ_sched: bool = True
     use_deadlines: bool = True
+    fcfs: bool = False
+    prio_epr: bool = False
     is_predictable: bool = False
 
     @classmethod

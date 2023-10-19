@@ -39,6 +39,8 @@ class ProcNode(Protocol):
         asynchronous: bool = False,
         deterministic_scheduler: bool = True,
         use_deadlines: bool = True,
+        fcfs: bool = False,
+        prio_epr: bool = False,
         is_predictable: bool = False,
     ) -> None:
         """ProcNode constructor.
@@ -108,16 +110,18 @@ class ProcNode(Protocol):
 
         if scheduler is None:
             self._scheduler = NodeScheduler(
-                self._node.name,
-                self._host,
-                self._qnos,
-                self._netstack,
-                self._memmgr,
-                self._local_ehi,
-                self._network_ehi,
-                deterministic_scheduler,
-                use_deadlines,
-                is_predictable,
+                node_name=self._node.name,
+                host=self._host,
+                qnos=self._qnos,
+                netstack=self._netstack,
+                memmgr=self._memmgr,
+                local_ehi=self._local_ehi,
+                network_ehi=self._network_ehi,
+                deterministic=deterministic_scheduler,
+                use_deadlines=use_deadlines,
+                fcfs=fcfs,
+                prio_epr=prio_epr,
+                is_predictable=is_predictable,
             )
         else:
             self._scheduler = scheduler
@@ -243,10 +247,13 @@ class ProcNode(Protocol):
     def submit_batch(self, batch_info: BatchInfo) -> ProgramBatch:
         return self.scheduler.submit_batch(batch_info)
 
+    def submit_const_batch(self, batch_info: BatchInfo) -> ProgramBatch:
+        return self.scheduler.submit_const_batch(batch_info)
+
     def initialize_processes(
         self,
         remote_pids: Optional[Dict[int, List[int]]] = None,
-        linear: bool = False
+        linear: bool = False,
         # batch ID -> PID list
     ) -> None:
         self.scheduler.create_processes_for_batches(remote_pids, linear)

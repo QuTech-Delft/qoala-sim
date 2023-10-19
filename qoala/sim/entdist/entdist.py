@@ -337,16 +337,17 @@ class EntDist(Protocol):
                 requesting_nodes.append(request.local_node_id)
 
                 if request.matches_timebin(next_slot):
-                    self._logger.warning(f"putting request: {request}")
+                    self._logger.info(f"putting request: {request}")
                     self.put_request(request)
                 else:
-                    self._logger.warning(f"not handling msg {msg} (wrong timebin)")
+                    self._logger.info(f"not handling msg {msg} (wrong timebin)")
             joint_request = self.get_next_joint_request()
             if joint_request is not None:
-                self._logger.warning("serving request")
+                self._logger.info("serving request")
                 yield from self.serve_request(joint_request)
-                self._logger.warning("served request")
+                self._logger.info("served request")
             else:
+                yield from self._interface.wait(1000)
                 for node_id in requesting_nodes:
                     node = self._interface.remote_id_to_peer_name(node_id)
                     self._interface.send_node_msg(node, Message(-1, -1, None))
