@@ -1,0 +1,58 @@
+META_START
+    name: local
+    parameters: busy_duration
+    csockets: 
+    epr_sockets: 
+META_END
+
+^prepare {type = QL}:
+    tuple<> = run_subroutine(tuple<>) : prepare
+
+^b0 {type = CL}:
+    busy() : duration
+
+^b1 {type = QL}:
+    tuple<outcome> = run_subroutine(tuple<>) : measure
+
+^b2 {type = CL}:
+    return_result(outcome)
+
+SUBROUTINE prepare
+    params:
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    set C0 0
+    set C1 1
+    set C2 999
+    add C0 C0 C1
+    bge C2 C0 -1
+    
+  
+    set Q0 0
+    init Q0
+
+    // hadamard
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+
+    // rotate to |->
+    rot_z Q0 16 4
+  NETQASM_END
+
+SUBROUTINE measure
+    params:
+    returns: m
+    uses: 0
+    keeps: 
+    request: 
+  NETQASM_START
+    // hadamard
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END

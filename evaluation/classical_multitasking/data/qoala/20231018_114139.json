@@ -1,0 +1,109 @@
+{
+    "meta": {
+        "timestamp": "20231018_114139",
+        "sim_duration": 77.39804482460022,
+        "num_iterations": 100,
+        "t1": 10000000000.0,
+        "t2": 100000000.0,
+        "latency_factor": 0.1,
+        "num_const_tasks": 100,
+        "const_rate_factor": 10,
+        "cc_latency": 10000000.0,
+        "const_period": 1000000.0,
+        "const_start": 10000000.0,
+        "busy_factors": [
+            0.1,
+            0.15,
+            0.2,
+            0.3,
+            0.5,
+            1,
+            2,
+            5,
+            10
+        ]
+    },
+    "data_points": [
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 0.1,
+            "busy_duration": 1000000.0,
+            "succ_prob": 0.89,
+            "succ_prob_lower": 0.8136853697209697,
+            "succ_prob_upper": 0.9374586804477488,
+            "makespan": 11000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 0.15,
+            "busy_duration": 1500000.0,
+            "succ_prob": 0.96,
+            "succ_prob_lower": 0.9016278276739262,
+            "succ_prob_upper": 0.9843369494481519,
+            "makespan": 16000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 0.2,
+            "busy_duration": 2000000.0,
+            "succ_prob": 0.88,
+            "succ_prob_lower": 0.8018773199709163,
+            "succ_prob_upper": 0.9300066263473222,
+            "makespan": 21000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 0.3,
+            "busy_duration": 3000000.0,
+            "succ_prob": 0.94,
+            "succ_prob_lower": 0.8752303146877749,
+            "succ_prob_upper": 0.9722142547333434,
+            "makespan": 31000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 0.5,
+            "busy_duration": 5000000.0,
+            "succ_prob": 0.92,
+            "succ_prob_lower": 0.8500173312059693,
+            "succ_prob_upper": 0.9589070305141891,
+            "makespan": 51000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 1,
+            "busy_duration": 10000000.0,
+            "succ_prob": 0.84,
+            "succ_prob_lower": 0.7557955544110558,
+            "succ_prob_upper": 0.8990479765052628,
+            "makespan": 101000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 2,
+            "busy_duration": 20000000.0,
+            "succ_prob": 0.9,
+            "succ_prob_lower": 0.8256326956323347,
+            "succ_prob_upper": 0.9447714583868638,
+            "makespan": 201000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 5,
+            "busy_duration": 50000000.0,
+            "succ_prob": 0.74,
+            "succ_prob_lower": 0.6462882736813836,
+            "succ_prob_upper": 0.8159542187301354,
+            "makespan": 501000300000.0
+        },
+        {
+            "sched_typ": "QOALA",
+            "busy_factor": 10,
+            "busy_duration": 100000000.0,
+            "succ_prob": 0.75,
+            "succ_prob_lower": 0.6569535362992417,
+            "succ_prob_upper": 0.8245490599627574,
+            "makespan": 1001000300000.0
+        }
+    ]
+}

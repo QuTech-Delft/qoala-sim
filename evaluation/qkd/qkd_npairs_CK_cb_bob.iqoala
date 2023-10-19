@@ -1,0 +1,37 @@
+META_START
+    name: bob
+    parameters: alice_id, N
+    csockets: 0 -> alice
+    epr_sockets: 0 -> alice
+META_END
+
+^b1 {type = QC}:
+    outcomes<N> = run_request() : req
+  
+^b2 {type = CL}:
+    return_result(outcomes)
+
+SUBROUTINE post_epr
+    params: 
+    returns: m0
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST req
+  callback_type: sequential
+  callback: post_epr
+  return_vars:
+  remote_id: {alice_id}
+  epr_socket_id: 0
+  num_pairs: {N}
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
