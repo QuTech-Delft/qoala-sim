@@ -855,6 +855,7 @@ class CpuEdfScheduler(EdfScheduler):
         remote_name = csck.remote_name
         remote_pid = csck.remote_pid
         messages = self._host_interface.get_available_messages(remote_name)
+        self._task_logger.debug(f"I currently have messages for these tasks: {messages}")
         if (task.pid, remote_pid) in messages:
             self._task_logger.debug(f"task {tid} NOT blocked")
             return True
