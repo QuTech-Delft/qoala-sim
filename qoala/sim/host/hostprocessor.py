@@ -124,7 +124,7 @@ class HostProcessor:
                 loc = instr.arguments[1].name
                 index = instr.arguments[1].index
                 value = host_mem.read_vec(loc)[index]
-            self._logger.info(f"sending msg {value}")
+            self._logger.info(f"sending msg {value} to {csck.remote_name}")
             csck.send_int(value)
             # Simulate instruction duration.
             yield from self._interface.wait(self._latencies.host_instr_time)
@@ -147,7 +147,7 @@ class HostProcessor:
 
             yield from self._interface.wait(self._latencies.host_peer_latency)
             host_mem.write(instr.results.name, msg)
-            self._logger.info(f"received msg {msg}")
+            self._logger.info(f"received msg {msg} from {csck.remote_name}")
         elif isinstance(instr, hostlang.AddCValueOp):
             yield from self._interface.wait(first_half)
             assert isinstance(
