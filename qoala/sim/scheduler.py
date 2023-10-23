@@ -1300,3 +1300,4 @@ class QpuEdfScheduler(EdfScheduler):
                     ev_expr = ev_expr | ev_timebin
                 self._logger.debug(f"Event Expression: {ev_expr} ")
                 yield ev_expr
+            self._logger.info("Going around again!!")
