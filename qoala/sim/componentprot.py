@@ -81,7 +81,6 @@ class PortListener(Protocol):
                     break
                 for item in input.items:
                     self._buffer.add_msg(item)
-                    self._task_logger.debug(f"Received message {item}")
                 counter += 1
             # If there are n inputs, there have been n events, but we yielded only
             # on one of them so far. "Flush" these n-1 additional events:
