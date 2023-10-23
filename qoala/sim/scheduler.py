@@ -1111,7 +1111,7 @@ class QpuEdfScheduler(EdfScheduler):
             process = self._memmgr.get_process(task.pid)
             local_routine = process.get_local_routine(lrcall.routine_name)
             virt_ids = local_routine.metadata.qubit_use
-            virt_ids_to_allocate = [virt_id for virt_id in virt_ids if self._memmgr.phys_id_for(task.pid, virt_id) is not None]
+            virt_ids_to_allocate = [virt_id for virt_id in virt_ids if self._memmgr.phys_id_for(task.pid, virt_id) is None]
             self._task_logger.debug(f"Task {tid} requires an additional {len(virt_ids_to_allocate)} qubits")
             successfully_assigned_virt_ids = []
             try:
