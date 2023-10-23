@@ -1283,7 +1283,7 @@ class QpuEdfScheduler(EdfScheduler):
                 self._logger.debug("hello NEXT_TASK")
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
-            else:
+            elif any(_s in self._status.status for _s in [Status.WAITING_OTHER_CORE, Status.WAITING_RESOURCES, Status.WAITING_TIME_BIN]):
                 self._logger.debug("Hello am I skipping this else statement???")
                 ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
@@ -1303,4 +1303,7 @@ class QpuEdfScheduler(EdfScheduler):
                     ev_expr = ev_expr | ev_timebin
                 self._logger.debug(f"Event Expression: {ev_expr} ")
                 yield ev_expr
+            else:
+                self._logger.info("Somehow skipped everything!")
+                pass
             self._logger.info("Going around again!!")
