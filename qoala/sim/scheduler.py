@@ -1045,7 +1045,7 @@ class QpuEdfScheduler(EdfScheduler):
     def are_resources_available(self, tid: int) -> bool:
         assert self._task_graph is not None
         task = self._task_graph.get_tinfo(tid).task
-        self._task_logger.debug(f"check if resources available for task {tid}, a task of type {type(task)}")
+        self._task_logger.info(f"check if resources available for task {tid}, a task of type {type(task)}")
         if isinstance(task, SinglePairTask):
             # TODO: refactor
             drv_mem = self._driver._memory
