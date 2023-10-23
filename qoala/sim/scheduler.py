@@ -1089,15 +1089,21 @@ class QpuEdfScheduler(EdfScheduler):
             # (without actually allocating)
             # TB: Checks all of them together to ensure that there are
             # enough physical resources to be able to simultaneously assign all virt_ids
+            successfully_assigned_virt_ids = []
             try:
                 for virt_id in virt_ids:
                     self._memmgr.allocate(task.pid, virt_id)
+                    successfully_assigned_virt_ids.append(virt_id)
                     self._task_logger.debug(f"Test allocation for {virt_id} successful")
                 for virt_id in virt_ids:
                     self._memmgr.free(task.pid, virt_id)
                     self._task_logger.debug(f"Test freeing for {virt_id} successful")
                 return True
             except AllocError:
+                for virt_id in successfully_assigned_virt_ids:
+                    self._memmgr.free(task.pid, virt_id)
+                    self._task_logger.debug(f"freeing {virt_id} after exception")
+
                 return False
         elif isinstance(task, LocalRoutineTask):
             drv_mem = self._driver._memory
@@ -1106,13 +1112,22 @@ class QpuEdfScheduler(EdfScheduler):
             local_routine = process.get_local_routine(lrcall.routine_name)
             virt_ids = local_routine.metadata.qubit_use
             virt_ids_to_allocate = [virt_id for virt_id in virt_ids if self._memmgr.phys_id_for(task.pid, virt_id) is not None]
+            successfully_assigned_virt_ids = []
             try:
                 for virt_id in virt_ids_to_allocate:
                     self._memmgr.allocate(task.pid, virt_id)
+                    self._task_logger.debug(f"Test allocation for {virt_id} successful")
+                    successfully_assigned_virt_ids.append(virt_id)
                 for virt_id in virt_ids_to_allocate:
                     self._memmgr.free(task.pid, virt_id)
+                    self._task_logger.debug(f"Test freeing for {virt_id} successful")
                 return True
             except AllocError:
+
+                for virt_id in successfully_assigned_virt_ids:
+                    self._memmgr.free(task.pid, virt_id)
+                    self._task_logger.debug(f"freeing {virt_id} after exception")
+
                 return False
         else:
             self._logger.info(
