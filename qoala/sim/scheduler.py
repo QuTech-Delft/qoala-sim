@@ -1276,9 +1276,11 @@ class QpuEdfScheduler(EdfScheduler):
             self.update_status()
             self._task_logger.debug(f"status: {self.status.status}")
             if Status.EPR_GEN in self.status.status:
+                self._logger.debug("hello EPR_GEN")
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
             elif Status.NEXT_TASK in self.status.status:
+                self._logger.debug("hello NEXT_TASK")
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
             else:
