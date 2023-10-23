@@ -1301,9 +1301,13 @@ class QpuEdfScheduler(EdfScheduler):
                     self._schedule_after(delta, EVENT_WAIT)
                     ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
                     ev_expr = ev_expr | ev_timebin
+
                 self._logger.debug(f"Event Expression: {ev_expr} ")
                 yield ev_expr
             else:
                 self._logger.info("Somehow skipped everything!")
-                pass
+                ev_expr = self.await_port_input(self.node_scheduler_in_port)
+                self._logger.debug(f"Event Expression: {ev_expr} ")
+                yield ev_expr
+
             self._logger.info("Going around again!!")
