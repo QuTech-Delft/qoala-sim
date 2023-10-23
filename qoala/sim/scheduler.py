@@ -1282,6 +1282,7 @@ class QpuEdfScheduler(EdfScheduler):
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
             else:
+                self._logger.debug("Hello am I skipping this else statement???")
                 ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
                     ev_expr = ev_expr | self.await_signal(
