@@ -1087,10 +1087,13 @@ class QpuEdfScheduler(EdfScheduler):
             virt_ids = [routine.request.virt_ids.get_id(i) for i in range(num_pairs)]
             # Check if virt IDs are available by trying to allocate
             # (without actually allocating)
+            # TB: Checks all of them together to ensure that there are
+            # enough physical resources to be able to simultaneously assign all virt_ids
             try:
                 for virt_id in virt_ids:
                     self._memmgr.allocate(task.pid, virt_id)
                     self._task_logger.debug(f"Test allocation for {virt_id} successful")
+                for virt_id in virt_ids:
                     self._memmgr.free(task.pid, virt_id)
                     self._task_logger.debug(f"Test freeing for {virt_id} successful")
                 return True
@@ -1102,11 +1105,11 @@ class QpuEdfScheduler(EdfScheduler):
             process = self._memmgr.get_process(task.pid)
             local_routine = process.get_local_routine(lrcall.routine_name)
             virt_ids = local_routine.metadata.qubit_use
+            virt_ids_to_allocate = [virt_id for virt_id in virt_ids if self._memmgr.phys_id_for(task.pid, virt_id) is not None]
             try:
-                for virt_id in virt_ids:
-                    if self._memmgr.phys_id_for(task.pid, virt_id) is not None:
-                        continue  # already allocated
+                for virt_id in virt_ids_to_allocate:
                     self._memmgr.allocate(task.pid, virt_id)
+                for virt_id in virt_ids_to_allocate:
                     self._memmgr.free(task.pid, virt_id)
                 return True
             except AllocError:
