@@ -1062,7 +1062,7 @@ class QpuEdfScheduler(EdfScheduler):
 
             try:
                 self._memmgr.allocate(task.pid, virt_id)
-                self._memmgr.free(task.pid, virt_id)
+                self._memmgr.free(task.pid, virt_id, test=True)
                 return True
             except AllocError:
                 return False
@@ -1096,12 +1096,12 @@ class QpuEdfScheduler(EdfScheduler):
                     successfully_assigned_virt_ids.append(virt_id)
                     self._task_logger.debug(f"Test allocation for {virt_id} successful")
                 for virt_id in virt_ids:
-                    self._memmgr.free(task.pid, virt_id)
+                    self._memmgr.free(task.pid, virt_id, test=True)
                     self._task_logger.debug(f"Test freeing for {virt_id} successful")
                 return True
             except AllocError:
                 for virt_id in successfully_assigned_virt_ids:
-                    self._memmgr.free(task.pid, virt_id)
+                    self._memmgr.free(task.pid, virt_id,test=True)
                     self._task_logger.debug(f"freeing {virt_id} after exception")
 
                 return False
@@ -1120,13 +1120,13 @@ class QpuEdfScheduler(EdfScheduler):
                     self._task_logger.debug(f"Test allocation for {virt_id} successful")
                     successfully_assigned_virt_ids.append(virt_id)
                 for virt_id in virt_ids_to_allocate:
-                    self._memmgr.free(task.pid, virt_id)
+                    self._memmgr.free(task.pid, virt_id,test=True)
                     self._task_logger.debug(f"Test freeing for {virt_id} successful")
                 return True
             except AllocError:
 
                 for virt_id in successfully_assigned_virt_ids:
-                    self._memmgr.free(task.pid, virt_id)
+                    self._memmgr.free(task.pid, virt_id,test=True)
                     self._task_logger.debug(f"freeing {virt_id} after exception")
 
                 return False
