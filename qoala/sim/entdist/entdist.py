@@ -887,6 +887,9 @@ class EntDist(Protocol):
                 if outstanding_request.end_of_qc <= ns.sim_time():
                     node1 = self._interface.remote_id_to_peer_name(outstanding_request.request.node1_id)
                     node2 = self._interface.remote_id_to_peer_name(outstanding_request.request.node2_id)
+
+
+
                     self._interface.send_node_msg(node1, Message(-1, -1, None))
                     self._interface.send_node_msg(node2, Message(-1, -1, None))
 

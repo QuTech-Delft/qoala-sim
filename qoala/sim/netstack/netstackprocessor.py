@@ -149,7 +149,7 @@ class NetstackProcessor:
         virt_ids = []
 
         for i in range(num_pairs):
-            self._logger.info(f"Allocating qubit for pair {i} in request {request} (pid: {process.pid})")
+            self._logger.info(f"Allocating qubit for pair {i} for process pid={process.pid})")
             virt_ids.append(self._allocate_for_pair(process, request, i))
 
         entdist_req = self._create_windowed_entdist_request(process, request, virt_ids)
@@ -158,7 +158,7 @@ class NetstackProcessor:
         if not result:
             for virt_id in virt_ids:
                 self._interface.memmgr.free(process.pid, virt_id)
-                self._logger.info(f"Freeing qubit with virt_id  {i} from request {request} (pid: {process.pid})")
+                self._logger.info(f"Freeing qubit with virt_id  {i} from process pid={process.pid})")
             return False
         return True
 

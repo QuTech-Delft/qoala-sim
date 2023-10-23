@@ -1045,7 +1045,7 @@ class QpuEdfScheduler(EdfScheduler):
     def are_resources_available(self, tid: int) -> bool:
         assert self._task_graph is not None
         task = self._task_graph.get_tinfo(tid).task
-        self._task_logger.info(f"check if resources available for task {tid}, a task of type {type(task)}")
+        self._task_logger.debug(f"check if resources available for task {tid}, a task of type {type(task)}")
         if isinstance(task, SinglePairTask):
             # TODO: refactor
             drv_mem = self._driver._memory
@@ -1058,6 +1058,7 @@ class QpuEdfScheduler(EdfScheduler):
 
             # Check if virt ID is available by trying to allocate
             # (without actually allocating)
+
 
             try:
                 self._memmgr.allocate(task.pid, virt_id)
@@ -1080,6 +1081,8 @@ class QpuEdfScheduler(EdfScheduler):
             else:
                 num_pairs = routine.request.num_pairs
 
+            self._task_logger.debug(f"Task {tid} requires {num_pairs} qubits")
+
             # Get virt IDs which would be need to be allocated
             virt_ids = [routine.request.virt_ids.get_id(i) for i in range(num_pairs)]
             # Check if virt IDs are available by trying to allocate
@@ -1087,7 +1090,9 @@ class QpuEdfScheduler(EdfScheduler):
             try:
                 for virt_id in virt_ids:
                     self._memmgr.allocate(task.pid, virt_id)
+                    self._task_logger.debug(f"Test allocation for {virt_id} successful")
                     self._memmgr.free(task.pid, virt_id)
+                    self._task_logger.debug(f"Test freeing for {virt_id} successful")
                 return True
             except AllocError:
                 return False
