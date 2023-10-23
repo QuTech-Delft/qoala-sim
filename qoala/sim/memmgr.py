@@ -64,7 +64,7 @@ class MemoryManager(Protocol):
         for phys_id in self._qdevice.get_comm_qubit_ids():
             if self._physical_mapping[phys_id] is None:
                 return phys_id  # type: ignore
-        self._logger.error("No free comm qubits")
+        self._logger.error(f"No free comm qubits (phys mappings: { {p:self._physical_mapping[p] for p in self._qdevice.get_comm_qubit_ids()} })")
         raise AllocError
 
     def _get_free_mem_phys_id(self) -> int:
