@@ -1274,7 +1274,7 @@ class QpuEdfScheduler(EdfScheduler):
             self._status = SchedulerStatus(status=set(), params={})
             self.update_external_predcessors()
             self.update_status()
-            self._task_logger.debug(f"status: {self.status.status}")
+            self._task_logger.debug(f"status: {self.status.status}. ({ {s:(s in self.status.status) for s in [Status.WAITING_OTHER_CORE,Status.WAITING_RESOURCES, Status.WAITING_TIME_BIN] } } )")
             if Status.EPR_GEN in self.status.status:
                 self._logger.debug("hello EPR_GEN")
                 task_id = self.status.params["task_id"]
@@ -1283,7 +1283,7 @@ class QpuEdfScheduler(EdfScheduler):
                 self._logger.debug("hello NEXT_TASK")
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
-            elif any(_s in self._status.status for _s in [Status.WAITING_OTHER_CORE, Status.WAITING_RESOURCES, Status.WAITING_TIME_BIN]):
+            elif any(_s in self.status.status for _s in [Status.WAITING_OTHER_CORE, Status.WAITING_RESOURCES, Status.WAITING_TIME_BIN]):
                 self._logger.debug("Hello am I skipping this else statement???")
                 ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
