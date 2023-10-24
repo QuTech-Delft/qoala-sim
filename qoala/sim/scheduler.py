@@ -1300,18 +1300,21 @@ class QpuEdfScheduler(EdfScheduler):
                         sender=self._other_scheduler,
                         signal_label=SIGNAL_TASK_COMPLETED,
                     )
+                    self._task_logger.info("Waiting other core")
                 if Status.WAITING_RESOURCES in self.status.status:
                     ev_expr = ev_expr | self.await_signal(
                         sender=self._memmgr,
                         signal_label=SIGNAL_MEMORY_FREED,
                     )
+                    self._task_logger.info("Waiting resources")
                 if Status.WAITING_TIME_BIN in self.status.status:
                     delta = self.status.params["delta"]
                     self._schedule_after(delta, EVENT_WAIT)
                     ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
                     ev_expr = ev_expr | ev_timebin
+                    self._task_logger.info("Waiting Timebin")
 
-                self._task_logger.debug(f"Event Expression: {ev_expr} ")
+                # self._task_logger.debug(f"Event Expression: {ev_expr} ")
                 yield ev_expr
             else:
                 self._logger.info("Some other status")
