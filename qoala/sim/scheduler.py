@@ -415,12 +415,12 @@ class NodeScheduler(Protocol):
             # )
 
             # gets the pids of all tasks which have finished at current time.
-            # If no tasks then returns None
+            # If no tasks then returns empty set
 
-            self._last_cpu_tasks_pids = self.cpu_scheduler.get_outstanding_pids()
-            self._last_qpu_tasks_pids = self.qpu_scheduler.get_outstanding_pids()
+            self._last_cpu_tasks_pids = self.cpu_scheduler.get_outstanding_pids_with_finished_tasks()
+            self._last_qpu_tasks_pids = self.qpu_scheduler.get_outstanding_pids_with_finished_tasks()
 
-            additional_qpu_pids = self._last_qpu_tasks_pids.difference(self._last_cpu_tasks_pids) if self._last_qpu_tasks_pids else None
+            additional_qpu_pids = self._last_qpu_tasks_pids.difference(self._last_cpu_tasks_pids)
 
 
             # If there is a task that is finished at the current time, assign the next
@@ -710,14 +710,10 @@ class ProcessorScheduler(Protocol):
         else:
             return -1
 
-    def get_outstanding_pids(self) -> Optional[Set[int]]:
-        if self._pending_pids_finished_tasks:
-            _s = self._pending_pids_finished_tasks.copy()
-            self._pending_pids_finished_tasks.clear()
-            return _s
-
-        else:
-            return None
+    def get_outstanding_pids_with_finished_tasks(self) -> Set[int]:
+        _s = self._pending_pids_finished_tasks.copy()  # copies pids to return out of buffer
+        self._pending_pids_finished_tasks.clear()  # Clears the buffer of pids to process
+        return _s
 
     def task_exists_for_pid(self, pid: int) -> bool:
         """
