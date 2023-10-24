@@ -402,13 +402,17 @@ class NodeScheduler(Protocol):
 
             now = ns.sim_time()
 
+
+
             # Gets the pid of the last finished task at the current time,
             # if there is no task that is finished at the current time, it returns -1
             self._last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(
                 now
             )
+
             # If there is a task that is finished at the current time, assign the next
             if self._last_cpu_task_pid != -1:
+                self._logger.info(f"Ack completion of CPU task {self._last_cpu_task_pid}")
                 self.schedule_next_for(self._last_cpu_task_pid)
 
             self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
@@ -420,6 +424,7 @@ class NodeScheduler(Protocol):
                     self._last_qpu_task_pid != -1
                     and self._last_qpu_task_pid != self._last_cpu_task_pid
             ):
+                self._logger.info(f"Ack completion of lone QPU task {self._last_cpu_task_pid}")
                 self.schedule_next_for(self._last_qpu_task_pid)
 
     def schedule_next_for(self, pid: int) -> None:
