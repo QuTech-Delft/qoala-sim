@@ -433,7 +433,7 @@ class NodeScheduler(Protocol):
         """
         new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
 
-        self._task_logger.debug(f"Finding new tasks for pid {pid}. Found CPU tasks {new_cpu_tasks} and QPU tasks {new_qpu_tasks}")
+        self._logger.warning(f"Finding new tasks for pid {pid}. Found CPU tasks {new_cpu_tasks} and QPU tasks {new_qpu_tasks}")
 
         # If there are new tasks, send a message to schedulers
         # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
