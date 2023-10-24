@@ -433,6 +433,8 @@ class NodeScheduler(Protocol):
         """
         new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
 
+        self._task_logger.debug(f"Finding new tasks for pid {pid}. Found CPU tasks {new_cpu_tasks} and QPU tasks {new_qpu_tasks}")
+
         # If there are new tasks, send a message to schedulers
         # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
         if new_cpu_tasks:
@@ -1291,7 +1293,7 @@ class QpuEdfScheduler(EdfScheduler):
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
             elif any(_s in self.status.status for _s in [Status.WAITING_OTHER_CORE, Status.WAITING_RESOURCES, Status.WAITING_TIME_BIN]):
-                self._task_logger.debug("Hello am I skipping this else statement???")
+                self._task_logger.debug("Entering WAITING_OTHER_CORE / WAITING_RESOURCES / WAITING_TIME_BIN clause")
                 ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
                     ev_expr = ev_expr | self.await_signal(
@@ -1312,7 +1314,7 @@ class QpuEdfScheduler(EdfScheduler):
                 self._task_logger.debug(f"Event Expression: {ev_expr} ")
                 yield ev_expr
             else:
-                self._logger.info("Somehow skipped everything!")
+                self._logger.info("Some other status")
                 ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 self._logger.debug(f"Event Expression: {ev_expr} ")
                 yield ev_expr
