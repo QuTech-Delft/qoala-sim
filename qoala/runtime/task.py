@@ -406,7 +406,7 @@ class TaskGraph:
             self._tasks = tasks
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
-            f"{self.__class__.__name__}_{driver.__class__.__name__}({name})"
+            f"{self.__class__.__name__}({name})"
         )
         self._task_logger = LogManager.get_task_logger(name)
 
