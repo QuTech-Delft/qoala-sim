@@ -708,6 +708,7 @@ class ProcessorScheduler(Protocol):
         self._prog_end_timestamps[pid] = time
 
     def get_timestamps(self, pid: int) -> Optional[Tuple[float, float]]:
+        self._task_logger.debug(f"Getting end timestamp for process {pid}")
         if pid not in self._prog_start_timestamps:
             assert pid not in self._prog_end_timestamps
             return None
