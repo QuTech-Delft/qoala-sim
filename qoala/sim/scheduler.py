@@ -630,7 +630,7 @@ class ProcessorScheduler(Protocol):
         self._deterministic = deterministic
         self._use_deadlines = use_deadlines
 
-        self._task_graph: TaskGraph = TaskGraph(name=name)
+        self._task_graph: TaskGraph = TaskGraph(name=f"{node_id}_TaskGraph")
         self._finished_tasks: List[int] = []
 
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
