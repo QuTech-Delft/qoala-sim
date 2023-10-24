@@ -169,6 +169,9 @@ class NodeScheduler(Protocol):
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
 
+        self._last_cpu_tasks_pids: Optional[List[int]]= None
+        self._last_qpu_tasks_pids: Optional[List[int]] = None
+
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
 
@@ -406,26 +409,49 @@ class NodeScheduler(Protocol):
 
             # Gets the pid of the last finished task at the current time,
             # if there is no task that is finished at the current time, it returns -1
-            self._last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(
-                now
-            )
+
+            # self._last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(
+            #     now
+            # )
+
+            # gets the pids of all tasks which have finished at current time.
+            # If no tasks then returns None
+
+            self._last_cpu_tasks_pids = self.cpu_scheduler.get_outstanding_pids()
+            self._last_qpu_tasks_pids = self.qpu_scheduler.get_outstanding_pids()
+
+            additional_qpu_pids = self._last_qpu_tasks_pids.difference(self._last_cpu_tasks_pids)
+
 
             # If there is a task that is finished at the current time, assign the next
-            if self._last_cpu_task_pid != -1:
-                self._logger.info(f"Ack completion of CPU task {self._last_cpu_task_pid}")
-                self.schedule_next_for(self._last_cpu_task_pid)
+            # if self._last_cpu_task_pid != -1:
+            #     self._logger.info(f"Ack completion of CPU task {self._last_cpu_task_pid}")
+            #     self.schedule_next_for(self._last_cpu_task_pid)
+            #
+            # self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
+            #     now
+            # )
 
-            self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
-                now
-            )
+            if self._last_cpu_tasks_pids is not None:
+                for pid in self._last_cpu_tasks_pids:
+                    self._logger.info(f"Ack completion of CPU task {pid}")
+                    self.schedule_next_for(pid)
+
+            if additional_qpu_pids:
+                for pid in additional_qpu_pids:
+                    self._logger.info(f"Ack completion of lone QPU task {pid}")
+                    self.schedule_next_for(pid)
+
+
+
             # If there is a task that is finished at the current time, assign the next, but we do not need to assign
             # again if it is the same pid as the one that came from CPU
-            if (
-                    self._last_qpu_task_pid != -1
-                    and self._last_qpu_task_pid != self._last_cpu_task_pid
-            ):
-                self._logger.info(f"Ack completion of lone QPU task {self._last_cpu_task_pid}")
-                self.schedule_next_for(self._last_qpu_task_pid)
+            # if (
+            #         self._last_qpu_task_pid != -1
+            #         and self._last_qpu_task_pid != self._last_cpu_task_pid
+            # ):
+            #     self._logger.info(f"Ack completion of lone QPU task {self._last_cpu_task_pid}")
+            #     self.schedule_next_for(self._last_qpu_task_pid)
 
     def schedule_next_for(self, pid: int) -> None:
         """
@@ -637,6 +663,9 @@ class ProcessorScheduler(Protocol):
 
         self._task_graph: TaskGraph = TaskGraph(name=f"{node_id}_TaskGraph")
         self._finished_tasks: List[int] = []
+        self._finished_tasks_end_times: Dict[int, float] = {}  # TID -> end time
+
+        self._pending_pids_finished_tasks: Set[int] = set()
 
         self._prog_start_timestamps: Dict[int, float] = {}  # program ID -> start time
         self._prog_end_timestamps: Dict[int, float] = {}  # program ID -> end time
@@ -680,6 +709,15 @@ class ProcessorScheduler(Protocol):
             return self.last_finished_task_pid[0]
         else:
             return -1
+
+    def get_outstanding_pids(self) -> Optional[Set[int]]:
+        if self._pending_pids_finished_tasks:
+            _s = self._pending_pids_finished_tasks.copy()
+            self._pending_pids_finished_tasks.clear()
+            return _s
+
+        else:
+            return None
 
     def task_exists_for_pid(self, pid: int) -> bool:
         """
@@ -813,6 +851,10 @@ class EdfScheduler(ProcessorScheduler):
             after = ns.sim_time()
 
             self.record_end_timestamp(task.pid, after)
+            self._finished_tasks_end_times[task_id] = after
+
+            self._pending_pids_finished_tasks.add(task.pid)
+
             self.last_finished_task_pid = (task.pid, after)
             duration = after - before
             self._task_graph.decrease_deadlines(duration)
