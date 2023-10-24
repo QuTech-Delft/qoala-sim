@@ -169,8 +169,8 @@ class NodeScheduler(Protocol):
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
 
-        self._last_cpu_tasks_pids: Optional[List[int]]= None
-        self._last_qpu_tasks_pids: Optional[List[int]] = None
+        self._last_cpu_tasks_pids: Dict[int,List[int]] = {}
+        self._last_qpu_tasks_pids: Dict[int,List[int]] = {}
 
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
