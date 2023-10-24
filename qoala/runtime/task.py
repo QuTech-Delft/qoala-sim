@@ -384,6 +384,17 @@ class TaskInfo:
     ext_rel_deadlines: Dict[int, int]
     start_time: Optional[float]
 
+    def __str__(self):
+        return (f"TaskInfo(task: {self.task.task_id},"
+                f" pid: {self.task.pid},"
+                f" pred: {self.predecessors},"
+                f" ext_pred: {self.ext_predecessors},"
+                f" succ: {self.successors},"
+                f" deadline: {self.deadline},"
+                f" rel_dead: {self.rel_deadlines},"
+                f" ext_rel_dead: {self.ext_rel_deadlines},"
+                f" start_time: {self.start_time})")
+
     @classmethod
     def only_task(cls, task: QoalaTask) -> TaskInfo:
         return TaskInfo(task, set(), set(), set(), None, {}, {}, None)
