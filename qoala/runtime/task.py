@@ -387,6 +387,7 @@ class TaskInfo:
     def __str__(self):
         return (f"TaskInfo(task: {self.task.task_id},"
                 f" pid: {self.task.pid},"
+                f" type: {self.task.__class__.__name__}"
                 f" pred: {self.predecessors},"
                 f" ext_pred: {self.ext_predecessors},"
                 f" succ: {self.successors},"
