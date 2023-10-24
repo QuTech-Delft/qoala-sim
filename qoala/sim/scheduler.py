@@ -420,7 +420,7 @@ class NodeScheduler(Protocol):
             self._last_cpu_tasks_pids = self.cpu_scheduler.get_outstanding_pids()
             self._last_qpu_tasks_pids = self.qpu_scheduler.get_outstanding_pids()
 
-            additional_qpu_pids = self._last_qpu_tasks_pids.difference(self._last_cpu_tasks_pids)
+            additional_qpu_pids = self._last_qpu_tasks_pids.difference(self._last_cpu_tasks_pids) if self._last_qpu_tasks_pids else None
 
 
             # If there is a task that is finished at the current time, assign the next
