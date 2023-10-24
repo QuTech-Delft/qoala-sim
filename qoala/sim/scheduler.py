@@ -657,6 +657,7 @@ class ProcessorScheduler(Protocol):
         :return: None
         """
         self._task_graph = graph
+        self._logger.info(f"Uploaded task graph: {graph}")
 
     # Gets the pid of the last finished task at the current time,
     # if there is no task that is finished at the current time, it returns -1
