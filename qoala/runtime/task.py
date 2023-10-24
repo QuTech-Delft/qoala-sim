@@ -418,7 +418,7 @@ class TaskGraph:
     def add_tasks(self, tasks: List[QoalaTask]) -> None:
         for task in tasks:
             self._tasks[task.task_id] = TaskInfo.only_task(task)
-            self._task_logger.debug(f"Added task {task.task_id} ({TaskInfo.only_task(task)})")
+            self._task_logger.debug(f"Added task {task.task_id} ({task})")
 
     def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x precedes y (y should execute after x)
