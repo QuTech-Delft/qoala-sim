@@ -887,6 +887,8 @@ class CpuEdfScheduler(EdfScheduler):
             tid for tid in event_no_predecessors if not self.is_message_available(tid)
         ]
 
+        self._task_logger.debug(f"No Pred: {no_predecessors}")
+
         now = ns.sim_time()
         with_future_start: Dict[int, float] = {
             tid: tg.get_tinfo(tid).start_time  # type: ignore
