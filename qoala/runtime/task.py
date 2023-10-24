@@ -20,7 +20,7 @@ from qoala.lang.program import QoalaProgram
 from qoala.lang.request import CallbackType
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.program import ProgramInstance
-
+from qoala.util.logging import LogManager
 
 class ProcessorType(Enum):
     CPU = 0
@@ -399,11 +399,13 @@ class TaskInfo:
 class TaskGraph:
     """DAG of Tasks."""
 
-    def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None) -> None:
+    def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None, name: str = None) -> None:
         if tasks is None:
             self._tasks: Dict[int, TaskInfo] = {}
         else:
             self._tasks = tasks
+
+        self._task_logger = LogManager.get_task_logger(name)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TaskGraph):
@@ -416,6 +418,7 @@ class TaskGraph:
     def add_tasks(self, tasks: List[QoalaTask]) -> None:
         for task in tasks:
             self._tasks[task.task_id] = TaskInfo.only_task(task)
+            self._task_logger.debug(f"Added task {task.task_id} ({TaskInfo.only_task(task)})")
 
     def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x precedes y (y should execute after x)
