@@ -869,6 +869,8 @@ class CpuEdfScheduler(EdfScheduler):
 
         tg = self._task_graph
 
+        self._task_logger.debug(f"Current task graph: {tg}")
+
         if tg is None or len(tg.get_tasks()) == 0:
             self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
             return
