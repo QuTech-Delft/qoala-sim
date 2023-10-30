@@ -89,9 +89,5 @@ def check_pingpong(num_iterations: int):
     assert all(outcome == 1 for outcome in outcomes)
 
 
-def test_pingpong():
-    check_pingpong(10)
-
-
 if __name__ == "__main__":
-    test_pingpong()
+    check_pingpong(num_iterations=100)

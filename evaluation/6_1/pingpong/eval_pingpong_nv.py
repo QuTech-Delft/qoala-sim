@@ -4,13 +4,14 @@ import os
 from dataclasses import dataclass
 
 import netsquid as ns
-from netqasm.lang.instr.flavour import TrappedIonFlavour
+from netqasm.lang.instr.flavour import NVFlavour
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     NtfConfig,
+    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -23,11 +24,13 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.perfect_tri_default_params(num_qubits),
+        topology=TopologyConfig.from_nv_params(
+            num_qubits=num_qubits, params=NvParams()
+        ),
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=100_000, qnos_instr_time=1000
         ),
-        ntf=NtfConfig.from_cls_name("TrappedIonNtf"),
+        ntf=NtfConfig.from_cls_name("NvNtf"),
     )
 
 
@@ -35,7 +38,7 @@ def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return QoalaParser(text, flavour=TrappedIonFlavour()).parse()
+    return QoalaParser(text, flavour=NVFlavour()).parse()
 
 
 @dataclass
@@ -47,23 +50,21 @@ class PingPongResult:
 def run_pingpong(num_iterations: int) -> PingPongResult:
     ns.sim_reset()
 
+    num_qubits = 3
     alice_id = 1
     bob_id = 0
 
-    # NOTE: make sure they both have only 2 qubits!!
-    # More than 2 qubits makes the bichromatic gate behave differently,
-    # and hence the decomposition of a CNOT does not work anymore
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits=2)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits=2)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=500_000
     )
 
-    alice_program = load_program("pingpong_tri_alice.iqoala")
+    alice_program = load_program("pingpong_nv_alice.iqoala")
     alice_input = ProgramInput({"bob_id": bob_id})
 
-    bob_program = load_program("pingpong_tri_bob.iqoala")
+    bob_program = load_program("pingpong_nv_bob.iqoala")
     bob_input = ProgramInput({"alice_id": alice_id})
 
     app_result = run_two_node_app(
@@ -81,7 +82,8 @@ def run_pingpong(num_iterations: int) -> PingPongResult:
 
 
 def check_pingpong(num_iterations: int):
-    # LogManager.set_log_level("INFO")
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("pingpong_nv.log")
 
     ns.sim_reset()
     result = run_pingpong(num_iterations=num_iterations)
@@ -92,9 +94,5 @@ def check_pingpong(num_iterations: int):
     assert all(outcome == 1 for outcome in outcomes)
 
 
-def test_pingpong():
-    check_pingpong(10)  # TODO fix this
-
-
 if __name__ == "__main__":
-    test_pingpong()
+    check_pingpong(num_iterations=100)

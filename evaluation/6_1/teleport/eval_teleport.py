@@ -63,10 +63,6 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
     network_cfg.cconns = [cconn]
-    pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
-    network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=20_000
-    )
 
     alice_program = load_program("teleport_alice.iqoala")
     bob_program = load_program("teleport_bob.iqoala")
@@ -104,25 +100,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
     return TeleportResult(alice_result, bob_result)
 
 
-def test_teleport():
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_to_file("teleport.log")
-    # LogManager.log_tasks_to_file("teleport_tasks.log")
-    num_iterations = 2
-
-    result = run_teleport(num_iterations=num_iterations)
-
-    program_results = result.bob_results.results
-    outcomes = [result.values["outcome"] for result in program_results]
-    print(outcomes)
-    assert all(outcome == 1 for outcome in outcomes)
-
-
-def test_teleport_different_inputs():
-    # LogManager.set_task_log_level("DEBUG")
-    num_iterations = 2
-
+def teleport_different_inputs(num_iterations: int):
     result = run_teleport(num_iterations=num_iterations, different_inputs=True)
 
     program_results = result.bob_results.results
@@ -132,5 +110,4 @@ def test_teleport_different_inputs():
 
 
 if __name__ == "__main__":
-    test_teleport()
-    test_teleport_different_inputs()
+    teleport_different_inputs(num_iterations=100)

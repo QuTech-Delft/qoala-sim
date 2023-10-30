@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import List
 
 import netsquid as ns
-from netqasm.lang.instr.flavour import NVFlavour
+from netqasm.lang.instr.flavour import TrappedIonFlavour
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
@@ -27,9 +27,9 @@ def create_procnode_cfg(name: str, id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.from_nv_params(num_qubits=5, params=NvParams()),
+        topology=TopologyConfig.perfect_tri_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
-        ntf=NtfConfig.from_cls_name("NvNtf"),
+        ntf=NtfConfig.from_cls_name("TrappedIonNtf"),
         determ_sched=True,
     )
 
@@ -38,7 +38,7 @@ def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return QoalaParser(text, flavour=NVFlavour()).parse()
+    return QoalaParser(text, flavour=TrappedIonFlavour()).parse()
 
 
 @dataclass
@@ -50,19 +50,18 @@ class TeleportResult:
 def run_teleport(num_iterations: int, different_inputs: bool = False) -> TeleportResult:
     ns.sim_reset()
 
-    num_qubits = 3
     alice_id = 1
     bob_id = 0
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits=2)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits=1)
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
 
-    alice_program = load_program("teleport_nv_alice.iqoala")
-    bob_program = load_program("teleport_nv_bob.iqoala")
+    alice_program = load_program("teleport_tri_alice.iqoala")
+    bob_program = load_program("teleport_tri_bob.iqoala")
 
     if different_inputs:
         alice_inputs: List[ProgramInput] = []
@@ -90,6 +89,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
             programs={"alice": alice_program, "bob": bob_program},
             program_inputs={"alice": alice_input, "bob": bob_input},
             network_cfg=network_cfg,
+            linear=True,
         )
 
     alice_result = app_result.batch_results["alice"]
@@ -100,6 +100,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
 
 def test_teleport():
     # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("eval_teleport_tri.log")
     # LogManager.enable_task_logger(True)
     num_iterations = 10
 
@@ -111,10 +112,7 @@ def test_teleport():
     assert all(outcome == 1 for outcome in outcomes)
 
 
-def test_teleport_different_inputs():
-    # LogManager.set_log_level("DEBUG")
-    num_iterations = 10
-
+def teleport_different_inputs(num_iterations: int):
     result = run_teleport(num_iterations=num_iterations, different_inputs=True)
 
     program_results = result.bob_results.results
@@ -124,5 +122,4 @@ def test_teleport_different_inputs():
 
 
 if __name__ == "__main__":
-    test_teleport()
-    test_teleport_different_inputs()
+    teleport_different_inputs(num_iterations=100)
