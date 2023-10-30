@@ -47,12 +47,14 @@ class PingPongResult:
 def run_pingpong(num_iterations: int) -> PingPongResult:
     ns.sim_reset()
 
-    num_qubits = 3
     alice_id = 1
     bob_id = 0
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits)
+    # NOTE: make sure they both have only 2 qubits!!
+    # More than 2 qubits makes the bichromatic gate behave differently,
+    # and hence the decomposition of a CNOT does not work anymore
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits=2)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits=2)
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=500_000
