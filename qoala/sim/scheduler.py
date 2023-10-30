@@ -914,7 +914,7 @@ class CpuScheduler(ProcessorScheduler):
         remote_name = csck.remote_name
         remote_pid = csck.remote_pid
         messages = self._host_interface.get_available_messages(remote_name)
-        if (task.pid, remote_pid) in messages:
+        if (remote_pid, task.pid) in messages:
             self._task_logger.debug(f"task {tid} NOT blocked")
             return True
         else:

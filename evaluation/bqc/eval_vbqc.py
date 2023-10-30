@@ -19,6 +19,7 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
+from qoala.util.logging import LogManager
 
 
 def topology_config(num_qubits: int) -> TopologyConfig:
@@ -407,18 +408,16 @@ def test_bqc_1_client_trap():
     bqc_trap(1, 10)
 
 
-# TODO: fix
 def test_bqc_multiple_clients_computation():
-    bqc_computation(2, 1)
+    bqc_computation(10, 30)
 
 
-# TODO: fix
-def disabled_test_bqc_multiple_clients_trap():
-    bqc_trap(3, 30)
+def test_bqc_multiple_clients_trap():
+    bqc_trap(10, 30)
 
 
 if __name__ == "__main__":
     test_bqc_1_client_computation()
     test_bqc_1_client_trap()
     test_bqc_multiple_clients_computation()
-    # test_bqc_multiple_clients_trap()
+    test_bqc_multiple_clients_trap()
