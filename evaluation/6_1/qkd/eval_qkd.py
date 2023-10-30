@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
 import netsquid as ns
 
@@ -10,7 +11,6 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
-    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -49,6 +49,7 @@ def run_qkd(
     alice_file: str,
     bob_file: str,
     num_pairs: Optional[int] = None,
+    linear: bool = True,
 ):
     num_qubits = 3
     alice_id = 0
@@ -59,10 +60,6 @@ def run_qkd(
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
-    )
-    pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
-    network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=20_000
     )
 
     alice_program = load_program(alice_file)
@@ -80,7 +77,7 @@ def run_qkd(
         programs={"alice": alice_program, "bob": bob_program},
         program_inputs={"alice": alice_input, "bob": bob_input},
         network_cfg=network_cfg,
-        linear=True,
+        linear=linear,
     )
 
     alice_result = app_result.batch_results["alice"]
@@ -89,39 +86,15 @@ def run_qkd(
     return QkdResult(alice_result, bob_result)
 
 
-def qkd_1pair_md():
-    ns.sim_reset()
-    # LogManager.enable_task_logger(True)
-    LogManager.set_log_level("WARNING")
-
-    num_iterations = 10
-    alice_file = "qkd_1pair_MD_alice.iqoala"
-    bob_file = "qkd_1pair_MD_bob.iqoala"
-
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
-    alice_results = qkd_result.alice_result.results
-    bob_results = qkd_result.bob_result.results
-
-    assert len(alice_results) == num_iterations
-    assert len(bob_results) == num_iterations
-
-    alice_outcomes = [alice_results[i].values for i in range(num_iterations)]
-    bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
-
-    print(alice_outcomes)
-
-    for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
-
-
-def qkd_1pair_ck():
+def qkd_npairs_md(num_iterations: int, num_pairs: Union[int, float]):
+    num_pairs = int(num_pairs)
     ns.sim_reset()
 
-    num_iterations = 10
-    alice_file = "qkd_1pair_CK_alice.iqoala"
-    bob_file = "qkd_1pair_CK_bob.iqoala"
+    alice_file = "qkd_npairs_MD_alice.iqoala"
+    bob_file = "qkd_npairs_MD_bob.iqoala"
 
-    qkd_result = run_qkd(num_iterations, alice_file, bob_file)
+    qkd_result = run_qkd(num_iterations, alice_file, bob_file, num_pairs=num_pairs)
+
     alice_results = qkd_result.alice_result.results
     bob_results = qkd_result.bob_result.results
 
@@ -132,17 +105,15 @@ def qkd_1pair_ck():
     bob_outcomes = [bob_results[i].values for i in range(num_iterations)]
 
     for alice, bob in zip(alice_outcomes, bob_outcomes):
-        assert alice["m0"] == bob["m0"]
-
-
-def test_qkd_1pair_md():
-    qkd_1pair_md()
-
-
-def test_qkd_1pair_ck():
-    qkd_1pair_ck()
+        # print(f"alice: {alice['outcomes']}")
+        # print(f"bob  : {bob['outcomes']}")
+        assert alice["outcomes"] == bob["outcomes"]
 
 
 if __name__ == "__main__":
-    test_qkd_1pair_md()
-    # test_qkd_1pair_ck()
+    start = time.time()
+
+    qkd_npairs_md(num_iterations=100, num_pairs=100)
+
+    end = time.time()
+    print(f"duration: {round(end - start, 2)} s")

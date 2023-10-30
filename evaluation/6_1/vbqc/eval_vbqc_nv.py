@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
 from typing import Dict, List
 
 import netsquid as ns
+from netqasm.lang.instr.flavour import NVFlavour
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
@@ -22,36 +24,16 @@ from qoala.sim.network import ProcNodeNetwork
 from qoala.util.logging import LogManager
 
 
-def topology_config(num_qubits: int) -> TopologyConfig:
-    return TopologyConfig.perfect_config_uniform(
-        num_qubits,
-        single_instructions=[
-            "INSTR_INIT",
-            "INSTR_ROT_X",
-            "INSTR_ROT_Y",
-            "INSTR_ROT_Z",
-            "INSTR_X",
-            "INSTR_Y",
-            "INSTR_Z",
-            "INSTR_H",
-            "INSTR_MEASURE",
-        ],
-        single_duration=1e3,
-        two_instructions=["INSTR_CNOT", "INSTR_CZ"],
-        two_duration=100e3,
-    )
-
-
 def get_client_config(id: int) -> ProcNodeConfig:
     # client only needs 1 qubit
     return ProcNodeConfig(
         node_name=f"client_{id}",
         node_id=id,
-        topology=topology_config(1),
+        topology=TopologyConfig.perfect_nv_default_params(1),
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
         ),
-        ntf=NtfConfig.from_cls_name("GenericNtf"),
+        ntf=NtfConfig.from_cls_name("NvNtf"),
     )
 
 
@@ -59,11 +41,11 @@ def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name="server",
         node_id=id,
-        topology=topology_config(num_qubits),
+        topology=TopologyConfig.perfect_nv_default_params(num_qubits),
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
         ),
-        ntf=NtfConfig.from_cls_name("GenericNtf"),
+        ntf=NtfConfig.from_cls_name("NvNtf"),
     )
 
 
@@ -88,10 +70,10 @@ class BqcResult:
 
 
 def load_server_program(remote_name: str) -> QoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "vbqc_server.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "vbqc_nv_server.iqoala")
     with open(path) as file:
         server_text = file.read()
-    program = QoalaParser(server_text).parse()
+    program = QoalaParser(server_text, flavour=NVFlavour()).parse()
 
     # Replace "client" by e.g. "client_1"
     program.meta.csockets[0] = remote_name
@@ -101,10 +83,10 @@ def load_server_program(remote_name: str) -> QoalaProgram:
 
 
 def load_client_program() -> QoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "vbqc_client.iqoala")
+    path = os.path.join(os.path.dirname(__file__), "vbqc_nv_client.iqoala")
     with open(path) as file:
         client_text = file.read()
-    return QoalaParser(client_text).parse()
+    return QoalaParser(client_text, flavour=NVFlavour()).parse()
 
 
 def create_server_batch(
@@ -112,7 +94,6 @@ def create_server_batch(
     inputs: List[ProgramInput],
     unit_module: UnitModule,
     num_iterations: int,
-    deadline: int,
 ) -> BatchInfo:
     server_program = load_server_program(remote_name=f"client_{client_id}")
     return BatchInfo(
@@ -120,7 +101,7 @@ def create_server_batch(
         inputs=inputs,
         unit_module=unit_module,
         num_iterations=num_iterations,
-        deadline=deadline,
+        deadline=0,
     )
 
 
@@ -128,7 +109,6 @@ def create_client_batch(
     inputs: List[ProgramInput],
     unit_module: UnitModule,
     num_iterations: int,
-    deadline: int,
 ) -> BatchInfo:
     client_program = load_client_program()
     return BatchInfo(
@@ -136,7 +116,7 @@ def create_client_batch(
         inputs=inputs,
         unit_module=unit_module,
         num_iterations=num_iterations,
-        deadline=deadline,
+        deadline=0,
     )
 
 
@@ -148,7 +128,6 @@ def run_bqc(
     dummy0,
     dummy1,
     num_iterations: List[int],
-    deadlines: List[int],
     num_clients: int,
 ):
     ns.sim_reset()
@@ -164,7 +143,7 @@ def run_bqc(
     client_batches: Dict[int, ProgramBatch] = {}  # client ID -> client batch
 
     for client_id in range(1, num_clients + 1):
-        # index in num_iterations and deadlines list
+        # index in num_iterations list
         index = client_id - 1
 
         server_inputs = [
@@ -177,13 +156,12 @@ def run_bqc(
             inputs=server_inputs,
             unit_module=server_unit_module,
             num_iterations=num_iterations[index],
-            deadline=deadlines[index],
         )
 
         server_batches[client_id] = server_procnode.submit_batch(server_batch_info)
 
     for client_id in range(1, num_clients + 1):
-        # index in num_iterations and deadlines list
+        # index in num_iterations list
         index = client_id - 1
 
         client_inputs = [
@@ -205,15 +183,15 @@ def run_bqc(
 
         client_unit_module = UnitModule.from_full_ehi(client_procnode.memmgr.get_ehi())
         client_batch_info = create_client_batch(
-            client_inputs, client_unit_module, num_iterations[index], deadlines[index]
+            client_inputs, client_unit_module, num_iterations[index]
         )
 
         client_batches[client_id] = client_procnode.submit_batch(client_batch_info)
         batch_id = client_batches[client_id].batch_id
         server_pids = [inst.pid for inst in server_batches[client_id].instances]
-        print(
-            f"client ID: {client_id}, batch ID: {batch_id}, server PIDs: {server_pids}"
-        )
+        # print(
+        #     f"client ID: {client_id}, batch ID: {batch_id}, server PIDs: {server_pids}"
+        # )
         client_procnode.initialize_processes(
             remote_pids={batch_id: server_pids}, linear=True
         )
@@ -224,7 +202,7 @@ def run_bqc(
         ]
         for client_id in range(1, num_clients + 1)
     }
-    print(f"client PIDs: {client_pids}")
+    # print(f"client PIDs: {client_pids}")
     server_procnode.initialize_processes(remote_pids=client_pids, linear=True)
 
     network.start()
@@ -251,7 +229,6 @@ def check_computation(
     dummy1,
     expected,
     num_iterations,
-    deadlines,
     num_clients,
 ):
     ns.sim_reset()
@@ -263,7 +240,6 @@ def check_computation(
         dummy0=dummy0,
         dummy1=dummy1,
         num_iterations=num_iterations,
-        deadlines=deadlines,
         num_clients=num_clients,
     )
 
@@ -287,22 +263,37 @@ def check_computation(
 def compute_succ_prob_computation(
     num_clients: int,
     num_iterations: List[int],
-    deadlines: List[int],
-):
+) -> Tuple[float, float]:
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
-    return check_computation(
-        alpha=8,
-        beta=24,
-        theta1=2,
-        theta2=22,
-        dummy0=0,
-        dummy1=0,
-        expected=1,
-        num_iterations=num_iterations,
-        deadlines=deadlines,
-        num_clients=num_clients,
-    )
+    # theta1, theta2
+    params = [
+        (0, 0),
+        (0, 7),
+        (2, 22),
+        (6, 15),
+    ]
+
+    all_probs = []
+    all_makespans = []
+    for theta1, theta2 in params:
+        probs, makespan = check_computation(
+            alpha=8,
+            beta=24,
+            theta1=theta1,
+            theta2=theta2,
+            dummy0=0,
+            dummy1=0,
+            expected=1,
+            num_iterations=num_iterations,
+            num_clients=num_clients,
+        )
+        all_probs.append(probs[0])
+        all_makespans.append(makespan)
+
+    prob = sum(all_probs) / len(all_probs)
+    makespan = sum(all_makespans)
+    return prob, makespan
 
 
 def check_trap(
@@ -313,7 +304,6 @@ def check_trap(
     dummy0,
     dummy1,
     num_iterations,
-    deadlines,
     num_clients,
 ):
     ns.sim_reset()
@@ -325,7 +315,6 @@ def check_trap(
         dummy0=dummy0,
         dummy1=dummy1,
         num_iterations=num_iterations,
-        deadlines=deadlines,
         num_clients=num_clients,
     )
 
@@ -363,28 +352,40 @@ def check_trap(
 def compute_succ_prob_trap(
     num_clients: int,
     num_iterations: List[int],
-    deadlines: List[int],
-):
+) -> Tuple[float, float]:
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
-    return check_trap(
-        alpha=8,
-        beta=24,
-        theta1=2,
-        theta2=22,
-        dummy0=0,
-        dummy1=1,
-        num_iterations=num_iterations,
-        deadlines=deadlines,
-        num_clients=num_clients,
-    )
+    # dummy0, dummy1
+    params = [
+        (0, 1),
+        (1, 0),
+    ]
+
+    all_probs = []
+    all_makespans = []
+    for dummy0, dummy1 in params:
+        probs, makespan = check_trap(
+            alpha=8,
+            beta=24,
+            theta1=2,
+            theta2=22,
+            dummy0=dummy0,
+            dummy1=dummy1,
+            num_iterations=num_iterations,
+            num_clients=num_clients,
+        )
+        all_probs.append(probs[0])
+        all_makespans.append(makespan)
+
+    prob = sum(all_probs) / len(all_probs)
+    makespan = sum(all_makespans)
+    return prob, makespan
 
 
 def bqc_computation(num_clients: int, num_iterations: int):
     succ_probs, makespan = compute_succ_prob_computation(
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
-        deadlines=[1e9] * num_clients,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
@@ -394,30 +395,16 @@ def bqc_trap(num_clients: int, num_iterations: int):
     succ_probs, makespan = compute_succ_prob_trap(
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
-        deadlines=[1e9] * num_clients,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
 
 
-def test_bqc_1_client_computation():
-    bqc_computation(1, 10)
-
-
-def test_bqc_1_client_trap():
-    bqc_trap(1, 10)
-
-
-def test_bqc_multiple_clients_computation():
-    bqc_computation(10, 30)
-
-
-def test_bqc_multiple_clients_trap():
-    bqc_trap(10, 30)
-
-
 if __name__ == "__main__":
-    test_bqc_1_client_computation()
-    test_bqc_1_client_trap()
-    test_bqc_multiple_clients_computation()
-    test_bqc_multiple_clients_trap()
+    start = time.time()
+
+    bqc_computation(1, 100)
+    bqc_trap(1, 100)
+
+    end = time.time()
+    print(f"duration: {round(end - start, 2)} s")

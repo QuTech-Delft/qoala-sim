@@ -83,9 +83,19 @@ SUBROUTINE post_epr_0
     load C1 @input[1]
     load C2 @input[2]
     set Q0 0
-    rot_z Q0 C0 4
+
+    // rot_z Q0 C0 4
+    rot_y Q0 8 4
+    rot_x Q0 C0 4
+    rot_y Q0 24 4
+
     rot_y Q0 C1 4
-    rot_z Q0 C2 4
+
+    // rot_z Q0 C2 4
+    rot_y Q0 8 4
+    rot_x Q0 C2 4
+    rot_y Q0 24 4
+
     meas Q0 M0
     store M0 @output[0]
   NETQASM_END
@@ -101,9 +111,19 @@ SUBROUTINE post_epr_1
     load C1 @input[1]
     load C2 @input[2]
     set Q0 0
-    rot_z Q0 C0 4
+
+    // rot_z Q0 C0 4
+    rot_y Q0 8 4
+    rot_x Q0 C0 4
+    rot_y Q0 24 4
+
     rot_y Q0 C1 4
-    rot_z Q0 C2 4
+
+    // rot_z Q0 C2 4
+    rot_y Q0 8 4
+    rot_x Q0 C2 4
+    rot_y Q0 24 4
+
     meas Q0 M1
     store M1 @output[0]
   NETQASM_END
