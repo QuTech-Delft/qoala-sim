@@ -105,6 +105,12 @@ class NetstackProcessor:
         assert request.typ == EprType.CREATE_KEEP
         num_pairs = request.num_pairs
 
+        log_str = (
+            f"Handling CK request {routine.name} "
+            f"for PID {process.pid} and remot ID = {request.remote_id}"
+        )
+        self._logger.debug(log_str)
+
         for i in range(num_pairs):
             virt_id = self._allocate_for_pair(process, request, i)
             entdist_req = self._create_entdist_request(process, request, virt_id)

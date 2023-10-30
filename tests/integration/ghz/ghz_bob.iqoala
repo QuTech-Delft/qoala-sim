@@ -1,0 +1,106 @@
+
+META_START
+    name: alice
+    parameters: alice_id, charlie_id
+    csockets: 0 -> alice, 1 -> charlie
+    epr_sockets: 0 -> alice, 1 -> charlie
+META_END
+
+^b0 {type = CL}:
+    csocket_alice = assign_cval() : 0
+    csocket_charlie = assign_cval() : 1
+    ack = assign_cval() : 42
+
+^b1 {type = QC}:
+    run_request() : epr_gen_alice
+
+^b2 {type = QC}:
+    run_request() : epr_gen_charlie
+
+^b3 {type = QL}:
+    tuple<m> = run_subroutine() : cnot_and_measure
+
+^b4 {type = CL}:
+    send_cmsg(csocket_charlie, m)
+
+^b5 {type = CC}:
+    p = recv_cmsg(csocket_charlie)
+
+^b6 {type = CL}:
+    send_cmsg(csocket_alice, ack)
+
+^b7 {type = QL}:
+    tuple<outcome> = run_subroutine() : measure
+
+^b8 {type = CL}:
+    return_result(outcome)
+
+
+SUBROUTINE cnot_and_measure
+    params:
+    returns: m
+    uses: 0, 1
+    keeps: 0
+    request:
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    cnot Q0 Q1
+    meas Q1 M1
+    store M1 @output[0]
+  NETQASM_END
+
+SUBROUTINE correction
+    params: p
+    returns:
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    set R0 0
+
+    beq C0 R0 2
+    z Q0
+
+    set R15 0
+  NETQASM_END
+
+SUBROUTINE measure
+    params: 
+    returns: outcome
+    uses: 0
+    keeps: 
+    request:
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST epr_gen_alice
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {alice_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+
+REQUEST epr_gen_charlie
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {charlie_id}
+  epr_socket_id: 1
+  num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
