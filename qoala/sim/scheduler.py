@@ -22,7 +22,7 @@ from qoala.lang.ehi import (
     EhiNodeInfo,
 )
 from qoala.lang.hostlang import BasicBlockType, ReceiveCMsgOp
-from qoala.lang.request import EprType, VirtIdMappingType
+from qoala.lang.request import VirtIdMappingType
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import (
@@ -1218,7 +1218,9 @@ class QpuScheduler(ProcessorScheduler):
                 assert virt_id is not None and isinstance(virt_id, int)
                 virt_ids = [virt_id]
             else:
-                virt_ids = [routine.request.virt_ids.get_id(i) for i in range(num_pairs)]
+                virt_ids = [
+                    routine.request.virt_ids.get_id(i) for i in range(num_pairs)
+                ]
 
             # Check if virt IDs are available by trying to allocate
             # (without actually allocating)
