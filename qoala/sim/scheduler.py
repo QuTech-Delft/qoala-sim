@@ -1218,6 +1218,7 @@ class QpuScheduler(ProcessorScheduler):
             try:
                 for virt_id in virt_ids:
                     self._memmgr.allocate(task.pid, virt_id)
+                for virt_id in virt_ids:
                     self._memmgr.free(task.pid, virt_id)
                 return True
             except AllocError:

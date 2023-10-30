@@ -418,7 +418,7 @@ def disabled_test_bqc_multiple_clients_trap():
 
 
 if __name__ == "__main__":
-    # test_bqc_1_client_computation()
-    # test_bqc_1_client_trap()
+    test_bqc_1_client_computation()
+    test_bqc_1_client_trap()
     test_bqc_multiple_clients_computation()
     # test_bqc_multiple_clients_trap()
