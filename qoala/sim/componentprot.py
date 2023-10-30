@@ -79,6 +79,8 @@ class PortListener(Protocol):
                 input = self._port.rx_input()
                 if input is None:
                     break
+                if self._port.component.name == "alice_host":
+                    print(f"got mail: {input.items} (signal: {self._signal_label})")
                 for item in input.items:
                     self._buffer.add_msg(item)
                 counter += 1

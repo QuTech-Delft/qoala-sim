@@ -85,7 +85,7 @@ def run_anonymous_transfer(num_iterations: int) -> AnonymousTransferResult:
     charlie_program = load_program("anonymous_transfer_charlie.iqoala")
 
     alice_input = [
-        ProgramInput({"bob_id": bob_id, "charlie_id": charlie_id})
+        ProgramInput({"bob_id": bob_id, "charlie_id": charlie_id, "b": 0})
         for _ in range(num_iterations)
     ]
     bob_input = [
@@ -93,7 +93,7 @@ def run_anonymous_transfer(num_iterations: int) -> AnonymousTransferResult:
         for _ in range(num_iterations)
     ]
     charlie_input = [
-        ProgramInput({"alice_id": alice_id, "bob_id": bob_id})
+        ProgramInput({"alice_id": alice_id, "bob_id": bob_id, "b": 0})
         for _ in range(num_iterations)
     ]
 
@@ -171,4 +171,7 @@ if __name__ == "__main__":
     # LogManager.log_to_file("anon.log")
     # LogManager.set_task_log_level("DEBUG")
     # LogManager.log_tasks_to_file("anon_tasks.log")
-    anonymous_transfer(num_iterations=10)
+
+    # Alice = sender
+    # Charlie = receiver
+    anonymous_transfer(num_iterations=1)

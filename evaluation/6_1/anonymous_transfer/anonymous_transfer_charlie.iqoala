@@ -1,6 +1,6 @@
 META_START
     name: bob
-    parameters: alice_id, bob_id
+    parameters: alice_id, bob_id, b
     csockets: 0 -> alice, 1 -> bob
     epr_sockets: 0 -> alice, 1 -> bob
 META_END
@@ -21,6 +21,27 @@ META_END
 
 ^b4 {type = CL}:
     send_cmsg(csocket_bob, p)
+
+^b41 {type = CC}:
+    ack = recv_cmsg(csocket_alice)
+
+^b45 {type = CL}:
+    send_cmsg(csocket_alice, b)
+    send_cmsg(csocket_bob, b)
+
+^b46 {type = CC}:
+    k1 = recv_cmsg(csocket_alice)
+
+^b47 {type = CC}:
+    k2 = recv_cmsg(csocket_bob)
+
+^b48 {type = CL}:
+    k = add_cval_c(k1, k2)
+    one = assign_cval() : 1
+    bne(k, one) : b5
+
+^b49 {type = QL}:
+    run_subroutine() : anon_epr
 
 ^b5 {type = QL}:
     tuple<outcome> = run_subroutine() : measure
@@ -49,6 +70,17 @@ SUBROUTINE correction_plus_prepare
     h Q1
     meas Q1 M1
     store M1 @output[0]
+  NETQASM_END
+
+SUBROUTINE anon_epr
+    params: 
+    returns: 
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    set Q0 0
+    z Q0
   NETQASM_END
 
 SUBROUTINE measure
