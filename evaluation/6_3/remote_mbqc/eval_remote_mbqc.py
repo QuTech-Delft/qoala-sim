@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
-from typing import List
+from pydoc import cli
 
 import netsquid as ns
 from netqasm.lang.instr.flavour import NVFlavour
@@ -10,6 +11,7 @@ from netqasm.lang.instr.flavour import NVFlavour
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
+    ClassicalConnectionConfig,
     LatenciesConfig,
     NtfConfig,
     NvParams,
@@ -18,17 +20,20 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app_separate_inputs
 
 
-def create_procnode_cfg(name: str, id: int, determ: bool) -> ProcNodeConfig:
+def create_procnode_cfg(name: str, id: int, t1: int, t2: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.perfect_config_uniform_default_params(3),
+        topology=TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
+            3, t1, t2
+        ),
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
-        determ_sched=determ,
+        determ_sched=True,
     )
 
 
@@ -45,24 +50,49 @@ class RemoteMbqcResult:
     server_results: BatchResult
 
 
-def run_remote_mbqc(num_iterations: int) -> RemoteMbqcResult:
+def run_remote_mbqc(
+    num_iterations: int,
+    theta0: float,
+    theta1: float,
+    theta2: float,
+    naive: bool,
+    t1: int,
+    t2: int,
+    cc: float,
+) -> RemoteMbqcResult:
     ns.sim_reset()
 
     client_id = 1
     server_id = 0
 
-    client_node_cfg = create_procnode_cfg("client", client_id, determ=True)
-    server_node_cfg = create_procnode_cfg("server", server_id, determ=True)
+    client_node_cfg = create_procnode_cfg("client", client_id, t1, t2)
+    server_node_cfg = create_procnode_cfg("server", server_id, t1, t2)
 
+    cconn = ClassicalConnectionConfig.from_nodes(client_id, server_id, cc)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[client_node_cfg, server_node_cfg], link_duration=1000
     )
+    network_cfg.cconns = [cconn]
 
-    client_program = load_program("remote_mbqc_client.iqoala")
-    server_program = load_program("remote_mbqc_server.iqoala")
+    if naive:
+        client_program = load_program("remote_mbqc_naive_client.iqoala")
+        server_program = load_program("remote_mbqc_naive_server.iqoala")
+    else:
+        client_program = load_program("remote_mbqc_opt_client.iqoala")
+        server_program = load_program("remote_mbqc_opt_server.iqoala")
 
+    theta0_int = int(theta0 * 16 / math.pi)
+    theta1_int = int(theta1 * 16 / math.pi)
+    theta2_int = int(theta2 * 16 / math.pi)
     client_inputs = [
-        ProgramInput({"server_id": server_id, "theta0": 0, "theta1": 0, "theta2": 0})
+        ProgramInput(
+            {
+                "server_id": server_id,
+                "theta0": theta0_int,
+                "theta1": theta1_int,
+                "theta2": theta2_int,
+            }
+        )
         for _ in range(num_iterations)
     ]
     server_inputs = [
@@ -83,21 +113,33 @@ def run_remote_mbqc(num_iterations: int) -> RemoteMbqcResult:
     return RemoteMbqcResult(client_result, server_result)
 
 
-def remote_mbqc():
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.log_tasks_to_file("teleport_plus_local.log")
-    num_iterations = 1
+def remote_mbqc(naive: bool):
+    t1 = 1e10
+    t2 = 1e6
+    cc = 1e5
 
-    result = run_remote_mbqc(num_iterations)
+    num_iterations = 1000
+
+    theta0 = math.pi / 2
+    theta1 = 0
+    theta2 = math.pi / 2
+    result = run_remote_mbqc(num_iterations, theta0, theta1, theta2, naive, t1, t2, cc)
     program_results = result.client_results.results
-    print(program_results)
+    # print(program_results)
     m0s = [result.values["m0"] for result in program_results]
     m1s = [result.values["m1"] for result in program_results]
     m2s = [result.values["m2"] for result in program_results]
-    print(m0s)
-    print(m1s)
-    print(m2s)
+    # print(m0s)
+    # print(m1s)
+    # print(m2s)
+
+    successes = 0
+    for m0, m1, m2 in zip(m0s, m1s, m2s):
+        if m2 == (m0 == m1):
+            successes += 1
+    print(f"succ prob: {round(successes / num_iterations, 2)}")
 
 
 if __name__ == "__main__":
-    remote_mbqc()
+    remote_mbqc(naive=True)
+    remote_mbqc(naive=False)

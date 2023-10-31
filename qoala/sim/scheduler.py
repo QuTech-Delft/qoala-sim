@@ -854,8 +854,6 @@ class ProcessorScheduler(Protocol):
                 self._task_logger.info(f"BUSY finish {task}")
             else:
                 self._task_logger.info(f"finish {task}")
-                if task.task_id == 41:
-                    print("henlo")
             if self.name == "bob_qpu":
                 self._task_logger.warning(f"finish {task}")
 
@@ -1180,7 +1178,7 @@ class QpuScheduler(ProcessorScheduler):
     def are_resources_available(self, tid: int) -> bool:
         assert self._task_graph is not None
         task = self._task_graph.get_tinfo(tid).task
-        self._task_logger.debug(f"check if resources available for task {tid}")
+        self._task_logger.debug(f"check if resources available for task {tid} ({task})")
         if isinstance(task, SinglePairTask):
             # TODO: refactor
             drv_mem = self._driver._memory

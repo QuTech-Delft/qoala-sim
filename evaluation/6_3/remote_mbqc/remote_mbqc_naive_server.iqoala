@@ -8,9 +8,6 @@ META_END
 
 ^b1 {type = CL}:
     csocket = assign_cval() : 0
-    zero = assign_cval() : 0
-    one = assign_cval() : 1
-    two = assign_cval() : 2
 
 ^b2 {type = QL}:
     run_subroutine() : create_cluster
@@ -19,7 +16,7 @@ META_END
     theta0 = recv_cmsg(csocket)
 
 ^b4 {type = QL}:
-    tuple<m0> = run_subroutine(tuple<zero; theta0>) : meas_qubit
+    tuple<m0> = run_subroutine(tuple<theta0>) : meas_q0
 
 ^b5 {type = CL}:
     send_cmsg(csocket, m0)
@@ -28,7 +25,7 @@ META_END
     theta1 = recv_cmsg(csocket)
 
 ^b7 {type = QL}:
-    tuple<m1> = run_subroutine(tuple<one; theta1>) : meas_qubit
+    tuple<m1> = run_subroutine(tuple<theta1>) : meas_q1
 
 ^b8 {type = CL}:
     send_cmsg(csocket, m1)
@@ -37,7 +34,7 @@ META_END
     theta2 = recv_cmsg(csocket)
 
 ^b10 {type = QL}:
-    tuple<m2> = run_subroutine(tuple<two; theta2>) : meas_qubit
+    tuple<m2> = run_subroutine(tuple<theta2>) : meas_q2
 
 ^b11 {type = CL}:
     send_cmsg(csocket, m2)
@@ -59,39 +56,58 @@ SUBROUTINE create_cluster
     init Q1
     init Q2
 
+    h Q0
+    h Q1
+    h Q2
+
     cphase Q0 Q1
     cphase Q1 Q2
   NETQASM_END
 
-SUBROUTINE meas_qubit
-    params: qid, theta0
+SUBROUTINE meas_q0
+    params: theta
     returns: m
     uses: 0
     keeps: 
     request: 
   NETQASM_START
-    load Q0 @input[0]
-    load C1 @input[1]
+    load C0 @input[0]
 
+    set Q0 0
     rot_z Q0 C0 4
     h Q0
     meas Q0 M0
     store M0 @output[0]
   NETQASM_END
 
-SUBROUTINE measure
-    params:
-    returns: outcome
-    uses: 0
+SUBROUTINE meas_q1
+    params: theta
+    returns: m
+    uses: 1
     keeps: 
-    request:
+    request: 
   NETQASM_START
-    set Q0 0
+    load C0 @input[0]
 
-    // hadamard
-    rot_y Q0 8 4
-    rot_x Q0 16 4
+    set Q1 1
+    rot_z Q1 C0 4
+    h Q1
+    meas Q1 M1
+    store M1 @output[0]
+  NETQASM_END
 
-    meas Q0 M0
-    store M0 @output[0]
+SUBROUTINE meas_q2
+    params: theta
+    returns: m
+    uses: 2
+    keeps: 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+
+    set Q2 2
+    rot_z Q2 C0 4
+    h Q2
+    meas Q2 M2
+    store M2 @output[0]
   NETQASM_END

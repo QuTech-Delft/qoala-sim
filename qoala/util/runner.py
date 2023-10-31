@@ -61,8 +61,6 @@ def run_two_node_app_separate_inputs(
     linear: bool = False,
     linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
-    if linear_for is None:
-        linear_for = {name: False for name in programs.keys()}
 
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
@@ -90,7 +88,11 @@ def run_two_node_app_separate_inputs(
 
         remote_batch = batches[other_name[name]]
         remote_pids = {remote_batch.batch_id: [p.pid for p in remote_batch.instances]}
-        procnode.initialize_processes(remote_pids, linear=linear_for[name])
+
+        if linear_for is not None:
+            procnode.initialize_processes(remote_pids, linear=linear_for[name])
+        else:
+            procnode.initialize_processes(remote_pids, linear=linear)
 
         # tasks = procnode.scheduler.get_tasks_to_schedule()
         # if linear:
