@@ -1,0 +1,32 @@
+META_START
+    name: alice
+    parameters: server_id, theta0, theta1, theta2
+    csockets: 0 -> server
+    epr_sockets:
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = CL}:
+    send_cmsg(csocket, theta0)
+
+^b2 {type = CC}:
+    m0 = recv_cmsg(csocket)
+
+^b3 {type = CL}:
+    send_cmsg(csocket, theta1)
+
+^b4 {type = CC}:
+    m1 = recv_cmsg(csocket)
+
+^b5 {type = CL}:
+    send_cmsg(csocket, theta2)
+
+^b6 {type = CC}:
+    m2 = recv_cmsg(csocket)
+
+^b7 {type = CL}:
+    return_result(m0)
+    return_result(m1)
+    return_result(m2)

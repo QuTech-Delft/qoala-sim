@@ -854,6 +854,8 @@ class ProcessorScheduler(Protocol):
                 self._task_logger.info(f"BUSY finish {task}")
             else:
                 self._task_logger.info(f"finish {task}")
+                if task.task_id == 41:
+                    print("henlo")
             if self.name == "bob_qpu":
                 self._task_logger.warning(f"finish {task}")
 

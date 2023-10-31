@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import random
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
@@ -11,6 +12,7 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
+    ClassicalConnectionConfig,
     LatenciesConfig,
     NtfConfig,
     ProcNodeConfig,
@@ -48,7 +50,7 @@ def get_client_config(id: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=f"client_{id}",
         node_id=id,
-        topology=topology_config(1),
+        topology=topology_config(20),
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
         ),
@@ -72,6 +74,7 @@ def create_network(
     server_cfg: ProcNodeConfig,
     client_configs: List[ProcNodeConfig],
     num_clients: int,
+    cc: float,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
@@ -79,6 +82,11 @@ def create_network(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=node_cfgs, link_duration=1000
     )
+    cconns = [
+        ClassicalConnectionConfig.from_nodes(i, 0, cc)
+        for i in range(1, num_clients + 1)
+    ]
+    network_cfg.cconns = cconns
     return build_network_from_config(network_cfg)
 
 
@@ -140,23 +148,28 @@ def create_client_batch(
 
 
 def run_bqc(
-    alpha,
-    beta,
-    theta1,
-    theta2,
-    dummy0,
-    dummy1,
+    alpha: int,
+    beta: int,
+    theta1: int,
+    theta2: int,
+    dummy0: int,
+    dummy1: int,
     num_iterations: List[int],
     num_clients: int,
+    linear: bool,
+    cc: float,
 ):
     ns.sim_reset()
+    ns.set_qstate_formalism(ns.QFormalism.DM)
+    seed = random.randint(0, 1000)
+    ns.set_random_state(seed=seed)
 
     # server needs to have 2 qubits per client
-    server_num_qubits = num_clients * 10
+    server_num_qubits = num_clients * 3
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
 
-    network = create_network(server_config, client_configs, num_clients)
+    network = create_network(server_config, client_configs, num_clients, cc)
     server_procnode = network.nodes["server"]
     server_batches: Dict[int, ProgramBatch] = {}  # client ID -> server batch
     client_batches: Dict[int, ProgramBatch] = {}  # client ID -> client batch
@@ -222,7 +235,7 @@ def run_bqc(
         for client_id in range(1, num_clients + 1)
     }
     # print(f"client PIDs: {client_pids}")
-    server_procnode.initialize_processes(remote_pids=client_pids, linear=True)
+    server_procnode.initialize_processes(remote_pids=client_pids, linear=linear)
 
     network.start()
     start_time = ns.sim_time()
@@ -240,15 +253,17 @@ def run_bqc(
 
 
 def check_computation(
-    alpha,
-    beta,
-    theta1,
-    theta2,
-    dummy0,
-    dummy1,
-    expected,
-    num_iterations,
-    num_clients,
+    alpha: int,
+    beta: int,
+    theta1: int,
+    theta2: int,
+    dummy0: int,
+    dummy1: int,
+    expected: int,
+    num_iterations: int,
+    num_clients: int,
+    linear: bool,
+    cc: float,
 ):
     ns.sim_reset()
     bqc_result, makespan = run_bqc(
@@ -260,6 +275,8 @@ def check_computation(
         dummy1=dummy1,
         num_iterations=num_iterations,
         num_clients=num_clients,
+        linear=linear,
+        cc=cc,
     )
 
     batch_success_probabilities: List[float] = []
@@ -282,6 +299,8 @@ def check_computation(
 def compute_succ_prob_computation(
     num_clients: int,
     num_iterations: List[int],
+    linear: bool,
+    cc: float,
 ) -> Tuple[float, float]:
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
@@ -306,6 +325,8 @@ def compute_succ_prob_computation(
             expected=1,
             num_iterations=num_iterations,
             num_clients=num_clients,
+            linear=linear,
+            cc=cc,
         )
         all_probs.append(probs[0])
         all_makespans.append(makespan)
@@ -315,108 +336,15 @@ def compute_succ_prob_computation(
     return prob, makespan
 
 
-def check_trap(
-    alpha,
-    beta,
-    theta1,
-    theta2,
-    dummy0,
-    dummy1,
-    num_iterations,
-    num_clients,
-):
-    ns.sim_reset()
-    bqc_result, makespan = run_bqc(
-        alpha=alpha,
-        beta=beta,
-        theta1=theta1,
-        theta2=theta2,
-        dummy0=dummy0,
-        dummy1=dummy1,
-        num_iterations=num_iterations,
-        num_clients=num_clients,
-    )
-
-    batch_success_probabilities: List[float] = []
-
-    for i in range(num_clients):
-        assert len(bqc_result.client_results[i]) == 1
-        batch_result = bqc_result.client_results[i][0]
-        assert len(bqc_result.client_batches[i]) == 1
-        program_batch = bqc_result.client_batches[i][0]
-        batch_iterations = program_batch.info.num_iterations
-
-        p1s = [result.values["p1"] for result in batch_result.results]
-        p2s = [result.values["p2"] for result in batch_result.results]
-        m1s = [result.values["m1"] for result in batch_result.results]
-        m2s = [result.values["m2"] for result in batch_result.results]
-
-        if dummy0 == 0:
-            # corresponds to "dummy = 1"
-            # do normal rotations on qubit 0
-            # no rotations on qubit 1
-            num_fails = len([(p, m) for (p, m) in zip(p1s, m2s) if p != m])
-        else:  # dummy0 = 1
-            # corresponds to "dummy = 2"
-            # no rotations on qubit 0
-            # do normal rotations on qubit 1
-            num_fails = len([(p, m) for (p, m) in zip(p2s, m1s) if p != m])
-
-        frac_fail = round(num_fails / batch_iterations, 2)
-        batch_success_probabilities.append(1 - frac_fail)
-
-    return batch_success_probabilities, makespan
-
-
-def compute_succ_prob_trap(
-    num_clients: int,
-    num_iterations: List[int],
-) -> Tuple[float, float]:
-    ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
-
-    # dummy0, dummy1
-    params = [
-        (0, 1),
-        (1, 0),
-    ]
-
-    all_probs = []
-    all_makespans = []
-    for dummy0, dummy1 in params:
-        probs, makespan = check_trap(
-            alpha=8,
-            beta=24,
-            theta1=2,
-            theta2=22,
-            dummy0=dummy0,
-            dummy1=dummy1,
-            num_iterations=num_iterations,
-            num_clients=num_clients,
-        )
-        all_probs.append(probs[0])
-        all_makespans.append(makespan)
-
-    prob = sum(all_probs) / len(all_probs)
-    makespan = sum(all_makespans)
-    return prob, makespan
-
-
-def bqc_computation(num_clients: int, num_iterations: int):
+def bqc_computation(num_clients: int, num_iterations: int, linear: bool, cc: float):
     succ_probs, makespan = compute_succ_prob_computation(
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
+        linear=linear,
+        cc=cc,
     )
     print(f"success probabilities: {succ_probs}")
-    print(f"makespan: {makespan}")
-
-
-def bqc_trap(num_clients: int, num_iterations: int):
-    succ_probs, makespan = compute_succ_prob_trap(
-        num_clients=num_clients,
-        num_iterations=[num_iterations] * num_clients,
-    )
-    print(f"success probabilities: {succ_probs}")
-    print(f"makespan: {makespan}")
+    print(f"makespan: {makespan:_}")
 
 
 if __name__ == "__main__":
@@ -426,7 +354,11 @@ if __name__ == "__main__":
     LogManager.log_to_file("multi_bqc.log")
     LogManager.set_task_log_level("DEBUG")
     LogManager.log_tasks_to_file("multi_bqc_tasks.log")
-    bqc_computation(1, 10)
+
+    # bqc_computation(1, 10, linear=True, cc=1e3)
+    bqc_computation(1, 10, linear=False, cc=1e3)
+    # bqc_computation(1, 10, linear=True, cc=1e7)
+    # bqc_computation(1, 10, linear=False, cc=1e7)
 
     end = time.time()
     print(f"duration: {round(end - start, 2)} s")

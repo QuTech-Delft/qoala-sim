@@ -9,9 +9,7 @@ META_END
     csocket = assign_cval() : 0
 
 ^b1 {type = QC}:
-    run_request() : req0
-^b2 {type = QC}:
-    run_request() : req1
+    run_request() : req
 ^b3 {type = QL}:
     run_subroutine() : local_cphase
 
@@ -76,27 +74,14 @@ SUBROUTINE meas_qubit_0
     store M0 @output[0]
   NETQASM_END
 
-REQUEST req0
+REQUEST req
   callback_type:
   callback: 
   return_vars: 
   remote_id: {client_id}
   epr_socket_id: 0
-  num_pairs: 1
-  virt_ids: all 0
-  timeout: 1000
-  fidelity: 1.0
-  typ: create_keep
-  role: receive
-
-REQUEST req1
-  callback_type:
-  callback: 
-  return_vars: 
-  remote_id: {client_id}
-  epr_socket_id: 0
-  num_pairs: 1
-  virt_ids: all 1
+  num_pairs: 2
+  virt_ids: increment 0
   timeout: 1000
   fidelity: 1.0
   typ: create_keep
