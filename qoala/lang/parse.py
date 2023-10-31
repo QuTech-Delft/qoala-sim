@@ -339,7 +339,9 @@ class HostCodeParser:
     def __init__(self, text: str) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
-        self._lines = [line for line in lines if len(line) > 0]
+        self._lines = [
+            line for line in lines if len(line) > 0 and not line.startswith("//")
+        ]
         self._lineno: int = 0
         self._defined_vectors: Dict[str, hl.IqoalaVector] = {}  # name -> vector
 

@@ -1,0 +1,121 @@
+META_START
+    name: bob
+    parameters: alice_id, bob_id, b
+    csockets: 0 -> alice, 1 -> bob
+    epr_sockets: 0 -> alice, 1 -> bob
+META_END
+
+^b0 {type = CL}:
+    csocket_alice = assign_cval() : 0
+    csocket_bob = assign_cval() : 1
+    ack = assign_cval() : 42
+
+// START QUANTUM ANONYMOUS TRANSFER
+
+// START ANONYMOUS EPR
+
+// START CREATE GHZ
+^b1 {type = QC}:
+    run_request() : epr_gen_bob
+
+^b2 {type = CC}:
+    m = recv_cmsg(csocket_bob)
+
+^b3 {type = QL}:
+    tuple<p> = run_subroutine(tuple<m>) : correction_plus_prepare
+
+^b4 {type = CL}:
+    send_cmsg(csocket_bob, p)
+
+^b41 {type = CC}:
+    ack = recv_cmsg(csocket_alice)
+// END CREATE GHZ
+
+^b45 {type = CL}:
+    send_cmsg(csocket_alice, b)
+    send_cmsg(csocket_bob, b)
+
+^b46 {type = CC}:
+    k1 = recv_cmsg(csocket_alice)
+
+^b47 {type = CC}:
+    k2 = recv_cmsg(csocket_bob)
+
+^b48 {type = CL}:
+    k = add_cval_c(k1, k2)
+    one = assign_cval() : 1
+    bne(k, one) : b5
+
+^b49 {type = QL}:
+    run_subroutine() : anon_epr
+// END ANONYMOUS EPR
+
+// at this point: one qubit in memory (q0)
+
+// START CLASSICAL ANONYMOUS TRANSFER
+// END CLASSICAL ANONYMOUS TRANSFER
+
+^b5 {type = QL}:
+    tuple<outcome> = run_subroutine() : measure
+
+^b6 {type = CL}:
+    return_result(outcome)
+
+SUBROUTINE correction_plus_prepare
+    params: m
+    returns: p
+    uses: 0, 1
+    keeps: 0
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    set Q1 1
+    set R0 0
+
+    // correct qubit 1
+    beq C0 R0 2
+    x Q1
+
+    init Q0
+    cnot Q1 Q0
+    h Q1
+    meas Q1 M1
+    store M1 @output[0]
+  NETQASM_END
+
+SUBROUTINE anon_epr
+    params: 
+    returns: 
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    set Q0 0
+    z Q0
+  NETQASM_END
+
+SUBROUTINE measure
+    params: 
+    returns: outcome
+    uses: 0
+    keeps: 
+    request:
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST epr_gen_bob
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {bob_id}
+  epr_socket_id: 1
+  num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive

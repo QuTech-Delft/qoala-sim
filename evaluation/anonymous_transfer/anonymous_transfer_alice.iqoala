@@ -9,9 +9,16 @@ META_END
     csocket_bob = assign_cval() : 0
     csocket_charlie = assign_cval() : 1
 
+// init qubit q1 (qubit to send)
 ^b05 {type = QL}:
     run_subroutine() : init_qubit_to_send
 
+
+// START QUANTUM ANONYMOUS TRANSFER
+
+// START ANONYMOUS EPR
+
+// START CREATE GHZ
 ^b1 {type = QC}:
     run_request() : epr_gen_bob
 
@@ -21,6 +28,7 @@ META_END
 ^b21 {type = CL}:
     send_cmsg(csocket_bob, ack)
     send_cmsg(csocket_charlie, ack)
+// END CREATE GHZ
 
 ^b25 {type = CL}:
     send_cmsg(csocket_bob, b)
@@ -34,10 +42,17 @@ META_END
 
 ^b28 {type = CC}:
     k1 = recv_cmsg(csocket_bob)
+// END ANONYMOUS EPR
 
 ^b3 {type = QL}:
     tuple<m1; m2> = run_subroutine() : teleport
 
+// at this point: no qubits are in memory
+
+// START CLASSICAL ANONYMOUS TRANSFER
+// END CLASSICAL ANONYMOUS TRANSFER
+
+// END QUANTUM ANONYMOUS TRANSFER
 ^b5 {type = CL}:
     return_result(outcome)
 

@@ -11,6 +11,11 @@ META_END
     csocket_charlie = assign_cval() : 1
     ack = assign_cval() : 42
 
+// START QUANTUM ANONYMOUS TRANSFER
+
+// START ANONYMOUS EPR
+
+// START CREATE GHZ
 ^b1 {type = QC}:
     run_request() : epr_gen_alice
 
@@ -26,11 +31,15 @@ META_END
 ^b5 {type = CC}:
     p = recv_cmsg(csocket_charlie)
 
+^b55 {type = QL}:
+    run_subroutine(tuple<p>) : correction
+
 ^b6 {type = CL}:
     send_cmsg(csocket_alice, ack)
 
 ^b61 {type = CC}:
     ack = recv_cmsg(csocket_alice)
+// END CREATE GHZ
 
 ^b65 {type = QL}:
     tuple<m> = run_subroutine() : anon_epr
@@ -44,6 +53,12 @@ META_END
 
 ^b68 {type = CC}:
     k2 = recv_cmsg(csocket_charlie)
+// END ANONYMOUS EPR
+
+// at this point: no qubits are in memory
+
+// START CLASSICAL ANONYMOUS TRANSFER
+// END CLASSICAL ANONYMOUS TRANSFER
 
 ^b7 {type = QL}:
     tuple<outcome> = run_subroutine() : measure
@@ -87,7 +102,7 @@ SUBROUTINE anon_epr
     params:
     returns: m
     uses: 0
-    keeps: 0
+    keeps: 
     request:
   NETQASM_START
     set Q0 0
