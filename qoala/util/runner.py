@@ -3,9 +3,10 @@ import random
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
+from click import Option
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
@@ -89,7 +90,7 @@ def run_two_node_app_separate_inputs(
 
         remote_batch = batches[other_name[name]]
         remote_pids = {remote_batch.batch_id: [p.pid for p in remote_batch.instances]}
-        procnode.initialize_processes(remote_pids, linear=linear)
+        procnode.initialize_processes(remote_pids, linear=linear_for[name])
 
         # tasks = procnode.scheduler.get_tasks_to_schedule()
         # if linear:
@@ -387,6 +388,7 @@ def run_two_node_app(
     program_inputs: Dict[str, ProgramInput],
     network_cfg: ProcNodeNetworkConfig,
     linear: bool = False,
+    linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
 
     names = list(programs.keys())
@@ -395,7 +397,7 @@ def run_two_node_app(
     }
 
     return run_two_node_app_separate_inputs(
-        num_iterations, programs, new_inputs, network_cfg, linear
+        num_iterations, programs, new_inputs, network_cfg, linear, linear_for
     )
 
 

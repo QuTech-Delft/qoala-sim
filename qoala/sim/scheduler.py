@@ -1240,10 +1240,16 @@ class QpuScheduler(ProcessorScheduler):
             local_routine = process.get_local_routine(lrcall.routine_name)
             virt_ids = local_routine.metadata.qubit_use
             try:
-                for virt_id in virt_ids:
-                    if self._memmgr.phys_id_for(task.pid, virt_id) is not None:
-                        continue  # already allocated
+                # get qubit IDs that are not already allocated
+                new_ids = [
+                    vid
+                    for vid in virt_ids
+                    if self._memmgr.phys_id_for(task.pid, vid) is None
+                ]
+                # try to allocate them
+                for virt_id in new_ids:
                     self._memmgr.allocate(task.pid, virt_id)
+                for virt_id in new_ids:
                     self._memmgr.free(task.pid, virt_id)
                 return True
             except AllocError:
