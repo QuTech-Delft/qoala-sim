@@ -111,12 +111,29 @@ class NetstackProcessor:
         )
         self._logger.debug(log_str)
 
+        virt_ids: List[int] = []
         for i in range(num_pairs):
             virt_id = self._allocate_for_pair(process, request, i)
+            virt_ids.append(virt_id)
+            self._logger.info(f"trying to create EPR pair {i} (virt ID = {virt_id})")
             entdist_req = self._create_entdist_request(process, request, virt_id)
-            result = yield from self._execute_entdist_request(entdist_req)
+
+            self._interface.send_entdist_msg(Message(-1, -1, entdist_req))
+
+        for i, virt_id in enumerate(virt_ids):
+            result_msg = yield from self._interface.receive_entdist_msg()
+            self._logger.info(f"got result {result_msg}")
+            result = result_msg.content is not None
+
+            if result:  # success
+                self._logger.info(
+                    f"successfully created EPR pair {i} (virt ID = {virt_id})"
+                )
             if not result:
-                self._interface.memmgr.free(process.pid, virt_id)
+                self._logger.info(f"failed creating EPR pair {i} (virt ID = {virt_id})")
+                self._logger.info(f"freeing qubits {virt_ids}")
+                for vid in virt_ids:
+                    self._interface.memmgr.free(process.pid, vid)
                 return False
         return True
 

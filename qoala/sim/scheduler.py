@@ -1181,6 +1181,10 @@ class QpuScheduler(ProcessorScheduler):
         assert self._task_graph is not None
         task = self._task_graph.get_tinfo(tid).task
         self._task_logger.debug(f"check if resources available for task {tid} ({task})")
+        phys_qubits_in_use = [
+            i for i, vmap in self._memmgr._physical_mapping.items() if vmap is not None
+        ]
+        self._task_logger.debug(f"physical qubits in use: {phys_qubits_in_use}")
         if isinstance(task, SinglePairTask):
             # TODO: refactor
             drv_mem = self._driver._memory

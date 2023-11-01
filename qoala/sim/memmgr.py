@@ -132,6 +132,8 @@ class MemoryManager(Protocol):
         if phys_id is None:
             raise AllocError
 
+        self._logger.info(f"freeing virt ID {virt_id} for pid {pid}")
+
         # update mappings
         self._physical_mapping[phys_id] = None
         vmap.mapping[virt_id] = None

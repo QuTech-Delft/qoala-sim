@@ -51,7 +51,7 @@ def get_client_config(id: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=f"client_{id}",
         node_id=id,
-        topology=topology_config(20),
+        topology=topology_config(2),
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
         ),
@@ -75,6 +75,7 @@ def create_network(
     server_cfg: ProcNodeConfig,
     client_configs: List[ProcNodeConfig],
     num_clients: int,
+    num_iterations: List[int],
     cc: float,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
@@ -83,6 +84,22 @@ def create_network(
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=node_cfgs, link_duration=1000
     )
+
+    pattern = []
+    server_pid_index = 0
+    for i in range(num_clients):
+        for j in range(num_iterations[i]):
+            pattern.append((i + 1, j, 0, server_pid_index))
+            server_pid_index += 1
+
+    print(pattern)
+    network_cfg.netschedule = NetworkScheduleConfig(
+        bin_length=1e5,
+        first_bin=0,
+        bin_pattern=pattern,
+        repeat_period=1e5 * num_clients * max(num_iterations),
+    )
+
     cconns = [
         ClassicalConnectionConfig.from_nodes(i, 0, cc)
         for i in range(1, num_clients + 1)
@@ -169,7 +186,9 @@ def run_bqc(
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
 
-    network = create_network(server_config, client_configs, num_clients, cc)
+    network = create_network(
+        server_config, client_configs, num_clients, num_iterations, cc
+    )
     server_procnode = network.nodes["server"]
     server_batches: Dict[int, ProgramBatch] = {}  # client ID -> server batch
     client_batches: Dict[int, ProgramBatch] = {}  # client ID -> client batch
@@ -225,7 +244,7 @@ def run_bqc(
         #     f"client ID: {client_id}, batch ID: {batch_id}, server PIDs: {server_pids}"
         # )
         client_procnode.initialize_processes(
-            remote_pids={batch_id: server_pids}, linear=True
+            remote_pids={batch_id: server_pids}, linear=linear
         )
 
     client_pids = {
@@ -307,31 +326,24 @@ def compute_succ_prob_computation(
 ) -> Tuple[float, float]:
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
-    # theta1, theta2
-    params = [
-        (0, 0),
-        (0, 7),
-    ]
-
     all_probs = []
     all_makespans = []
-    for theta1, theta2 in params:
-        probs, makespan = check_computation(
-            alpha=8,
-            beta=24,
-            theta1=theta1,
-            theta2=theta2,
-            dummy0=0,
-            dummy1=0,
-            expected=1,
-            num_iterations=num_iterations,
-            num_clients=num_clients,
-            linear=linear,
-            cc=cc,
-            server_num_qubits=server_num_qubits,
-        )
-        all_probs.append(probs[0])
-        all_makespans.append(makespan)
+    probs, makespan = check_computation(
+        alpha=8,
+        beta=24,
+        theta1=2,
+        theta2=22,
+        dummy0=0,
+        dummy1=0,
+        expected=1,
+        num_iterations=num_iterations,
+        num_clients=num_clients,
+        linear=linear,
+        cc=cc,
+        server_num_qubits=server_num_qubits,
+    )
+    all_probs.append(probs[0])
+    all_makespans.append(makespan)
 
     prob = sum(all_probs) / len(all_probs)
     makespan = sum(all_makespans)
@@ -364,10 +376,11 @@ if __name__ == "__main__":
     # LogManager.set_task_log_level("DEBUG")
     # LogManager.log_tasks_to_file("multi_bqc_tasks.log")
 
-    # bqc_computation(10, 1, linear=True, cc=1e5, server_num_qubits=10)
-    bqc_computation(10, 20, linear=False, cc=1e5, server_num_qubits=2)
-    # bqc_computation(1, 10, linear=True, cc=1e7)
-    # bqc_computation(1, 10, linear=False, cc=1e7)
+    bqc_computation(10, 10, linear=False, cc=1e5, server_num_qubits=5)
+
+    # for num_qubits in [2, 5, 10, 20]:
+    #     bqc_computation(10, 2, linear=True, cc=1e5, server_num_qubits=num_qubits)
+    #     bqc_computation(10, 2, linear=False, cc=1e5, server_num_qubits=num_qubits)
 
     end = time.time()
     print(f"duration: {round(end - start, 2)} s")
