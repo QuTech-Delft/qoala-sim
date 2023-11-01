@@ -14,6 +14,7 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
+    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -158,14 +159,13 @@ def run_bqc(
     num_clients: int,
     linear: bool,
     cc: float,
+    server_num_qubits: int,
 ):
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
     seed = random.randint(0, 1000)
     ns.set_random_state(seed=seed)
 
-    # server needs to have 2 qubits per client
-    server_num_qubits = num_clients * 3
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
 
@@ -264,6 +264,7 @@ def check_computation(
     num_clients: int,
     linear: bool,
     cc: float,
+    server_num_qubits: int,
 ):
     ns.sim_reset()
     bqc_result, makespan = run_bqc(
@@ -277,6 +278,7 @@ def check_computation(
         num_clients=num_clients,
         linear=linear,
         cc=cc,
+        server_num_qubits=server_num_qubits,
     )
 
     batch_success_probabilities: List[float] = []
@@ -301,6 +303,7 @@ def compute_succ_prob_computation(
     num_iterations: List[int],
     linear: bool,
     cc: float,
+    server_num_qubits: int,
 ) -> Tuple[float, float]:
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
@@ -308,8 +311,6 @@ def compute_succ_prob_computation(
     params = [
         (0, 0),
         (0, 7),
-        (2, 22),
-        (6, 15),
     ]
 
     all_probs = []
@@ -327,6 +328,7 @@ def compute_succ_prob_computation(
             num_clients=num_clients,
             linear=linear,
             cc=cc,
+            server_num_qubits=server_num_qubits,
         )
         all_probs.append(probs[0])
         all_makespans.append(makespan)
@@ -336,12 +338,19 @@ def compute_succ_prob_computation(
     return prob, makespan
 
 
-def bqc_computation(num_clients: int, num_iterations: int, linear: bool, cc: float):
+def bqc_computation(
+    num_clients: int,
+    num_iterations: int,
+    linear: bool,
+    cc: float,
+    server_num_qubits: int,
+):
     succ_probs, makespan = compute_succ_prob_computation(
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
         linear=linear,
         cc=cc,
+        server_num_qubits=server_num_qubits,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan:_}")
@@ -350,13 +359,13 @@ def bqc_computation(num_clients: int, num_iterations: int, linear: bool, cc: flo
 if __name__ == "__main__":
     start = time.time()
 
-    LogManager.set_log_level("INFO")
-    LogManager.log_to_file("multi_bqc.log")
-    LogManager.set_task_log_level("DEBUG")
-    LogManager.log_tasks_to_file("multi_bqc_tasks.log")
+    # LogManager.set_log_level("INFO")
+    # LogManager.log_to_file("multi_bqc.log")
+    # LogManager.set_task_log_level("DEBUG")
+    # LogManager.log_tasks_to_file("multi_bqc_tasks.log")
 
-    # bqc_computation(1, 10, linear=True, cc=1e3)
-    bqc_computation(1, 10, linear=False, cc=1e3)
+    # bqc_computation(10, 1, linear=True, cc=1e5, server_num_qubits=10)
+    bqc_computation(10, 20, linear=False, cc=1e5, server_num_qubits=2)
     # bqc_computation(1, 10, linear=True, cc=1e7)
     # bqc_computation(1, 10, linear=False, cc=1e7)
 

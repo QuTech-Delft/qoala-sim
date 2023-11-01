@@ -122,7 +122,7 @@ class MemoryManager(Protocol):
 
         return self.allocate(pid, virt_id)
 
-    def free(self, pid: int, virt_id: int) -> None:
+    def free(self, pid: int, virt_id: int, send_signal: bool = True) -> None:
         vmap = self._process_mappings[pid]
         # Check if the virtual ID is in the unit module
         assert virt_id in vmap.unit_module.get_all_qubit_ids()
@@ -139,8 +139,9 @@ class MemoryManager(Protocol):
         # update netsquid memory
         self._qdevice.set_mem_pos_in_use(phys_id, False)
 
-        # send a signal for components that may be blocked on resources
-        self.send_signal(SIGNAL_MEMORY_FREED)
+        if send_signal:
+            # send a signal for components that may be blocked on resources
+            self.send_signal(SIGNAL_MEMORY_FREED)
 
     def get_unmapped_non_comm_qubit(self, pid: int) -> int:
         """returns virt ID"""
