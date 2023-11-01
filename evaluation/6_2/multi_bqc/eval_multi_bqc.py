@@ -51,7 +51,7 @@ def get_client_config(id: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=f"client_{id}",
         node_id=id,
-        topology=topology_config(2),
+        topology=topology_config(20),
         latencies=LatenciesConfig(
             host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
         ),
@@ -77,6 +77,8 @@ def create_network(
     num_clients: int,
     num_iterations: List[int],
     cc: float,
+    use_netschedule: bool,
+    bin_length: float,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
@@ -92,13 +94,13 @@ def create_network(
             pattern.append((i + 1, j, 0, server_pid_index))
             server_pid_index += 1
 
-    print(pattern)
-    network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1e5,
-        first_bin=0,
-        bin_pattern=pattern,
-        repeat_period=1e5 * num_clients * max(num_iterations),
-    )
+    if use_netschedule:
+        network_cfg.netschedule = NetworkScheduleConfig(
+            bin_length=bin_length,
+            first_bin=0,
+            bin_pattern=pattern,
+            repeat_period=bin_length * num_clients * max(num_iterations),
+        )
 
     cconns = [
         ClassicalConnectionConfig.from_nodes(i, 0, cc)
@@ -177,6 +179,8 @@ def run_bqc(
     linear: bool,
     cc: float,
     server_num_qubits: int,
+    use_netschedule: bool,
+    bin_length: float,
 ):
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
@@ -187,7 +191,13 @@ def run_bqc(
     client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
 
     network = create_network(
-        server_config, client_configs, num_clients, num_iterations, cc
+        server_config,
+        client_configs,
+        num_clients,
+        num_iterations,
+        cc,
+        use_netschedule,
+        bin_length,
     )
     server_procnode = network.nodes["server"]
     server_batches: Dict[int, ProgramBatch] = {}  # client ID -> server batch
@@ -284,6 +294,8 @@ def check_computation(
     linear: bool,
     cc: float,
     server_num_qubits: int,
+    use_netschedule: bool,
+    bin_length: float,
 ):
     ns.sim_reset()
     bqc_result, makespan = run_bqc(
@@ -298,6 +310,8 @@ def check_computation(
         linear=linear,
         cc=cc,
         server_num_qubits=server_num_qubits,
+        use_netschedule=use_netschedule,
+        bin_length=bin_length,
     )
 
     batch_success_probabilities: List[float] = []
@@ -323,6 +337,8 @@ def compute_succ_prob_computation(
     linear: bool,
     cc: float,
     server_num_qubits: int,
+    use_netschedule: bool,
+    bin_length: float,
 ) -> Tuple[float, float]:
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
 
@@ -341,6 +357,8 @@ def compute_succ_prob_computation(
         linear=linear,
         cc=cc,
         server_num_qubits=server_num_qubits,
+        use_netschedule=use_netschedule,
+        bin_length=bin_length,
     )
     all_probs.append(probs[0])
     all_makespans.append(makespan)
@@ -356,16 +374,21 @@ def bqc_computation(
     linear: bool,
     cc: float,
     server_num_qubits: int,
-):
+    use_netschedule: bool,
+    bin_length: float,
+) -> float:
     succ_probs, makespan = compute_succ_prob_computation(
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
         linear=linear,
         cc=cc,
         server_num_qubits=server_num_qubits,
+        use_netschedule=use_netschedule,
+        bin_length=bin_length,
     )
-    print(f"success probabilities: {succ_probs}")
-    print(f"makespan: {makespan:_}")
+    # print(f"success probabilities: {succ_probs}")
+    # print(f"makespan: {makespan:_}")
+    return makespan
 
 
 if __name__ == "__main__":
@@ -376,11 +399,39 @@ if __name__ == "__main__":
     # LogManager.set_task_log_level("DEBUG")
     # LogManager.log_tasks_to_file("multi_bqc_tasks.log")
 
-    bqc_computation(10, 10, linear=False, cc=1e5, server_num_qubits=5)
+    for num_qubits in [2, 5, 10, 20]:
+        makespan_linear = bqc_computation(
+            num_clients=2,
+            num_iterations=2,
+            linear=True,
+            cc=1e5,
+            server_num_qubits=num_qubits,
+            use_netschedule=False,
+            bin_length=0,
+        )
+        makespan_interleaved_bin_1e5 = bqc_computation(
+            num_clients=2,
+            num_iterations=2,
+            linear=False,
+            cc=1e5,
+            server_num_qubits=num_qubits,
+            use_netschedule=True,
+            bin_length=1e5,
+        )
+        makespan_interleaved_bin_5e5 = bqc_computation(
+            num_clients=2,
+            num_iterations=2,
+            linear=False,
+            cc=1e5,
+            server_num_qubits=num_qubits,
+            use_netschedule=True,
+            bin_length=5e5,
+        )
 
-    # for num_qubits in [2, 5, 10, 20]:
-    #     bqc_computation(10, 2, linear=True, cc=1e5, server_num_qubits=num_qubits)
-    #     bqc_computation(10, 2, linear=False, cc=1e5, server_num_qubits=num_qubits)
+        print(f"# qubits = {num_qubits}:")
+        print(f"linear: {makespan_linear:_}")
+        print(f"interleaved, bin 1e5: {makespan_interleaved_bin_1e5:_}")
+        print(f"interleaved, bin 5e5: {makespan_interleaved_bin_5e5:_}")
 
     end = time.time()
     print(f"duration: {round(end - start, 2)} s")
