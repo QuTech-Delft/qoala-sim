@@ -12,7 +12,6 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
-    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,

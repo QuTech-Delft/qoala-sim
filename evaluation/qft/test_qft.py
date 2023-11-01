@@ -54,6 +54,7 @@ def test_qft():
         network_cfg=network_cfg,
         linear=True,
     )
+    print(app_results)
 
 
 if __name__ == "__main__":

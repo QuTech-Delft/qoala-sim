@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import netsquid as ns
 from netqasm.lang.instr.flavour import NVFlavour
@@ -21,7 +21,6 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
-from qoala.util.logging import LogManager
 
 
 def get_client_config(id: int) -> ProcNodeConfig:

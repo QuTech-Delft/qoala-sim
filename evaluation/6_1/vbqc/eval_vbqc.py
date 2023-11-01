@@ -20,7 +20,6 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
-from qoala.util.logging import LogManager
 
 
 def topology_config(num_qubits: int) -> TopologyConfig:

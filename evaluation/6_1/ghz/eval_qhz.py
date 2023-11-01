@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import random
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict
 
 import netsquid as ns
 
@@ -13,7 +13,6 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
-    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
@@ -22,13 +21,7 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.sim.build import build_network_from_config
-from qoala.util.logging import LogManager
-from qoala.util.runner import (
-    AppResult,
-    create_batch,
-    run_two_node_app,
-    run_two_node_app_separate_inputs,
-)
+from qoala.util.runner import AppResult, create_batch
 
 
 def create_procnode_cfg(

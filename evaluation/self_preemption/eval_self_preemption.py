@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import netsquid as ns
 import numpy as np

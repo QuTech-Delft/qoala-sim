@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import netsquid as ns
 
@@ -17,7 +16,6 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app
 
 
@@ -48,7 +46,7 @@ def run_qkd(
     num_iterations: int,
     alice_file: str,
     bob_file: str,
-    num_pairs: Optional[int] = None,
+    num_pairs: int,
     linear: bool = True,
 ):
     num_qubits = 3
@@ -65,12 +63,8 @@ def run_qkd(
     alice_program = load_program(alice_file)
     bob_program = load_program(bob_file)
 
-    if num_pairs is not None:
-        alice_input = ProgramInput({"bob_id": bob_id, "N": num_pairs})
-        bob_input = ProgramInput({"alice_id": alice_id, "N": num_pairs})
-    else:
-        alice_input = ProgramInput({"bob_id": bob_id})
-        bob_input = ProgramInput({"alice_id": alice_id})
+    alice_input = ProgramInput({"bob_id": bob_id, "N": num_pairs})
+    bob_input = ProgramInput({"alice_id": alice_id, "N": num_pairs})
 
     app_result = run_two_node_app(
         num_iterations=num_iterations,
@@ -86,7 +80,7 @@ def run_qkd(
     return QkdResult(alice_result, bob_result)
 
 
-def qkd_npairs_md(num_iterations: int, num_pairs: Union[int, float]):
+def qkd_npairs_md(num_iterations: int, num_pairs: int):
     num_pairs = int(num_pairs)
     ns.sim_reset()
 

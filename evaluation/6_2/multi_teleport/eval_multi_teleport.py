@@ -1,31 +1,23 @@
 from __future__ import annotations
 
 import os
-import random
 from dataclasses import dataclass
 from typing import List
 
 import netsquid as ns
-from pyparsing import line
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
-    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
-from qoala.util.runner import (
-    AppResult,
-    run_two_node_app,
-    run_two_node_app_separate_inputs,
-)
+from qoala.runtime.program import ProgramInput
+from qoala.util.runner import AppResult, run_two_node_app
 
 
 def create_procnode_cfg(

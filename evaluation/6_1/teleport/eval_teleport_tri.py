@@ -13,13 +13,11 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     NtfConfig,
-    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app, run_two_node_app_separate_inputs
 
 
