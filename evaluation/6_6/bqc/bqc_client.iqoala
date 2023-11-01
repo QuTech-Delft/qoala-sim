@@ -1,0 +1,96 @@
+META_START
+    name: client
+    parameters: server_id, alpha, beta, theta1, theta2
+    csockets: 0 -> server
+    epr_sockets: 0 -> server
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = QC}:
+    run_request() : req0
+^b2 {type = QL}:
+    tuple<p2> = run_subroutine(tuple<theta2>) : post_epr_0
+^b3 {type = QC}:
+    run_request() : req1
+^b4 {type = QL}:
+    tuple<p1> = run_subroutine(tuple<theta1>) : post_epr_1
+
+^b5 {type = CL}:
+    x = mult_const(p1) : 16
+    minus_theta1 = mult_const(theta1) : -1
+    delta1 = add_cval_c(minus_theta1, x)
+    delta1 = add_cval_c(delta1, alpha)
+    send_cmsg(csocket, delta1)
+
+^b6 {type = CC}:
+    m1 = recv_cmsg(csocket)
+
+^b7 {type = CL}:
+    y = mult_const(p2) : 16
+    minus_theta2 = mult_const(theta2) : -1
+    beta = bcond_mult_const(beta, m1) : -1
+    delta2 = add_cval_c(beta, minus_theta2)
+    delta2 = add_cval_c(delta2, y)
+    send_cmsg(csocket, delta2)
+
+    return_result(p1)
+    return_result(p2)
+
+
+SUBROUTINE post_epr_0
+    params: theta2
+    returns: p2
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    rot_z Q0 C0 4
+    h Q0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE post_epr_1
+    params: theta1
+    returns: p1
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    rot_z Q0 C0 4
+    h Q0
+    meas Q0 M1
+    store M1 @output[0]
+  NETQASM_END
+
+REQUEST req1
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {server_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+
+REQUEST req0
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {server_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create

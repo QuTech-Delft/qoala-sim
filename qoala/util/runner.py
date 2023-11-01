@@ -3,10 +3,9 @@ import random
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import netsquid as ns
-from click import Option
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
