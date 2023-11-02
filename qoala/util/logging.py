@@ -73,23 +73,31 @@ class LogManager:
         return cls.get_stack_logger().level
 
     @classmethod
-    def log_to_file(cls, path: str) -> None:
+    def log_to_file(cls, path: str, remove_syslog: bool = False) -> None:
         file_handler = logging.FileHandler(path, mode="w")
         formatter = logging.Formatter(
             "%(levelname)s:%(simtime)s ns:%(name)s:%(message)s"
         )
         file_handler.setFormatter(formatter)
         file_handler.addFilter(SimTimeFilter())
+
+        if remove_syslog and isinstance(cls.get_stack_logger().handlers[0], logging.StreamHandler):
+            cls.get_stack_logger().removeHandler(cls.get_stack_logger().handlers[0])
+
         cls.get_stack_logger().addHandler(file_handler)
 
     @classmethod
-    def log_tasks_to_file(cls, path: str) -> None:
+    def log_tasks_to_file(cls, path: str, remove_syslog: bool = False) -> None:
         file_handler = logging.FileHandler(path, mode="w")
         formatter = logging.Formatter(
             "%(levelname)s:%(simtime)s ns:%(name)s:%(message)s"
         )
         file_handler.setFormatter(formatter)
         file_handler.addFilter(SimTimeFilter())
+
+        if remove_syslog and isinstance(cls.get_task_logger().handlers[0], logging.StreamHandler):
+            cls.get_task_logger().removeHandler(cls.get_task_logger().handlers[0])
+
         cls.get_task_logger().addHandler(file_handler)
 
     @classmethod
@@ -98,3 +106,14 @@ class LogManager:
             cls.get_task_logger().setLevel(logging.INFO)
         else:
             cls.get_task_logger().setLevel(logging.CRITICAL + 1)
+
+    @classmethod
+    def remove_all_syslog(cls) -> None:
+        for hdlr in cls.get_stack_logger().handlers:
+            if isinstance(hdlr,logging.StreamHandler):
+                cls.get_stack_logger().removeHandler(hdlr)
+    @classmethod
+    def remove_all_syslog_task_logger(cls) -> None:
+        for hdlr in cls.get_task_logger().handlers:
+            if isinstance(hdlr, logging.StreamHandler):
+                cls.get_task_logger().removeHandler(hdlr)
