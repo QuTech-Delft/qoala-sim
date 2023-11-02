@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 import netsquid as ns
-from rich import print as rprint
 
 from qoala.lang.ehi import UnitModule, EhiNetworkSchedule
 from qoala.lang.parse import QoalaParser
