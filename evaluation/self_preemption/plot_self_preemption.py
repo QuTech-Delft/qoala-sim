@@ -83,8 +83,8 @@ def plot_sweep_net_bin_period(timestamp: str, datas: Dict[str, Data]) -> None:
     ax.set_xlabel("Time bin length as fraction of node-node communication latency")
     ax.set_ylabel("Makespan (ms)")
 
-    fmts = ["o-b", "o-r", "o-k"]
-    labels = ["1 qubit", "2 qubits", "5 qubits"]
+    fmts = ["o-b", "o-r", "o-k", "o-g", "s-y"]
+    labels = [f"{data.meta.num_qubits} qubits" for data in datas.values()]
 
     nbf = [nbf for nbf in list(datas.values())[0].meta.net_bin_factors]
     for data, fmt, label in zip(datas.values(), fmts, labels):
