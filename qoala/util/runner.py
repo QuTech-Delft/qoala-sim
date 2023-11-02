@@ -60,7 +60,6 @@ def run_two_node_app_separate_inputs(
     linear: bool = False,
     linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
-
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
     seed = random.randint(0, 1000)
@@ -391,7 +390,6 @@ def run_two_node_app(
     linear: bool = False,
     linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
-
     names = list(programs.keys())
     new_inputs = {
         name: [program_inputs[name] for _ in range(num_iterations)] for name in names

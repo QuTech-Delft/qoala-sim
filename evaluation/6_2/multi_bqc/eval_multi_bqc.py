@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import random
 import time
@@ -391,6 +392,23 @@ def bqc_computation(
     return makespan
 
 
+def wilson_score_interval(p_hat, n, z):
+    denominator = 1 + z**2 / n
+    centre_adjusted_probability = p_hat + z**2 / (2 * n)
+    adjusted_standard_deviation = z * math.sqrt(
+        (p_hat * (1 - p_hat) + z**2 / (4 * n)) / n
+    )
+
+    lower_bound = (
+        centre_adjusted_probability - adjusted_standard_deviation
+    ) / denominator
+    upper_bound = (
+        centre_adjusted_probability + adjusted_standard_deviation
+    ) / denominator
+
+    return (lower_bound, upper_bound)
+
+
 if __name__ == "__main__":
     start = time.time()
 
@@ -399,39 +417,30 @@ if __name__ == "__main__":
     # LogManager.set_task_log_level("DEBUG")
     # LogManager.log_tasks_to_file("multi_bqc_tasks.log")
 
-    for num_qubits in [2, 5, 10, 20]:
+    num_clients = 10
+    num_iterations = 10
+    cc = 1e5
+
+    for num_qubits in [2, 5, 10]:
         makespan_linear = bqc_computation(
-            num_clients=2,
-            num_iterations=2,
-            linear=True,
-            cc=1e5,
-            server_num_qubits=num_qubits,
-            use_netschedule=False,
-            bin_length=0,
+            num_clients, num_iterations, True, cc, num_qubits, False, 0
+        )
+        makespan_interleaved_bin_5e4 = bqc_computation(
+            num_clients, num_iterations, False, cc, num_qubits, True, 5e4
         )
         makespan_interleaved_bin_1e5 = bqc_computation(
-            num_clients=2,
-            num_iterations=2,
-            linear=False,
-            cc=1e5,
-            server_num_qubits=num_qubits,
-            use_netschedule=True,
-            bin_length=1e5,
-        )
-        makespan_interleaved_bin_5e5 = bqc_computation(
-            num_clients=2,
-            num_iterations=2,
-            linear=False,
-            cc=1e5,
-            server_num_qubits=num_qubits,
-            use_netschedule=True,
-            bin_length=5e5,
+            num_clients, num_iterations, False, cc, num_qubits, True, 1e5
         )
 
         print(f"# qubits = {num_qubits}:")
         print(f"linear: {makespan_linear:_}")
+        print(f"interleaved, bin 5e4: {makespan_interleaved_bin_5e4:_}")
         print(f"interleaved, bin 1e5: {makespan_interleaved_bin_1e5:_}")
-        print(f"interleaved, bin 5e5: {makespan_interleaved_bin_5e5:_}")
+
+        improv_5e4 = round(1 - makespan_interleaved_bin_5e4 / makespan_linear, 3)
+        improv_1e5 = round(1 - makespan_interleaved_bin_1e5 / makespan_linear, 3)
+        print(f"improvement 5e4: {improv_5e4}")
+        print(f"improvement 1e5: {improv_1e5}")
 
     end = time.time()
     print(f"duration: {round(end - start, 2)} s")
