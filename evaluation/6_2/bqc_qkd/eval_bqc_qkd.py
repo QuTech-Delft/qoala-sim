@@ -4,6 +4,7 @@ import math
 import os
 import random
 import time
+from curses.ascii import alt
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
@@ -59,6 +60,7 @@ def create_network(
     qkd_num_iterations: int,
     cc: float,
     use_netschedule: bool,
+    alternating: bool,
     bin_length: float,
 ) -> ProcNodeNetwork:
     node_cfgs = [server_cfg, client_cfg]
@@ -66,21 +68,25 @@ def create_network(
         nodes=node_cfgs, link_duration=1000
     )
 
-    pattern = [] * (num_iterations + qkd_num_iterations)
-    # start index of PIDs per app
-    bqc_start = 0
-    qkd_start = num_iterations
+    pattern: List[Tuple[int, int, int, int]] = []
+    if alternating:
+        # start index of PIDs per app
+        bqc_start = 0
+        qkd_start = num_iterations
 
-    bqc_idx = 0
-    qkd_idx = 0
+        bqc_idx = 0
+        qkd_idx = 0
 
-    while bqc_idx < num_iterations or qkd_idx < qkd_num_iterations:
-        if bqc_idx < num_iterations:
-            pattern.append((0, bqc_start + bqc_idx, 1, bqc_start + bqc_idx))
-        if qkd_idx < qkd_num_iterations:
-            pattern.append((0, qkd_start + qkd_idx, 1, qkd_start + qkd_idx))
-        bqc_idx += 1
-        qkd_idx += 1
+        while bqc_idx < num_iterations or qkd_idx < qkd_num_iterations:
+            if bqc_idx < num_iterations:
+                pattern.append((0, bqc_start + bqc_idx, 1, bqc_start + bqc_idx))
+            if qkd_idx < qkd_num_iterations:
+                pattern.append((0, qkd_start + qkd_idx, 1, qkd_start + qkd_idx))
+            bqc_idx += 1
+            qkd_idx += 1
+    else:
+        for i in range(num_iterations + qkd_num_iterations):
+            pattern.append((0, i, 1, i))
 
     if use_netschedule:
         network_cfg.netschedule = NetworkScheduleConfig(
@@ -162,6 +168,7 @@ def run_bqc(
     cc: float,
     server_num_qubits: int,
     use_netschedule: bool,
+    alternating: bool,
     bin_length: float,
 ) -> Tuple[BqcQkdResult, float]:
     ns.sim_reset()
@@ -182,6 +189,7 @@ def run_bqc(
         qkd_num_iterations,
         cc,
         use_netschedule,
+        alternating,
         bin_length,
     )
 
@@ -284,6 +292,7 @@ def bqc_computation(
     cc: float,
     server_num_qubits: int,
     use_netschedule: bool,
+    alternating: bool,
     bin_length: float,
 ) -> Tuple[float, float]:
     ns.set_qstate_formalism(ns.qubits.qformalism.QFormalism.DM)
@@ -300,6 +309,7 @@ def bqc_computation(
         cc=cc,
         server_num_qubits=server_num_qubits,
         use_netschedule=use_netschedule,
+        alternating=alternating,
         bin_length=bin_length,
     )
 
@@ -335,21 +345,49 @@ if __name__ == "__main__":
     num_qubits = 5
     bin_length = 5e4
 
-    for linear in [True, False]:
-        # if linear, don't use netschedule
-        use_netschedule = not linear
-        makespan = bqc_computation(
-            num_iterations,
-            qkd_num_iterations=qkd_num_iterations,
-            qkd_num_pairs=qkd_num_pairs,
-            linear=linear,
-            cc=cc,
-            server_num_qubits=num_qubits,
-            use_netschedule=use_netschedule,
-            bin_length=bin_length,
-        )
+    linear_makespan = bqc_computation(
+        num_iterations,
+        qkd_num_iterations=qkd_num_iterations,
+        qkd_num_pairs=qkd_num_pairs,
+        linear=True,
+        cc=cc,
+        server_num_qubits=num_qubits,
+        use_netschedule=False,
+        alternating=False,
+        bin_length=bin_length,
+    )
+    print(f"linear: makespan: {linear_makespan:_}")
 
-        print(f"linear: {linear}, makespan: {makespan:_}")
+    interleaved_seq_makespan = bqc_computation(
+        num_iterations,
+        qkd_num_iterations=qkd_num_iterations,
+        qkd_num_pairs=qkd_num_pairs,
+        linear=False,
+        cc=cc,
+        server_num_qubits=num_qubits,
+        use_netschedule=True,
+        alternating=False,
+        bin_length=bin_length,
+    )
+    print(f"interleaved, sequential bins: makespan: {interleaved_seq_makespan:_}")
+
+    interleaved_alt_makespan = bqc_computation(
+        num_iterations,
+        qkd_num_iterations=qkd_num_iterations,
+        qkd_num_pairs=qkd_num_pairs,
+        linear=False,
+        cc=cc,
+        server_num_qubits=num_qubits,
+        use_netschedule=True,
+        alternating=True,
+        bin_length=bin_length,
+    )
+    print(f"interleaved, alternating bins: makespan: {interleaved_alt_makespan:_}")
+
+    seq_improv = round(1 - interleaved_seq_makespan / linear_makespan, 3)
+    alt_improv = round(1 - interleaved_alt_makespan / linear_makespan, 3)
+    print(f"improvement for sequential netschedule: {seq_improv}")
+    print(f"improvement for alternating netschedule: {alt_improv}")
 
     end = time.time()
     print(f"duration: {round(end - start, 2)} s")
