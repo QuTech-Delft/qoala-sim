@@ -74,18 +74,38 @@ def load_data(path: str) -> Data:
     return dacite.from_dict(Data, all_data)
 
 
+def sched_type_to_label(sched_type: str) -> str:
+    return {"NO_SCHED": "Baseline", "FCFS": "FCFS", "QOALA": "EDF"}[sched_type]
+
+
+FORMATS = {
+    "NO_SCHED": "^-",
+    "FCFS": "s-",
+    "QOALA": "D-",
+}
+
+COLORS = {
+    "NO_SCHED": "#1F77B4",
+    "FCFS": "#2CA02C",
+    "QOALA": "#FF7F0E",
+}
+
+
 def plot_sweep_busy_factor(
     timestamp: str, no_sched_data: Data, fcfs_data: Data, qoala_data: Data
 ) -> None:
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("Fraction of CC latency")
+    ax.set_xlabel("Classical task duration as fraction of CC latency")
     ax.set_ylabel("Success probability")
     ax.set_xscale("log")
 
     ax2 = ax.twinx()
     ax2.set_ylabel("Makespan improvement factor")
+    ax2.spines["right"].set_color("red")
+    ax2.yaxis.label.set_color("red")
+    ax2.tick_params(axis="y", colors="red")
 
     lines = []
 
@@ -97,12 +117,14 @@ def plot_sweep_busy_factor(
         error_minus = [p.succ_prob - p.succ_prob_lower for p in data.data_points]
         error_minus = [max(0, e) for e in error_minus]
         errors = [error_minus, error_plus]
+        sched_typ = data.data_points[0].sched_typ
         line = ax.errorbar(
             x=bf,
             y=succ_probs,
             yerr=errors,
-            # fmt=FORMATS[version],
-            label=data.data_points[0].sched_typ,
+            fmt=FORMATS[sched_typ],
+            color=COLORS[sched_typ],
+            label=sched_type_to_label(sched_typ),
         )
 
         lines.append(line)
@@ -141,7 +163,7 @@ def plot_sweep_busy_factor(
     ax.legend(lines, labels, loc="lower left")
 
     ax.set_title(
-        "Success probability vs busy task duration",
+        "Success probability and makespan for quantum program in presence of busy classical program",
         wrap=True,
     )
 

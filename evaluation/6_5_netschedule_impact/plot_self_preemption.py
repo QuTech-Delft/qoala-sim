@@ -76,6 +76,19 @@ def load_data(path: str) -> Data:
     return dacite.from_dict(Data, all_data)
 
 
+FORMATS = {
+    1: "^-",
+    2: "s-",
+    5: "D-",
+}
+
+COLORS = {
+    1: "#1F77B4",
+    2: "#2CA02C",
+    5: "#FF7F0E",
+}
+
+
 def plot_sweep_net_bin_period(timestamp: str, datas: Dict[str, Data]) -> None:
     fig, ax = plt.subplots()
 
@@ -89,7 +102,7 @@ def plot_sweep_net_bin_period(timestamp: str, datas: Dict[str, Data]) -> None:
     nbf = [nbf for nbf in list(datas.values())[0].meta.net_bin_factors]
     for data, fmt, label in zip(datas.values(), fmts, labels):
         makespans = [p.makespan / 1e6 for p in data.data_points]
-        ax.errorbar(x=nbf, y=makespans, fmt=fmt, label=label)
+        ax.errorbar(x=nbf, y=makespans, fmt=FORMATS[data.meta.num_qubits], label=label)
 
     ax.set_title(
         "Teleportation makespan vs time bin length in network schedule",
