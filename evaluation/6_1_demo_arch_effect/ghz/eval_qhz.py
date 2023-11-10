@@ -65,9 +65,9 @@ def run_ghz(num_iterations: int) -> GhzResult:
         "charlie", charlie_id, num_qubits, determ=True
     )
 
-    cconn_ab = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e9)
-    cconn_ac = ClassicalConnectionConfig.from_nodes(alice_id, charlie_id, 1e9)
-    cconn_bc = ClassicalConnectionConfig.from_nodes(bob_id, charlie_id, 1e9)
+    cconn_ab = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e6)
+    cconn_ac = ClassicalConnectionConfig.from_nodes(alice_id, charlie_id, 1e6)
+    cconn_bc = ClassicalConnectionConfig.from_nodes(bob_id, charlie_id, 1e6)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg, charlie_node_cfg], link_duration=1000
     )
@@ -133,6 +133,7 @@ def run_ghz(num_iterations: int) -> GhzResult:
 
     total_duration = ns.sim_time()
     app_result = AppResult(results, statistics, total_duration)
+    print(f"{app_result.total_duration:_}")
 
     alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
