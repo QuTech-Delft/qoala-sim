@@ -38,7 +38,7 @@ def load_program(name: str) -> QoalaProgram:
     return program
 
 
-def run():
+def test_tri_local_cnot():
     ns.sim_reset()
 
     num_iterations = 100
@@ -61,4 +61,4 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    test_tri_local_cnot()

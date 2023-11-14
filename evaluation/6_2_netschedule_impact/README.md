@@ -1,7 +1,7 @@
 # Produce data
 
 ```
-python eval_self_preemption.py -d -q {num_qubits} -s {num_steps} -n {num_runs}
+python eval_netschedule_impact.py -d -q {num_qubits} -s {num_steps} -n {num_runs}
 ```
 
 where
@@ -13,9 +13,9 @@ where
 To produce the data for the plot, run:
 
 ```
-python eval_self_preemption.py -d -q 1 -s 40 -n 1
-python eval_self_preemption.py -d -q 2 -s 40 -n 1
-python eval_self_preemption.py -d -q 5 -s 40 -n 1
+python eval_netschedule_impact.py -d -q 1 -s 40 -n 1
+python eval_netschedule_impact.py -d -q 2 -s 40 -n 1
+python eval_netschedule_impact.py -d -q 5 -s 40 -n 1
 ```
 
 This produces the folders:

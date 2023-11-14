@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import datetime
+import json
 import os
 import time
-from dataclasses import dataclass
+from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import netsquid as ns
+from netqasm.lang.instr.flavour import NVFlavour, TrappedIonFlavour
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
@@ -20,50 +25,52 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
+from qoala.util.runner import run_two_node_app
 
 
-def topology_config(num_qubits: int) -> TopologyConfig:
-    return TopologyConfig.perfect_config_uniform(
-        num_qubits,
-        single_instructions=[
-            "INSTR_INIT",
-            "INSTR_ROT_X",
-            "INSTR_ROT_Y",
-            "INSTR_ROT_Z",
-            "INSTR_X",
-            "INSTR_Y",
-            "INSTR_Z",
-            "INSTR_H",
-            "INSTR_MEASURE",
-        ],
-        single_duration=1e3,
-        two_instructions=["INSTR_CNOT", "INSTR_CZ"],
-        two_duration=100e3,
-    )
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
 
 
-def get_client_config(id: int) -> ProcNodeConfig:
+def create_procnode_cfg(
+    name: str, id: int, num_qubits: int, hardware: str
+) -> ProcNodeConfig:
+    if hardware == "generic":
+        return ProcNodeConfig(
+            node_name=name,
+            node_id=id,
+            topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
+            latencies=LatenciesConfig(qnos_instr_time=1000),
+            ntf=NtfConfig.from_cls_name("GenericNtf"),
+        )
+    elif hardware == "nv":
+        return ProcNodeConfig(
+            node_name=name,
+            node_id=id,
+            topology=TopologyConfig.perfect_nv_default_params(num_qubits=num_qubits),
+            latencies=LatenciesConfig(qnos_instr_time=1000),
+            ntf=NtfConfig.from_cls_name("NvNtf"),
+        )
+    elif hardware == "tri":
+        return ProcNodeConfig(
+            node_name=name,
+            node_id=id,
+            topology=TopologyConfig.perfect_tri_default_params(num_qubits=num_qubits),
+            latencies=LatenciesConfig(qnos_instr_time=1000),
+            ntf=NtfConfig.from_cls_name("TrappedIonNtf"),
+        )
+
+
+def get_client_config(id: int, hardware: str) -> ProcNodeConfig:
     # client only needs 1 qubit
-    return ProcNodeConfig(
-        node_name=f"client_{id}",
-        node_id=id,
-        topology=topology_config(1),
-        latencies=LatenciesConfig(
-            host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
-        ),
-        ntf=NtfConfig.from_cls_name("GenericNtf"),
+    return create_procnode_cfg(
+        name=f"client_{id}", id=id, num_qubits=1, hardware=hardware
     )
 
 
-def get_server_config(id: int, num_qubits: int) -> ProcNodeConfig:
-    return ProcNodeConfig(
-        node_name="server",
-        node_id=id,
-        topology=topology_config(num_qubits),
-        latencies=LatenciesConfig(
-            host_instr_time=500, host_peer_latency=30_000, qnos_instr_time=1000
-        ),
-        ntf=NtfConfig.from_cls_name("GenericNtf"),
+def get_server_config(id: int, num_qubits: int, hardware: str) -> ProcNodeConfig:
+    return create_procnode_cfg(
+        name="server", id=id, num_qubits=num_qubits, hardware=hardware
     )
 
 
@@ -87,11 +94,19 @@ class BqcResult:
     client_results: List[Dict[int, BatchResult]]
 
 
-def load_server_program(remote_name: str) -> QoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "vbqc_server.iqoala")
+def load_server_program(remote_name: str, hardware: str) -> QoalaProgram:
+    filename = f"vbqc_{hardware}_server.iqoala"
+    path = os.path.join(os.path.dirname(__file__), filename)
     with open(path) as file:
         server_text = file.read()
-    program = QoalaParser(server_text).parse()
+
+    if hardware == "generic":
+        flavour = None
+    elif hardware == "nv":
+        flavour = NVFlavour()
+    elif hardware == "tri":
+        flavour = TrappedIonFlavour()
+    program = QoalaParser(server_text, flavour=flavour).parse()
 
     # Replace "client" by e.g. "client_1"
     program.meta.csockets[0] = remote_name
@@ -100,11 +115,19 @@ def load_server_program(remote_name: str) -> QoalaProgram:
     return program
 
 
-def load_client_program() -> QoalaProgram:
-    path = os.path.join(os.path.dirname(__file__), "vbqc_client.iqoala")
+def load_client_program(hardware: str) -> QoalaProgram:
+    filename = f"vbqc_{hardware}_client.iqoala"
+    path = os.path.join(os.path.dirname(__file__), filename)
     with open(path) as file:
         client_text = file.read()
-    return QoalaParser(client_text).parse()
+
+    if hardware == "generic":
+        flavour = None
+    elif hardware == "nv":
+        flavour = NVFlavour()
+    elif hardware == "tri":
+        flavour = TrappedIonFlavour()
+    return QoalaParser(client_text, flavour=flavour).parse()
 
 
 def create_server_batch(
@@ -112,8 +135,11 @@ def create_server_batch(
     inputs: List[ProgramInput],
     unit_module: UnitModule,
     num_iterations: int,
+    hardware: str,
 ) -> BatchInfo:
-    server_program = load_server_program(remote_name=f"client_{client_id}")
+    server_program = load_server_program(
+        remote_name=f"client_{client_id}", hardware=hardware
+    )
     return BatchInfo(
         program=server_program,
         inputs=inputs,
@@ -127,8 +153,9 @@ def create_client_batch(
     inputs: List[ProgramInput],
     unit_module: UnitModule,
     num_iterations: int,
+    hardware: str,
 ) -> BatchInfo:
-    client_program = load_client_program()
+    client_program = load_client_program(hardware=hardware)
     return BatchInfo(
         program=client_program,
         inputs=inputs,
@@ -139,6 +166,7 @@ def create_client_batch(
 
 
 def run_bqc(
+    hardware: str,
     alpha,
     beta,
     theta1,
@@ -152,8 +180,10 @@ def run_bqc(
 
     # server needs to have 2 qubits per client
     server_num_qubits = num_clients * 2
-    server_config = get_server_config(id=0, num_qubits=server_num_qubits)
-    client_configs = [get_client_config(i) for i in range(1, num_clients + 1)]
+    server_config = get_server_config(
+        id=0, num_qubits=server_num_qubits, hardware=hardware
+    )
+    client_configs = [get_client_config(i, hardware) for i in range(1, num_clients + 1)]
 
     network = create_network(server_config, client_configs, num_clients)
     server_procnode = network.nodes["server"]
@@ -174,6 +204,7 @@ def run_bqc(
             inputs=server_inputs,
             unit_module=server_unit_module,
             num_iterations=num_iterations[index],
+            hardware=hardware,
         )
 
         server_batches[client_id] = server_procnode.submit_batch(server_batch_info)
@@ -201,7 +232,7 @@ def run_bqc(
 
         client_unit_module = UnitModule.from_full_ehi(client_procnode.memmgr.get_ehi())
         client_batch_info = create_client_batch(
-            client_inputs, client_unit_module, num_iterations[index]
+            client_inputs, client_unit_module, num_iterations[index], hardware
         )
 
         client_batches[client_id] = client_procnode.submit_batch(client_batch_info)
@@ -239,6 +270,7 @@ def run_bqc(
 
 
 def check_computation(
+    hardware: str,
     alpha,
     beta,
     theta1,
@@ -251,6 +283,7 @@ def check_computation(
 ):
     ns.sim_reset()
     bqc_result, makespan = run_bqc(
+        hardware=hardware,
         alpha=alpha,
         beta=beta,
         theta1=theta1,
@@ -279,6 +312,7 @@ def check_computation(
 
 
 def compute_succ_prob_computation(
+    hardware: str,
     num_clients: int,
     num_iterations: List[int],
 ) -> Tuple[float, float]:
@@ -296,6 +330,7 @@ def compute_succ_prob_computation(
     all_makespans = []
     for theta1, theta2 in params:
         probs, makespan = check_computation(
+            hardware=hardware,
             alpha=8,
             beta=24,
             theta1=theta1,
@@ -315,6 +350,7 @@ def compute_succ_prob_computation(
 
 
 def check_trap(
+    hardware: str,
     alpha,
     beta,
     theta1,
@@ -326,6 +362,7 @@ def check_trap(
 ):
     ns.sim_reset()
     bqc_result, makespan = run_bqc(
+        hardware=hardware,
         alpha=alpha,
         beta=beta,
         theta1=theta1,
@@ -368,6 +405,7 @@ def check_trap(
 
 
 def compute_succ_prob_trap(
+    hardware: str,
     num_clients: int,
     num_iterations: List[int],
 ) -> Tuple[float, float]:
@@ -383,6 +421,7 @@ def compute_succ_prob_trap(
     all_makespans = []
     for dummy0, dummy1 in params:
         probs, makespan = check_trap(
+            hardware=hardware,
             alpha=8,
             beta=24,
             theta1=2,
@@ -400,29 +439,97 @@ def compute_succ_prob_trap(
     return prob, makespan
 
 
-def bqc_computation(num_clients: int, num_iterations: int):
+def bqc_computation(hardware: str, num_clients: int, num_iterations: int):
     succ_probs, makespan = compute_succ_prob_computation(
+        hardware=hardware,
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
+    assert succ_probs == 1
 
 
-def bqc_trap(num_clients: int, num_iterations: int):
+def bqc_trap(hardware: str, num_clients: int, num_iterations: int):
     succ_probs, makespan = compute_succ_prob_trap(
+        hardware=hardware,
         num_clients=num_clients,
         num_iterations=[num_iterations] * num_clients,
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
+    assert succ_probs == 1
+
+
+@dataclass
+class DataPoint:
+    success: bool
+    sim_duration: float
+
+
+@dataclass
+class DataMeta:
+    timestamp: str
+    num_clients: int
+    num_iterations: int
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
+
+
+def run_hardware(hardware: str, num_clients: int, num_iterations: int) -> DataPoint:
+    start = time.time()
+
+    success: bool
+    try:
+        bqc_computation(hardware, num_clients, num_iterations)
+        bqc_trap(hardware, num_clients, num_iterations)
+        success = True
+    except AssertionError:
+        success = False
+
+    end = time.time()
+    duration = round(end - start, 2)
+    print(f"duration: {duration} s")
+
+    return DataPoint(success, duration)
 
 
 if __name__ == "__main__":
-    start = time.time()
+    parser = ArgumentParser()
+    parser.add_argument("--num_clients", "-c", type=int, required=True)
+    parser.add_argument("--num_iterations", "-n", type=int, required=True)
 
-    bqc_computation(1, 100)
-    bqc_trap(1, 100)
+    args = parser.parse_args()
+    num_iterations = args.num_iterations
+    num_clients = args.num_clients
 
-    end = time.time()
-    print(f"duration: {round(end - start, 2)} s")
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # DEFAULT:
+    # num_clients = 1
+    # num_iterations = 100
+
+    data_points: List[DataPoint] = []
+    for hardware in ["generic", "nv", "tri"]:
+        data_point = run_hardware(hardware, num_clients, num_iterations)
+        data_points.append(data_point)
+
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+
+    meta = DataMeta(
+        timestamp=timestamp, num_clients=num_clients, num_iterations=num_iterations
+    )
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
+
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)

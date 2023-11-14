@@ -1,7 +1,7 @@
 # Produce data
 
 ```
-python eval_classical_multitasking.py -d -n {num_iterations}
+python eval_tradeoffs_cq.py -d -n {num_iterations}
 ```
 
 where
@@ -11,9 +11,9 @@ where
 To produce the data for the plot, run:
 
 ```
-python eval_classical_multitasking.py -d -n 100 -s qoala
-python eval_classical_multitasking.py -d -n 100 -s fcfs
-python eval_classical_multitasking.py -d -n 100 -s no_sched
+python eval_tradeoffs_cq.py -d -n 100 -s qoala
+python eval_tradeoffs_cq.py -d -n 100 -s fcfs
+python eval_tradeoffs_cq.py -d -n 100 -s no_sched
 ```
 
 This produces the folders:

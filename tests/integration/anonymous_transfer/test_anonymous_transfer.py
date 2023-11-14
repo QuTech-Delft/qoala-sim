@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Dict
 
 import netsquid as ns
-from netqasm.lang.instr.flavour import TrappedIonFlavour
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
@@ -31,9 +30,9 @@ def create_procnode_cfg(
     return ProcNodeConfig(
         node_name=name,
         node_id=id,
-        topology=TopologyConfig.perfect_tri_default_params(num_qubits),
+        topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
         latencies=LatenciesConfig(qnos_instr_time=1000),
-        ntf=NtfConfig.from_cls_name("TrappedIonNtf"),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=determ,
     )
 
@@ -42,43 +41,44 @@ def load_program(path: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return QoalaParser(text, flavour=TrappedIonFlavour()).parse()
+    return QoalaParser(text).parse()
 
 
 @dataclass
-class GhzResult:
+class AnonymousTransferResult:
     alice_results: BatchResult
     bob_results: BatchResult
     charlie_results: BatchResult
 
 
-def run_ghz(num_iterations: int) -> GhzResult:
+def run_anonymous_transfer(num_iterations: int) -> AnonymousTransferResult:
     ns.sim_reset()
 
+    num_qubits = 4
     alice_id = 0
     bob_id = 1
     charlie_id = 2
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits=1, determ=True)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits=2, determ=True)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, determ=True)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, determ=True)
     charlie_node_cfg = create_procnode_cfg(
-        "charlie", charlie_id, num_qubits=2, determ=True
+        "charlie", charlie_id, num_qubits, determ=True
     )
 
-    cconn_ab = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e6)
-    cconn_ac = ClassicalConnectionConfig.from_nodes(alice_id, charlie_id, 1e6)
-    cconn_bc = ClassicalConnectionConfig.from_nodes(bob_id, charlie_id, 1e6)
+    cconn_ab = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e9)
+    cconn_ac = ClassicalConnectionConfig.from_nodes(alice_id, charlie_id, 1e9)
+    cconn_bc = ClassicalConnectionConfig.from_nodes(bob_id, charlie_id, 1e9)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg, charlie_node_cfg], link_duration=1000
     )
     network_cfg.cconns = [cconn_ab, cconn_ac, cconn_bc]
 
-    alice_program = load_program("ghz_tri_alice.iqoala")
-    bob_program = load_program("ghz_tri_bob.iqoala")
-    charlie_program = load_program("ghz_tri_charlie.iqoala")
+    alice_program = load_program("anonymous_transfer_alice.iqoala")
+    bob_program = load_program("anonymous_transfer_bob.iqoala")
+    charlie_program = load_program("anonymous_transfer_charlie.iqoala")
 
     alice_input = [
-        ProgramInput({"bob_id": bob_id, "charlie_id": charlie_id})
+        ProgramInput({"bob_id": bob_id, "charlie_id": charlie_id, "b": 0})
         for _ in range(num_iterations)
     ]
     bob_input = [
@@ -86,7 +86,7 @@ def run_ghz(num_iterations: int) -> GhzResult:
         for _ in range(num_iterations)
     ]
     charlie_input = [
-        ProgramInput({"alice_id": alice_id, "bob_id": bob_id})
+        ProgramInput({"alice_id": alice_id, "bob_id": bob_id, "b": 0})
         for _ in range(num_iterations)
     ]
 
@@ -133,17 +133,16 @@ def run_ghz(num_iterations: int) -> GhzResult:
 
     total_duration = ns.sim_time()
     app_result = AppResult(results, statistics, total_duration)
-    print(f"{app_result.total_duration:_}")
 
     alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
     charlie_result = app_result.batch_results["charlie"]
 
-    return GhzResult(alice_result, bob_result, charlie_result)
+    return AnonymousTransferResult(alice_result, bob_result, charlie_result)
 
 
-def test_ghz():
-    result = run_ghz(num_iterations=100)
+def anonymous_transfer(num_iterations: int):
+    result = run_anonymous_transfer(num_iterations=num_iterations)
 
     alice_results = result.alice_results.results
     alice_outcomes = [result.values["outcome"] for result in alice_results]
@@ -161,4 +160,14 @@ def test_ghz():
 
 
 if __name__ == "__main__":
-    test_ghz()
+    # LogManager.set_log_level("DEBUG")
+    # LogManager.log_to_file("anon.log")
+    # LogManager.set_task_log_level("DEBUG")
+    # LogManager.log_tasks_to_file("anon_tasks.log")
+
+    # Alice = sender
+    # Charlie = receiver
+
+    # TODO finish implementation!!
+    # Currently incomplete
+    anonymous_transfer(num_iterations=1)

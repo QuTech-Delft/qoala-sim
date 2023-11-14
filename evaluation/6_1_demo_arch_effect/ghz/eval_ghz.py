@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import datetime
+import json
 import os
 import random
-from dataclasses import dataclass
-from typing import Dict
+import time
+from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Dict, List
 
 import netsquid as ns
+from netqasm.lang.instr.flavour import NVFlavour, TrappedIonFlavour
 
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
@@ -24,24 +30,51 @@ from qoala.sim.build import build_network_from_config
 from qoala.util.runner import AppResult, create_batch
 
 
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
+
+
 def create_procnode_cfg(
-    name: str, id: int, num_qubits: int, determ: bool
+    name: str, id: int, num_qubits: int, hardware: str
 ) -> ProcNodeConfig:
-    return ProcNodeConfig(
-        node_name=name,
-        node_id=id,
-        topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
-        latencies=LatenciesConfig(qnos_instr_time=1000),
-        ntf=NtfConfig.from_cls_name("GenericNtf"),
-        determ_sched=determ,
-    )
+    if hardware == "generic":
+        return ProcNodeConfig(
+            node_name=name,
+            node_id=id,
+            topology=TopologyConfig.perfect_config_uniform_default_params(num_qubits),
+            latencies=LatenciesConfig(qnos_instr_time=1000),
+            ntf=NtfConfig.from_cls_name("GenericNtf"),
+        )
+    elif hardware == "nv":
+        return ProcNodeConfig(
+            node_name=name,
+            node_id=id,
+            topology=TopologyConfig.perfect_nv_default_params(num_qubits=num_qubits),
+            latencies=LatenciesConfig(qnos_instr_time=1000),
+            ntf=NtfConfig.from_cls_name("NvNtf"),
+        )
+    elif hardware == "tri":
+        return ProcNodeConfig(
+            node_name=name,
+            node_id=id,
+            topology=TopologyConfig.perfect_tri_default_params(num_qubits=num_qubits),
+            latencies=LatenciesConfig(qnos_instr_time=1000),
+            ntf=NtfConfig.from_cls_name("TrappedIonNtf"),
+        )
 
 
-def load_program(path: str) -> QoalaProgram:
+def load_program(path: str, hardware: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
-    return QoalaParser(text).parse()
+
+    if hardware == "generic":
+        flavour = None
+    elif hardware == "nv":
+        flavour = NVFlavour()
+    elif hardware == "tri":
+        flavour = TrappedIonFlavour()
+    return QoalaParser(text, flavour=flavour).parse()
 
 
 @dataclass
@@ -51,19 +84,16 @@ class GhzResult:
     charlie_results: BatchResult
 
 
-def run_ghz(num_iterations: int) -> GhzResult:
+def run_ghz(hardware: str, num_iterations: int) -> GhzResult:
     ns.sim_reset()
 
-    num_qubits = 4
     alice_id = 0
     bob_id = 1
     charlie_id = 2
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, determ=True)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, determ=True)
-    charlie_node_cfg = create_procnode_cfg(
-        "charlie", charlie_id, num_qubits, determ=True
-    )
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, 1, hardware)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, 2, hardware)
+    charlie_node_cfg = create_procnode_cfg("charlie", charlie_id, 2, hardware)
 
     cconn_ab = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e6)
     cconn_ac = ClassicalConnectionConfig.from_nodes(alice_id, charlie_id, 1e6)
@@ -73,9 +103,12 @@ def run_ghz(num_iterations: int) -> GhzResult:
     )
     network_cfg.cconns = [cconn_ab, cconn_ac, cconn_bc]
 
-    alice_program = load_program("ghz_alice.iqoala")
-    bob_program = load_program("ghz_bob.iqoala")
-    charlie_program = load_program("ghz_charlie.iqoala")
+    alice_file = f"ghz_{hardware}_alice.iqoala"
+    bob_file = f"ghz_{hardware}_bob.iqoala"
+    charlie_file = f"ghz_{hardware}_charlie.iqoala"
+    alice_program = load_program(alice_file, hardware)
+    bob_program = load_program(bob_file, hardware)
+    charlie_program = load_program(charlie_file, hardware)
 
     alice_input = [
         ProgramInput({"bob_id": bob_id, "charlie_id": charlie_id})
@@ -142,8 +175,26 @@ def run_ghz(num_iterations: int) -> GhzResult:
     return GhzResult(alice_result, bob_result, charlie_result)
 
 
-def test_ghz():
-    result = run_ghz(num_iterations=100)
+@dataclass
+class DataPoint:
+    success: bool
+    sim_duration: float
+
+
+@dataclass
+class DataMeta:
+    timestamp: str
+    num_iterations: int
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
+
+
+def test_ghz(hardware: str, num_iterations: int) -> None:
+    result = run_ghz(hardware, num_iterations)
 
     alice_results = result.alice_results.results
     alice_outcomes = [result.values["outcome"] for result in alice_results]
@@ -160,5 +211,47 @@ def test_ghz():
     assert alice_outcomes == bob_outcomes == charlie_outcomes
 
 
+def run_hardware(hardware: str, num_iterations: int) -> DataPoint:
+    start = time.time()
+
+    success: bool
+    try:
+        test_ghz(hardware, num_iterations)
+        success = True
+    except AssertionError:
+        success = False
+
+    end = time.time()
+    duration = round(end - start, 2)
+    print(f"duration: {duration} s")
+
+    return DataPoint(success, duration)
+
+
 if __name__ == "__main__":
-    test_ghz()
+    parser = ArgumentParser()
+    parser.add_argument("--num_iterations", "-n", type=int, required=True)
+
+    args = parser.parse_args()
+    num_iterations = args.num_iterations
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    data_points: List[DataPoint] = []
+    for hardware in ["generic", "nv", "tri"]:
+        data_point = run_hardware(hardware, num_iterations)
+        data_points.append(data_point)
+
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+
+    meta = DataMeta(timestamp=timestamp, num_iterations=num_iterations)
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
+
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)
