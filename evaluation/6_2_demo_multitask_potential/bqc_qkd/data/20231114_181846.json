@@ -1,0 +1,1 @@
+{"meta": {"timestamp": "20231114_181846", "bqc_num_iterations": 10, "qkd_num_iterations": 10, "cc": 100000.0, "num_qubits": 5, "bin_length": 50000.0, "sim_duration": 1.22}, "data_points": [{"makespan_linear": 6835000.0, "makespan_intlv_seq": 5924500.0, "makespan_intlv_alt": 4674500.0, "seq_improv": 0.133, "alt_improv": 0.316}]}

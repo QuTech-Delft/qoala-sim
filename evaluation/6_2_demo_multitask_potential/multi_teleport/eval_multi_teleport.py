@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import datetime
+import json
 import os
-from dataclasses import dataclass
+import time
+from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from math import ceil
+from pathlib import Path
 from typing import List
 
 import netsquid as ns
@@ -18,6 +24,10 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import ProgramInput
 from qoala.util.runner import AppResult, run_two_node_app
+
+
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
 
 
 def create_procnode_cfg(
@@ -41,7 +51,11 @@ def load_program(path: str) -> QoalaProgram:
 
 
 def run_teleport(
-    num_iterations: int, linear: bool, num_qubits_alice: int, num_qubits_bob: int
+    num_iterations: int,
+    linear: bool,
+    num_qubits_alice: int,
+    num_qubits_bob: int,
+    cc: float,
 ) -> AppResult:
     ns.sim_reset()
 
@@ -56,7 +70,7 @@ def run_teleport(
         "T2"
     ] = 1
 
-    cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e7)
+    cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, cc)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
     )
@@ -83,13 +97,18 @@ def run_teleport(
 
 
 def get_teleport_makespan(
-    num_iterations: int, linear: bool, num_qubits_alice: int, num_qubits_bob: int
+    num_iterations: int,
+    linear: bool,
+    num_qubits_alice: int,
+    num_qubits_bob: int,
+    cc: float,
 ) -> float:
     result = run_teleport(
         num_iterations=num_iterations,
         linear=linear,
         num_qubits_alice=num_qubits_alice,
         num_qubits_bob=num_qubits_bob,
+        cc=cc,
     )
 
     bob_result = result.batch_results["bob"]
@@ -105,35 +124,69 @@ def get_teleport_makespan(
 @dataclass
 class DataPoint:
     linear: bool
-    num_qubits_alice: int
     num_qubits_bob: int
     makespan: float
+    approx_seq: float
+    approx_int: float
 
 
 @dataclass
 class DataMeta:
     timestamp: str
     num_iterations: int
+    num_qubits_alice: int
+    cc: float
+    sim_duration: float
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
 
 
 if __name__ == "__main__":
-    # LogManager.set_log_level("INFO")
-    # LogManager.log_to_file("multi_teleport.log")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_tasks_to_file("multi_teleport_tasks.log")
+    parser = ArgumentParser()
+    parser.add_argument("--num_iterations", "-n", type=int, required=True)
 
-    data: List[DataPoint] = []
+    args = parser.parse_args()
+    num_iterations = args.num_iterations
 
     num_qubits_alice = 2
+    cc = 1e7
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    start = time.time()
+    data_points: List[DataPoint] = []
 
     for linear in [False, True]:
         for num_qubits_bob in range(1, 6):
             print(f"{linear}, {num_qubits_alice}, {num_qubits_bob}")
             makespan = get_teleport_makespan(
-                100, linear, num_qubits_alice, num_qubits_bob
+                num_iterations, linear, num_qubits_alice, num_qubits_bob, cc
             )
-            point = DataPoint(linear, num_qubits_alice, num_qubits_bob, makespan)
-            data.append(point)
+            approx_seq = num_iterations * cc
+            approx_int = ceil(num_iterations / num_qubits_bob) * cc
+            point = DataPoint(linear, num_qubits_bob, makespan, approx_seq, approx_int)
+            data_points.append(point)
 
-    for p in data:
-        print(f"{p.linear}, {p.num_qubits_alice}, {p.num_qubits_bob}, {p.makespan:_}")
+    end = time.time()
+    duration = round(end - start, 2)
+
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+
+    meta = DataMeta(timestamp, num_iterations, num_qubits_alice, cc, duration)
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
+
+    # for p in data:
+    #     print(f"{p.linear}, {p.num_qubits_alice}, {p.num_qubits_bob}, {p.makespan:_}")
+
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)

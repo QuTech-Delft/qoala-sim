@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import datetime
+import json
 import math
 import os
 import random
 import time
+from argparse import ArgumentParser
 from curses.ascii import alt
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import netsquid as ns
@@ -26,6 +30,10 @@ from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramI
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 from qoala.util.logging import LogManager
+
+
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
 
 
 def get_client_config(id: int) -> ProcNodeConfig:
@@ -330,23 +338,52 @@ def bqc_computation(
     return makespan
 
 
+@dataclass
+class DataPoint:
+    makespan_linear: float
+    makespan_intlv_seq: float
+    makespan_intlv_alt: float
+    seq_improv: float
+    alt_improv: float
+
+
+@dataclass
+class DataMeta:
+    timestamp: str
+    bqc_num_iterations: int
+    qkd_num_iterations: int
+    cc: float
+    num_qubits: int
+    bin_length: float
+    sim_duration: float
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
+
+
 if __name__ == "__main__":
-    start = time.time()
+    parser = ArgumentParser()
+    parser.add_argument("--bqc_num_iterations", "-b", type=int, required=True)
+    parser.add_argument("--qkd_num_iterations", "-q", type=int, required=True)
 
-    # LogManager.set_log_level("INFO")
-    # LogManager.log_to_file("bqc_qkd.log")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_tasks_to_file("bqc_qkd_tasks.log")
+    args = parser.parse_args()
+    bqc_num_iterations = args.bqc_num_iterations
+    qkd_num_iterations = args.qkd_num_iterations
 
-    num_iterations = 50
-    qkd_num_iterations = 50
     qkd_num_pairs = 1
     cc = 1e5
     num_qubits = 5
     bin_length = 5e4
 
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    start = time.time()
+
     linear_makespan = bqc_computation(
-        num_iterations,
+        bqc_num_iterations,
         qkd_num_iterations=qkd_num_iterations,
         qkd_num_pairs=qkd_num_pairs,
         linear=True,
@@ -359,7 +396,7 @@ if __name__ == "__main__":
     print(f"linear: makespan: {linear_makespan:_}")
 
     interleaved_seq_makespan = bqc_computation(
-        num_iterations,
+        bqc_num_iterations,
         qkd_num_iterations=qkd_num_iterations,
         qkd_num_pairs=qkd_num_pairs,
         linear=False,
@@ -372,7 +409,7 @@ if __name__ == "__main__":
     print(f"interleaved, sequential bins: makespan: {interleaved_seq_makespan:_}")
 
     interleaved_alt_makespan = bqc_computation(
-        num_iterations,
+        bqc_num_iterations,
         qkd_num_iterations=qkd_num_iterations,
         qkd_num_pairs=qkd_num_pairs,
         linear=False,
@@ -389,5 +426,40 @@ if __name__ == "__main__":
     print(f"improvement for sequential netschedule: {seq_improv}")
     print(f"improvement for alternating netschedule: {alt_improv}")
 
+    data_points = [
+        DataPoint(
+            makespan_linear=linear_makespan,
+            makespan_intlv_seq=interleaved_seq_makespan,
+            makespan_intlv_alt=interleaved_alt_makespan,
+            seq_improv=seq_improv,
+            alt_improv=alt_improv,
+        )
+    ]
+
     end = time.time()
     print(f"duration: {round(end - start, 2)} s")
+
+    duration = round(end - start, 2)
+
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+
+    meta = DataMeta(
+        timestamp=timestamp,
+        bqc_num_iterations=bqc_num_iterations,
+        qkd_num_iterations=qkd_num_iterations,
+        cc=cc,
+        num_qubits=num_qubits,
+        bin_length=bin_length,
+        sim_duration=duration,
+    )
+
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
+
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)

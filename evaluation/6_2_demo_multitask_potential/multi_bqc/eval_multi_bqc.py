@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import datetime
+import json
 import math
 import os
 import random
 import time
-from dataclasses import dataclass
+from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import netsquid as ns
@@ -25,6 +29,10 @@ from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramI
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
 from qoala.util.logging import LogManager
+
+
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
 
 
 def topology_config(num_qubits: int) -> TopologyConfig:
@@ -409,27 +417,60 @@ def wilson_score_interval(p_hat, n, z):
     return (lower_bound, upper_bound)
 
 
+@dataclass
+class DataPoint:
+    num_qubits_server: int
+    makespan_linear: float
+    makespan_intlv_1: float
+    makespan_intlv_2: float
+    improv_1: float
+    improv_2: float
+
+
+@dataclass
+class DataMeta:
+    timestamp: str
+    num_clients: int
+    num_iterations: int
+    cc: float
+    intlv_1_bin_length: float
+    intlv_2_bin_length: float
+    sim_duration: float
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
+
+
 if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--num_clients", "-c", type=int, required=True)
+    parser.add_argument("--num_iterations", "-n", type=int, required=True)
+
+    args = parser.parse_args()
+    num_clients = args.num_clients
+    num_iterations = args.num_iterations
+
+    cc = 1e5
+    intlv_1_bin_length = 5e4
+    intlv_2_bin_length = 1e5
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
     start = time.time()
 
-    # LogManager.set_log_level("INFO")
-    # LogManager.log_to_file("multi_bqc.log")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_tasks_to_file("multi_bqc_tasks.log")
-
-    num_clients = 10
-    num_iterations = 10
-    cc = 1e5
-
+    data_points: List[DataPoint] = []
     for num_qubits in [2, 5, 10]:
         makespan_linear = bqc_computation(
             num_clients, num_iterations, True, cc, num_qubits, False, 0
         )
         makespan_interleaved_bin_5e4 = bqc_computation(
-            num_clients, num_iterations, False, cc, num_qubits, True, 5e4
+            num_clients, num_iterations, False, cc, num_qubits, True, intlv_1_bin_length
         )
         makespan_interleaved_bin_1e5 = bqc_computation(
-            num_clients, num_iterations, False, cc, num_qubits, True, 1e5
+            num_clients, num_iterations, False, cc, num_qubits, True, intlv_2_bin_length
         )
 
         print(f"# qubits = {num_qubits}:")
@@ -442,5 +483,37 @@ if __name__ == "__main__":
         print(f"improvement 5e4: {improv_5e4}")
         print(f"improvement 1e5: {improv_1e5}")
 
+        point = DataPoint(
+            num_qubits_server=num_qubits,
+            makespan_linear=makespan_linear,
+            makespan_intlv_1=makespan_interleaved_bin_5e4,
+            makespan_intlv_2=makespan_interleaved_bin_1e5,
+            improv_1=improv_5e4,
+            improv_2=improv_1e5,
+        )
+        data_points.append(point)
+
     end = time.time()
-    print(f"duration: {round(end - start, 2)} s")
+    duration = round(end - start, 2)
+
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+
+    meta = DataMeta(
+        timestamp=timestamp,
+        num_clients=num_clients,
+        num_iterations=num_iterations,
+        cc=cc,
+        intlv_1_bin_length=intlv_1_bin_length,
+        intlv_2_bin_length=intlv_2_bin_length,
+        sim_duration=duration,
+    )
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
+
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)
