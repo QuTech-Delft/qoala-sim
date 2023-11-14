@@ -123,7 +123,7 @@ def check_pingpong(hardware: str, num_iterations: int):
 
     program_results = result.alice_result.results
     outcomes = [result.values["outcome"] for result in program_results]
-    print(outcomes)
+    # print(outcomes)
     assert all(outcome == 1 for outcome in outcomes)
 
 

@@ -198,15 +198,15 @@ def test_ghz(hardware: str, num_iterations: int) -> None:
 
     alice_results = result.alice_results.results
     alice_outcomes = [result.values["outcome"] for result in alice_results]
-    print(alice_outcomes)
+    # print(alice_outcomes)
 
     bob_results = result.bob_results.results
     bob_outcomes = [result.values["outcome"] for result in bob_results]
-    print(bob_outcomes)
+    # print(bob_outcomes)
 
     charlie_results = result.charlie_results.results
     charlie_outcomes = [result.values["outcome"] for result in charlie_results]
-    print(charlie_outcomes)
+    # print(charlie_outcomes)
 
     assert alice_outcomes == bob_outcomes == charlie_outcomes
 

@@ -149,7 +149,7 @@ def teleport_different_inputs(hardware: str, num_iterations: int):
 
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
-    print(outcomes)
+    # print(outcomes)
     assert all(outcome == 0 for outcome in outcomes)
 
 
