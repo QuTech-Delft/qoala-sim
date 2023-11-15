@@ -95,8 +95,8 @@ def plot_heatmap(
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("Number of teleportation iterations", fontsize=14)
-    ax.set_ylabel("Number of local iterations", fontsize=14)
+    ax.set_xlabel("Number of teleportation instances", fontsize=14)
+    ax.set_ylabel("Number of local instances", fontsize=14)
 
     plot_data = np.empty((num_local, num_teleport))
 
