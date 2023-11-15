@@ -1,0 +1,1 @@
+{"meta": {"timestamp": "20231115_102617", "num_iterations": 10, "theta0": 1.5707963267948966, "theta1": 0, "theta2": 1.5707963267948966, "t1": 10000000000.0, "t2": 1000000.0, "cc": 100000.0, "sim_duration": 0.37}, "data_points": [{"naive": true, "succ_prob": 0.7}, {"naive": false, "succ_prob": 1.0}]}

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import datetime
+import json
 import math
 import os
-from dataclasses import dataclass
+import time
+from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import List
 
 import netsquid as ns
 
@@ -18,6 +24,10 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchResult, ProgramInput
 from qoala.util.runner import run_two_node_app_separate_inputs
+
+
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
 
 
 def create_procnode_cfg(name: str, id: int, t1: int, t2: int) -> ProcNodeConfig:
@@ -109,16 +119,41 @@ def run_remote_mbqc(
     return RemoteMbqcResult(client_result, server_result)
 
 
-def remote_mbqc(naive: bool):
-    t1 = 1e10
-    t2 = 1e6
-    cc = 1e5
+@dataclass
+class DataPoint:
+    naive: bool
+    succ_prob: float
 
-    num_iterations = 1000
 
-    theta0 = math.pi / 2
-    theta1 = 0
-    theta2 = math.pi / 2
+@dataclass
+class DataMeta:
+    timestamp: str
+    num_iterations: int
+    theta0: float
+    theta1: float
+    theta2: float
+    t1: float
+    t2: float
+    cc: float
+    sim_duration: float
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
+
+
+def remote_mbqc(
+    naive: bool,
+    num_iterations: int,
+    t1: float,
+    t2: float,
+    cc: float,
+    theta0: float,
+    theta1: float,
+    theta2: float,
+) -> float:
     result = run_remote_mbqc(num_iterations, theta0, theta1, theta2, naive, t1, t2, cc)
     program_results = result.client_results.results
     # print(program_results)
@@ -133,9 +168,79 @@ def remote_mbqc(naive: bool):
     for m0, m1, m2 in zip(m0s, m1s, m2s):
         if m2 == (m0 == m1):
             successes += 1
-    print(f"succ prob: {round(successes / num_iterations, 2)}")
+    succ_prob = round(successes / num_iterations, 3)
+    print(f"succ prob: {succ_prob}")
+    return succ_prob
 
 
 if __name__ == "__main__":
-    remote_mbqc(naive=True)
-    remote_mbqc(naive=False)
+    parser = ArgumentParser()
+    parser.add_argument("--num_iterations", "-n", type=int, required=True)
+
+    args = parser.parse_args()
+    num_iterations = args.num_iterations
+
+    t1 = 1e10
+    t2 = 1e6
+    cc = 1e5
+
+    theta0 = math.pi / 2
+    theta1 = 0
+    theta2 = math.pi / 2
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    start = time.time()
+    data_points: List[DataPoint] = []
+
+    succ_prob_naive = remote_mbqc(
+        naive=True,
+        num_iterations=num_iterations,
+        t1=t1,
+        t2=t2,
+        cc=cc,
+        theta0=theta0,
+        theta1=theta1,
+        theta2=theta2,
+    )
+    data_points.append(DataPoint(naive=True, succ_prob=succ_prob_naive))
+
+    succ_prob_qoala = remote_mbqc(
+        naive=False,
+        num_iterations=num_iterations,
+        t1=t1,
+        t2=t2,
+        cc=cc,
+        theta0=theta0,
+        theta1=theta1,
+        theta2=theta2,
+    )
+
+    data_points.append(DataPoint(naive=False, succ_prob=succ_prob_qoala))
+
+    end = time.time()
+    duration = round(end - start, 2)
+
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+
+    meta = DataMeta(
+        timestamp=timestamp,
+        num_iterations=num_iterations,
+        theta0=theta0,
+        theta1=theta1,
+        theta2=theta2,
+        t1=t1,
+        t2=t2,
+        cc=cc,
+        sim_duration=duration,
+    )
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
+
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)
