@@ -104,7 +104,7 @@ def plot_sweep_busy_factor(
     ax.set_xscale("log")
 
     ax2 = ax.twinx()
-    ax2.set_ylabel("Makespan improvement factor (EDF vs Baseline)")
+    ax2.set_ylabel("Makespan improvement factor (EDF)")
     ax2.spines["right"].set_color("red")
     ax2.yaxis.label.set_color("red")
     ax2.tick_params(axis="y", colors="red")

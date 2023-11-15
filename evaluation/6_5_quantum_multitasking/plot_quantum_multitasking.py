@@ -95,8 +95,8 @@ def plot_heatmap(
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("Number of teleportation iterations")
-    ax.set_ylabel("Number of local iterations")
+    ax.set_xlabel("Number of teleportation iterations", fontsize=14)
+    ax.set_ylabel("Number of local iterations", fontsize=14)
 
     plot_data = np.empty((num_local, num_teleport))
 
@@ -111,12 +111,13 @@ def plot_heatmap(
             plot_data[loc - 1][tel - 1] = loc_succ
 
     plt.pcolor(plot_data, cmap="viridis")
-    plt.colorbar()
+    cbar = plt.colorbar()
+    cbar.ax.tick_params(labelsize=12)
 
     if plot_tel:
-        ax.set_title("Teleportation success probability", wrap=True)
+        ax.set_title("Teleportation success probability", wrap=True, fontsize=14)
     else:
-        ax.set_title("Local success probability", wrap=True)
+        ax.set_title("Local success probability", wrap=True, fontsize=14)
 
     ax.set_xticks(np.arange(0.5, num_teleport + 0.5), range(1, num_teleport + 1))
     ax.set_yticks(np.arange(0.5, num_local + 0.5), range(1, num_local + 1))
