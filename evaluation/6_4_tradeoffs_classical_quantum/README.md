@@ -35,7 +35,7 @@ The `run.sh` script may be used to speed up the simulation, by running the simul
 Given that the folders `data/qoala`, `data/fcfs` and `data/no_sched` exist, a plot can be created with
 
 ```
-python plot_classical_multitasking.py
+python plot_tradeoffs_cq.py
 ```
 
 This produces two files:

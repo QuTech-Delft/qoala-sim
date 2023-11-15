@@ -104,10 +104,10 @@ def plot_sweep_net_bin_period(timestamp: str, datas: Dict[str, Data]) -> None:
         makespans = [p.makespan / 1e6 for p in data.data_points]
         ax.errorbar(x=nbf, y=makespans, fmt=FORMATS[data.meta.num_qubits], label=label)
 
-    ax.set_title(
-        "Teleportation makespan vs time bin length in network schedule",
-        wrap=True,
-    )
+    # ax.set_title(
+    #     "Teleportation makespan vs time bin length in network schedule",
+    #     wrap=True,
+    # )
 
     # ax.set_ylim(0.75, 0.9)
     ax.legend(loc="upper left")

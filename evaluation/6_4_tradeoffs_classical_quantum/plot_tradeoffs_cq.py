@@ -97,12 +97,14 @@ def plot_sweep_busy_factor(
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("Classical task duration as fraction of CC latency")
-    ax.set_ylabel("Success probability")
+    ax.set_xlabel(
+        "Classical task duration as fraction of classical communication latency"
+    )
+    ax.set_ylabel("Success probability of interactive quantum program")
     ax.set_xscale("log")
 
     ax2 = ax.twinx()
-    ax2.set_ylabel("Makespan improvement factor")
+    ax2.set_ylabel("Makespan improvement factor (EDF vs Baseline)")
     ax2.spines["right"].set_color("red")
     ax2.yaxis.label.set_color("red")
     ax2.tick_params(axis="y", colors="red")
@@ -141,7 +143,7 @@ def plot_sweep_busy_factor(
             y=makespan_improvements,
             # yerr=errors,
             fmt="o-r",
-            label="Makespan improvement",
+            label="Makespan improvement (EDF)",
         )
     )
 
@@ -162,10 +164,10 @@ def plot_sweep_busy_factor(
 
     ax.legend(lines, labels, loc="lower left")
 
-    ax.set_title(
-        "Success probability and makespan for quantum program in presence of busy classical program",
-        wrap=True,
-    )
+    # ax.set_title(
+    #     "Success probability and makespan for quantum program in presence of busy classical program",
+    #     wrap=True,
+    # )
 
     # ax.set_ylim(0.5, 1.0)
 
