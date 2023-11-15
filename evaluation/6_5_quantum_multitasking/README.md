@@ -29,7 +29,8 @@ Also the `LAST.json` file is always a copy of the most recently created data fil
 
 
 ## Bash script
-The `run.sh` script may be used to speed up the simulation, by running the simulations for the different combinations of tel and loc in parallel.
+The `run_{begin}_{end}.sh` scripts may be used to speed up the simulation, by running the simulations for the different combinations of tel and loc in parallel.
+They are split in separate ranges such that a single script run does not use up too much memory and CPU.
 
 
 # Produce plot

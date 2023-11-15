@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import datetime
+import json
 import math
 import os
-from dataclasses import dataclass
-from typing import Dict, List, Tuple
+import time
+from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import netsquid as ns
 
@@ -22,6 +27,10 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
+
+
+def relative_to_cwd(file: str) -> str:
+    return os.path.join(os.path.dirname(__file__), file)
 
 
 def topology_config(num_qubits: int, t1: int, t2: int) -> TopologyConfig:
@@ -396,21 +405,58 @@ def wilson_score_interval(p_hat, n, z):
     return (lower_bound, upper_bound)
 
 
-def sweep_cc():
+@dataclass
+class DataPoint:
+    sweep_param: str
+    sweep_value: float
+    succ_prob: float
+    succ_lo: float
+    succ_hi: float
+    makespan: float
+
+
+@dataclass
+class DataMeta:
+    timestamp: str
+    num_runs: int
+    sim_duration: float
+    num_clients: int
+    t1: float
+    t2: float
+    sweep_param: str
+    cc: Optional[float]
+    sched_latency: Optional[float]
+    bin_length: Optional[float]
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
+
+
+def sweep_cc(num_runs: int) -> Data:
     num_clients = 10
+    t1 = 1e8
+    t2 = 1e7
     sched_latency = 0
     bin_length = 1e5
+
+    data_points: List[DataPoint] = []
+
+    start = time.time()
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for cc in [1e5, 1e6, 1e7]:
         successes: List[float] = []
         makespans: List[float] = []
 
-        for _ in range(100):
+        for _ in range(num_runs):
             succ, makespan = bqc_trap(
                 num_clients,
                 1,
-                t1=1e8,
-                t2=1e7,
+                t1=t1,
+                t2=t2,
                 cc=cc,
                 sched_latency=sched_latency,
                 bin_length=bin_length,
@@ -431,22 +477,55 @@ def sweep_cc():
             f"CC = {cc}: succ = {avg_succ} ({succ_lo}, {succ_hi}), makespan = {total_makespan:_}"
         )
 
+        data_point = DataPoint(
+            sweep_param="cc",
+            sweep_value=cc,
+            succ_prob=avg_succ,
+            succ_lo=succ_lo,
+            succ_hi=succ_hi,
+            makespan=total_makespan,
+        )
+        data_points.append(data_point)
 
-def sweep_sched_latency():
+    end = time.time()
+    duration = round(end - start, 2)
+    meta = DataMeta(
+        timestamp=timestamp,
+        num_runs=num_runs,
+        sim_duration=duration,
+        num_clients=num_clients,
+        t1=t1,
+        t2=t2,
+        sweep_param="cc",
+        cc=None,
+        sched_latency=sched_latency,
+        bin_length=bin_length,
+    )
+    return Data(meta, data_points)
+
+
+def sweep_sched_latency(num_runs: int) -> Data:
     num_clients = 10
+    t1 = 1e8
+    t2 = 1e7
     cc = 1e5
     bin_length = 1e5
+
+    data_points: List[DataPoint] = []
+
+    start = time.time()
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for sched_latency in [1e3, 1e5, 1e7]:
         successes: List[float] = []
         makespans: List[float] = []
 
-        for _ in range(100):
+        for _ in range(num_runs):
             succ, makespan = bqc_trap(
                 num_clients,
                 1,
-                t1=1e8,
-                t2=1e7,
+                t1=t1,
+                t2=t2,
                 cc=cc,
                 sched_latency=sched_latency,
                 bin_length=bin_length,
@@ -468,22 +547,55 @@ def sweep_sched_latency():
             f"makespan = {total_makespan:_}"
         )
 
+        data_point = DataPoint(
+            sweep_param="sched_latency",
+            sweep_value=sched_latency,
+            succ_prob=avg_succ,
+            succ_lo=succ_lo,
+            succ_hi=succ_hi,
+            makespan=total_makespan,
+        )
+        data_points.append(data_point)
 
-def sweep_bin_length():
+    end = time.time()
+    duration = round(end - start, 2)
+    meta = DataMeta(
+        timestamp=timestamp,
+        num_runs=num_runs,
+        sim_duration=duration,
+        num_clients=num_clients,
+        t1=t1,
+        t2=t2,
+        sweep_param="sched_latency",
+        cc=cc,
+        sched_latency=None,
+        bin_length=bin_length,
+    )
+    return Data(meta, data_points)
+
+
+def sweep_bin_length(num_runs: int) -> Data:
     num_clients = 10
+    t1 = 1e8
+    t2 = 1e7
     cc = 1e5
     sched_latency = 0
+
+    data_points: List[DataPoint] = []
+
+    start = time.time()
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for bin_length in [1e5, 1e6, 1e7]:
         successes: List[float] = []
         makespans: List[float] = []
 
-        for _ in range(100):
+        for _ in range(num_runs):
             succ, makespan = bqc_trap(
                 num_clients,
                 1,
-                t1=1e8,
-                t2=1e7,
+                t1=t1,
+                t2=t2,
                 cc=cc,
                 sched_latency=sched_latency,
                 bin_length=bin_length,
@@ -505,8 +617,66 @@ def sweep_bin_length():
             f"makespan = {total_makespan:_}"
         )
 
+        data_point = DataPoint(
+            sweep_param="bin_length",
+            sweep_value=bin_length,
+            succ_prob=avg_succ,
+            succ_lo=succ_lo,
+            succ_hi=succ_hi,
+            makespan=total_makespan,
+        )
+        data_points.append(data_point)
+
+    end = time.time()
+    duration = round(end - start, 2)
+    meta = DataMeta(
+        timestamp=timestamp,
+        num_runs=num_runs,
+        sim_duration=duration,
+        num_clients=num_clients,
+        t1=t1,
+        t2=t2,
+        sweep_param="bin_length",
+        cc=cc,
+        sched_latency=sched_latency,
+        bin_length=None,
+    )
+    return Data(meta, data_points)
+
 
 if __name__ == "__main__":
-    # sweep_cc()
-    # sweep_sched_latency()
-    sweep_bin_length()
+    parser = ArgumentParser()
+    parser.add_argument("--num_runs", "-n", type=int, required=True)
+    parser.add_argument("--sweep", "-s", type=str, required=True)
+
+    args = parser.parse_args()
+    num_runs = args.num_runs
+    sweep = args.sweep
+
+    data: Data
+    output_dir: str
+
+    if sweep == "cc":
+        output_dir = "sweep_dir"
+        data = sweep_cc(num_runs)
+    elif sweep == "sched_latency":
+        output_dir = "sweep_sched_latency"
+        data = sweep_sched_latency(num_runs)
+    elif sweep == "bin_length":
+        output_dir = "sweep_bin_length"
+        data = sweep_bin_length(num_runs)
+    else:
+        raise ValueError
+
+    abs_dir = relative_to_cwd(f"data/{output_dir}")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp = data.meta.timestamp
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+
+    json_data = asdict(data)
+
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)

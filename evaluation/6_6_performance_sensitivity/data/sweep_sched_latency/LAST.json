@@ -1,0 +1,38 @@
+{
+    "meta": {
+        "timestamp": "20231115_111637",
+        "num_runs": 10,
+        "sim_duration": 17.49,
+        "num_clients": 10,
+        "sweep_param": "sched_latency",
+        "cc": 100000.0,
+        "sched_latency": null,
+        "bin_length": 100000.0
+    },
+    "data_points": [
+        {
+            "sweep_param": "sched_latency",
+            "sweep_value": 1000.0,
+            "succ_prob": 0.91,
+            "succ_lo": 0.838,
+            "succ_hi": 0.952,
+            "makespan": 56795000.0
+        },
+        {
+            "sweep_param": "sched_latency",
+            "sweep_value": 100000.0,
+            "succ_prob": 0.92,
+            "succ_lo": 0.85,
+            "succ_hi": 0.959,
+            "makespan": 62730000.0
+        },
+        {
+            "sweep_param": "sched_latency",
+            "sweep_value": 10000000.0,
+            "succ_prob": 0.85,
+            "succ_lo": 0.767,
+            "succ_hi": 0.907,
+            "makespan": 405225000.0
+        }
+    ]
+}
