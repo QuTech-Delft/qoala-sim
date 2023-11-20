@@ -80,8 +80,8 @@ def sched_type_to_label(sched_type: str) -> str:
 
 FORMATS = {
     "NO_SCHED": "^-",
-    "FCFS": "s-",
-    "QOALA": "D-",
+    "FCFS": "s--",
+    "QOALA": "D-.",
 }
 
 COLORS = {
@@ -142,7 +142,7 @@ def plot_sweep_busy_factor(
             x=bf,
             y=makespan_improvements,
             # yerr=errors,
-            fmt="o-r",
+            fmt="o:r",
             label="Makespan improvement (EDF)",
         )
     )
