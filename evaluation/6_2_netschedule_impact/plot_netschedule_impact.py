@@ -93,8 +93,12 @@ def plot_sweep_net_bin_period(timestamp: str, datas: Dict[str, Data]) -> None:
     fig, ax = plt.subplots()
 
     ax.grid()
-    ax.set_xlabel("Time bin length as fraction of node-node communication latency")
-    ax.set_ylabel("Makespan (ms)")
+    ax.set_xlabel(
+        "Time slot length as fraction of node-node communication latency", fontsize=13
+    )
+    ax.set_ylabel("Makespan (ms)", fontsize=14)
+
+    ax.tick_params(labelsize=12)
 
     fmts = ["o-b", "o-r", "o-k", "o-g", "s-y"]
     labels = [f"{data.meta.num_qubits} qubits" for data in datas.values()]
@@ -109,8 +113,8 @@ def plot_sweep_net_bin_period(timestamp: str, datas: Dict[str, Data]) -> None:
     #     wrap=True,
     # )
 
-    # ax.set_ylim(0.75, 0.9)
-    ax.legend(loc="upper left")
+    ax.set_ylim(19, 105)
+    ax.legend(loc="upper left", fontsize=11)
 
     create_png("LAST")
     create_png(timestamp)

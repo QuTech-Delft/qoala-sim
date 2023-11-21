@@ -33,13 +33,13 @@ Also the `LAST.json` file is always a copy of the most recently created data fil
 Given that the folders `data/sweep_bin_length_{q}_{s}` for certain values of `q` and `s` exist, a plot can be created with
 
 ```
-python plot_self_preemption.py -q {q} -s {s}
+python plot_netschedule_impact.py -q {q} -s {s}
 ```
 
 For the values `q = 1, 2, 5` and `s = 40`, run
 
 ```
-python plot_self_preemption.py -q 1 2 5 -s 40
+python plot_netschedule_impact.py -q 1 2 5 -s 40
 ```
 
 This produces two files:
