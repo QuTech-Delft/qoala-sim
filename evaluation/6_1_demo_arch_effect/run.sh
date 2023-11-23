@@ -3,7 +3,7 @@
 num_runs=1000
 
 # QKD
-num_pairs=100
+num_pairs=1000
 
 # BQC
 num_clients=1

@@ -1,1 +1,21 @@
-{"meta": {"timestamp": "20231114_171720", "num_iterations": 1000, "num_pairs": 100}, "data_points": [{"success": true, "sim_duration": 129.85}, {"success": true, "sim_duration": 129.48}, {"success": true, "sim_duration": 128.46}]}
+{
+    "meta": {
+        "timestamp": "20231114_171720",
+        "num_iterations": 1000,
+        "num_pairs": 100
+    },
+    "data_points": [
+        {
+            "success": true,
+            "sim_duration": 129.85
+        },
+        {
+            "success": true,
+            "sim_duration": 129.48
+        },
+        {
+            "success": true,
+            "sim_duration": 128.46
+        }
+    ]
+}

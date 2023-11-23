@@ -77,6 +77,12 @@ GENERIC_GATES = [
 
 GENERIC_TWO_GATES = ["INSTR_CNOT", "INSTR_CZ"]
 
+GENERIC_DEFAULT_T1 = int(1e9)
+GENERIC_DEFAULT_T2 = int(1e8)
+
+GENERIC_DEFAULT_ONE_GATE_DURATION = int(5e3)
+GENERIC_DEFAULT_TWO_GATE_DURATION = int(200e3)
+
 NV_COM_GATES = [
     "INSTR_INIT",
     "INSTR_ROT_X",
@@ -96,12 +102,15 @@ NV_MEM_GATES = [
 
 NV_TWO_GATES = ["INSTR_CXDIR", "INSTR_CYDIR"]
 
-NV_DEFAULT_COM_GATE_DURATION = int(1e5)
-NV_DEFAULT_MEM_GATE_DURATION = int(1e6)
-NV_DEFAULT_TWO_GATE_DURATION = int(2e6)
+NV_DEFAULT_COM_GATE_DURATION = 300
+NV_DEFAULT_MEM_GATE_DURATION = int(1.2e6)
+NV_DEFAULT_TWO_GATE_DURATION = int(1e6)
 
-GENERIC_DEFAULT_ONE_GATE_DURATION = int(5e3)
-GENERIC_DEFAULT_TWO_GATE_DURATION = int(200e3)
+NV_DEFAULT_COM_T1 = int(3.6e12)
+NV_DEFAULT_COM_T2 = int(5e8)
+NV_DEFAULT_MEM_T1 = int(3.5e13)
+NV_DEFAULT_MEM_T2 = int(1e9)
+
 
 TRI_SINGLE_GATES = [
     "INSTR_INIT",
@@ -118,6 +127,12 @@ TRI_ALL_GATES = [
     "INSTR_ROT_Z_ALL",
     "INSTR_BICHROMATIC",
 ]
+
+TRI_DEFAULT_SINGLE_GATE_DURATION = 26_600
+TRI_DEFAULT_ALL_GATE_DURATION = 107_000
+
+TRI_DEFAULT_T1 = int(1e99)
+TRI_DEFAULT_T2 = int(85e6)
 
 # NV_LAB_COMM_T1 = 1e6
 # NV_LAB_COMM_T2 = 1e6
@@ -827,11 +842,11 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         return cls.perfect_config_uniform(
             num_qubits=num_qubits,
             single_instructions=TRI_SINGLE_GATES,
-            single_duration=0,
+            single_duration=TRI_DEFAULT_SINGLE_GATE_DURATION,
             two_instructions=[],
             two_duration=0,
             all_qubit_gate_instructions=TRI_ALL_GATES,
-            all_qubit_gate_duration=0,
+            all_qubit_gate_duration=TRI_DEFAULT_ALL_GATE_DURATION,
         )
 
     # @classmethod

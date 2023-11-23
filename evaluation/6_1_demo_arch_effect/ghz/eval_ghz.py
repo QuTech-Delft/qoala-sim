@@ -177,6 +177,7 @@ def run_ghz(hardware: str, num_iterations: int) -> GhzResult:
 
 @dataclass
 class DataPoint:
+    hardware: str
     success: bool
     sim_duration: float
 
@@ -225,7 +226,7 @@ def run_hardware(hardware: str, num_iterations: int) -> DataPoint:
     duration = round(end - start, 2)
     print(f"duration: {duration} s")
 
-    return DataPoint(success, duration)
+    return DataPoint(hardware, success, duration)
 
 
 if __name__ == "__main__":
