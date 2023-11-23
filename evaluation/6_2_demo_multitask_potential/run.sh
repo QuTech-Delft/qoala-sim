@@ -8,8 +8,8 @@ MB_num_iterations=10
 MB_num_clients=10
 
 # BQC-QKD
-BQ_bqc_num_iterations=5
-BQ_qkd_num_iterations=5
+BQ_bqc_num_iterations=50
+BQ_qkd_num_iterations=50
 
 echo "python multi_teleport/eval_multi_teleport.py -n $MT_num_iterations"
 python multi_teleport/eval_multi_teleport.py -n $MT_num_iterations
