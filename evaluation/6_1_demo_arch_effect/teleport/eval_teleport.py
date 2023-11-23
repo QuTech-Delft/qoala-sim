@@ -27,6 +27,7 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.sim.build import build_network_from_config
+from qoala.util.logging import LogManager
 from qoala.util.runner import (
     AppResult,
     create_batch,
@@ -93,12 +94,11 @@ def run_teleport(
 ) -> TeleportResult:
     ns.sim_reset()
 
-    num_qubits = 4
     alice_id = 1
     bob_id = 0
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, hardware)
-    bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, hardware)
+    alice_node_cfg = create_procnode_cfg("alice", alice_id, 2, hardware)
+    bob_node_cfg = create_procnode_cfg("bob", bob_id, 1, hardware)
 
     cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e9)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
@@ -149,7 +149,7 @@ def teleport_different_inputs(hardware: str, num_iterations: int):
 
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
-    # print(outcomes)
+    print(outcomes)
     assert all(outcome == 0 for outcome in outcomes)
 
 
@@ -195,10 +195,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     num_iterations = args.num_iterations
 
+    LogManager.set_log_level("INFO")
+
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     data_points: List[DataPoint] = []
-    for hardware in ["generic", "nv", "tri"]:
+    # for hardware in ["generic", "nv", "tri"]:
+    for hardware in ["generic"]:
         data_point = run_hardware(hardware, num_iterations)
         data_points.append(data_point)
 

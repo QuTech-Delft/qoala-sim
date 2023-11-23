@@ -1,0 +1,1 @@
+{"meta": {"timestamp": "20231123_153059", "num_iterations": 100}, "data_points": [{"hardware": "generic", "success": true, "sim_duration": 1.45}, {"hardware": "nv", "success": true, "sim_duration": 2.98}, {"hardware": "tri", "success": true, "sim_duration": 2.57}]}
