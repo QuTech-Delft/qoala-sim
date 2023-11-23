@@ -657,7 +657,7 @@ if __name__ == "__main__":
     output_dir: str
 
     if sweep == "cc":
-        output_dir = "sweep_dir"
+        output_dir = "sweep_cc"
         data = sweep_cc(num_runs)
     elif sweep == "sched_latency":
         output_dir = "sweep_sched_latency"
