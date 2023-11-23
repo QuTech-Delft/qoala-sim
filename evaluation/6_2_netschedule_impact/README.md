@@ -1,4 +1,7 @@
-# Produce data
+# Scripts for reproducing Figure 8.
+The data used for creating the figure in the paper is in the `paper/` folder.
+
+## Produce data
 
 ```
 python eval_netschedule_impact.py -d -q {num_qubits} -s {num_steps} -n {num_runs}
@@ -29,7 +32,7 @@ In each folder, a single simulation run (single run of the python script) produc
 Also the `LAST.json` file is always a copy of the most recently created data file.
 
 
-# Produce plot
+## Produce plot
 Given that the folders `data/sweep_bin_length_{q}_{s}` for certain values of `q` and `s` exist, a plot can be created with
 
 ```

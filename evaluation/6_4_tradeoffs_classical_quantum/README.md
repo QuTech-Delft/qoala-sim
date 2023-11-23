@@ -1,3 +1,6 @@
+# Scripts for reproducing Figure 9.
+The data used for creating the figure in the paper is in the `paper/` folder.
+
 # Produce data
 
 ```
