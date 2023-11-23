@@ -82,7 +82,7 @@ class PingPongResult:
 def run_pingpong(hardware: str, num_iterations: int) -> PingPongResult:
     ns.sim_reset()
 
-    num_qubits = 3
+    num_qubits = 2
     alice_id = 1
     bob_id = 0
 

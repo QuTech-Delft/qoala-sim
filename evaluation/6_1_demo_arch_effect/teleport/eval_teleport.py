@@ -124,6 +124,7 @@ def run_teleport(
             programs={"alice": alice_program, "bob": bob_program},
             program_inputs={"alice": alice_inputs, "bob": bob_inputs},
             network_cfg=network_cfg,
+            linear=True,
         )
     else:
         # state = 5 -> teleport |1> state
@@ -136,6 +137,7 @@ def run_teleport(
             programs={"alice": alice_program, "bob": bob_program},
             program_inputs={"alice": alice_input, "bob": bob_input},
             network_cfg=network_cfg,
+            linear=True,
         )
 
     alice_result = app_result.batch_results["alice"]
@@ -149,7 +151,7 @@ def teleport_different_inputs(hardware: str, num_iterations: int):
 
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
-    print(outcomes)
+    # print(outcomes)
     assert all(outcome == 0 for outcome in outcomes)
 
 
@@ -195,13 +197,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     num_iterations = args.num_iterations
 
-    LogManager.set_log_level("INFO")
-
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     data_points: List[DataPoint] = []
-    # for hardware in ["generic", "nv", "tri"]:
-    for hardware in ["generic"]:
+    for hardware in ["generic", "nv", "tri"]:
         data_point = run_hardware(hardware, num_iterations)
         data_points.append(data_point)
 
