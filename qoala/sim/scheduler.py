@@ -357,6 +357,9 @@ class NodeScheduler(Protocol):
         self.collect_batch_results()
         return self._batch_results
 
+    def get_results_for_process(self, pid: int) -> ProgramResult:
+        return self.memmgr.get_process(pid).result
+
     def initialize_process(self, process: QoalaProcess) -> None:
         # Write program inputs to host memory.
         self.host.processor.initialize(process)
