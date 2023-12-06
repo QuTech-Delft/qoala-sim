@@ -138,7 +138,11 @@ class LhiConverter:
 
     @classmethod
     def timebin_to_ehi(cls, bin: LhiNetworkTimebin) -> EhiNetworkTimebin:
+        #TODO: convert to batch_ids
         return EhiNetworkTimebin(bin.nodes, bin.pids)
+
+
+
 
     @classmethod
     def netschedule_to_ehi(cls, schedule: LhiNetworkSchedule) -> EhiNetworkSchedule:
