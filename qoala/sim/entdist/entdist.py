@@ -34,6 +34,8 @@ class EntDistRequest:
     local_qubit_id: int
     local_pid: int
     remote_pid: int
+    local_batch_id: int
+    remote_batch_id: int
 
     def is_opposite(self, req: EntDistRequest) -> bool:
         return (
@@ -47,8 +49,8 @@ class EntDistRequest:
         if frozenset({self.local_node_id, self.remote_node_id}) != bin.nodes:
             return False
         return (
-                bin.pids[self.local_node_id] == self.local_pid
-                and bin.pids[self.remote_node_id] == self.remote_pid
+                bin.batch_ids[self.local_node_id] == self.local_batch_id
+                and bin.batch_ids[self.remote_node_id] == self.remote_batch_id
         )
 
 
@@ -807,6 +809,7 @@ class EntDist(Protocol):
 
             requesting_nodes: List[int] = []
             wrong_timebin_nodes: List[int] = []
+            served_batches: List[Tuple[int,int]] = []
             for msg in messages:
                 self._logger.warning(f"received new msg from node: {msg}")
                 request: EntDistRequest = msg.content
@@ -817,6 +820,7 @@ class EntDist(Protocol):
                     if any(request.matches_timebin(b) for b in next_slot):
                         self._logger.warning(f"putting request: {request}")
                         self.put_request(request)
+
                     else:
                         self._logger.warning(f"not handling msg {msg} (wrong timebin - {next_slot})")
                         wrong_timebin_nodes.append(request.local_node_id)
@@ -824,6 +828,7 @@ class EntDist(Protocol):
                     if request.matches_timebin(next_slot):
                         self._logger.warning(f"putting request: {request}")
                         self.put_request(request)
+                        served_batches.append((request.local_batch_id,request.remote_batch_id))
                     else:
                         self._logger.warning(f"not handling msg {msg} (wrong timebin - {next_slot})")
                         wrong_timebin_nodes.append(request.local_node_id)

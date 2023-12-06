@@ -251,6 +251,7 @@ class NodeScheduler(Protocol):
                 program=batch_info.program,
                 inputs=batch_info.inputs[i],
                 unit_module=batch_info.unit_module,
+                batch_id=self._batch_counter
             )
             self._prog_instance_counter += 1
             prog_instances.append(instance)
@@ -266,7 +267,7 @@ class NodeScheduler(Protocol):
         return self._batches
 
     def create_process(
-            self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None
+            self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None, remote_batch: Optional[int] = None
     ) -> QoalaProcess:
         prog_memory = ProgramMemory(prog_instance.pid)
         meta = prog_instance.program.meta
@@ -282,10 +283,11 @@ class NodeScheduler(Protocol):
         epr_sockets: Dict[int, EprSocket] = {}
         for i, remote_name in meta.epr_sockets.items():
             assert remote_pid is not None
+            assert remote_batch is not None
             remote_id = self._network_ehi.get_node_id(remote_name)
             # TODO: check for already existing epr sockets
             # TODO: fidelity
-            epr_sockets[i] = EprSocket(i, remote_id, prog_instance.pid, remote_pid, 1.0)
+            epr_sockets[i] = EprSocket(i, remote_id, prog_instance.pid, remote_pid, 1.0, prog_instance.batch_id, remote_batch)
 
         result = ProgramResult(values={}, times={})
 
@@ -301,15 +303,22 @@ class NodeScheduler(Protocol):
             self,
             remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
             linear: bool = False,
+            remote_batches: Optional[Dict[int,int]] = None,
     ) -> None:
         prev_prog_instance_id = -1
         for batch_id, batch in self._batches.items():
+            if remote_batches is not None:
+                remote_batch = remote_batches[batch_id]
+            else:
+                remote_batch = None
+
             for i, prog_instance in enumerate(batch.instances):
                 if remote_pids is not None:
                     remote_pid = remote_pids[batch_id][i]
                 else:
                     remote_pid = None
-                process = self.create_process(prog_instance, remote_pid)
+
+                process = self.create_process(prog_instance, remote_pid, remote_batch)
 
                 self.memmgr.add_process(process)
                 self.initialize_process(process)
@@ -1041,9 +1050,9 @@ class QpuEdfScheduler(EdfScheduler):
         epr_sck = process.epr_sockets[request.epr_socket_id]
         return EhiNetworkTimebin(
             nodes=frozenset({self._node_id, epr_sck.remote_id}),
-            pids={
-                self._node_id: epr_sck.local_pid,
-                epr_sck.remote_id: epr_sck.remote_pid,
+            batch_ids={
+                self._node_id: epr_sck.local_batch,
+                epr_sck.remote_id: epr_sck.remote_batch,
             },
         )
 

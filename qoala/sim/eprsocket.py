@@ -14,3 +14,5 @@ class EprSocket:
     local_pid: int
     remote_pid: int
     fidelity: float
+    local_batch: int = -1
+    remote_batch: int = -1

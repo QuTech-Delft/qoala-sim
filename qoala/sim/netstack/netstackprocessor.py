@@ -81,6 +81,8 @@ class NetstackProcessor:
             local_qubit_id=phys_id,
             local_pid=epr_sck.local_pid,
             remote_pid=epr_sck.remote_pid,
+            local_batch_id=process.prog_instance.batch_id,
+            remote_batch_id=epr_sck.remote_batch,
         )
 
     def _create_windowed_entdist_request(
@@ -102,6 +104,8 @@ class NetstackProcessor:
             remote_pid=epr_sck.remote_pid,
             window=request.window,
             num_pairs=request.num_pairs,
+            local_batch_id=process.prog_instance.batch_id,
+            remote_batch_id=epr_sck.remote_batch,
         )
 
     def measure_epr_qubit(

@@ -346,7 +346,7 @@ class UnitModule:
 @dataclass
 class EhiNetworkTimebin:
     nodes: FrozenSet[int]
-    pids: Dict[int, int]  # node ID -> PID
+    batch_ids: Dict[int, int]  # node ID -> batch ids
 
 
 @dataclass
