@@ -20,7 +20,7 @@ from qoala.lang.program import QoalaProgram
 from qoala.lang.request import CallbackType
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.program import ProgramInstance
-
+from qoala.util.logging import LogManager
 
 class ProcessorType(Enum):
     CPU = 0
@@ -384,6 +384,18 @@ class TaskInfo:
     ext_rel_deadlines: Dict[int, int]
     start_time: Optional[float]
 
+    def __str__(self):
+        return (f"TaskInfo(task: {self.task.task_id},"
+                f" pid: {self.task.pid},"
+                f" type: {self.task.__class__.__name__}"
+                f" pred: {self.predecessors},"
+                f" ext_pred: {self.ext_predecessors},"
+                f" succ: {self.successors},"
+                f" deadline: {self.deadline},"
+                f" rel_dead: {self.rel_deadlines},"
+                f" ext_rel_dead: {self.ext_rel_deadlines},"
+                f" start_time: {self.start_time})")
+
     @classmethod
     def only_task(cls, task: QoalaTask) -> TaskInfo:
         return TaskInfo(task, set(), set(), set(), None, {}, {}, None)
@@ -399,11 +411,16 @@ class TaskInfo:
 class TaskGraph:
     """DAG of Tasks."""
 
-    def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None) -> None:
+    def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None, name: str = None) -> None:
         if tasks is None:
             self._tasks: Dict[int, TaskInfo] = {}
         else:
             self._tasks = tasks
+
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}({name})"
+        )
+        self._task_logger = LogManager.get_task_logger(name)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TaskGraph):
@@ -411,11 +428,12 @@ class TaskGraph:
         return self._tasks == other._tasks
 
     def __str__(self) -> str:
-        return "\n".join(f"{i}: {t}" for i, t in self._tasks.items())
+        return "\n\t" + "\n\t".join(f"{i}: {t}" for i, t in self._tasks.items())
 
     def add_tasks(self, tasks: List[QoalaTask]) -> None:
         for task in tasks:
             self._tasks[task.task_id] = TaskInfo.only_task(task)
+            self._task_logger.debug(f"Added task {task.task_id} ({task})")
 
     def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x precedes y (y should execute after x)
