@@ -41,6 +41,7 @@ class ProgramInstance:
     program: QoalaProgram
     inputs: ProgramInput
     unit_module: UnitModule
+    batch_id: int = -1
 
 
 @dataclass
