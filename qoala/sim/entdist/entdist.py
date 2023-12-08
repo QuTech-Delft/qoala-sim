@@ -69,6 +69,8 @@ class JointRequest:
     node2_qubit_id: int
     node1_pid: int
     node2_pid: int
+    node1_batch_id: int
+    node2_batch_id: int
 
 
 @dataclass(frozen=True)
@@ -643,6 +645,8 @@ class EntDist(Protocol):
                         node2_pid=remote_request.local_pid,
                         window=local_request.window,
                         num_pairs=local_request.num_pairs,
+                        node1_batch_id=local_request.local_batch_id,
+                        node2_batch_id=remote_request.local_batch_id,
                     )
                 else:
                     return JointRequest(
@@ -652,6 +656,8 @@ class EntDist(Protocol):
                         remote_request.local_qubit_id,
                         local_request.local_pid,
                         local_request.remote_pid,
+                        node1_batch_id=local_request.local_batch_id,
+                        node2_batch_id=remote_request.local_batch_id,
                     )
             else:
                 # Put local request back
@@ -854,9 +860,9 @@ class EntDist(Protocol):
                     try:
                         self._outstanding_requests.append(OutstandingRequest(request, ns.sim_time() +
                                                                              self._netschedule.length_of_qc_blocks[(
-                                                                                 request.node1_id, request.node1_pid,
+                                                                                 request.node1_id, request.node1_batch_id,
                                                                                  request.node2_id,
-                                                                                 request.node2_pid)] - 1,
+                                                                                 request.node2_batch_id)] - 1,
                                                                              [], 0))
                     except KeyError as F:
                         self._logger.warning(
