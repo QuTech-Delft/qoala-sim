@@ -359,7 +359,7 @@ class EhiNetworkSchedule:
 
     length_of_qc_blocks: Dict[Tuple[int, int, int, int], float] | None = None
 
-    # (node_id1, pid1, node_id2, pid2) -> float (length of QC / PGA)
+    # (node_id1, batch_id 1, node_id2, batch_id 1) -> float (length of QC / PGA)
     # TODO: Allow for session PGA/QC to change lengths during the schedule?
     # TODO: Is the key the correct format here, or better to use EhiNetworkTimebin?
 
