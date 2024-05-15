@@ -51,6 +51,7 @@ class LocalRoutine:
         s += f"\nreturns: {', '.join(str(v) for v in self.return_vars)}"
         s += f"\nuses: {', '.join(str(q) for q in self.metadata.qubit_use)}"
         s += f"\nkeeps: {', '.join(str(q) for q in self.metadata.qubit_keep)}"
+        s += f"\nrequest: {str(self.request_name or '')}"
         s += "\nNETQASM_START\n"
         s += self.subroutine.print_instructions()
         s += "\nNETQASM_END"
