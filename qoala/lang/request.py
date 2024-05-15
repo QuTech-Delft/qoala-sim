@@ -182,7 +182,7 @@ class RequestRoutine:
         s = f"REQUEST {self.name}"
         s += f"\ncallback_type: {self.callback_type.name}"
         s += f"\ncallback: {str(self.callback or '')}"
-        s += f"\nreturn_vars: {', '.join(self.return_vars)}"
+        s += f"\nreturn_vars: {', '.join(str(v) for v in self.return_vars)}"
         s += f"\nremote_id: {self.request.remote_id}"
         s += f"\nepr_socket_id: {self.request.epr_socket_id}"
         s += f"\nnum_pairs: {self.request.num_pairs}"
