@@ -17,7 +17,14 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
-from qoala.lang.request import CallbackType, EprRole, EprType, QoalaRequest, RequestRoutine, RequestVirtIdMapping
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    QoalaRequest,
+    RequestRoutine,
+    RequestVirtIdMapping,
+)
 from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
