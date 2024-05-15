@@ -2,7 +2,6 @@ from netqasm.lang.instr.core import MeasInstruction, RetRegInstruction, SetInstr
 from netqasm.lang.instr.vanilla import RotZInstruction
 from netqasm.lang.operand import Register, Template
 from netqasm.lang.subroutine import Subroutine
-from qoala.lang.request import QoalaRequest, RequestVirtIdMapping, EprType, EprRole, RequestRoutine, CallbackType
 
 from qoala.lang.hostlang import (
     AddCValueOp,
@@ -18,6 +17,7 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
+from qoala.lang.request import QoalaRequest, RequestVirtIdMapping, EprType, EprRole, RequestRoutine, CallbackType
 from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
