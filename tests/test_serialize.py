@@ -232,18 +232,29 @@ REQUEST req1
     role: CREATE
   """
     qoala_req1 = QoalaRequest(
-        remote_id=Template(name=f"client_id"), epr_socket_id=0, num_pairs=1,
+        remote_id=Template(name=f"client_id"),
+        epr_socket_id=0,
+        num_pairs=1,
         virt_ids=RequestVirtIdMapping.from_str(f"all 0"),
-        timeout=1000, fidelity=1.0, typ=EprType.CREATE_KEEP, role=EprRole.CREATE,
-        name=f"req1")
-    req1 = RequestRoutine(name=f"req1", request=qoala_req1, return_vars=[],
-                   callback_type=CallbackType.WAIT_ALL, callback=None)
+        timeout=1000,
+        fidelity=1.0,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+        name=f"req1",
+    )
+    req1 = RequestRoutine(
+        name=f"req1",
+        request=qoala_req1,
+        return_vars=[],
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+    )
 
     program = QoalaProgram(
         meta=ProgramMeta.empty("alice"),
         blocks=[],
         local_routines={},
-        request_routines={"req1": req1}
+        request_routines={"req1": req1},
     )
     assert text_equal(program.serialize_requests(), expected)
 
@@ -327,20 +338,34 @@ REQUEST req1
         ),
         return_vars=["m"],
         metadata=RoutineMetadata.free_all([0]),
-        request_name="req1"
+        request_name="req1",
     )
 
     qoala_req1 = QoalaRequest(
-        remote_id=Template(name=f"client_id"), epr_socket_id=0, num_pairs=1,
+        remote_id=Template(name=f"client_id"),
+        epr_socket_id=0,
+        num_pairs=1,
         virt_ids=RequestVirtIdMapping.from_str(f"all 0"),
-        timeout=1000, fidelity=1.0, typ=EprType.CREATE_KEEP, role=EprRole.CREATE,
-        name=f"req1")
+        timeout=1000,
+        fidelity=1.0,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+        name=f"req1",
+    )
 
-    req1 = RequestRoutine(name=f"req1", request=qoala_req1, return_vars=[],
-                          callback_type=CallbackType.WAIT_ALL, callback=None)
+    req1 = RequestRoutine(
+        name=f"req1",
+        request=qoala_req1,
+        return_vars=[],
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+    )
 
     program = QoalaProgram(
-        meta=meta, blocks=[b0, b1, b2], local_routines={"subrt1": subrt}, request_routines={"req1": req1}
+        meta=meta,
+        blocks=[b0, b1, b2],
+        local_routines={"subrt1": subrt},
+        request_routines={"req1": req1},
     )
 
     assert text_equal(program.serialize(), expected)
