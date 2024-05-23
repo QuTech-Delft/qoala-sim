@@ -122,6 +122,9 @@ class QoalaProgram:
     def serialize_subroutines(self) -> str:
         return "\n".join(s.serialize() for s in self.local_routines.values())
 
+    def serialize_requests(self) -> str:
+        return "\n".join(s.serialize() for s in self.request_routines.values())
+
     def serialize(self) -> str:
         return (
             self.meta.serialize()
@@ -129,6 +132,8 @@ class QoalaProgram:
             + self.serialize_host_code()
             + "\n"
             + self.serialize_subroutines()
+            + "\n"
+            + self.serialize_requests()
         )
 
 

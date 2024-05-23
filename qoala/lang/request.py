@@ -177,3 +177,21 @@ class RequestRoutine:
             else:
                 size += 1
         return size
+
+    def serialize(self) -> str:
+        s = f"REQUEST {self.name}"
+        s += f"\ncallback_type: {self.callback_type.name}"
+        s += f"\ncallback: {str(self.callback or '')}"
+        s += f"\nreturn_vars: {', '.join(str(v) for v in self.return_vars)}"
+        s += f"\nremote_id: {self.request.remote_id}"
+        s += f"\nepr_socket_id: {self.request.epr_socket_id}"
+        s += f"\nnum_pairs: {self.request.num_pairs}"
+        s += f"\nvirt_ids: {self.request.virt_ids}"
+        s += f"\ntimeout: {self.request.timeout}"
+        s += f"\nfidelity: {self.request.fidelity}"
+        s += f"\ntyp: {self.request.typ.name}"
+        s += f"\nrole: {self.request.role.name}"
+        return s
+
+    def __str__(self) -> str:
+        return self.serialize()

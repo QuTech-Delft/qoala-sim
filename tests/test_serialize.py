@@ -17,6 +17,14 @@ from qoala.lang.hostlang import (
     SendCMsgOp,
 )
 from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
+from qoala.lang.request import (
+    CallbackType,
+    EprRole,
+    EprType,
+    QoalaRequest,
+    RequestRoutine,
+    RequestVirtIdMapping,
+)
 from qoala.lang.routine import RoutineMetadata
 from qoala.util.tests import text_equal
 
@@ -105,7 +113,7 @@ def test_serialize_host_code_1():
     )
 
     program = QoalaProgram(meta=ProgramMeta.empty("alice"), blocks=[b0, b1, b2])
-    print(program.serialize_host_code())
+
     assert text_equal(program.serialize_host_code(), expected)
 
 
@@ -116,6 +124,7 @@ SUBROUTINE subrt1
     returns: m
     uses: 0
     keeps: 
+    request: 
   NETQASM_START
     set Q0 0
     rot_z Q0 {my_value} 4
@@ -145,6 +154,7 @@ SUBROUTINE subrt1
         blocks=[],
         local_routines={"subrt1": subrt},
     )
+
     assert text_equal(program.serialize_subroutines(), expected)
 
 
@@ -155,6 +165,7 @@ SUBROUTINE subrt1
     returns: outcomes<10>
     uses: 0
     keeps: 
+    request: 
   NETQASM_START
     set R0 {param1}
     meas Q0 M0
@@ -165,6 +176,7 @@ SUBROUTINE subrt2
     returns: 
     uses:
     keeps: 
+    request: 
   NETQASM_START
     set R0 {theta}
   NETQASM_END
@@ -204,6 +216,49 @@ SUBROUTINE subrt2
     assert text_equal(program.serialize_subroutines(), expected)
 
 
+def test_serialize_requests_1():
+    expected = """
+REQUEST req1
+    callback_type: WAIT_ALL
+    callback: 
+    return_vars: 
+    remote_id: {client_id}
+    epr_socket_id: 0
+    num_pairs: 1
+    virt_ids: all 0
+    timeout: 1000
+    fidelity: 1.0
+    typ: CREATE_KEEP
+    role: CREATE
+  """
+    qoala_req1 = QoalaRequest(
+        remote_id=Template(name="client_id"),
+        epr_socket_id=0,
+        num_pairs=1,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
+        fidelity=1.0,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+        name="req1",
+    )
+    req1 = RequestRoutine(
+        name="req1",
+        request=qoala_req1,
+        return_vars=[],
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
+    )
+
+    program = QoalaProgram(
+        meta=ProgramMeta.empty("alice"),
+        blocks=[],
+        local_routines={},
+        request_routines={"req1": req1},
+    )
+    assert text_equal(program.serialize_requests(), expected)
+
+
 def test_serialize_program():
     expected = """
 META_START
@@ -230,12 +285,26 @@ SUBROUTINE subrt1
     returns: m
     uses: 0
     keeps: 
+    request: req1
   NETQASM_START
     set Q0 0
     rot_z Q0 {my_value} 4
     meas Q0 M0
     ret_reg M0
   NETQASM_END
+
+REQUEST req1
+    callback_type: WAIT_ALL
+    callback: 
+    return_vars: 
+    remote_id: {client_id}
+    epr_socket_id: 0
+    num_pairs: 1
+    virt_ids: all 0
+    timeout: 1000
+    fidelity: 1.0
+    typ: CREATE_KEEP
+    role: CREATE
     """
 
     meta = ProgramMeta(name="alice", parameters=[], csockets={0: "bob"}, epr_sockets={})
@@ -269,10 +338,34 @@ SUBROUTINE subrt1
         ),
         return_vars=["m"],
         metadata=RoutineMetadata.free_all([0]),
+        request_name="req1",
+    )
+
+    qoala_req1 = QoalaRequest(
+        remote_id=Template(name="client_id"),
+        epr_socket_id=0,
+        num_pairs=1,
+        virt_ids=RequestVirtIdMapping.from_str("all 0"),
+        timeout=1000,
+        fidelity=1.0,
+        typ=EprType.CREATE_KEEP,
+        role=EprRole.CREATE,
+        name="req1",
+    )
+
+    req1 = RequestRoutine(
+        name="req1",
+        request=qoala_req1,
+        return_vars=[],
+        callback_type=CallbackType.WAIT_ALL,
+        callback=None,
     )
 
     program = QoalaProgram(
-        meta=meta, blocks=[b0, b1, b2], local_routines={"subrt1": subrt}
+        meta=meta,
+        blocks=[b0, b1, b2],
+        local_routines={"subrt1": subrt},
+        request_routines={"req1": req1},
     )
 
     assert text_equal(program.serialize(), expected)
