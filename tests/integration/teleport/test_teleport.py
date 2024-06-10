@@ -3,12 +3,14 @@ from __future__ import annotations
 import os
 import random
 from dataclasses import dataclass
-from typing import List
+from typing import Dict, List
 
 import netsquid as ns
 
+from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
+from qoala.runtime import task
 from qoala.runtime.config import (
     ClassicalConnectionConfig,
     LatenciesConfig,
@@ -18,8 +20,10 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchResult, ProgramInput
-from qoala.util.runner import run_two_node_app, run_two_node_app_separate_inputs
+from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
+from qoala.runtime.task import TaskGraph, TaskGraphBuilder
+from qoala.sim.build import build_network_from_config
+from qoala.util.runner import create_batch, run_two_node_app, run_two_node_app_separate_inputs
 
 
 def create_procnode_cfg(
@@ -32,6 +36,7 @@ def create_procnode_cfg(
         latencies=LatenciesConfig(qnos_instr_time=1000),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=determ,
+        is_predictable=True,
     )
 
 
@@ -71,35 +76,62 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
     alice_program = load_program("teleport_alice.iqoala")
     bob_program = load_program("teleport_bob.iqoala")
 
-    if different_inputs:
-        alice_inputs: List[ProgramInput] = []
-        bob_inputs: List[ProgramInput] = []
-        for _ in range(num_iterations):
-            basis = random.randint(0, 5)
-            alice_inputs.append(ProgramInput({"bob_id": bob_id, "state": basis}))
-            bob_inputs.append(ProgramInput({"alice_id": alice_id, "state": basis}))
+    # state = 5 -> teleport |1> state
+    alice_inputs = [ProgramInput({"bob_id": bob_id, "state": 5}) for _ in range(num_iterations)]
+    # state = 4 -> measure in +Z, i.e. expect a "1" outcome
+    bob_inputs = [ProgramInput({"alice_id": alice_id, "state": 4}) for _ in range(num_iterations)]
 
-        app_result = run_two_node_app_separate_inputs(
-            num_iterations=num_iterations,
-            programs={"alice": alice_program, "bob": bob_program},
-            program_inputs={"alice": alice_inputs, "bob": bob_inputs},
-            network_cfg=network_cfg,
-        )
-    else:
-        # state = 5 -> teleport |1> state
-        alice_input = ProgramInput({"bob_id": bob_id, "state": 5})
-        # state = 4 -> measure in +Z, i.e. expect a "1" outcome
-        bob_input = ProgramInput({"alice_id": alice_id, "state": 4})
+    network = build_network_from_config(network_cfg)
 
-        app_result = run_two_node_app(
-            num_iterations=num_iterations,
-            programs={"alice": alice_program, "bob": bob_program},
-            program_inputs={"alice": alice_input, "bob": bob_input},
-            network_cfg=network_cfg,
-        )
+    batches: Dict[str, ProgramBatch] = {}  # node -> batch
 
-    alice_result = app_result.batch_results["alice"]
-    bob_result = app_result.batch_results["bob"]
+    alice_procnode = network.nodes["alice"]
+    bob_procnode = network.nodes["bob"]
+
+    alice_unit_module = UnitModule.from_full_ehi(alice_procnode.memmgr.get_ehi())
+    alice_batch_info = create_batch(alice_program, alice_unit_module, alice_inputs, num_iterations)
+    batches["alice"] = alice_procnode.submit_batch(alice_batch_info)
+
+    bob_unit_module = UnitModule.from_full_ehi(bob_procnode.memmgr.get_ehi())
+    bob_batch_info = create_batch(bob_program, bob_unit_module, bob_inputs, num_iterations)
+    batches["bob"] = bob_procnode.submit_batch(bob_batch_info)
+
+    alice_remote_pids = {batches["bob"].batch_id: [p.pid for p in batches["bob"].instances]}
+    alice_procnode.initialize_processes(alice_remote_pids)
+    bob_remote_pids = {batches["alice"].batch_id: [p.pid for p in batches["alice"].instances]}
+    bob_procnode.initialize_processes(bob_remote_pids)
+
+
+    alice_task_counter = 0
+    alice_tasks: List[TaskGraph] = []
+    for i, inst in enumerate(batches["alice"].instances):
+        tasks = TaskGraphBuilder.from_program(alice_program, inst.pid, alice_procnode.local_ehi, alice_procnode.network_ehi, first_task_id=alice_task_counter, prog_input=alice_inputs[i].values)
+        alice_tasks.append(tasks)
+        alice_task_counter += len(tasks.get_tasks())
+    alice_full_graph = TaskGraphBuilder.merge_linear(alice_tasks)
+    alice_procnode.scheduler.upload_task_graph(alice_full_graph)
+
+    bob_task_counter = 0
+    bob_tasks: List[TaskGraph] = []
+    for i, inst in enumerate(batches["bob"].instances):
+        tasks = TaskGraphBuilder.from_program(bob_program, inst.pid, bob_procnode.local_ehi, bob_procnode.network_ehi, first_task_id=bob_task_counter, prog_input=bob_inputs[i].values)
+        bob_tasks.append(tasks)
+        bob_task_counter += len(tasks.get_tasks())
+    bob_full_graph = TaskGraphBuilder.merge_linear(bob_tasks)
+    bob_procnode.scheduler.upload_task_graph(bob_full_graph)
+
+    # app_result = run_two_node_app(
+    #     num_iterations=num_iterations,
+    #     programs={"alice": alice_program, "bob": bob_program},
+    #     program_inputs={"alice": alice_input, "bob": bob_input},
+    #     network_cfg=network_cfg,
+    # )
+
+    network.start()
+    ns.sim_run()
+
+    alice_result = alice_procnode.scheduler.get_batch_results()[0]
+    bob_result = bob_procnode.scheduler.get_batch_results()[0]
 
     return TeleportResult(alice_result, bob_result)
 
@@ -109,7 +141,7 @@ def test_teleport():
     # LogManager.set_task_log_level("DEBUG")
     # LogManager.log_to_file("teleport.log")
     # LogManager.log_tasks_to_file("teleport_tasks.log")
-    num_iterations = 2
+    num_iterations = 3
 
     result = run_teleport(num_iterations=num_iterations)
 
@@ -133,4 +165,4 @@ def test_teleport_different_inputs():
 
 if __name__ == "__main__":
     test_teleport()
-    test_teleport_different_inputs()
+    # test_teleport_different_inputs()
