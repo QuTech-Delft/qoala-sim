@@ -51,7 +51,7 @@ def create_png(filename: str):
     output_dir = relative_to_cwd("plots")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     output_path = os.path.join(output_dir, f"{filename}.png")
-    plt.savefig(output_path)
+    plt.savefig(output_path, transparent=True, dpi=1000)
     print(f"plot written to {output_path}")
 
 
