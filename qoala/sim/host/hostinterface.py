@@ -77,7 +77,7 @@ class HostInterface(ComponentProtocol):
         return self._program_instance_jumps
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:
-        self._logger.info(f"sending message {msg}")
+        self._logger.info(f"sending message {msg} to {peer}")
         self._comp.peer_out_port(peer).tx_output(msg)
 
     def get_available_messages(self, peer: str) -> List[Tuple[int, int]]:

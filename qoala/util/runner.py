@@ -60,9 +60,6 @@ def run_two_node_app_separate_inputs(
     linear: bool = False,
     linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
-    if linear_for is None:
-        linear_for = {name: False for name in programs.keys()}
-
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
     seed = random.randint(0, 1000)
@@ -89,7 +86,11 @@ def run_two_node_app_separate_inputs(
 
         remote_batch = batches[other_name[name]]
         remote_pids = {remote_batch.batch_id: [p.pid for p in remote_batch.instances]}
-        procnode.initialize_processes(remote_pids, linear=linear)
+
+        if linear_for is not None:
+            procnode.initialize_processes(remote_pids, linear=linear_for[name])
+        else:
+            procnode.initialize_processes(remote_pids, linear=linear)
 
         # tasks = procnode.scheduler.get_tasks_to_schedule()
         # if linear:
@@ -387,15 +388,15 @@ def run_two_node_app(
     program_inputs: Dict[str, ProgramInput],
     network_cfg: ProcNodeNetworkConfig,
     linear: bool = False,
+    linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
-
     names = list(programs.keys())
     new_inputs = {
         name: [program_inputs[name] for _ in range(num_iterations)] for name in names
     }
 
     return run_two_node_app_separate_inputs(
-        num_iterations, programs, new_inputs, network_cfg, linear
+        num_iterations, programs, new_inputs, network_cfg, linear, linear_for
     )
 
 

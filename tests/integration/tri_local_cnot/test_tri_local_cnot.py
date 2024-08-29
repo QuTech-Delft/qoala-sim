@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import os
 
-from netqasm.lang.instr.flavour import NVFlavour
+import netsquid as ns
+from netqasm.lang.instr.flavour import TrappedIonFlavour
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
     NtfConfig,
-    NvParams,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
     TopologyConfig,
@@ -19,14 +19,13 @@ from qoala.util.runner import run_single_node_app
 
 
 def get_config() -> ProcNodeConfig:
-    params = NvParams()
-    topology = TopologyConfig.from_nv_params(num_qubits=5, params=params)
+    topology = TopologyConfig.perfect_tri_default_params(2)
     return ProcNodeConfig(
         node_name="alice",
         node_id=0,
         topology=topology,
         latencies=LatenciesConfig(qnos_instr_time=1000),
-        ntf=NtfConfig.from_cls_name("NvNtf"),
+        ntf=NtfConfig.from_cls_name("TrappedIonNtf"),
     )
 
 
@@ -34,14 +33,19 @@ def load_program(name: str) -> QoalaProgram:
     path = os.path.join(os.path.dirname(__file__), name)
     with open(path) as file:
         text = file.read()
-    program = QoalaParser(text, flavour=NVFlavour()).parse()
+    program = QoalaParser(text, flavour=TrappedIonFlavour()).parse()
 
     return program
 
 
-def run_program(num_iterations: int, node_cfg: ProcNodeConfig):
+def test_tri_local_cnot():
+    ns.sim_reset()
+
+    num_iterations = 100
+
+    node_cfg = get_config()
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
-    program = load_program("move_qubit_nv.iqoala")
+    program = load_program("tri_local_cnot.iqoala")
 
     app_results = run_single_node_app(
         num_iterations=num_iterations,
@@ -52,15 +56,9 @@ def run_program(num_iterations: int, node_cfg: ProcNodeConfig):
         linear=True,
     )
 
-    all_results = app_results.batch_results["alice"].results
-    outcomes = [result.values["m"] for result in all_results]
-    assert all(outcome == 1 for outcome in outcomes)
-
-
-def test_move_qubit():
-    node_cfg = get_config()
-    run_program(10, node_cfg)
+    results = app_results.batch_results["alice"].results
+    assert all(r.values["m0"] == r.values["m1"] for r in results)
 
 
 if __name__ == "__main__":
-    test_move_qubit()
+    test_tri_local_cnot()

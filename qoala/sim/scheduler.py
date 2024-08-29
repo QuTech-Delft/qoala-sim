@@ -22,6 +22,7 @@ from qoala.lang.ehi import (
     EhiNodeInfo,
 )
 from qoala.lang.hostlang import BasicBlockType, ReceiveCMsgOp
+from qoala.lang.request import VirtIdMappingType
 from qoala.runtime.memory import ProgramMemory
 from qoala.runtime.message import Message
 from qoala.runtime.program import (
@@ -498,6 +499,7 @@ class NodeScheduler(Protocol):
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
         if new_qpu_tasks:
             self._qpu_scheduler.add_tasks(new_qpu_tasks)
+            self._task_logger.debug("sending 'New Task' msg to QPU scheduler")
             self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
 
     def schedule_all(self) -> None:
@@ -542,6 +544,7 @@ class NodeScheduler(Protocol):
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
         if len(all_new_qpu_tasks) > 0:
             self._qpu_scheduler.add_tasks(all_new_qpu_tasks)
+            self._task_logger.debug("sending 'New Task' msg to QPU scheduler")
             self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
 
     def find_next_tasks_for(
@@ -913,12 +916,13 @@ class CpuScheduler(ProcessorScheduler):
         csck = process.csockets[csck_id]
         remote_name = csck.remote_name
         remote_pid = csck.remote_pid
+        self._task_logger.debug(f"checking if msg from {remote_name} is available")
         messages = self._host_interface.get_available_messages(remote_name)
-        if (task.pid, remote_pid) in messages:
-            self._task_logger.debug(f"task {tid} NOT blocked")
+        if (remote_pid, task.pid) in messages:
+            self._task_logger.debug(f"task {tid} NOT blocked on message")
             return True
         else:
-            self._task_logger.debug(f"task {tid} blocked")
+            self._task_logger.debug(f"task {tid} blocked on message")
             return False
 
     @abstractmethod
@@ -1176,7 +1180,11 @@ class QpuScheduler(ProcessorScheduler):
     def are_resources_available(self, tid: int) -> bool:
         assert self._task_graph is not None
         task = self._task_graph.get_tinfo(tid).task
-        self._task_logger.debug(f"check if resources available for task {tid}")
+        self._task_logger.debug(f"check if resources available for task {tid} ({task})")
+        phys_qubits_in_use = [
+            i for i, vmap in self._memmgr._physical_mapping.items() if vmap is not None
+        ]
+        self._task_logger.debug(f"physical qubits in use: {phys_qubits_in_use}")
         if isinstance(task, SinglePairTask):
             # TODO: refactor
             drv_mem = self._driver._memory
@@ -1192,7 +1200,7 @@ class QpuScheduler(ProcessorScheduler):
 
             try:
                 self._memmgr.allocate(task.pid, virt_id)
-                self._memmgr.free(task.pid, virt_id)
+                self._memmgr.free(task.pid, virt_id, send_signal=False)
                 return True
             except AllocError:
                 return False
@@ -1212,15 +1220,33 @@ class QpuScheduler(ProcessorScheduler):
                 num_pairs = routine.request.num_pairs
 
             # Get virt IDs which would be need to be allocated
-            virt_ids = [routine.request.virt_ids.get_id(i) for i in range(num_pairs)]
+            if routine.request.virt_ids.typ == VirtIdMappingType.EQUAL:
+                virt_id = routine.request.virt_ids.single_value
+                assert virt_id is not None and isinstance(virt_id, int)
+                virt_ids = [virt_id]
+            else:
+                virt_ids = [
+                    routine.request.virt_ids.get_id(i) for i in range(num_pairs)
+                ]
+
             # Check if virt IDs are available by trying to allocate
             # (without actually allocating)
             try:
+                self._task_logger.debug(f"trying to allocate virt IDs {virt_ids}")
+                temp_allocated: List[int] = []
                 for virt_id in virt_ids:
                     self._memmgr.allocate(task.pid, virt_id)
-                    self._memmgr.free(task.pid, virt_id)
+                    temp_allocated.append(virt_id)  # successful alloc
+                # Free all temporarily allocated qubits again
+                for virt_id in temp_allocated:
+                    self._memmgr.free(task.pid, virt_id, send_signal=False)
+                self._task_logger.debug("all virt IDs available")
                 return True
             except AllocError:
+                # Make sure all qubits that did successfully allocate are freed
+                for virt_id in temp_allocated:
+                    self._memmgr.free(task.pid, virt_id, send_signal=False)
+                self._task_logger.debug("some virt IDs unavailable")
                 return False
         elif isinstance(task, LocalRoutineTask):
             drv_mem = self._driver._memory
@@ -1229,13 +1255,27 @@ class QpuScheduler(ProcessorScheduler):
             local_routine = process.get_local_routine(lrcall.routine_name)
             virt_ids = local_routine.metadata.qubit_use
             try:
-                for virt_id in virt_ids:
-                    if self._memmgr.phys_id_for(task.pid, virt_id) is not None:
-                        continue  # already allocated
+                # get qubit IDs that are not already allocated
+                new_ids = [
+                    vid
+                    for vid in virt_ids
+                    if self._memmgr.phys_id_for(task.pid, vid) is None
+                ]
+                # try to allocate them
+                temp_allocated: List[int] = []
+                for virt_id in new_ids:
                     self._memmgr.allocate(task.pid, virt_id)
-                    self._memmgr.free(task.pid, virt_id)
+                    temp_allocated.append(virt_id)  # successful alloc
+                # Free all temporarily allocated qubits again
+                for virt_id in temp_allocated:
+                    self._memmgr.free(task.pid, virt_id, send_signal=False)
+                self._task_logger.debug("all virt IDs available")
                 return True
             except AllocError:
+                # Make sure all qubits that did successfully allocate are freed
+                for virt_id in temp_allocated:
+                    self._memmgr.free(task.pid, virt_id, send_signal=False)
+                self._task_logger.debug("some virt IDs unavailable")
                 return False
         else:
             self._logger.info(
@@ -1255,20 +1295,32 @@ class QpuScheduler(ProcessorScheduler):
 
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
+        self._task_logger.debug(
+            f"no_predecessors: {[str(tg.get_tinfo(t).task) for t in no_predecessors]}"
+        )
 
         # All tasks that have only external predecessors.
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
+        self._task_logger.debug(
+            f"blocked_on_other_core : {[str(tg.get_tinfo(t).task) for t in blocked_on_other_core]}"
+        )
 
         # All EPR (SinglePair or MultiPair) tasks that have no predecessors,
         # internal nor external.
         epr_no_predecessors = [
             tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_epr_task()
         ]
+        self._task_logger.debug(
+            f"epr_no_predecessors : {[str(tg.get_tinfo(t).task) for t in epr_no_predecessors]}"
+        )
 
         # All tasks without predecessors for which not all resources are availables.
         blocked_on_resources = [
             tid for tid in no_predecessors if not self.are_resources_available(tid)
         ]
+        self._task_logger.debug(
+            f"blocked_on_resources : {[str(tg.get_tinfo(t).task) for t in blocked_on_resources]}"
+        )
 
         # All non-EPR tasks that are ready for execution.
         non_epr_ready = [
@@ -1276,11 +1328,17 @@ class QpuScheduler(ProcessorScheduler):
             for tid in no_predecessors
             if tid not in epr_no_predecessors and tid not in blocked_on_resources
         ]
+        self._task_logger.debug(
+            f"non_epr_ready : {[str(tg.get_tinfo(t).task) for t in non_epr_ready]}"
+        )
 
         # All EPR tasks that have no predecessors and are not blocked on resources.
         epr_no_preds_not_blocked = [
             tid for tid in epr_no_predecessors if tid not in blocked_on_resources
         ]
+        self._task_logger.debug(
+            f"epr_no_preds_not_blocked : {[str(tg.get_tinfo(t).task) for t in epr_no_preds_not_blocked]}"
+        )
 
         # All EPR tasks that can be immediately executed.
         epr_ready = []
@@ -1402,4 +1460,5 @@ class QpuScheduler(ProcessorScheduler):
                     self._schedule_after(delta, EVENT_WAIT)
                     ev_timebin = EventExpression(source=self, event_type=EVENT_WAIT)
                     ev_expr = ev_expr | ev_timebin
+                self._task_logger.debug(f"yielding on {ev_expr}")
                 yield ev_expr

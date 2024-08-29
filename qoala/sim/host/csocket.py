@@ -35,7 +35,9 @@ class ClassicalSocket:
         return msg
 
     def read(self) -> Message:
-        return self._host.pop_msg(self._remote_name, self._pid, self._remote_pid)
+        return self._host.pop_msg(
+            self._remote_name, dst_pid=self._pid, src_pid=self._remote_pid
+        )
 
     def send_str(self, msg: str) -> None:
         self.send(Message(src_pid=self._pid, dst_pid=self._remote_pid, content=msg))

@@ -407,18 +407,16 @@ def test_bqc_1_client_trap():
     bqc_trap(1, 10)
 
 
-# TODO: fix
-def disabled_test_bqc_multiple_clients_computation():
+def test_bqc_multiple_clients_computation():
     bqc_computation(3, 30)
 
 
-# TODO: fix
-def disabled_test_bqc_multiple_clients_trap():
+def test_bqc_multiple_clients_trap():
     bqc_trap(3, 30)
 
 
 if __name__ == "__main__":
     test_bqc_1_client_computation()
     test_bqc_1_client_trap()
-    # test_bqc_multiple_clients_computation()
-    # test_bqc_multiple_clients_trap()
+    test_bqc_multiple_clients_computation()
+    test_bqc_multiple_clients_trap()

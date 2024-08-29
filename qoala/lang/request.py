@@ -160,7 +160,7 @@ class RequestRoutine:
             if isinstance(ret_var, IqoalaVector):
                 if isinstance(ret_var.size, Template):
                     size = values[ret_var.size.name]
-                    print(f"instantiating ret_var {ret_var.name} with size {size}")
+                    # print(f"instantiating ret_var {ret_var.name} with size {size}")
                     self.return_vars[i] = IqoalaVector(ret_var.name, size)
         self.request.instantiate(values)
 

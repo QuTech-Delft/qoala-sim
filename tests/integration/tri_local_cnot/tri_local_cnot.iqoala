@@ -1,0 +1,47 @@
+META_START
+    name: alice
+    parameters: 
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = QL}:
+    tuple<m0; m1> = run_subroutine() : subrt0
+
+^b1 {type = CL}:
+    return_result(m0)
+    return_result(m1)
+
+
+SUBROUTINE subrt0
+    params:
+    returns: m0, m1
+    uses: 0, 1
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+  
+    init_all
+
+    // hadamard on q0
+    rot_x_all 8 4
+    rot_z Q0 8 4
+    rot_x_all 24 4
+
+    // cnot between q0 and q1
+    rot_x_all 8 4
+    rot_z Q0 8 4
+    rot_x_all 24 4
+    bichromatic 8 4
+    rot_x_all 24 4
+    rot_x_all 8 4
+    rot_z Q0 24 4
+    rot_x_all 24 4
+
+    meas Q0 M0
+    meas Q1 M1
+    store M0 @output[0]
+    store M1 @output[1]
+  NETQASM_END

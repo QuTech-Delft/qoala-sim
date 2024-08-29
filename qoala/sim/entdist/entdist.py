@@ -336,16 +336,23 @@ class EntDist(Protocol):
                 request: EntDistRequest = msg.content
                 requesting_nodes.append(request.local_node_id)
 
+                self._logger.info(f"netschedule: {self._netschedule}")
+                self._logger.info(f"next slot: {next_slot}")
                 if request.matches_timebin(next_slot):
                     self._logger.info(f"putting request: {request}")
                     self.put_request(request)
                 else:
                     self._logger.info(f"not handling msg {msg} (wrong timebin)")
+
             joint_request = self.get_next_joint_request()
             if joint_request is not None:
-                self._logger.info("serving request")
+                self._logger.info(f"serving request {joint_request}")
                 yield from self.serve_request(joint_request)
                 self._logger.info("served request")
+                while next_request := self.get_next_joint_request():
+                    self._logger.info(f"serving request {next_request}")
+                    yield from self.serve_request(next_request)
+                    self._logger.info("served request")
             else:
                 yield from self._interface.wait(1000)
                 for node_id in requesting_nodes:

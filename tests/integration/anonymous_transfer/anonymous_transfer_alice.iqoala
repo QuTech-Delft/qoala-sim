@@ -1,0 +1,128 @@
+META_START
+    name: alice
+    parameters: bob_id, charlie_id, b
+    csockets: 0 -> bob, 1 -> charlie
+    epr_sockets: 0 -> bob, 1 -> charlie
+META_END
+
+^b0 {type = CL}:
+    csocket_bob = assign_cval() : 0
+    csocket_charlie = assign_cval() : 1
+
+// init qubit q1 (qubit to send)
+^b05 {type = QL}:
+    run_subroutine() : init_qubit_to_send
+
+
+// START QUANTUM ANONYMOUS TRANSFER
+
+// START ANONYMOUS EPR
+
+// START CREATE GHZ
+^b1 {type = QC}:
+    run_request() : epr_gen_bob
+
+^b2 {type = CC}:
+    ack = recv_cmsg(csocket_bob)
+
+^b21 {type = CL}:
+    send_cmsg(csocket_bob, ack)
+    send_cmsg(csocket_charlie, ack)
+// END CREATE GHZ
+
+^b25 {type = CL}:
+    send_cmsg(csocket_bob, b)
+    send_cmsg(csocket_charlie, b)
+
+^b26 {type = QL}:
+    run_subroutine(tuple<b>) : anon_epr
+
+^b27 {type = CC}:
+    k2 = recv_cmsg(csocket_charlie)
+
+^b28 {type = CC}:
+    k1 = recv_cmsg(csocket_bob)
+// END ANONYMOUS EPR
+
+^b3 {type = QL}:
+    tuple<m1; m2> = run_subroutine() : teleport
+
+// at this point: no qubits are in memory
+
+// START CLASSICAL ANONYMOUS TRANSFER
+// END CLASSICAL ANONYMOUS TRANSFER
+
+// END QUANTUM ANONYMOUS TRANSFER
+^b5 {type = CL}:
+    return_result(outcome)
+
+SUBROUTINE init_qubit_to_send
+    params: 
+    returns: 
+    uses: 1
+    keeps: 1
+    request:
+  NETQASM_START
+    set Q1 1
+    init Q1
+    h Q1
+  NETQASM_END
+
+SUBROUTINE anon_epr
+    params: b
+    returns: 
+    uses: 0
+    keeps: 
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    set R0 0
+
+    beq C0 R0 2
+    z Q0
+
+    set R15 0
+  NETQASM_END
+
+SUBROUTINE teleport
+    params: 
+    returns: m1, m2
+    uses: 0, 1
+    keeps: 
+    request:
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    cnot Q1 Q0
+    h Q1
+    meas Q1 M1
+    meas Q0 M2
+    store M1 @output[0]
+    store M2 @output[1]
+  NETQASM_END
+
+SUBROUTINE measure
+    params: 
+    returns: outcome
+    uses: 0, 1
+    keeps: 
+    request:
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST epr_gen_bob
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create

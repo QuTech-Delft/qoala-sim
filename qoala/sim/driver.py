@@ -76,6 +76,8 @@ class CpuDriver(Driver):
     ) -> None:
         super().__init__(name=f"{node_name}_cpu_driver", memory=memory)
 
+        self._task_logger = LogManager.get_task_logger(f"{node_name}_CpuDriver")
+
         self._hostprocessor = hostprocessor
         self._memmgr = memmgr
 
@@ -172,6 +174,8 @@ class QpuDriver(Driver):
     ) -> None:
         super().__init__(name=f"{node_name}_qpu_driver", memory=memory)
 
+        self._task_logger = LogManager.get_task_logger(f"{node_name}_QpuDriver")
+
         self._qnosprocessor = qnosprocessor
         self._netstackprocessor = netstackprocessor
         self._memmgr = memmgr
@@ -190,7 +194,14 @@ class QpuDriver(Driver):
         routine = process.get_local_routine(routine_name)
         for virt_id in routine.metadata.qubit_use:
             if virt_id not in routine.metadata.qubit_keep:
+                self._task_logger.debug(f"freeing qubit {virt_id}")
                 self._memmgr.free(process.pid, virt_id)
+                phys_qubits_in_use = [
+                    i
+                    for i, vmap in self._memmgr._physical_mapping.items()
+                    if vmap is not None
+                ]
+                self._task_logger.debug(f"physical qubits in use: {phys_qubits_in_use}")
 
     def _handle_local_routine(
         self, task: LocalRoutineTask
