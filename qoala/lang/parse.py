@@ -246,7 +246,7 @@ class IqoalaInstrParser:
     """
 
     def __init__(
-        self, text: str, defined_vectors: Dict[str, hl.IqoalaVector] = None
+        self, text: str, defined_vectors: Optional[Dict[str, hl.IqoalaVector]] = None
     ) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]

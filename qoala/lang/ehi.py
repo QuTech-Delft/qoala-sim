@@ -246,7 +246,7 @@ class EhiBuilder:
         single_duration: float,
         two_instructions: List[Type[NetQASMInstruction]],
         two_duration: float,
-        all_qubit_instructions: List[Type[NetQASMInstruction]] = None,
+        all_qubit_instructions: Optional[List[Type[NetQASMInstruction]]] = None,
         all_qubit_duration: float = 0,
         latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
@@ -300,7 +300,7 @@ class EhiBuilder:
         flavour: Type[Flavour],
         single_gate_infos: List[EhiGateInfo],
         two_gate_infos: List[EhiGateInfo],
-        all_qubit_gate_infos: List[EhiGateInfo] = None,
+        all_qubit_gate_infos: Optional[List[EhiGateInfo]] = None,
         latencies: Optional[EhiLatencies] = None,
     ) -> EhiNodeInfo:
         """

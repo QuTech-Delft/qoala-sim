@@ -1243,7 +1243,7 @@ class QpuScheduler(ProcessorScheduler):
 
             # Get virt IDs which would be need to be allocated
             if routine.request.virt_ids.typ == VirtIdMappingType.EQUAL:
-                virt_id = routine.request.virt_ids.single_value
+                virt_id = routine.request.virt_ids.single_value  # type: ignore
                 assert virt_id is not None and isinstance(virt_id, int)
                 virt_ids = [virt_id]
             else:
@@ -1284,7 +1284,7 @@ class QpuScheduler(ProcessorScheduler):
                     if self._memmgr.phys_id_for(task.pid, vid) is None
                 ]
                 # try to allocate them
-                temp_allocated: List[int] = []
+                temp_allocated = []
                 for virt_id in new_ids:
                     self._memmgr.allocate(task.pid, virt_id)
                     temp_allocated.append(virt_id)  # successful alloc

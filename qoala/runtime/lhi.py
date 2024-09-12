@@ -287,7 +287,7 @@ class LhiTopologyBuilder:
         single_duration: float,
         two_instructions: List[NetSquidInstruction],
         two_duration: float,
-        all_qubit_instructions: List[NetSquidInstruction] = None,
+        all_qubit_instructions: Optional[List[NetSquidInstruction]] = None,
         all_qubit_duration: float = 0,
     ) -> LhiTopology:
         if all_qubit_instructions is None:
@@ -320,7 +320,7 @@ class LhiTopologyBuilder:
         qubit_info: LhiQubitInfo,
         single_gate_infos: List[LhiGateInfo],
         two_gate_infos: List[LhiGateInfo],
-        all_qubit_gate_infos: List[LhiGateInfo] = None,
+        all_qubit_gate_infos: Optional[List[LhiGateInfo]] = None,
     ) -> LhiTopology:
         q_infos = {i: qubit_info for i in range(num_qubits)}
         sg_infos = {i: single_gate_infos for i in range(num_qubits)}

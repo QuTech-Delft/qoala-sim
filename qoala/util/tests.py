@@ -22,7 +22,7 @@ class SimpleNetSquidProtocol(Protocol):
         self.result = None
 
     def run(self) -> Generator[EventExpression, None, None]:
-        self.result = yield from self._gen
+        self.result = yield from self._gen  # type: ignore
 
 
 def netsquid_run(generator: Generator):

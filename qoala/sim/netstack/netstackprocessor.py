@@ -72,6 +72,8 @@ class NetstackProcessor:
         memmgr = self._interface.memmgr
         pid = process.pid
         phys_id = memmgr.phys_id_for(pid, virt_id)
+        if phys_id is None:
+            raise RuntimeError(f"phys id {phys_id} not allocated")
 
         epr_sck = process.epr_sockets[request.epr_socket_id]
 
