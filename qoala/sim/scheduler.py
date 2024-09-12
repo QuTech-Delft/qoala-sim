@@ -189,9 +189,9 @@ class NodeScheduler(Protocol):
 
         self._current_block_index: Dict[int, int] = {}  # program ID -> block index
         self._task_from_block_builder = TaskGraphFromBlockBuilder()
-        self._prog_instance_dependency: Dict[int, int] = (
-            {}
-        )  # program ID -> dependent program ID
+        self._prog_instance_dependency: Dict[
+            int, int
+        ] = {}  # program ID -> dependent program ID
 
         self._const_batch: Optional[ProgramBatch] = None
 
@@ -366,9 +366,9 @@ class NodeScheduler(Protocol):
                 self.initialize_process(process)
                 self._current_block_index[prog_instance.pid] = 0
                 if linear:
-                    self._prog_instance_dependency[prog_instance.pid] = (
-                        prev_prog_instance_id
-                    )
+                    self._prog_instance_dependency[
+                        prog_instance.pid
+                    ] = prev_prog_instance_id
                     prev_prog_instance_id = prog_instance.pid
                 else:
                     self._prog_instance_dependency[prog_instance.pid] = -1
