@@ -28,6 +28,8 @@ class ProcessorType(Enum):
 
 
 class QoalaTask:
+    """Base class for Qoala tasks."""
+
     def __init__(
         self,
         task_id: int,
@@ -401,7 +403,11 @@ class TaskInfo:
 
 @dataclass
 class TaskGraph:
-    """DAG of Tasks."""
+    """DAG of Tasks.
+
+    Nodes are TaskInfo objects, which point to a Task object and
+    optionally to more info like deadlines, successors, etc.
+    """
 
     def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None) -> None:
         if tasks is None:
@@ -423,7 +429,7 @@ class TaskGraph:
 
     def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x precedes y (y should execute after x)
-        for (x, y) in precedences:
+        for x, y in precedences:
             assert x in self._tasks and y in self._tasks
             self._tasks[y].predecessors.add(x)
             self._tasks[x].successors.add(y)
@@ -439,19 +445,19 @@ class TaskGraph:
     def add_ext_precedences(self, precedences: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x (which is not in this graph) precedes y
         # (which is in this graph)
-        for (x, y) in precedences:
+        for x, y in precedences:
             assert x not in self._tasks and y in self._tasks
             self._tasks[y].ext_predecessors.add(x)
 
     def add_deadlines(self, deadlines: List[Tuple[int, int]]) -> None:
-        for (x, d) in deadlines:
+        for x, d in deadlines:
             assert x in self._tasks
             self._tasks[x].deadline = d
 
     def add_rel_deadlines(self, deadlines: List[Tuple[Tuple[int, int], int]]) -> None:
         # entry ((x, y), d) means
         # task y must start at most time d time units after task x has finished
-        for ((x, y), d) in deadlines:
+        for (x, y), d in deadlines:
             assert x in self._tasks and y in self._tasks
             self._tasks[y].rel_deadlines[x] = d
 
@@ -460,7 +466,7 @@ class TaskGraph:
     ) -> None:
         # entry ((x, y), d) means
         # task y must start at most time d time units after task x has finished
-        for ((x, y), d) in deadlines:
+        for (x, y), d in deadlines:
             assert x not in self._tasks and y in self._tasks  # x is external
             self._tasks[y].ext_rel_deadlines[x] = d
 
@@ -644,8 +650,12 @@ class TaskGraph:
 
 
 class TaskGraphBuilder:
+    """Convenience methods for creating a task graph."""
+
     @classmethod
     def linear_tasks(cls, tasks: List[QoalaTask]) -> TaskGraph:
+        """Create a task graph that is a 1D chain of the given tasks.
+        That is, the tasks given in the list must be executed consecutively."""
         tinfos: List[TaskInfo] = [TaskInfo.only_task(task) for task in tasks]
 
         for i in range(len(tinfos) - 1):
@@ -678,6 +688,14 @@ class TaskGraphBuilder:
 
     @classmethod
     def merge(cls, graphs: List[TaskGraph]) -> TaskGraph:
+        """Merge the given task graphs into a single task graph.
+        The original task graphs are disjoint from each other in the resulting graph,
+        i.e. there are no precedence constraints between tasks across original task graphs.
+        A common use case for this function is when one wishes to execute multiple programs
+        *concurrently*. For each program, a separate task graph is created (containing the tasks
+        for that specific program including their internal precedence constraints).
+        Then, these task graphs are merged into one single task graph and given to the node scheduler.
+        """
         merged_tinfos = {}
         for graph in graphs:
             for tid, tinfo in graph.get_tasks().items():
@@ -689,6 +707,14 @@ class TaskGraphBuilder:
 
     @classmethod
     def merge_linear(cls, graphs: List[TaskGraph]) -> TaskGraph:
+        """Merge the given task graphs into a single task graph, like in the `merge()` function above,
+        but add precedence constraints between the final task to graph G[i] and the first task of graph G[i+1]
+        (when calling that the given list of graphs [G1, G2, G3, ...]).
+        A common use case for this function is when one wishes to execute multiple programs
+        *sequentially*. For each program, a separate task graph is created (containing the tasks
+        for that specific program including their internal precedence constraints).
+        Then, these task graphs are merged into one single task graph and given to the node scheduler.
+        """
         merged_tinfos = {}
         for graph in graphs:
             for tid, tinfo in graph.get_tasks().items():

@@ -122,6 +122,28 @@ class NodeSchedulerComponent(Component):
 
 
 class NodeScheduler(Protocol):
+    """Scheduler of tasks on a node.
+
+    The NodeScheduler has a single task graph, containing tasks to be executed.
+    These tasks may be for different programs and program instances, allowing
+    concurrent execution of programs and program instances.
+
+    The scheduler's behavior is different depending on the `is_predictable` parameter
+    used when constructing the NodeScheduler object.
+    - When `is_predictable` is True, the scheduler assumes that the control-flow of all programs
+    being executed is known beforehand, and that this control-flow is already encoded in the task
+    graph that is uploaded to it (using `upload_task_graph()`). That is, when predictable programs
+    are to be executed, the user must create a "full" task graph (meaning, a graph containing all
+    tasks needed for full execution of the programs), and upload it before starting the scheduler.
+    The scheduler then simply executes all tasks until the task graph is empty.
+    It will hence never itself add new tasks to the task graph at runtime.
+    - When `is_predictable` is False, the scheduler assumes that the control-flow of the programs
+    being executed is *not* necessarily known beforehand. Therefore, the scheduler expects that the
+    initial task graph uploaded only contains the first task(s) of each of the programs to be executed.
+    Then, upon completing any of the tasks, the scheduler will itself check the program contents and
+    dynamically create and add new tasks to the task graph, based on the control-flow of the program.
+    """
+
     def __init__(
         self,
         node_name: str,
@@ -167,9 +189,9 @@ class NodeScheduler(Protocol):
 
         self._current_block_index: Dict[int, int] = {}  # program ID -> block index
         self._task_from_block_builder = TaskGraphFromBlockBuilder()
-        self._prog_instance_dependency: Dict[
-            int, int
-        ] = {}  # program ID -> dependent program ID
+        self._prog_instance_dependency: Dict[int, int] = (
+            {}
+        )  # program ID -> dependent program ID
 
         self._const_batch: Optional[ProgramBatch] = None
 
@@ -344,9 +366,9 @@ class NodeScheduler(Protocol):
                 self.initialize_process(process)
                 self._current_block_index[prog_instance.pid] = 0
                 if linear:
-                    self._prog_instance_dependency[
-                        prog_instance.pid
-                    ] = prev_prog_instance_id
+                    self._prog_instance_dependency[prog_instance.pid] = (
+                        prev_prog_instance_id
+                    )
                     prev_prog_instance_id = prog_instance.pid
                 else:
                     self._prog_instance_dependency[prog_instance.pid] = -1
