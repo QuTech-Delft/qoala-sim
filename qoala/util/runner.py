@@ -456,3 +456,76 @@ def run_single_node_app(
     return run_single_node_app_separate_inputs(
         num_iterations, program_name, program, new_inputs, network_cfg, linear
     )
+
+
+def run_n_node_app_separate_inputs(
+    num_iterations: int,
+    programs: Dict[str, QoalaProgram],
+    program_inputs: Dict[str, List[ProgramInput]],
+    network_cfg: ProcNodeNetworkConfig,
+    linear: bool = False,
+) -> AppResult:
+    ns.sim_reset()
+    ns.set_qstate_formalism(ns.QFormalism.DM)
+    seed = random.randint(0, 1000)
+    ns.set_random_state(seed=seed)
+
+    network = build_network_from_config(network_cfg)
+
+    names = list(programs.keys())
+    other_names: Dict[str, List[str]] = {}
+    for name in names:
+        other_names[name] = [other for other in names if other != name]
+    batches: Dict[str, ProgramBatch] = {}  # node -> batch
+
+    for name in names:
+        procnode = network.nodes[name]
+        program = programs[name]
+        inputs = program_inputs[name]
+
+        unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
+        batch_info = create_batch(program, unit_module, inputs, num_iterations)
+        batches[name] = procnode.submit_batch(batch_info)
+
+    for name in names:
+        procnode = network.nodes[name]
+
+        remote_batches = [batches[other_name] for other_name in other_names[name]]
+        remote_pids = {
+            remote_batch.batch_id: [p.pid for p in remote_batch.instances]
+            for remote_batch in remote_batches
+        }
+        procnode.initialize_processes(remote_pids, linear=linear)
+
+    network.start()
+    ns.sim_run()
+
+    results: Dict[str, BatchResult] = {}
+    statistics: Dict[str, SchedulerStatistics] = {}
+
+    for name in names:
+        procnode = network.nodes[name]
+        # only one batch (ID = 0), so get value at index 0
+        results[name] = procnode.scheduler.get_batch_results()[0]
+        statistics[name] = procnode.scheduler.get_statistics()
+
+    total_duration = ns.sim_time()
+    return AppResult(results, statistics, total_duration)
+
+
+def run_n_node_app(
+    num_iterations: int,
+    programs: Dict[str, QoalaProgram],
+    program_inputs: Dict[str, ProgramInput],
+    network_cfg: ProcNodeNetworkConfig,
+    linear: bool = False,
+) -> AppResult:
+
+    names = list(programs.keys())
+    new_inputs = {
+        name: [program_inputs[name] for _ in range(num_iterations)] for name in names
+    }
+
+    return run_n_node_app_separate_inputs(
+        num_iterations, programs, new_inputs, network_cfg, linear
+    )

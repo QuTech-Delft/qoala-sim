@@ -1,0 +1,130 @@
+META_START
+    name: alice
+    parameters: bob_id, state
+    csockets: 0 -> bob
+    epr_sockets: 0 -> bob
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = QL}:
+    run_subroutine(tuple<state>) : prepare_qubit
+
+^b2 {type = QC}:
+    run_request() : epr_gen
+
+^b3 {type = QL}:
+    tuple<alice_meas> = run_subroutine() : cnot_meas
+
+^b4 {type = CL}:
+    send_cmsg(csocket, alice_meas)
+
+^b8 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b5 {type = CC}:
+    bob_meas = recv_cmsg(csocket)
+
+^b6 {type = QL}:
+    run_subroutine(tuple<bob_meas>) : z_correction
+
+
+SUBROUTINE prepare_qubit
+    params: state
+    returns:
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    // get state
+    // 0: |+>, 1: |->
+    // 2: |+i>, 3: |-i>
+    // 4: |0>, 5: |1>
+    load C0 @input[0]
+
+    set Q0 0
+    init Q0
+
+    set C1 0
+    bne C0 C1 3  // check state == 0
+    // rotate to |+>
+    rot_y Q0 8 4
+    jmp 19
+
+    set C1 1
+    bne C0 C1 3  // check state == 1
+    // rotate to |->
+    rot_y Q0 24 4
+    jmp 15
+
+    set C1 2
+    bne C0 C1 3  // check state == 2
+    // rotate to |+i>
+    rot_x Q0 24 4
+    jmp 11
+
+    set C1 3
+    bne C0 C1 3  // check state == 3
+    // rotate to |-i>
+    rot_x Q0 8 4
+    jmp 7
+
+    set C1 4
+    bne C0 C1 2  // check state == 4
+    // rotate to |0>, i.e. no rotation
+    jmp 4
+
+    set C1 5
+    bne C0 C1 2  // check state == 5
+    // rotate to |1>
+    rot_x Q0 16 4
+
+    // no-op used as final instr to jump to
+    jmp 1
+  NETQASM_END
+
+SUBROUTINE cnot_meas
+    params:
+    returns: alice_meas
+    uses: 0, 1
+    keeps: 0
+    request:
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    cnot Q0 Q1
+    meas Q1 M1
+    store M1 @output[0]
+  NETQASM_END
+
+SUBROUTINE z_correction
+    params: target_meas
+    returns:
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    set Q0 0
+    load C0 @input[0]
+    set C1 1
+    bne C0 C1 2  // check target_meas == 1
+    z Q0
+
+    // no-op used as final instr to jump to
+    jmp 1
+  NETQASM_END
+
+REQUEST epr_gen
+  callback_type:
+  callback:
+  return_vars:
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+

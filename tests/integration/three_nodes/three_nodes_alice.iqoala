@@ -1,0 +1,75 @@
+META_START
+    name: alice
+    parameters: bob_id, charlie_id
+    csockets:
+    epr_sockets: 0 -> bob, 1 -> charlie
+META_END
+
+^b0 {type = QC}:
+    run_request() : req_bob
+
+^b1 {type = QL}:
+    tuple<m_ab> = run_subroutine() : measure_bob
+
+^b2 {type = QC}:
+    run_request() : req_charlie
+
+^b3 {type = QL}:
+    tuple<m_ac> = run_subroutine() : measure_charlie
+
+^b4 {type = CL}:
+    return_result(m_ab)
+    return_result(m_ac)
+
+SUBROUTINE measure_bob
+    params:
+    returns: m_ab
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    set Q0 0
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE measure_charlie
+    params:
+    returns: m_ac
+    uses: 1
+    keeps:
+    request:
+  NETQASM_START
+    set Q1 1
+
+    meas Q1 M1
+    store M1 @output[0]
+  NETQASM_END
+
+REQUEST req_bob
+  callback_type:
+  callback:
+  return_vars:
+  remote_id: {bob_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+
+
+REQUEST req_charlie
+  callback_type:
+  callback:
+  return_vars:
+  remote_id: {charlie_id}
+  epr_socket_id: 1
+  num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
