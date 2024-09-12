@@ -20,6 +20,15 @@ from qoala.lang.routine import LocalRoutine
 
 @dataclass
 class ProgramMeta:
+    """
+    Metadata for a Qoala program.
+
+    name: name of the program
+    parameters: list of parameter names (all have type int)
+    csockets: dict of csockets (socket ID -> remote node name)
+    epr_sockets: dict of epr_sockets (socket ID -> remote node name)
+    """
+
     name: str
     parameters: List[str]  # list of parameter names (all have type int)
     csockets: Dict[int, str]  # socket ID -> remote node name
@@ -27,6 +36,9 @@ class ProgramMeta:
 
     @classmethod
     def empty(cls, name: str) -> ProgramMeta:
+        """
+        Convenience method for creating an empty ProgramMeta.
+        """
         return ProgramMeta(name=name, parameters=[], csockets={}, epr_sockets={})
 
     def serialize(self) -> str:
@@ -40,6 +52,15 @@ class ProgramMeta:
 
 
 class QoalaProgram:
+    """
+    A whole Qoala Program. Consists of a metadata, alist of blocks, a list of local routines and request routines.
+
+    :param meta: Metadata of the program
+    :param blocks: List of blocks that contain Classical Iqoala Operations
+    :param local_routines: Dict of local routines (name -> LocalRoutine)
+    :param request_routines: Dict of request routines (name -> RequestRoutine)
+    """
+
     def __init__(
         self,
         meta: ProgramMeta,
@@ -68,10 +89,16 @@ class QoalaProgram:
 
     @property
     def meta(self) -> ProgramMeta:
+        """
+        Metadata of the program
+        """
         return self._meta
 
     @property
     def blocks(self) -> List[BasicBlock]:
+        """
+        List of blocks that contain Classical Iqoala Operations
+        """
         return self._blocks
 
     @blocks.setter
@@ -79,13 +106,30 @@ class QoalaProgram:
         self._blocks = new_blocks
 
     def get_block(self, name: str) -> BasicBlock:
+        """
+        Get the block with the given name.
+
+        :param name: Name of the block.
+
+        :return: The block with the given name.
+        """
         return self._block_mapping[name]
 
     def get_block_id(self, name: str) -> int:
+        """
+        Get the id of the block with the given name.
+
+        :param name: Name of the block.
+
+        :return: The id of the block with the given name.
+        """
         return self._blocks.index(self._block_mapping[name])
 
     @property
     def instructions(self) -> List[ClassicalIqoalaOp]:
+        """
+        List of all instructions in the program. It is a concatenation of all instructions in all blocks.
+        """
         instrs = []
         for b in self.blocks:
             instrs.extend(b.instructions)
@@ -93,6 +137,9 @@ class QoalaProgram:
 
     @property
     def local_routines(self) -> Dict[str, LocalRoutine]:
+        """
+        Dict of local routines (name -> LocalRoutine)
+        """
         return self._local_routines
 
     @local_routines.setter
@@ -101,6 +148,9 @@ class QoalaProgram:
 
     @property
     def request_routines(self) -> Dict[str, RequestRoutine]:
+        """
+        Dict of request routines (name -> RequestRoutine)
+        """
         return self._request_routines
 
     @request_routines.setter

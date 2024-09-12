@@ -42,10 +42,18 @@ LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
 
 
 class EndOfTextException(Exception):
+    """ "
+    This exception is raised when the parser unexpectedly reaches the end of the text.
+    """
+
     pass
 
 
 class QoalaParseError(Exception):
+    """
+    This exception is raised when the parser encounters an error in the text.
+    """
+
     pass
 
 
@@ -63,6 +71,23 @@ def is_valid_name(name: str) -> bool:
 
 
 class IqoalaMetaParser:
+    """
+    This class parses the Qoala program's metadata. The metadata is given in the following format:
+
+    META_START
+        name: <program name>
+        parameters: <parameter 1>, <parameter 2>, ...
+        csockets: <socket ID 1> -> <remote node name 1>, <socket ID 2> -> <remote node name 2>, ...
+        epr_sockets: <socket ID 1> -> <remote node name 1>, <socket ID 2> -> <remote node name 2>, ...
+    META_END
+
+    The order of the metadata lines must be "name", "parameters", "csockets", "epr_sockets". The "name" line must
+    have a single value, and the "parameters", "csockets", "epr_sockets" lines can have multiple values. Name,
+    parameters, remote node names must be valid variable names.
+
+    :param text: Text to parse.
+    """
+
     def __init__(self, text: str) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
@@ -73,6 +98,12 @@ class IqoalaMetaParser:
         self._lineno += 1
 
     def _read_line(self) -> str:
+        """
+        Reads the next non-empty line in the text.
+
+        :return: The next non-empty line in the text.
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         while True:
             if self._lineno >= len(self._lines):
                 raise EndOfTextException
@@ -83,8 +114,17 @@ class IqoalaMetaParser:
             # if no non-empty line, will always break on EndOfLineException
 
     def _parse_meta_line(self, key: str, line: str) -> List[str]:
+        """
+        Parses a single line of the metadata.
 
-        if line.count(":") > 1:
+        :param key: The key of the metadata line. For example, "name" or "parameters".
+        :param line: The line to parse.
+        :return: List of comma-separated values in the line.
+        :raises QoalaParseError: If line does not have a single colon, or if the line does not
+        start with the given key.
+        """
+
+        if line.count(":") != 1:
             raise QoalaParseError("Qoala Program Meta lines must have a single colon.")
         split = line.split(":")
 
@@ -98,6 +138,16 @@ class IqoalaMetaParser:
         return [v.strip() for v in values]
 
     def _parse_meta_mapping(self, values: List[str]) -> Dict[int, str]:
+        """
+        Parses a mapping in the metadata. For example, the mapping from socket IDs to remote
+        node names.
+
+        :param values: List of key-value pairs separated by "->".
+        :return: Dictionary of key-value pairs.
+
+        :raises QoalaParseError: If the mapping does not have a single arrow "->" between the
+        key and value, or if the key is not an integer.
+        """
         result_dict = {}
         for v in values:
             if v.count("->") != 1:
@@ -116,6 +166,16 @@ class IqoalaMetaParser:
         return result_dict
 
     def parse(self) -> ProgramMeta:
+        """
+        Primary method of the class. Parses the metadata.
+
+        :return: ProgramMeta object containing the metadata information given in the text.
+
+        :raises QoalaParseError: If the text is not in the correct format. See the class
+        description for the correct format.
+
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         try:
             start_line = self._read_line()
             if start_line != "META_START":
@@ -164,6 +224,27 @@ class IqoalaMetaParser:
 
 
 class IqoalaInstrParser:
+    """
+    This class parses instructions in a single block of a Qoala program. The instructions are given in the following
+    format:
+
+    <result> = <operation>(<argument 1>, <argument 2>, ...): <attribute>
+
+    Tuple format is: tuple<value 1>; <value 2>; ...> i.e. tuple<x; y>
+    Vector format is: <vector name><vector size> i.e. my_vec<5>
+    Vector indexing format is: <vector name>[<index>] i.e. my_vec[3]
+    singleton format is: <singleton name> i.e. x
+
+    Both vectors and singletons are passed similarly as an argument. In order to differentiate between them, the
+    parser internally stores the defined vectors. Also, all variable names must be valid variable names.
+
+    :param text: Text to parse.
+    :param defined_vectors: Dictionary of defined vectors. The keys are the names of the vectors, and the values
+    are the vectors themselves. For each Qoala Program it is stored in HostCodeParser and passed to the
+    IqoalaInstrParser.
+
+    """
+
     def __init__(
         self, text: str, defined_vectors: Dict[str, hl.IqoalaVector] = None
     ) -> None:
@@ -179,6 +260,12 @@ class IqoalaInstrParser:
         self._lineno += 1
 
     def _read_line(self) -> str:
+        """
+        Reads the next non-empty line in the text.
+
+        :return: The next non-empty line in the text.
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         while True:
             if self._lineno >= len(self._lines):
                 raise EndOfTextException
@@ -189,6 +276,21 @@ class IqoalaInstrParser:
             # if no non-empty line, will always break on EndOfLineException
 
     def _parse_var(self, var_str: str, is_result=False) -> IqoalaVar:
+        """
+        Parses a variable in the instruction. The variable can be a singleton, a vector, a tuple, or a vector
+        element.
+
+        :param var_str: The variable to parse.
+        :param is_result: True if the variable is a result variable, False otherwise. It is used to ensure that
+        vectors are defined only as result variables.
+
+        :return: Variable parsed into its corresponding IqoalaVar object. For example, tuples are parsed into
+        IqoalaTuple objects, and vectors are parsed into IqoalaVector objects.
+
+        :raises QoalaParseError: If the variable is not in the correct format. See the class description for the
+        correct format, or if a vector is defined as a non-result variable, or if a vector is indexed before
+        being defined.
+        """
         if var_str.startswith("tuple"):
             if var_str[5] != "<" or not var_str.endswith(">"):
                 raise QoalaParseError(
@@ -269,6 +371,14 @@ class IqoalaInstrParser:
             return IqoalaSingleton(var_str)
 
     def _parse_lhr(self) -> hl.ClassicalIqoalaOp:
+        """
+        Parses a single instruction in the Qoala program. The instruction format is given in the class description.
+
+        :return: The parsed instruction in the form of a ClassicalIqoalaOp object.
+
+        :raises QoalaParseError: If the instruction is not in the correct format. See the class description for
+        the correct format.
+        """
         line = self._read_line()
 
         attr: Optional[hl.IqoalaValue]
@@ -323,6 +433,13 @@ class IqoalaInstrParser:
         return lhr_op
 
     def parse(self) -> List[hl.ClassicalIqoalaOp]:
+        """
+        Primary method of the class. Parses the instructions in a single block.
+
+        :return: List of parsed instructions.
+
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         instructions: List[hl.ClassicalIqoalaOp] = []
 
         try:
@@ -336,6 +453,21 @@ class IqoalaInstrParser:
 
 
 class HostCodeParser:
+    """
+    This class parses the blocks of a Qoala program. The blocks are given in the following format:
+
+    ^<block name>{type: <block type>, [<other block name> : <deadline>, ...]}:
+        <instruction 1>
+        <instruction 2>
+        ...
+
+    The block name must be a valid variable name. The block type must be one of the following: 'CL', 'CC', 'QL', 'QC'.
+    The block type is case-insensitive. The block deadline is optional. It internally stores the defined vectors, and
+    passes them to the IqoalaInstrParser for each block.
+
+    :param text: Text to parse.
+    """
+
     def __init__(self, text: str) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
@@ -346,6 +478,13 @@ class HostCodeParser:
         self._defined_vectors: Dict[str, hl.IqoalaVector] = {}  # name -> vector
 
     def get_block_texts(self) -> List[str]:
+        """
+        Gets the text of each block in the Qoala program. Both the block header and the block instructions are
+        included in the text.
+
+        :return: List of block texts.
+        :raises QoalaParseError: If the Qoala program does not have any blocks.
+        """
         block_start_lines: List[int] = []
 
         for i, line in enumerate(self._lines):
@@ -369,6 +508,12 @@ class HostCodeParser:
         return block_texts
 
     def _parse_deadlines(self, text: str) -> Dict[str, int]:
+        """
+        Parses the deadlines of a block. The deadline format is given in the class description.
+
+        :param text: Text to parse.
+        :return: Dictionary of block names and their corresponding deadlines.
+        """
         open_bracket = text.find("[")
         assert open_bracket >= 0
         close_bracket = text.find("]")
@@ -383,6 +528,15 @@ class HostCodeParser:
     def _parse_block_annotations(
         self, annotations: str
     ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]]]:
+        """
+        Parses the annotations of a block which are the block type and deadlines. The annotations format is given
+        in the class description.
+
+        :param annotations: Annotations text to parse.
+        :return: Tuple containing the block type and the deadlines.
+        :raises QoalaParseError: If the annotations are not in the correct format. See the class description for
+        the correct format.
+        """
         annotations_parts = annotations.split(",")
         if annotations_parts[0].count("=") != 1:
             raise QoalaParseError("Block type annotation must have exactly one '='.")
@@ -407,6 +561,15 @@ class HostCodeParser:
     def _parse_block_header(
         self, line: str
     ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]]]:
+        """
+        Parses the header of a block. Header contains the block name, block type, and block deadlines. The header
+        format is given in the class description.
+
+        :param line: Header text to parse.
+        :return: Tuple containing the block name, block type, and block deadlines.
+        :raises QoalaParseError: If the header is not in the correct format. See the class description for the
+        correct format.
+        """
         # return (block name, block type, block deadline)
         if not line.startswith("^"):
             raise QoalaParseError("Block header must start with '^'.")
@@ -435,6 +598,12 @@ class HostCodeParser:
         return name, typ, deadline
 
     def parse_block(self, text: str) -> hl.BasicBlock:
+        """
+        Parses a single block of the Qoala program. The block format is given in the class description.
+
+        :param text: Text to parse.
+        :return: Parsed block.
+        """
         lines = [line.strip() for line in text.split("\n")]
         lines = [line for line in lines if len(line) > 0]
         name, typ, deadline = self._parse_block_header(lines[0])
@@ -446,11 +615,37 @@ class HostCodeParser:
         return hl.BasicBlock(name, typ, instrs, deadline)
 
     def parse(self) -> List[hl.BasicBlock]:
+        """
+        Primary method of the class. Parses all the blocks of the Qoala program.
+
+        :return: List of parsed blocks.
+        """
         block_texts = self.get_block_texts()
         return [self.parse_block(text) for text in block_texts]
 
 
 class LocalRoutineParser:
+    """
+    This class parses all subroutines in a Qoala program. The subroutine is given in the following format:
+
+    SUBROUTINE <subroutine name>
+        params: <param 1>, <param 2>, ...
+        returns: <return 1>, <return 2>, ...
+        uses: <used qubit id 1>, <used qubit id 2>, ...
+        keeps: <kept qubit id 1>, <kept qubit id 2>, ...
+        request: <request name 1>, <request name 2>, ...
+      NETQASM_START
+        <netqasm code>
+      NETQASM_END
+
+    The metadata lines must be in the given order. NetQasm code is parsed into NetQasm's Subroutine object using
+    its own parser. Subroutine name, parameters, return values, request names must be valid variable names. Values
+    for params, returns, uses, keeps, request are optional.
+
+    :param text: Text of all subroutines in a Qoala program to parse.
+    :param flavour: Flavour of the Qoala program. It is used to parse the NetQasm code.
+    """
+
     def __init__(self, text: str, flavour: Optional[Flavour] = None) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
@@ -464,6 +659,12 @@ class LocalRoutineParser:
         self._lineno += 1
 
     def _read_line(self) -> str:
+        """
+        Reads the next non-empty line in the text.
+
+        :return: The next non-empty line in the text.
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         while True:
             if self._lineno >= len(self._lines):
                 raise EndOfTextException
@@ -474,6 +675,15 @@ class LocalRoutineParser:
             # if no non-empty line, will always break on EndOfLineException
 
     def _parse_subrt_meta_line(self, key: str, line: str) -> List[str]:
+        """
+        Parses a single line of the subroutine's metadata.
+
+        :param key: The key of the subroutine's metadata line. For example, "params" or "returns".
+        :param line: The line to parse.
+        :return: List of comma-separated values in the line.
+        :raises QoalaParseError: If line does not have a single colon, or if the line does not
+        start with the given key.
+        """
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
         split = line.split(":")
@@ -493,6 +703,16 @@ class LocalRoutineParser:
     def _parse_subrt_meta_line_with_vecs(
         self, key: str, line: str
     ) -> List[Union[str, IqoalaVector]]:
+        """
+        Parses a single line of the subroutine's metadata where the values can be vectors. It is used for the
+        "returns" line.
+
+        :param key: The key of the subroutine's metadata line.
+        :param line: The line to parse.
+        :return: List of comma-separated values in the line.
+        :raises QoalaParseError: If the line is not in the given format, or if the key of the line does not match
+        with the given key, or if the vectors are not in the correct format, or the variable names are not valid.
+        """
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
         split = line.split(":")
@@ -550,6 +770,14 @@ class LocalRoutineParser:
         return values
 
     def _parse_subroutine(self) -> LocalRoutine:
+        """
+        Parses a single subroutine in the Qoala program. The subroutine format is given in the class description.
+
+        :return: Parsed subroutine.
+        :raises QoalaParseError: If the subroutine is not in the correct format. See the class description for
+        the correct format.
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         name_line = self._read_line()
         if not name_line.startswith("SUBROUTINE "):
             raise QoalaParseError("SubRoutine Meta must start with 'SUBROUTINE'.")
@@ -620,6 +848,13 @@ class LocalRoutineParser:
         return LocalRoutine(name, subrt, return_vars, metadata, request_name)
 
     def parse(self) -> Dict[str, LocalRoutine]:
+        """
+        Primary method of the class. Parses all the subroutines in the Qoala program.
+
+        :return: Dictionary of subroutine names and their corresponding LocalRoutine objects.
+        :raises QoalaParseError: If the subroutine is not in the correct format. See the class description for
+        the correct format.
+        """
         subroutines: Dict[str, LocalRoutine] = {}
         try:
             while True:
@@ -633,6 +868,35 @@ class LocalRoutineParser:
 
 
 class RequestRoutineParser:
+    """
+    This class parses all request routines in a Qoala program. The request routine is given in the following
+    format:
+
+    REQUEST <req name>
+      callback_type: <callback type>
+      callback: <callback name>
+      return_vars: <return var 1>, <return var 2>, ...
+      remote_id: <remote id>
+      epr_socket_id: <epr socket id>
+      num_pairs: <num pairs>
+      virt_ids: <virt id mapping>
+      timeout: <timeout>
+      fidelity: <fidelity>
+      typ: <epr type>
+      role: <epr role>
+
+    The metadata lines must be in the given order. callback_type and callback are optional. But if callback is
+    specified, then callback_type must also be specified. Other lines are required.
+    req_name, callback_name and variable names in return_vars must be valid variable names.
+    Callback type must be one of the following: 'sequential', 'wait_all' (case-insensitive).
+    virt_ids must follow the format given in its description. typ must be one of the following:
+    create_keep, measure_directly, or remote_state_prep (case-insensitive). role must be one of the following:
+    create or keep(case-insensitive). remote_id, epr_socket_id, num_pairs must be integers. timeout and fidelity
+    must be floats. Fidelity also needs to be between 0 and 1.
+
+    :param text: Text of all request routines in a Qoala program to parse.
+    """
+
     def __init__(self, text: str) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
@@ -643,6 +907,12 @@ class RequestRoutineParser:
         self._lineno += 1
 
     def _read_line(self) -> str:
+        """
+        Reads the next non-empty line in the text.
+
+        :return: The next non-empty line in the text.
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         while True:
             if self._lineno >= len(self._lines):
                 raise EndOfTextException
@@ -653,6 +923,15 @@ class RequestRoutineParser:
             # if no non-empty line, will always break on EndOfLineException
 
     def _parse_request_line(self, key: str, line: str) -> List[str]:
+        """
+        Parses a single line of the request routine's metadata.
+
+        :param key: The key of the request routine's metadata line. For example, "callback_type" or "callback".
+        :param line: The line to parse.
+        :return: List of comma-separated values in the line.
+        :raises QoalaParseError: If line does not have a single colon, or if the line does not
+        start with the given key.
+        """
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
         split = line.split(":")
@@ -671,6 +950,16 @@ class RequestRoutineParser:
     def _parse_request_line_with_vecs(
         self, key: str, line: str
     ) -> List[Union[str, IqoalaVector]]:
+        """
+        Parses a single line of the request routine's metadata where the values can be vectors. It is used for the
+        "return_vars" line.
+
+        :param key: The key of the request routine's metadata line.
+        :param line: The line to parse.
+        :return: List of comma-separated values in the line.
+        :raises QoalaParseError: If the line is not in the given format, or if the key of the line does not match
+        with the given key, or if the vectors are not in the correct format, or the variable names are not valid.
+        """
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
         split = line.split(":")
@@ -728,6 +1017,16 @@ class RequestRoutineParser:
         return values
 
     def _parse_single_int_value(self, key: str, line: str) -> Union[int, Template]:
+        """
+        Parses a single line of the request routine's metadata where the value is an integer or a template.
+        Template values must be in the format {<template name>}. For example, {n}. The template name must be a valid
+        variable name.
+
+        :param key: The key of the request routine's metadata line.
+        :param line: The line to parse.
+        :return: The parsed value.
+        :raises QoalaParseError: If the value is not in the correct format.
+        """
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise QoalaParseError(
@@ -757,6 +1056,16 @@ class RequestRoutineParser:
         return strings[0]
 
     def _parse_single_float_value(self, key: str, line: str) -> Union[float, Template]:
+        """
+        Parses a single line of the request routine's metadata where the value is an float or a template.
+        Template values must be in the format {<template name>}. For example, {n}. The template name must be a valid
+        variable name.
+
+        :param key: The key of the request routine's metadata line.
+        :param line: The line to parse.
+        :return: The parsed value.
+        :raises QoalaParseError: If the value is not in the correct format.
+        """
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise QoalaParseError(
@@ -776,6 +1085,14 @@ class RequestRoutineParser:
             raise QoalaParseError(f"Value for {key} must be a float or a template.")
 
     def _parse_epr_create_role_value(self, key: str, line: str) -> EprRole:
+        """
+        Parses EPR role line of the request routine's metadata.
+
+        :param key: The key of the request routine's metadata line.
+        :param line: The line to parse.
+        :return: The parsed value.
+        :raises QoalaParseError: If the value is not one of the following: 'CREATE' or 'RECEIVE' (case-insensitive).
+        """
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise QoalaParseError(
@@ -791,6 +1108,15 @@ class RequestRoutineParser:
             )
 
     def _parse_epr_create_type_value(self, key: str, line: str) -> EprType:
+        """
+        Parses EPR type line of the request routine's metadata.
+
+        :param key: The key of the request routine's metadata line.
+        :param line: The line to parse.
+        :return: The parsed value.
+        :raises QoalaParseError: If the value is not one of the following: 'CREATE_KEEP', 'MEASURE_DIRECTLY', or
+        'REMOTE_STATE_PREP' (case-insensitive).
+        """
         strings = self._parse_request_line(key, line)
         if len(strings) != 1:
             raise QoalaParseError(
@@ -806,6 +1132,14 @@ class RequestRoutineParser:
             )
 
     def _parse_virt_ids(self, key: str, line: str) -> RequestVirtIdMapping:
+        """
+        Parses virt_ids line of the request routine's metadata. See the RequestVirtIdMapping class for the format.
+
+        :param key: The key of the request routine's metadata line.
+        :param line: The line to parse.
+        :return: The parsed value.
+        :raises QoalaParseError: If the value is not in the correct format.
+        """
         if line.count(":") != 1:
             raise QoalaParseError("SubRoutine Meta lines must have a single colon.")
         split = line.split(":")
@@ -817,6 +1151,15 @@ class RequestRoutineParser:
         return RequestVirtIdMapping.from_str(split[1].strip())
 
     def _parse_callback_type(self, key: str, line: str) -> Optional[CallbackType]:
+        """
+        Parses Callback type line of the request routine's metadata.
+
+        :param key: The key of the request routine's metadata line.
+        :param line: The line to parse.
+        :return: The parsed value.
+        :raises QoalaParseError: If the value is not one of the following: 'SEQUENTIAL' or
+        'WAIT_ALL' (case-insensitive).
+        """
         values = self._parse_request_line(key, line)
         if len(values) == 0:
             return None
@@ -835,6 +1178,14 @@ class RequestRoutineParser:
             )
 
     def _parse_request(self) -> RequestRoutine:
+        """
+        Parses a single request routine in the Qoala program. The subroutine format is given in the class description.
+
+        :return: Parsed subroutine.
+        :raises QoalaParseError: If the request routine is not in the correct format. See the class description for
+        the correct format.
+        :raises EndOfTextException: If the end of the text is reached unexpectedly.
+        """
         name_line = self._read_line()
         if not name_line.startswith("REQUEST "):
             raise QoalaParseError("Request Routine Meta must start with 'REQUEST'.")
@@ -886,6 +1237,13 @@ class RequestRoutineParser:
         return RequestRoutine(name, request, return_vars, callback_type, callback)
 
     def parse(self) -> Dict[str, RequestRoutine]:
+        """
+        Primary method of the class. Parses all the request routines in the Qoala program.
+
+        :return: Dictionary of subroutine names and their corresponding LocalRoutine objects.
+        :raises QoalaParseError: If the request routine is not in the correct format. See the class description for
+        the correct format.
+        """
         requests: Dict[str, RequestRoutine] = {}
         try:
             while True:
@@ -896,6 +1254,25 @@ class RequestRoutineParser:
 
 
 class QoalaParser:
+    """
+    Parses whole Qoala program by using the other parsers in this module. There are two ways to pass text to the parser.
+    The first way is to pass the whole text of the Qoala program to the constructor. The second way is to pass the
+    text of each section of the Qoala program to the constructor separately. These sections are meta, host, subroutines,
+    and requests. If the whole text is passed to the constructor, then the text of each section must not be passed
+    separately. If the text of each section is passed separately, then the whole text must not be passed to the
+    constructor.
+
+    :param text: Text of the whole Qoala program.
+    :param meta_text: Text of the meta section of the Qoala program.
+    :param host_text: Text of the host section of the Qoala program.
+    :param subrt_text: Text of the subroutines section of the Qoala program.
+    :param req_text: Text of the requests section of the Qoala program.
+    :param flavour: NetQasm Flavour of the Qoala program. Flavour information is required to parse the subroutines
+    section.
+    :raises QoalaParseError: If text and any of meta_text, host_text, subrt_text, req_text are provided at the same
+    time, or if text is not provided and any of meta_text, host_text, subrt_text, req_text are not provided.
+    """
+
     def __init__(
         self,
         text: Optional[str] = None,
@@ -934,6 +1311,12 @@ class QoalaParser:
         self._req_parser = RequestRoutineParser(req_text)
 
     def _split_text(self, text: str) -> Tuple[str, str, str, str]:
+        """
+        Splits the text of the whole Qoala program into its sections.
+
+        :param text: Text of the whole Qoala program.
+        :return: Tuple of meta, host, subroutines, and requests sections of the Qoala program.
+        """
         lines = [line.strip() for line in text.split("\n")]
         meta_end_line: int
         first_subrt_line: Optional[int] = None
@@ -980,6 +1363,13 @@ class QoalaParser:
         return meta_text, host_text, subrt_text, req_text
 
     def parse(self) -> QoalaProgram:
+        """
+        Primary method of the class. Parses the whole Qoala program by calling respective parsers for each section.
+
+        :return: Parsed Qoala program.
+        :raises QoalaParseError: If the name of the subroutines or request routines in the host instructions are not in
+        the program.
+        """
         blocks = self._host_parser.parse()
         subroutines = self._subrt_parser.parse()
         requests = self._req_parser.parse()
