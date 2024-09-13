@@ -91,8 +91,8 @@ def run_dist_cnot(num_iterations: int) -> Result:
 if __name__ == "__main__":
     LogManager.set_log_level("WARNING")
     LogManager.set_task_log_level("WARNING")
-    LogManager.log_to_file("dist_cnot.log")
-    LogManager.log_tasks_to_file("dist_cnot_tasks.log")
+    # LogManager.log_to_file("dist_cnot.log")
+    # LogManager.log_tasks_to_file("dist_cnot_tasks.log")
     num_iterations = 2
 
     result = run_dist_cnot(num_iterations=num_iterations)

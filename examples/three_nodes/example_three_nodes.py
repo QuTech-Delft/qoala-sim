@@ -50,8 +50,8 @@ class Result:
 def run_three_nodes(num_iterations: int) -> Result:
     LogManager.set_log_level("DEBUG")
     LogManager.set_task_log_level("INFO")
-    LogManager.log_to_file("three_nodes.log")
-    LogManager.log_tasks_to_file("three_nodes_tasks.log")
+    # LogManager.log_to_file("three_nodes.log")
+    # LogManager.log_tasks_to_file("three_nodes_tasks.log")
     ns.sim_reset()
 
     num_qubits = num_iterations * 2
