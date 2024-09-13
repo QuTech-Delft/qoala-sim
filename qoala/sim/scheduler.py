@@ -852,11 +852,6 @@ class ProcessorScheduler(Protocol):
             self._task_logger.info(f"BUSY start  {task} (start time: {start_time})")
         else:
             self._task_logger.info(f"start  {task}")
-        if self.name == "bob_qpu":
-            self._task_logger.warning(f"start  {task}")
-        elif self.name == "bob_cpu":
-            if isinstance(task, HostEventTask):
-                self._task_logger.warning(f"start  {task}")
         self._task_starts[task.task_id] = before
         self.record_start_timestamp(task.pid, before)
 
@@ -878,8 +873,6 @@ class ProcessorScheduler(Protocol):
                 self._task_logger.info(f"BUSY finish {task}")
             else:
                 self._task_logger.info(f"finish {task}")
-            if self.name == "bob_qpu":
-                self._task_logger.warning(f"finish {task}")
 
             self._tasks_executed[task.task_id] = task
             self._task_ends[task.task_id] = after
@@ -1102,8 +1095,6 @@ class CpuEdfScheduler(CpuScheduler):
             # Sort them by deadline and return the one with the earliest deadline
             deadlines = {t: tg.get_tinfo(t).deadline for t in with_deadline}
             sorted_by_deadline = sorted(deadlines.items(), key=lambda item: item[1])  # type: ignore
-            if self.name in ["bob_cpu", "bob_qpu"]:
-                self._task_logger.info(f"tasks with deadlines: {sorted_by_deadline}")
             to_return = sorted_by_deadline[0][0]
             self._logger.debug(f"Return task {to_return}")
             self._task_logger.debug(f"Return task {to_return}")

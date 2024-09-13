@@ -1,0 +1,47 @@
+META_START
+    name: alice
+    parameters: 
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = QL}:
+    run_subroutine() : subrt0
+
+
+SUBROUTINE subrt0
+    params:
+    returns:
+    uses: 0, 1, 2, 3, 4
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    set Q2 2
+    set Q3 3
+    set Q4 4
+    init Q0
+    init Q1
+    init Q2
+    init Q3
+    init Q4
+    h Q0
+    cphase Q0 Q1
+    cphase Q0 Q2
+    h Q1
+    cphase Q1 Q2
+    cphase Q1 Q3
+    h Q2
+    cphase Q2 Q3
+    cphase Q2 Q4
+    h Q3
+    cphase Q3 Q4
+    h Q4
+    cnot Q1 Q3
+    cnot Q3 Q1
+    cnot Q1 Q3
+    cnot Q0 Q4
+    cnot Q4 Q0
+    cnot Q0 Q4
+  NETQASM_END

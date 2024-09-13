@@ -1,0 +1,44 @@
+META_START
+    name: bob
+    parameters: alice_id
+    csockets: 0 -> alice
+    epr_sockets: 0 -> alice
+META_END
+
+^b1 {type = QC}:
+    run_request() : req
+
+^b4 {type = QL}:
+    tuple<m0; m1> = run_subroutine() : measure
+
+^b5 {type = CL}:
+    return_result(m0)
+    return_result(m1)
+
+SUBROUTINE measure
+    params: 
+    returns: m0, m1
+    uses: 0, 1
+    keeps:
+    request:
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    meas Q0 M0
+    meas Q1 M1
+    store M0 @output[0]
+    store M1 @output[1]
+  NETQASM_END
+
+REQUEST req
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {alice_id}
+  epr_socket_id: 0
+  num_pairs: 2
+  virt_ids: increment 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create

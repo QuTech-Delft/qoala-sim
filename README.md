@@ -42,7 +42,7 @@ pip install -e . --extra-index-url=https://pypi.netsquid.org
 ```
 which will prompts for your NetSquid account name and password.
 
-Additionally, you may want to install the extra `dev` packackes, so you can run the tests and linter:
+Additionally, you may want to install the extra `dev` packages, so you can run the tests and linter:
 
 ```
 pip install -e .[dev] --extra-index-url=https://pypi.netsquid.org

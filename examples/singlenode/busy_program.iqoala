@@ -1,0 +1,88 @@
+META_START
+    name: alice
+    parameters: 
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = QL}:
+    run_subroutine() : prepare
+
+^b1 {type = CL}:
+    busy() : 1_000_000_000
+
+^b2 {type = QL}:
+    tuple<m_x> = run_subroutine() : measure_x
+
+^b3 {type = QL}:
+    run_subroutine() : prepare
+
+^b4 {type = CL}:
+    busy() : 1_000_000_000
+
+^b5 {type = QL}:
+    tuple<m_y> = run_subroutine() : measure_y
+
+^b6 {type = QL}:
+    run_subroutine() : prepare
+
+^b7 {type = CL}:
+    busy() : 1_000_000_000
+
+^b8 {type = QL}:
+    tuple<m_z> = run_subroutine() : measure_z
+
+^b9 {type = CL}:
+    return_result(m_x)
+    return_result(m_y)
+    return_result(m_z)
+
+SUBROUTINE prepare
+    params:
+    returns:
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    set Q0 0
+    init Q0
+    h Q0
+  NETQASM_END
+
+SUBROUTINE measure_x
+    params:
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    rot_y Q0 24 4
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE measure_y
+    params:
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    rot_x Q0 8 4
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE measure_z
+    params:
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END

@@ -1,0 +1,72 @@
+META_START
+    name: alice
+    parameters: 
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = QL}:
+    run_subroutine() : init_mem_qubit
+
+^b1 {type = QL}:
+    run_subroutine() : prepare_comm_qubit
+
+^b2 {type = QL}:
+    run_subroutine() : move_qubit
+
+^b3 {type = QL}:
+    tuple<m> = run_subroutine() : measure
+
+^b4 {type = CL}:
+    return_result(m)
+    
+SUBROUTINE init_mem_qubit
+    params:
+    returns: 
+    uses: 0, 1
+    keeps: 1
+    request:
+  NETQASM_START
+    set Q1 1
+    init Q1
+  NETQASM_END
+
+SUBROUTINE prepare_comm_qubit
+    params: 
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    set Q0 0
+    init Q0
+    rot_x Q0 16 4
+  NETQASM_END
+
+
+SUBROUTINE move_qubit
+    params: 
+    returns: 
+    uses: 0, 1
+    keeps: 1
+    request: 
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    rot_y Q0 8 4
+    crot_y Q0 Q1 24 4
+    rot_x Q0 24 4
+    crot_x Q0 Q1 8 4
+  NETQASM_END
+
+SUBROUTINE measure
+    params:
+    returns: m
+    uses: 0, 1
+    keeps: 
+    request:
+  NETQASM_START
+    set Q1 1
+    meas Q1 M0
+    store M0 @output[0]
+  NETQASM_END

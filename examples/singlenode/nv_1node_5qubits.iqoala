@@ -1,0 +1,41 @@
+META_START
+    name: alice
+    parameters: 
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = QL}:
+    m<5> = run_subroutine() : subrt0
+
+^b2 {type = CL}:
+    return_result(m)
+
+
+SUBROUTINE subrt0
+    params:
+    returns: m<5>
+    uses: 0, 1, 2, 3, 4
+    keeps:
+    request: 
+  NETQASM_START
+    set C1 1 // step
+    set C2 5 // max
+
+    // Initialize all 5 qubits.
+    set Q0 0
+    init Q0
+    add Q0 Q0 C1
+    blt Q0 C2 -2
+
+    // Apply X on qubit 2.
+    set Q2 2
+    rot_x Q2 16 4
+
+    // Measure all 5 qubits.
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[Q0]
+    add Q0 Q0 C1
+    blt Q0 C2 -3
+  NETQASM_END

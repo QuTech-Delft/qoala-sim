@@ -1,0 +1,31 @@
+META_START
+    name: alice
+    parameters: 
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = QL}:
+    outcomes<100> = run_subroutine() : subrt0
+
+^b3 {type = CL}:
+    return_result(outcomes)
+
+SUBROUTINE subrt0
+    params:
+    returns: outcomes<100>
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set C0 0
+    set Q0 0
+    set C1 1
+    set C2 99
+    init Q0
+    x Q0
+    meas Q0 M0
+    store M0 @output[C0]
+    add C0 C0 C1
+    bge C2 C0 -5
+  NETQASM_END

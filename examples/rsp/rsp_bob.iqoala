@@ -1,0 +1,92 @@
+META_START
+    name: bob
+    parameters: alice_id
+    csockets: 0 -> alice
+    epr_sockets: 0 -> alice
+META_END
+
+
+^b0 {type = QC}:
+    run_request() : epr_gen
+
+^b1 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b2 {type = CC}:
+    m = recv_cmsg(csocket)
+
+^b3 {type = CL}:
+    angle = mult_const(m) : 16
+
+^b4 {type = QL}:
+    run_subroutine(tuple<angle>) : correction
+
+^b5 {type = QL}:
+    tuple<outcome> = run_subroutine() : measure
+
+^b6 {type = CL}:
+    return_result(outcome)
+
+
+SUBROUTINE correction
+    params: m
+    returns: 
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    load C0 @input[0]
+
+    set Q0 0
+
+    // z-rot
+    rot_x Q0 24 4
+    rot_y Q0 C0 4
+    rot_x Q0 8 4
+
+  NETQASM_END
+
+SUBROUTINE move_qubit
+    params: 
+    returns: 
+    uses: 0, 1
+    keeps: 1
+    request: 
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    rot_y Q0 8 4
+    crot_y Q0 Q1 24 4
+    rot_x Q0 24 4
+    crot_x Q0 Q1 8 4
+  NETQASM_END
+
+SUBROUTINE measure
+    params:
+    returns: outcome
+    uses: 0
+    keeps: 
+    request:
+  NETQASM_START
+    set Q0 0
+
+    // hadamard
+    rot_y Q0 8 4
+    rot_x Q0 16 4
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST epr_gen
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {alice_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive

@@ -331,7 +331,7 @@ def compute_succ_prob(
     )
 
 
-def test_bqc():
+if __name__ == "__main__":
     # LogManager.set_log_level("INFO")
     num_clients = 1
     succ_probs, makespan = compute_succ_prob(
@@ -341,7 +341,3 @@ def test_bqc():
     )
     print(f"success probabilities: {succ_probs}")
     print(f"makespan: {makespan}")
-
-
-if __name__ == "__main__":
-    test_bqc()
