@@ -12,7 +12,7 @@ META_END
     run_request() : epr_gen
 
 ^b5 {type = QL}:
-    tuple<outcome> = run_subroutine(tuple<state>) : measure
+    tuple<outcome> = run_subroutine() : measure
 
 ^b6 {type = CL}:
     return_result(outcome)

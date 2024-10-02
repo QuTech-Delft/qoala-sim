@@ -73,7 +73,7 @@ def run_app(num_iterations: int) -> None:
     alice_batch_info = create_batch(
         alice_program,
         alice_unit_module,
-        [ProgramInput.empty() for _ in range(num_iterations)],
+        [ProgramInput({"bob_id": bob_id}) for _ in range(num_iterations)],
         num_iterations,
     )
     batches["alice"] = alice_procnode.submit_batch(alice_batch_info)
@@ -82,7 +82,7 @@ def run_app(num_iterations: int) -> None:
     bob_batch_info = create_batch(
         bob_program,
         bob_unit_module,
-        [ProgramInput.empty() for _ in range(num_iterations)],
+        [ProgramInput({"alice_id": alice_id}) for _ in range(num_iterations)],
         num_iterations,
     )
     batches["bob"] = bob_procnode.submit_batch(bob_batch_info)
