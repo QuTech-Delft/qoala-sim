@@ -1,0 +1,135 @@
+META_START
+    name: client
+    parameters: server_id, alpha, beta, theta1, theta2, dummy0, dummy1
+    csockets: 0 -> server
+    epr_sockets: 0 -> server
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+    const_1 = assign_cval() : 1
+
+    epr0_rot_y = assign_cval() : 24
+    epr0_rot_z = assign_cval() : 16
+    epr0_rot_y = bcond_mult_const(epr0_rot_y, dummy0) : 0
+    epr0_rot_z = bcond_mult_const(epr0_rot_z, dummy0) : 0
+    theta2 = bcond_mult_const(theta2, dummy0) : 0
+
+    epr1_rot_y = assign_cval() : 24
+    epr1_rot_z = assign_cval() : 16
+    epr1_rot_y = bcond_mult_const(epr1_rot_y, dummy1) : 0
+    epr1_rot_z = bcond_mult_const(epr1_rot_z, dummy1) : 0
+    theta1 = bcond_mult_const(theta1, dummy1) : 0
+
+^b1 {type = QC}:
+    run_request() : req0
+^b2 {type = QL}:
+    tuple<p2> = run_subroutine(tuple<theta2; epr0_rot_y; epr0_rot_z>) : post_epr_0
+^b3 {type = QC}:
+    run_request() : req1
+^b4 {type = QL}:
+    tuple<p1> = run_subroutine(tuple<theta1; epr1_rot_y; epr1_rot_z>) : post_epr_1
+
+^b5 {type = CL}:
+    x = mult_const(p1) : 16
+    minus_theta1 = mult_const(theta1) : -1
+    delta1 = add_cval_c(minus_theta1, x)
+    delta1 = add_cval_c(delta1, alpha)
+
+    minus_dummy0 = mult_const(dummy0) : -1
+    should_correct_0 = add_cval_c(const_1, minus_dummy0)
+    delta1_correction = bcond_mult_const(alpha, should_correct_0) : 0
+    delta1_correction = mult_const(delta1_correction) : -1
+    delta1 = add_cval_c(delta1, delta1_correction)
+
+    send_cmsg(csocket, delta1)
+
+^b6 {type = CC}:
+    m1 = recv_cmsg(csocket)
+
+^b7 {type = CL}:
+    y = mult_const(p2) : 16
+    minus_theta2 = mult_const(theta2) : -1
+    beta = bcond_mult_const(beta, m1) : -1
+    delta2 = add_cval_c(beta, minus_theta2)
+    delta2 = add_cval_c(delta2, y)
+
+    minus_dummy1 = mult_const(dummy1) : -1
+    should_correct_1 = add_cval_c(const_1, minus_dummy1)
+    delta2_correction = bcond_mult_const(beta, should_correct_1) : 0
+    delta2_correction = mult_const(delta2_correction) : -1
+    delta2 = add_cval_c(delta2, delta2_correction)
+
+    send_cmsg(csocket, delta2)
+
+^b8 {type = CC}:
+    m2 = recv_cmsg(csocket)
+
+^b9 {type = CL}:
+    return_result(p1)
+    return_result(p2)
+    return_result(m1)
+    return_result(m2)
+
+
+SUBROUTINE post_epr_0
+    params: theta2, epr0_rot_y, epr0_rot_z
+    returns: p2
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    load C1 @input[1]
+    load C2 @input[2]
+    set Q0 0
+    rot_z Q0 C0 4
+    rot_y Q0 C1 4
+    rot_z Q0 C2 4
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE post_epr_1
+    params: theta1, epr1_rot_y, epr1_rot_z
+    returns: p1
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    load C1 @input[1]
+    load C2 @input[2]
+    set Q0 0
+    rot_z Q0 C0 4
+    rot_y Q0 C1 4
+    rot_z Q0 C2 4
+    meas Q0 M1
+    store M1 @output[0]
+  NETQASM_END
+
+REQUEST req1
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {server_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create
+
+REQUEST req0
+  callback_type: wait_all
+  callback: 
+  return_vars: 
+  remote_id: {server_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create

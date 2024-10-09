@@ -1,0 +1,114 @@
+META_START
+    name: bob
+    parameters: alice_id, state
+    csockets: 0 -> alice
+    epr_sockets: 0 -> alice
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = QC}:
+    run_request() : epr_gen
+
+^b2 {type = CC}:
+    m1 = recv_cmsg(csocket)
+
+^b3 {type = CC}:
+    m2 = recv_cmsg(csocket)
+
+^b4 {type = QL}:
+    run_subroutine(tuple<m1; m2>) : bsm_corrections
+
+^b5 {type = QL}:
+    tuple<outcome> = run_subroutine(tuple<state>) : measure
+
+^b6 {type = CL}:
+    return_result(outcome)
+
+
+SUBROUTINE bsm_corrections
+    params: m1, m2
+    returns: 
+    uses: 0
+    keeps: 0
+    request:
+  NETQASM_START
+    set C15 0
+    set C14 1
+    load C0 @input[C15]
+    load C1 @input[C14]
+    set Q0 0
+    set R0 0
+    beq C0 R0 2
+    z Q0
+    beq C1 R0 2
+    x Q0
+    set R15 0
+  NETQASM_END
+
+SUBROUTINE measure
+    params: state
+    returns: outcome
+    uses: 0
+    keeps: 
+    request:
+  NETQASM_START
+    // get state
+    // 0: |+>, 1: |->
+    // 2: |+i>, 3: |-i>
+    // 4: |0>, 5: |1>
+    load C0 @input[0]
+
+    set Q0 0
+
+    set C1 0
+    bne C0 C1 3  // check state == 0
+    // measure +X
+    rot_y Q1 24 4
+    jmp 19
+
+    set C1 1
+    bne C0 C1 3  // check state == 1
+    // measure -X
+    rot_y Q1 8 4
+    jmp 15
+
+    set C1 2
+    bne C0 C1 3  // check state == 2
+    // measure +Y
+    rot_x Q1 8 4
+    jmp 11
+
+    set C1 3
+    bne C0 C1 3  // check state == 3
+    // measure -Y
+    rot_x Q1 24 4
+    jmp 7
+
+    set C1 4
+    bne C0 C1 2  // check state == 4
+    // measure +Z, i.e. no rotation
+    jmp 4
+
+    set C1 5
+    bne C0 C1 2  // check state == 5
+    // measure -Z
+    rot_x Q1 16 4
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST epr_gen
+  callback_type:
+  callback: 
+  return_vars: 
+  remote_id: {alice_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive

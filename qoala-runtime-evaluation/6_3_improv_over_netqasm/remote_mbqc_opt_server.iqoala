@@ -1,0 +1,104 @@
+META_START
+    name: bob
+    parameters: client_id
+    csockets: 0 -> client
+    epr_sockets:
+META_END
+
+
+^b1 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b2 {type = CC}:
+    theta0 = recv_cmsg(csocket)
+
+^b3 {type = QL}:
+    tuple<m0> = run_subroutine(tuple<theta0>) : create_q0q1_and_meas_q0
+
+^b5 {type = CL}:
+    send_cmsg(csocket, m0)
+
+^b6 {type = CC}:
+    theta1 = recv_cmsg(csocket)
+
+^b7 {type = QL}:
+    tuple<m1> = run_subroutine(tuple<theta1>) : create_q2_and_meas_q1
+
+^b8 {type = CL}:
+    send_cmsg(csocket, m1)
+
+^b9 {type = CC}:
+    theta2 = recv_cmsg(csocket)
+
+^b10 {type = QL}:
+    tuple<m2> = run_subroutine(tuple<theta2>) : meas_q2
+
+^b11 {type = CL}:
+    send_cmsg(csocket, m2)
+
+
+
+SUBROUTINE create_q0q1_and_meas_q0
+    params: theta
+    returns: m
+    uses: 0, 1
+    keeps: 1
+    request:
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+
+    init Q0
+    init Q1
+
+    h Q0
+    h Q1
+
+    cphase Q0 Q1
+
+    // measure q0
+    load C0 @input[0]
+    rot_z Q0 C0 4
+    h Q0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE create_q2_and_meas_q1
+    params: theta
+    returns: m
+    uses: 1, 2
+    keeps: 2
+    request:
+  NETQASM_START
+    set Q1 1
+    set Q2 2
+
+    init Q2
+    h Q2
+
+    cphase Q1 Q2
+
+    // measure q1
+    load C0 @input[0]
+    rot_z Q1 C0 4
+    h Q1
+    meas Q1 M1
+    store M1 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_q2
+    params: theta
+    returns: m
+    uses: 2
+    keeps: 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+
+    set Q2 2
+    rot_z Q2 C0 4
+    h Q2
+    meas Q2 M2
+    store M2 @output[0]
+  NETQASM_END
