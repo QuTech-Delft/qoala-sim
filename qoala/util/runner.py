@@ -60,6 +60,16 @@ def run_two_node_app_separate_inputs(
     linear: bool = False,
     linear_for: Optional[Dict[str, bool]] = None,
 ) -> AppResult:
+    """
+    Runs a two node application where the client and server programs have unique inputs
+
+    :param num_iterations: How many iterations of the application should be executed
+    :param programs: A dictionary with two entries, program1 and program2
+    :param program_inputs: A dictionary containing the inputs for each program
+    :param network_cfg: The network configuration
+    :param linear: When True ensures that instances of the programs are executed sequentially
+    :return: Returns an AppResult object, containing information about the program results, statistics, and duration
+    """
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
     seed = random.randint(0, 1000)

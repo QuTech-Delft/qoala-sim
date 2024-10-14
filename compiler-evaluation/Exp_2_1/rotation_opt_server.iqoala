@@ -1,0 +1,72 @@
+META_START
+    name: server
+    parameters: client_id
+    csockets: 0 -> client
+    epr_sockets: 0 -> client
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = CC}: 
+    theta0 = recv_cmsg(csocket)
+
+^b2 {type = CC}: 
+    theta1 = recv_cmsg(csocket)
+
+^b3 {type = CC}: 
+    theta2 = recv_cmsg(csocket)
+
+^b4 {type = CC}: 
+    theta3 = recv_cmsg(csocket)
+
+^b5 {type = CL}: 
+    res0 = add_cval_c(theta0, theta1)
+    res1 = add_cval_c(theta2, theta3)
+    theta = add_cval_c(res0, res1) 
+
+^b6 {type = QL}:
+    run_subroutine() : init_q0
+
+^b7 {type = QL}:
+    run_subroutine(tuple<theta>) : rotate_x_q0
+
+^b8 {type = QL}:
+    tuple<outcome> = run_subroutine() : meas_q0
+
+^b9 {type = CL}:
+    send_cmsg(csocket, outcome)
+
+SUBROUTINE init_q0
+    params:
+    returns:
+    uses: 0
+    keeps: 0
+    request:
+    NETQASM_START
+        set Q0 0
+        init Q0
+    NETQASM_END
+
+SUBROUTINE rotate_x_q0
+    params: theta
+    returns:
+    uses: 0
+    keeps: 0
+    request:
+    NETQASM_START
+        load C0 @input[0]
+        set Q0 0
+        rot_x Q0 C0 4
+    NETQASM_END
+
+SUBROUTINE meas_q0
+    params: 
+    returns: output
+    uses: 0
+    keeps:
+    request:
+    NETQASM_START
+        meas Q0 M0
+        store M0 @output[0]
+    NETQASM_END

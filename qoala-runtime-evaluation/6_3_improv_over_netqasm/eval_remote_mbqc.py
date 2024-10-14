@@ -30,6 +30,7 @@ def relative_to_cwd(file: str) -> str:
     return os.path.join(os.path.dirname(__file__), file)
 
 
+# Create a node and configure it
 def create_procnode_cfg(name: str, id: int, t1: int, t2: int) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
@@ -44,6 +45,7 @@ def create_procnode_cfg(name: str, id: int, t1: int, t2: int) -> ProcNodeConfig:
 
 
 def load_program(path: str) -> QoalaProgram:
+    """Load a Qoala Program"""
     path = os.path.join(os.path.dirname(__file__), path)
     with open(path) as file:
         text = file.read()
@@ -71,15 +73,18 @@ def run_remote_mbqc(
     client_id = 1
     server_id = 0
 
+    # Create the configuration for the server and client
     client_node_cfg = create_procnode_cfg("client", client_id, t1, t2)
     server_node_cfg = create_procnode_cfg("server", server_id, t1, t2)
 
+    # Configure the network
     cconn = ClassicalConnectionConfig.from_nodes(client_id, server_id, cc)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
         nodes=[client_node_cfg, server_node_cfg], link_duration=1000
     )
     network_cfg.cconns = [cconn]
 
+    # Load the program onto the client and server
     if naive:
         client_program = load_program("remote_mbqc_naive_client.iqoala")
         server_program = load_program("remote_mbqc_naive_server.iqoala")
@@ -90,6 +95,8 @@ def run_remote_mbqc(
     theta0_int = int(theta0 * 16 / math.pi)
     theta1_int = int(theta1 * 16 / math.pi)
     theta2_int = int(theta2 * 16 / math.pi)
+
+    # Input parameters for client program
     client_inputs = [
         ProgramInput(
             {
@@ -101,10 +108,13 @@ def run_remote_mbqc(
         )
         for _ in range(num_iterations)
     ]
+
+    # Input parameters for server program
     server_inputs = [
         ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
     ]
-
+    
+    # Run the applications
     app_result = run_two_node_app_separate_inputs(
         num_iterations=num_iterations,
         programs={"client": client_program, "server": server_program},
@@ -113,6 +123,7 @@ def run_remote_mbqc(
         linear=True,
     )
 
+    # Get the results
     client_result = app_result.batch_results["client"]
     server_result = app_result.batch_results["server"]
 
@@ -143,7 +154,7 @@ class Data:
     meta: DataMeta
     data_points: List[DataPoint]
 
-
+# Runs the MBQC Experiment and returns the success probability
 def remote_mbqc(
     naive: bool,
     num_iterations: int,
@@ -193,6 +204,7 @@ if __name__ == "__main__":
     start = time.time()
     data_points: List[DataPoint] = []
 
+    # Run the mbqc protocol using the naive iqoala program
     succ_prob_naive = remote_mbqc(
         naive=True,
         num_iterations=num_iterations,
@@ -203,8 +215,10 @@ if __name__ == "__main__":
         theta1=theta1,
         theta2=theta2,
     )
+    # Store the result as a data point
     data_points.append(DataPoint(naive=True, succ_prob=succ_prob_naive))
 
+    # Run the protocol using the optimal iqoala program
     succ_prob_qoala = remote_mbqc(
         naive=False,
         num_iterations=num_iterations,

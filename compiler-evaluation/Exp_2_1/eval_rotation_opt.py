@@ -1,0 +1,341 @@
+from __future__ import annotations
+
+import datetime
+import json
+import math
+import os
+import time
+from argparse import ArgumentParser
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import List
+
+import netsquid as ns
+
+from qoala.lang.parse import QoalaParser
+from qoala.lang.program import QoalaProgram
+from qoala.runtime.config import (
+    ClassicalConnectionConfig,
+    LatenciesConfig,
+    NtfConfig,
+    ProcNodeConfig,
+    ProcNodeNetworkConfig,
+    TopologyConfig,
+)
+from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.util.runner import run_two_node_app_separate_inputs
+
+def relative_to_cwd(file: str) -> str:
+    """
+    :param file: The file name
+    :return: The path to the file relative to the current working directory
+    """
+    return os.path.join(os.path.dirname(__file__), file)
+
+
+def create_procnode_cfg(name: str, id: int, num_qubits: int, t1: int, t2: int, single_gate_duration: int, single_gate_depolarizing_prob: float) -> ProcNodeConfig:
+    """
+    Create the configuration object for a processing node
+    
+    :return: The processor node configuration object
+    """
+    return ProcNodeConfig(
+        node_name=name,
+        node_id=id,
+        # TODO configuration for topology based on other params...
+        topology=TopologyConfig.uniform_t1t2_qubits_perfect_gates_default_params(
+           3, t1, t2
+        ),
+        latencies=LatenciesConfig(qnos_instr_time=1000),
+        ntf=NtfConfig.from_cls_name("GenericNtf"),
+        determ_sched=True,
+    )
+
+
+def load_program(path: str) -> QoalaProgram:
+    """
+    Load a Qoala Program
+    
+    :param path: The path to the .iqoala file
+    :return: Parsed Qoala program
+    """
+    path = os.path.join(os.path.dirname(__file__), path)
+    with open(path) as file:
+        text = file.read()
+    return QoalaParser(text).parse()
+
+
+@dataclass
+class RotationExpResult:
+    client_results: BatchResult
+    server_results: BatchResult
+    total_duration: float
+
+
+def run_rotation_exp(
+    num_iterations: int,
+    theta0: float,
+    theta1: float,
+    theta2: float,
+    theta3: float,
+    naive: bool,
+    t1: int,
+    t2: int,
+    cc: float,
+    single_gate_depolarizing_prob: float,
+    single_gate_duration: float
+) -> RotationExpResult:
+    ns.sim_reset()
+
+    client_id = 1
+    server_id = 0
+
+    # Create the configuration for the server and client
+    client_node_cfg = create_procnode_cfg("client", client_id, 0, t1, t2, single_gate_duration, single_gate_depolarizing_prob)
+    server_node_cfg = create_procnode_cfg("server", server_id, 0,t1, t2, single_gate_duration, single_gate_depolarizing_prob)
+
+    # Configure the network
+    cconn = ClassicalConnectionConfig.from_nodes(client_id, server_id, cc)
+    network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
+        nodes=[client_node_cfg, server_node_cfg], link_duration=1000
+    )
+    network_cfg.cconns = [cconn]
+
+    # Load the program onto the client and server
+    if naive:
+        client_program = load_program("rotation_naive_client.iqoala")
+        server_program = load_program("rotation_naive_server.iqoala")
+    else:
+        client_program = load_program("rotation_opt_client.iqoala")
+        server_program = load_program("rotation_opt_server.iqoala")
+
+    theta0_int = int(theta0 * 16 / math.pi)
+    theta1_int = int(theta1 * 16 / math.pi)
+    theta2_int = int(theta2 * 16 / math.pi)
+    theta3_int = int(theta3 * 16 / math.pi)
+
+    # Input parameters for client program
+    client_inputs = [
+        ProgramInput(
+            {
+                "server_id": server_id,
+                "theta0": theta0_int,
+                "theta1": theta1_int,
+                "theta2": theta2_int,
+                "theta3": theta3_int,
+            }
+        )
+        for _ in range(num_iterations)
+    ]
+
+    # Input parameters for server program
+    server_inputs = [
+        ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
+    ]
+    
+    # Run the applications
+    app_result = run_two_node_app_separate_inputs(
+        num_iterations=num_iterations,
+        programs={"client": client_program, "server": server_program},
+        program_inputs={"client": client_inputs, "server": server_inputs},
+        network_cfg=network_cfg,
+        linear=True,
+    )
+
+    # Get the results
+    client_result = app_result.batch_results["client"]
+    server_result = app_result.batch_results["server"]
+
+    return RotationExpResult(client_result, server_result, app_result.total_duration)
+
+
+@dataclass
+class DataPoint:
+    naive: bool
+    succ_prob: float
+    makespan: float
+    param_name: str
+    param_value: float
+
+
+@dataclass
+class DataMeta:
+    timestamp: str
+    num_iterations: int
+    theta0: float
+    theta1: float
+    theta2: float
+    theta3: float
+    t1: float
+    t2: float
+    cc: float
+    single_gate_depolarizing_prob: float
+    single_gate_duration: float
+    sim_duration: float
+
+
+@dataclass
+class Data:
+    meta: DataMeta
+    data_points: List[DataPoint]
+
+def rotation_exp(
+    num_iterations: int,
+    theta0: float,
+    theta1: float,
+    theta2: float,
+    theta3: float,
+    naive: bool,
+    t1: int,
+    t2: int,
+    cc: float,
+    single_gate_depolarizing_prob: float,
+    single_gate_duration: float, 
+) -> float:
+    result = run_rotation_exp(num_iterations, theta0, theta1, theta2, theta3, naive, t1, t2, cc, single_gate_depolarizing_prob, single_gate_duration)
+    program_results = result.client_results.results
+
+    results = [result.values["result"] for result in program_results]
+    avg_makespan = result.total_duration / num_iterations
+
+    successes = 0
+    for res in results:
+        if res == 0:
+            successes += 1
+    succ_prob = round(successes / num_iterations, 3)
+    print(f"succ prob: {succ_prob}")
+    return succ_prob, avg_makespan
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--num_iterations", "-n", type=int, required=True)
+    parser.add_argument("--sweep", "-s", type=str, nargs='+', required=True)
+
+    args = parser.parse_args()
+    num_iterations = args.num_iterations
+
+    sweep_params = args.sweep
+    assert(len(sweep_params) == 4)
+    
+    param_name = sweep_params[0]
+    lower_val = int(float(sweep_params[1]))
+    upper_val = int(float(sweep_params[2]))
+    stepsize = int(float(sweep_params[3]))
+
+    # Memory
+    t1 = 1e9
+    t2 = 1e8
+
+    # Gate Noise
+    single_gate_depolarizing_prob = 0
+
+    # Gate execution time
+    single_gate_duration = 5e3
+
+    # Classical Communication latency
+    cc = 1e5 # 100ms
+
+    # Convert thetas
+    theta0 = math.pi/2
+    theta1 = math.pi/2
+    theta2 = math.pi/2
+    theta3 = math.pi/2
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    start = time.time()
+    data_points: List[DataPoint] = []
+
+
+    for param_val in range(lower_val, upper_val, stepsize): 
+        if param_name == "q_mem":
+            t2 = param_val
+        elif param_name == "g_noise":
+            single_gate_depolarizing_prob = param_val
+        elif param_name == "g_dur":
+            single_gate_duration = param_val
+        else:
+            print("Error. Param name should be one of the three: q_mem, g_noise, g_dur")
+            exit()
+        
+        # Run the naive program and get results
+        succ_prob_naive, makespan_naive = rotation_exp(
+            naive=True,
+            num_iterations=num_iterations,
+            theta0=theta0,
+            theta1=theta1,
+            theta2=theta2,
+            theta3=theta3,
+            t1=t1,
+            t2=t2,
+            cc=cc,
+            single_gate_depolarizing_prob=single_gate_depolarizing_prob,
+            single_gate_duration=single_gate_duration
+        )
+        # Store the naive datapoint
+        data_points.append(DataPoint(
+            naive=True, 
+            succ_prob=succ_prob_naive, 
+            makespan=makespan_naive,
+            param_name=param_name,
+            param_value=param_val
+            ))
+        
+        # Run the optimal program and get results
+        succ_prob_naive, makespan_naive = rotation_exp(
+            naive=False,
+            num_iterations=num_iterations,
+            theta0=theta0,
+            theta1=theta1,
+            theta2=theta2,
+            theta3=theta3,
+            t1=t1,
+            t2=t2,
+            cc=cc,
+            single_gate_depolarizing_prob=single_gate_depolarizing_prob,
+            single_gate_duration=single_gate_duration
+        )
+        # Store the optimal datapoint
+        data_points.append(DataPoint(
+            naive=False, 
+            succ_prob=succ_prob_naive, 
+            makespan=makespan_naive,
+            param_name=param_name,
+            param_value=param_val
+            ))
+
+    # Finish computing how long the experiment took to run        
+    end = time.time()
+    duration = round(end - start, 2)
+
+    # compute the path to the directory for storing data
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}.json")
+
+    # Store the metadata about the experiment
+    meta = DataMeta(
+        timestamp=timestamp,
+        num_iterations=num_iterations,
+        theta0=theta0,
+        theta1=theta1,
+        theta2=theta2,
+        theta3=theta3,
+        t1=t1,
+        t2=t2,
+        cc=cc,
+        single_gate_depolarizing_prob=single_gate_depolarizing_prob,
+        single_gate_duration=single_gate_duration,
+        sim_duration=duration,
+    )
+
+    # Format the metadata and datapoints into a json object
+    data = Data(meta=meta, data_points=data_points)
+    json_data = asdict(data)
+
+    # Write the data
+    with open(last_path, "w") as datafile:
+        json.dump(json_data, datafile)
+    with open(timestamp_path, "w") as datafile:
+        json.dump(json_data, datafile)
