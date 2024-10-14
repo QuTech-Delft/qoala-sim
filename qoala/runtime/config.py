@@ -355,6 +355,13 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
 
     @classmethod
     def perfect_config(cls, name: str, duration: int) -> GateConfig:
+        """
+        Configure a gate that experiences no noise.
+
+        :param name: The gate instruction name
+        :param duration: How long it takes to execute the gate in ns
+        :return: A GateConfig object for a gate that experiences no noise
+        """
         return GateConfig(
             name=name,
             noise_config_cls="GateDepolariseConfig",
@@ -688,6 +695,16 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
     def uniform_t1t2_qubits_perfect_gates_default_params(
         cls, num_qubits: int, t1: int, t2: int
     ) -> TopologyConfig:
+        """
+        Creates a TopologyConfiguration object with a uniform qubit topology, 
+        where the gates experience no noise, and the default parameters 
+        for gate duration are used.
+
+        :param num_qubits: number of qubits
+        :param t1: Amplitude damping (ns)
+        :param t2: Dephasing time (ns)
+        :return: A TopologyConfiguration object
+        """
         return cls.uniform_t1t2_qubits_perfect_gates(
             num_qubits=num_qubits,
             t1=t1,
@@ -1576,6 +1593,13 @@ class ClassicalConnectionConfig(BaseModel):
     def from_nodes(
         cls, node_id1: int, node_id2: int, latency: float
     ) -> ClassicalConnectionConfig:
+        """
+        Configures a classical connection link between two nodes
+        :param node_id1: The id of the first node
+        :param node_id2: The id of the second node
+        :param latency: The latency of the link in ns
+        :return: A ClassicalConnectionConfig object between two nodes with the specified latency
+        """
         return ClassicalConnectionConfig(
             node_id1=node_id1, node_id2=node_id2, latency=latency
         )
