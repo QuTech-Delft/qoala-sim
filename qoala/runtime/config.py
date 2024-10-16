@@ -696,8 +696,8 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         cls, num_qubits: int, t1: int, t2: int
     ) -> TopologyConfig:
         """
-        Creates a TopologyConfiguration object with a uniform qubit topology, 
-        where the gates experience no noise, and the default parameters 
+        Creates a TopologyConfiguration object with a uniform qubit topology,
+        where the gates experience no noise, and the default parameters
         for gate duration are used.
 
         :param num_qubits: number of qubits
