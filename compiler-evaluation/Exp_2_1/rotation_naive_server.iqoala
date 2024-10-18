@@ -71,6 +71,7 @@ SUBROUTINE meas_q0
     keeps:
     request:
     NETQASM_START
+        set Q0 0
         meas Q0 M0
         store M0 @output[0]
     NETQASM_END

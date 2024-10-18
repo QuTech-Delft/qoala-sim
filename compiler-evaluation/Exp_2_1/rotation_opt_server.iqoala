@@ -26,47 +26,22 @@ META_END
     theta = add_cval_c(res0, res1) 
 
 ^b6 {type = QL}:
-    run_subroutine() : init_q0
+    tuple<outcome> = run_subroutine(tuple<theta>) : init_rot_meas
 
-^b7 {type = QL}:
-    run_subroutine(tuple<theta>) : rotate_x_q0
-
-^b8 {type = QL}:
-    tuple<outcome> = run_subroutine() : meas_q0
-
-^b9 {type = CL}:
+^b7 {type = CL}:
     send_cmsg(csocket, outcome)
 
-SUBROUTINE init_q0
-    params:
-    returns:
-    uses: 0
-    keeps: 0
-    request:
-    NETQASM_START
-        set Q0 0
-        init Q0
-    NETQASM_END
-
-SUBROUTINE rotate_x_q0
+SUBROUTINE init_rot_meas
     params: theta
-    returns:
-    uses: 0
-    keeps: 0
-    request:
-    NETQASM_START
-        load C0 @input[0]
-        set Q0 0
-        rot_x Q0 C0 4
-    NETQASM_END
-
-SUBROUTINE meas_q0
-    params: 
     returns: output
     uses: 0
     keeps:
     request:
     NETQASM_START
+        set Q0 0
+        init Q0
+        load C0 @input[0]
+        rot_x Q0 C0 4
         meas Q0 M0
         store M0 @output[0]
     NETQASM_END
