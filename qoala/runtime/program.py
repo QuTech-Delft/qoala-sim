@@ -9,6 +9,12 @@ from qoala.lang.program import QoalaProgram
 
 @dataclass
 class ProgramInput:
+    """
+    The inputs for a qoala program
+
+    :param values: A dictionary of the form \{input_name \: input_value\}
+    """
+
     values: Dict[str, Any]
 
     @classmethod

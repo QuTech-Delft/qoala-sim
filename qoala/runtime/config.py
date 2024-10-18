@@ -213,6 +213,11 @@ class QubitNoiseConfigInterface:
 
 
 class QubitT1T2Config(QubitNoiseConfigInterface, BaseModel):
+    """
+    Models noise on a qubit over time using amplitude damping time (T1) and phase damping time (T2).
+
+    """
+
     T1: int
     T2: int
 
@@ -232,6 +237,17 @@ class QubitT1T2Config(QubitNoiseConfigInterface, BaseModel):
 
 
 class QubitConfig(LhiQubitConfigInterface, BaseModel):
+    """
+    Configures whether a qubit can be used to establish remote entanglement (communication)
+    and how noise is modeled on the qubit.
+
+    :param is_communication:
+
+    :param noise_config_cls:
+
+    :param noise_config:
+    """
+
     is_communication: bool
     noise_config_cls: str
     noise_config: QubitNoiseConfigInterface
@@ -356,10 +372,10 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
     @classmethod
     def perfect_config(cls, name: str, duration: int) -> GateConfig:
         """
-        Configure a gate that experiences no noise.
+        Configures a gate that experiences no noise.
 
         :param name: The gate instruction name
-        :param duration: How long it takes to execute the gate in ns
+        :param duration: How long it takes to execute the gate (ns)
         :return: A GateConfig object for a gate that experiences no noise
         """
         return GateConfig(
@@ -372,6 +388,14 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
     def with_depolar_prob(
         cls, name: str, duration: int, depolar_prob: float
     ) -> GateConfig:
+        """
+        Configures a gate that experiences depolarising noise.
+
+        :param name: The gate instruction name
+        :param duration: How long it takes to execute the gate (ns)
+        :param depolar_prob: The probability of experiencing depolarising noise
+        :return: A GateConfig object for a gate that experiences depolarising noise
+        """
         return GateConfig(
             name=name,
             noise_config_cls="GateDepolariseConfig",
@@ -384,6 +408,14 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
     def with_single_gate_fidelity(
         cls, name: str, duration: int, fidelity: float
     ) -> GateConfig:
+        """
+        Configures a single qubit gate that experiences depolarising noise.
+
+        :param name: The gate instruction name
+        :param duration: How long it takes to execute the gate (ns)
+        :param fidelity: The fidelity of the gate
+        :return: A GateConfig object for a single qubit gate that experiences depolarising noise
+        """
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=1, fid=fidelity)
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
@@ -391,6 +423,14 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
     def with_two_gate_fidelity(
         cls, name: str, duration: int, fidelity: float
     ) -> GateConfig:
+        """
+        Configures a two qubit gate that experiences depolarising noise.
+
+        :param name: The gate instruction name
+        :param duration: How long it takes to execute the gate (ns)
+        :param fidelity: The fidelity of the gate
+        :return: A GateConfig object for a two qubit gate that experiences depolarising noise
+        """
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=2, fid=fidelity)
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
@@ -398,6 +438,15 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
     def with_all_qubit_gate_fidelity(
         cls, name: str, duration: int, fidelity: float, num_qubits: int
     ) -> GateConfig:
+        """
+        Configures an all qubit gate that experiences depolarising noise.
+
+        :param name: The gate instruction name
+        :param duration: How long it takes to execute the gate (ns)
+        :param fidelity: The fidelity of the gate
+        :param num_qubits: How many qubits the gate acts on
+        :return: A GateConfig object for an all qubit gate that experiences depolarising noise
+        """
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=num_qubits, fid=fidelity)
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
@@ -534,6 +583,13 @@ class DefaultNtfRegistry(NtfInterfaceRegistry):
 
 
 class QubitIdConfig(BaseModel):
+    """
+    A configuration for a qubit associated with an ID
+
+    :param qubit_id:
+    :param qubit_config:
+    """
+
     qubit_id: int
     qubit_config: QubitConfig
 
@@ -583,6 +639,21 @@ class AllQubitGateConfig(BaseModel):
 
 
 class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
+    """
+    Describes the topology of the underlying quantum hardware. The topology describes how the
+    qubits are configured (number of qubits, how the qubits are connected,
+    which qubits can establish entanglement, etc.) and how the gates acting on these qubits are
+    configured (which gates are supported, gate fidelity, gate duration, etc.).
+
+    :param qubits:
+
+    :param single_gates:
+
+    :param multi_gates:
+
+    :param all_qubit_gates:
+    """
+
     qubits: List[QubitIdConfig]
     single_gates: List[SingleGateConfig]
     multi_gates: List[MultiGateConfig]
@@ -605,6 +676,26 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         all_qubit_gate_instructions: List[str] = None,
         all_qubit_gate_duration: int = 0,
     ) -> TopologyConfig:
+        """
+        Creates a topology configuration where all qubits can be used for
+        communication, all qubits have the same memory parameters, and all
+        gates are perfect (noiseless).
+
+        The topology of these qubits is a complete graph, that is a two qubit gate
+        can be executed on any pair of qubits. The noise these qubits experience
+        is uniform, they all share the same t1 and t2 values.
+
+        :param num_qubits: Number of qubits in the topology
+        :param t1: Amplitude damping time (ns)
+        :param t2: Dephasing time (ns)
+        :param single_instructions: List of single qubit instructions
+        :param single_duration: Duration of single qubit instructions (ns)
+        :param two_instructions: List of two qubit instructions
+        :param two_duration: Duration of two qubit instructions (ns)
+        :param all_qubit_gate_instructions: List of all qubit instructions, defaults to None
+        :param all_qubit_gate_duration: Duration of all qubit instructions (ns), defaults to 0
+        :return: A TopologyConfig object for the specified configuration
+        """
         qubits = [
             QubitIdConfig(
                 qubit_id=i,
@@ -1337,6 +1428,18 @@ class NvParams:
 
 
 class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
+    """
+    Configures the latencies for instruction execution and message processing on a node.
+
+    :param host_instr_time: duration of classical Host instr execution
+
+    :param qnos_instr_time: duration of classical Qnos instr execution
+
+    :param host_peer_latency: processing time for Host messages from remote node
+
+    :param internal_sched_latency: processing time for messaging between node scheduler and processor schedulers
+    """
+
     host_instr_time: float = 0.0  # duration of classical Host instr execution
     qnos_instr_time: float = 0.0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0.0  # processing time for Host messages from remote node
@@ -1381,6 +1484,21 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
 
 
 class ProcNodeConfig(BaseModel):
+    """
+    The configuration for a quantum processing node
+
+    :param node_name: The name of the node
+    :param node_id: The identifier for the node
+    :param topology: A TopologyConfig object describing the topology (qubit layout, gate instruction set, memory lifetimes, etc.)
+    :param ntf:
+    :param latencies:
+    :param ntf:
+    :param use_deadlines:
+    :param fcfs:
+    :param prio_epr:
+    :param is_predictable:
+    """
+
     node_name: str
     node_id: int
     topology: TopologyConfig
@@ -1567,6 +1685,17 @@ class LinkConfig(LhiLinkConfigInterface, BaseModel):
 
 
 class LinkBetweenNodesConfig(BaseModel):
+    """
+    Configures a quantum connection betwee two nodes, where the details of the
+    connection are specified in the LinkConfig object (ex. channel noise).
+
+    :param node_id1:
+
+    :param node_id2:
+
+    :param link_config:
+    """
+
     node_id1: int
     node_id2: int
     link_config: LinkConfig
@@ -1595,6 +1724,7 @@ class ClassicalConnectionConfig(BaseModel):
     ) -> ClassicalConnectionConfig:
         """
         Configures a classical connection link between two nodes
+
         :param node_id1: The id of the first node
         :param node_id2: The id of the second node
         :param latency: The latency of the link in ns
