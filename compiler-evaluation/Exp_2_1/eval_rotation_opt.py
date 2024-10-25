@@ -5,6 +5,7 @@ import json
 import math
 import os
 import time
+import random
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -43,6 +44,7 @@ def create_procnode_cfg(
     t2: int,
     single_gate_duration: int,
     single_gate_fid: float,
+    qnos_instr_time: float,
 ) -> ProcNodeConfig:
     """
     Create the configuration object for a processing node
@@ -54,13 +56,13 @@ def create_procnode_cfg(
         node_id=id,
         # TODO configuration for topology based on other params...
         topology=TopologyConfig.uniform_t1t2_qubits_uniform_single_gate_duration_and_noise(
-            1,
+            num_qubits,
             t1=t1,
             t2=t2,
             single_gate_duration=single_gate_duration,
             single_gate_fid=single_gate_fid,
         ),
-        latencies=LatenciesConfig(qnos_instr_time=1000),
+        latencies=LatenciesConfig(qnos_instr_time=qnos_instr_time),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
         determ_sched=True,
     )
@@ -92,12 +94,17 @@ def run_rotation_exp(
     theta1: float,
     theta2: float,
     theta3: float,
+    theta4: float,
+    theta5: float,
+    theta6: float,
+    theta7: float,
     naive: bool,
     t1: int,
     t2: int,
     cc: float,
     single_gate_fid: float,
     single_gate_duration: float,
+    qnos_instr_time: float,
 ) -> RotationExpResult:
     ns.sim_reset()
 
@@ -108,20 +115,22 @@ def run_rotation_exp(
     client_node_cfg = create_procnode_cfg(
         "client",
         client_id,
-        0,
+        1,
         t1,
         t2,
         single_gate_duration,
         single_gate_fid,
+        qnos_instr_time,
     )
     server_node_cfg = create_procnode_cfg(
         "server",
         server_id,
-        0,
+        1,
         t1,
         t2,
         single_gate_duration,
         single_gate_fid,
+        qnos_instr_time,
     )
 
     # Configure the network
@@ -143,6 +152,10 @@ def run_rotation_exp(
     theta1_int = int(theta1 * 16 / math.pi)
     theta2_int = int(theta2 * 16 / math.pi)
     theta3_int = int(theta3 * 16 / math.pi)
+    theta4_int = int(theta4 * 16 / math.pi)
+    theta5_int = int(theta5 * 16 / math.pi)
+    theta6_int = int(theta6 * 16 / math.pi)
+    theta7_int = int(theta7 * 16 / math.pi)
 
     # Input parameters for client program
     client_inputs = [
@@ -153,14 +166,21 @@ def run_rotation_exp(
                 "theta1": theta1_int,
                 "theta2": theta2_int,
                 "theta3": theta3_int,
+                "theta4": theta4_int,
+                "theta5": theta5_int,
+                "theta6": theta6_int,
+                "theta7": theta7_int,
             }
         )
         for _ in range(num_iterations)
     ]
 
     # Input parameters for server program
+    # Randomly vary the initial state for each program instance
+    random.seed(0)
     server_inputs = [
-        ProgramInput({"client_id": client_id}) for _ in range(num_iterations)
+        ProgramInput({"client_id": client_id, "state": random.randint(0, 5)})
+        for _ in range(num_iterations)
     ]
 
     # Run the applications
@@ -186,6 +206,7 @@ class DataPoint:
     makespan: float
     param_name: str
     param_value: float
+    succ_std_dev: float
 
 
 @dataclass
@@ -196,12 +217,18 @@ class DataMeta:
     theta1: float
     theta2: float
     theta3: float
+    theta4: float
+    theta5: float
+    theta6: float
+    theta7: float
     t1: float
     t2: float
     cc: float
     single_gate_fid: float
     single_gate_duration: float
+    qnos_instr_time: float
     sim_duration: float
+    param_name: str
 
 
 @dataclass
@@ -216,12 +243,17 @@ def rotation_exp(
     theta1: float,
     theta2: float,
     theta3: float,
+    theta4: float,
+    theta5: float,
+    theta6: float,
+    theta7: float,
     naive: bool,
     t1: int,
     t2: int,
     cc: float,
     single_gate_fid: float,
     single_gate_duration: float,
+    qnos_instr_time: float,
 ) -> float:
     result = run_rotation_exp(
         num_iterations,
@@ -229,25 +261,51 @@ def rotation_exp(
         theta1,
         theta2,
         theta3,
+        theta4,
+        theta5,
+        theta6,
+        theta7,
         naive,
         t1,
         t2,
         cc,
         single_gate_fid,
         single_gate_duration,
+        qnos_instr_time,
     )
     program_results = result.client_results.results
 
     results = [result.values["result"] for result in program_results]
     avg_makespan = result.total_duration / num_iterations
 
+    # A success is when the program measures a 0
+    # (the measurement outcome is the same as the initial state)
     successes = 0
     for res in results:
         if res == 0:
             successes += 1
-    succ_prob = round(successes / num_iterations, 3)
-    print(f"succ prob: {succ_prob}, makespan: {avg_makespan}")
-    return succ_prob, avg_makespan
+    avg_succ_prob = round(successes / num_iterations, 3)
+
+    # population STD Dev
+    # succ_std_dev = math.sqrt(sum([((1 if res == 0 else 0) - avg_succ_prob)**2 for res in results]) / (num_iterations))
+
+    # batched population STD Dev
+    n_batches = 10
+    batch_size = int(num_iterations / n_batches)
+    batches = [
+        [results[j] for j in range(i * batch_size, (i + 1) * batch_size)]
+        for i in range(0, n_batches)
+    ]
+    batches_avgs = [(batch_size - sum(batch)) / len(batch) for batch in batches]
+    succ_batch_std = math.sqrt(
+        sum([(batch_avg - avg_succ_prob) ** 2 for batch_avg in batches_avgs])
+        / (n_batches)
+    )
+
+    print(
+        f"succ prob: {avg_succ_prob}, std dev:{succ_batch_std}, makespan: {avg_makespan}"
+    )
+    return avg_succ_prob, succ_batch_std, avg_makespan
 
 
 if __name__ == "__main__":
@@ -280,23 +338,30 @@ if __name__ == "__main__":
         exit()
 
     # Memory
-    t1 = 1e9
-    t2 = 1e8
+    t1 = 1e9  # 1 second
+    t2 = 1e7  # 1e7 10ms
 
     # Gate Noise
-    single_gate_fid = 1
+    single_gate_fid = 1  # perfect gates
 
     # Gate execution time
     single_gate_duration = 5e3  # 5 micro seconds
 
+    # Time to process a quant instruction
+    qnos_instr_time = 50e3  # 50 micro seconds
+
     # Classical Communication latency
-    cc = 1e5  # 0.1 ms
+    cc = 0  # 0 seconds
 
     # Convert thetas
-    theta0 = math.pi / 2
-    theta1 = math.pi / 2
-    theta2 = math.pi / 2
-    theta3 = math.pi / 2
+    theta0 = math.pi / 4
+    theta1 = math.pi / 4
+    theta2 = math.pi / 4
+    theta3 = math.pi / 4
+    theta4 = math.pi / 4
+    theta5 = math.pi / 4
+    theta6 = math.pi / 4
+    theta7 = math.pi / 4
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -310,27 +375,34 @@ if __name__ == "__main__":
             single_gate_fid = param_val
         elif param_name == "g_dur":
             single_gate_duration = param_val
+        elif param_name == "instr_time":
+            qnos_instr_time = param_val
         elif param_name == "cc_dur":
             cc = param_val
         else:
             print(
-                "Error. Param name should be one of the four: q_mem, g_fid, g_dur, cc_dur"
+                "Error. Param name should be one of the five: q_mem, g_fid, g_dur, instr_time, cc_dur"
             )
             exit()
 
         # Run the naive program and get results
-        succ_prob_naive, makespan_naive = rotation_exp(
+        succ_prob_naive, succ_std_dev_naive, makespan_naive = rotation_exp(
             naive=True,
             num_iterations=num_iterations,
             theta0=theta0,
             theta1=theta1,
             theta2=theta2,
             theta3=theta3,
+            theta4=theta4,
+            theta5=theta5,
+            theta6=theta6,
+            theta7=theta7,
             t1=t1,
             t2=t2,
             cc=cc,
             single_gate_fid=single_gate_fid,
             single_gate_duration=single_gate_duration,
+            qnos_instr_time=qnos_instr_time,
         )
         # Store the naive datapoint
         data_points.append(
@@ -340,31 +412,38 @@ if __name__ == "__main__":
                 makespan=makespan_naive,
                 param_name=param_name,
                 param_value=param_val,
+                succ_std_dev=succ_std_dev_naive,
             )
         )
 
         # Run the optimal program and get results
-        succ_prob_naive, makespan_naive = rotation_exp(
+        succ_prob_opt, succ_std_dev_opt, makespan_opt = rotation_exp(
             naive=False,
             num_iterations=num_iterations,
             theta0=theta0,
             theta1=theta1,
             theta2=theta2,
             theta3=theta3,
+            theta4=theta4,
+            theta5=theta5,
+            theta6=theta6,
+            theta7=theta7,
             t1=t1,
             t2=t2,
             cc=cc,
             single_gate_fid=single_gate_fid,
             single_gate_duration=single_gate_duration,
+            qnos_instr_time=qnos_instr_time,
         )
         # Store the optimal datapoint
         data_points.append(
             DataPoint(
                 naive=False,
-                succ_prob=succ_prob_naive,
-                makespan=makespan_naive,
+                succ_prob=succ_prob_opt,
+                makespan=makespan_opt,
                 param_name=param_name,
                 param_value=param_val,
+                succ_std_dev=succ_std_dev_opt,
             )
         )
 
@@ -386,12 +465,18 @@ if __name__ == "__main__":
         theta1=theta1,
         theta2=theta2,
         theta3=theta3,
+        theta4=theta4,
+        theta5=theta5,
+        theta6=theta6,
+        theta7=theta7,
         t1=t1,
         t2=t2,
         cc=cc,
         single_gate_fid=single_gate_fid,
         single_gate_duration=single_gate_duration,
+        qnos_instr_time=qnos_instr_time,
         sim_duration=duration,
+        param_name=param_name,
     )
 
     # Format the metadata and datapoints into a json object

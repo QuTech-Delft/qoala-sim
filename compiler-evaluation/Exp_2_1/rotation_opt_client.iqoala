@@ -1,6 +1,6 @@
 META_START
     name: client
-    parameters: server_id, theta0, theta1, theta2, theta3
+    parameters: server_id, theta0, theta1, theta2, theta3, theta4, theta5, theta6, theta7
     csockets: 0 -> server
     epr_sockets: 0 -> server
 META_END
@@ -11,9 +11,37 @@ META_END
     send_cmsg(csocket, theta1)
     send_cmsg(csocket, theta2)
     send_cmsg(csocket, theta3)
+    send_cmsg(csocket, theta4)
+    send_cmsg(csocket, theta5)
+    send_cmsg(csocket, theta6)
+    send_cmsg(csocket, theta7)
 
 ^b1 {type = CC}:
+    dummy0 = recv_cmsg(csocket)
+
+^b3 {type = CC}:
+    dummy1 = recv_cmsg(csocket)
+
+^b5 {type = CC}:
+    dummy2 = recv_cmsg(csocket)
+
+^b7 {type = CC}:
+    dummy3 = recv_cmsg(csocket)
+
+^b11 {type = CC}:
+    dummy4 = recv_cmsg(csocket)
+
+^b13 {type = CC}:
+    dummy5 = recv_cmsg(csocket)
+  
+^b15 {type = CC}:
+    dummy6 = recv_cmsg(csocket)
+
+^b17 {type = CC}:
+    dummy7 = recv_cmsg(csocket)
+
+^b28 {type = CC}:
     result = recv_cmsg(csocket)
 
-^b2 {type = CL}:
+^b29 {type = CL}:
     return_result(result)
