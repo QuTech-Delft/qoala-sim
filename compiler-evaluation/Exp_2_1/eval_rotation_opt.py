@@ -145,7 +145,10 @@ def run_rotation_exp(
         client_program = load_program("rotation_naive_client.iqoala")
         server_program = load_program("rotation_naive_server.iqoala")
     else:
-        client_program = load_program("rotation_opt_client.iqoala")
+        # Naive client is used so that only the server program is varied.
+        client_program = load_program(
+            "rotation_opt_client.iqoala"
+        )  # Naive client is used so that only the server program is varied.
         server_program = load_program("rotation_opt_server.iqoala")
 
     theta0_int = int(theta0 * 16 / math.pi)

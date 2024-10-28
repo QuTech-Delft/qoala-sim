@@ -11,36 +11,49 @@ META_END
 ^b1 {type = CC}: 
     theta0 = recv_cmsg(csocket)
 
+^b2 {type = CL}:
+    send_cmsg(csocket, theta0)
+
 ^b3 {type = CC}: 
     theta1 = recv_cmsg(csocket)
+
+^b4 {type = CL}:
+    send_cmsg(csocket, theta1)
 
 ^b5 {type = CC}: 
     theta2 = recv_cmsg(csocket)
 
+^b6 {type = CL}:
+    send_cmsg(csocket, theta2)
+
 ^b7 {type = CC}: 
     theta3 = recv_cmsg(csocket)
+
+^b8 {type = CL}:
+    send_cmsg(csocket, theta3)
 
 ^b9 {type = CC}: 
     theta4 = recv_cmsg(csocket)
 
+^b10 {type = CL}:
+    send_cmsg(csocket, theta4)
+
 ^b11 {type = CC}: 
     theta5 = recv_cmsg(csocket)
+
+^b12 {type = CL}:
+    send_cmsg(csocket, theta5)
 
 ^b13 {type = CC}: 
     theta6 = recv_cmsg(csocket)
 
+^b14 {type = CL}:
+    send_cmsg(csocket, theta6)
+
 ^b15 {type = CC}: 
     theta7 = recv_cmsg(csocket)
 
-
-^b2 {type = CL}:
-    send_cmsg(csocket, theta0)
-    send_cmsg(csocket, theta1)
-    send_cmsg(csocket, theta2)
-    send_cmsg(csocket, theta3)
-    send_cmsg(csocket, theta4)
-    send_cmsg(csocket, theta5)
-    send_cmsg(csocket, theta6)
+^b16 {type = CL}:
     send_cmsg(csocket, theta7)
 
     res0 = add_cval_c(theta0, theta1)
