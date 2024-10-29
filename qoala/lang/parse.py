@@ -304,7 +304,7 @@ class IqoalaInstrParser:
             if len(tup_values_str) == 0:
                 tup_values = []
             else:
-                tup_values = [x.strip() for x in tup_values_str.split(";")]
+                tup_values = [x.strip() for x in tup_values_str.split(",")]
             for tup_value in tup_values:
                 if not is_valid_name(tup_value):
                     raise QoalaParseError(
