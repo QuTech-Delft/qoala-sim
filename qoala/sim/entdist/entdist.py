@@ -201,18 +201,21 @@ class EntDist(Protocol):
                 f"qubit location id of {node2_phys_id} is not present in \
                     quantum memory of node ID {node2_id}."
             )
+        self._logger.info(f"PRE Qubits currently in use on the server {node1_mem.used_positions}")
+        self._logger.info(f"About to block qubit {node1_phys_id}")
         node1_mem.mem_positions[node1_phys_id].in_use = True
         node2_mem.mem_positions[node2_phys_id].in_use = True
 
+        self._logger.info(f"POST Qubits currently in use on the server {node1_mem.used_positions}")
         self._schedule_after(total_delay, EPR_DELIVERY)
         event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
         yield event_expr
 
         self._logger.info("pair delivered")
-
+        self._logger.info(f"{node1_mem} , {node1_phys_id}")
         node1_mem.put(qubits=epr[0], positions=node1_phys_id)
         node2_mem.put(qubits=epr[1], positions=node2_phys_id)
-
+        self._logger.info(f"{node1_mem} , {node1_phys_id} successfully put!")
         # Send messages to the nodes indictating a request has been delivered.
         node1 = self._interface.remote_id_to_peer_name(node1_id)
         node2 = self._interface.remote_id_to_peer_name(node2_id)

@@ -49,7 +49,8 @@ def topology_config(num_qubits: int) -> TopologyConfig:
             "INSTR_H",
             "INSTR_MEASURE",
         ],
-        single_duration=1e3,
+        # 50e3 breaks this when -n=5
+        single_duration=50e3, # original value 1e3
         two_instructions=["INSTR_CNOT", "INSTR_CZ"],
         two_duration=100e3,
     )
@@ -193,7 +194,8 @@ def run_bqc(
 ):
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
-    seed = random.randint(0, 1000)
+    #seed = random.randint(0, 1000)
+    seed = 1 # Fix the seed so that results are the same each time.
     ns.set_random_state(seed=seed)
 
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
@@ -445,6 +447,11 @@ class Data:
 
 
 if __name__ == "__main__":
+    LogManager.set_log_level("DEBUG")
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_tasks_to_file("multi_bqc_debug_TASKS.log")
+    LogManager.log_to_file("multi_bqc_debug.log")
+
     parser = ArgumentParser()
     parser.add_argument("--num_clients", "-c", type=int, required=True)
     parser.add_argument("--num_iterations", "-n", type=int, required=True)
@@ -462,58 +469,58 @@ if __name__ == "__main__":
     start = time.time()
 
     data_points: List[DataPoint] = []
-    for num_qubits in [2, 5, 10]:
-        makespan_linear = bqc_computation(
-            num_clients, num_iterations, True, cc, num_qubits, False, 0
-        )
-        makespan_interleaved_bin_5e4 = bqc_computation(
-            num_clients, num_iterations, False, cc, num_qubits, True, intlv_1_bin_length
-        )
+    for num_qubits in [5]:
+        # makespan_linear = bqc_computation(
+        #     num_clients, num_iterations, True, cc, num_qubits, False, 0
+        # )
+        # makespan_interleaved_bin_5e4 = bqc_computation(
+        #     num_clients, num_iterations, False, cc, num_qubits, True, intlv_1_bin_length
+        # )
         makespan_interleaved_bin_1e5 = bqc_computation(
             num_clients, num_iterations, False, cc, num_qubits, True, intlv_2_bin_length
         )
 
         print(f"# qubits = {num_qubits}:")
-        print(f"linear: {makespan_linear:_}")
-        print(f"interleaved, bin 5e4: {makespan_interleaved_bin_5e4:_}")
+        # print(f"linear: {makespan_linear:_}")
+    #     print(f"interleaved, bin 5e4: {makespan_interleaved_bin_5e4:_}")
         print(f"interleaved, bin 1e5: {makespan_interleaved_bin_1e5:_}")
 
-        improv_5e4 = round(1 - makespan_interleaved_bin_5e4 / makespan_linear, 3)
-        improv_1e5 = round(1 - makespan_interleaved_bin_1e5 / makespan_linear, 3)
-        print(f"improvement 5e4: {improv_5e4}")
-        print(f"improvement 1e5: {improv_1e5}")
+    #     improv_5e4 = round(1 - makespan_interleaved_bin_5e4 / makespan_linear, 3)
+    #     improv_1e5 = round(1 - makespan_interleaved_bin_1e5 / makespan_linear, 3)
+    #     print(f"improvement 5e4: {improv_5e4}")
+    #     print(f"improvement 1e5: {improv_1e5}")
 
-        point = DataPoint(
-            num_qubits_server=num_qubits,
-            makespan_linear=makespan_linear,
-            makespan_intlv_1=makespan_interleaved_bin_5e4,
-            makespan_intlv_2=makespan_interleaved_bin_1e5,
-            improv_1=improv_5e4,
-            improv_2=improv_1e5,
-        )
-        data_points.append(point)
+    #     point = DataPoint(
+    #         num_qubits_server=num_qubits,
+    #         makespan_linear=makespan_linear,
+    #         makespan_intlv_1=makespan_interleaved_bin_5e4,
+    #         makespan_intlv_2=makespan_interleaved_bin_1e5,
+    #         improv_1=improv_5e4,
+    #         improv_2=improv_1e5,
+    #     )
+    #     data_points.append(point)
 
-    end = time.time()
-    duration = round(end - start, 2)
+    # end = time.time()
+    # duration = round(end - start, 2)
 
-    abs_dir = relative_to_cwd(f"data")
-    Path(abs_dir).mkdir(parents=True, exist_ok=True)
-    last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
+    # abs_dir = relative_to_cwd(f"data")
+    # Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    # last_path = os.path.join(abs_dir, "LAST.json")
+    # timestamp_path = os.path.join(abs_dir, f"{timestamp}.json")
 
-    meta = DataMeta(
-        timestamp=timestamp,
-        num_clients=num_clients,
-        num_iterations=num_iterations,
-        cc=cc,
-        intlv_1_bin_length=intlv_1_bin_length,
-        intlv_2_bin_length=intlv_2_bin_length,
-        sim_duration=duration,
-    )
-    data = Data(meta=meta, data_points=data_points)
-    json_data = asdict(data)
+    # meta = DataMeta(
+    #     timestamp=timestamp,
+    #     num_clients=num_clients,
+    #     num_iterations=num_iterations,
+    #     cc=cc,
+    #     intlv_1_bin_length=intlv_1_bin_length,
+    #     intlv_2_bin_length=intlv_2_bin_length,
+    #     sim_duration=duration,
+    # )
+    # data = Data(meta=meta, data_points=data_points)
+    # json_data = asdict(data)
 
-    with open(last_path, "w") as datafile:
-        json.dump(json_data, datafile)
-    with open(timestamp_path, "w") as datafile:
-        json.dump(json_data, datafile)
+    # with open(last_path, "w") as datafile:
+    #     json.dump(json_data, datafile)
+    # with open(timestamp_path, "w") as datafile:
+    #     json.dump(json_data, datafile)

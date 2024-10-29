@@ -72,6 +72,7 @@ class NetstackProcessor:
         memmgr = self._interface.memmgr
         pid = process.pid
         phys_id = memmgr.phys_id_for(pid, virt_id)
+        self._logger.info(f"{self._name.replace('_netstack_protocol_NetstackProcessor', '')}: CREATING REQUEST: virt_id:{virt_id}, phys_id:{phys_id}")
         if phys_id is None:
             raise RuntimeError(f"phys id {phys_id} not allocated")
 

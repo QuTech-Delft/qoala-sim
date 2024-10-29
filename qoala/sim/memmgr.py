@@ -91,6 +91,7 @@ class MemoryManager(Protocol):
 
     def allocate(self, pid: int, virt_id: int) -> int:
         vmap = self._process_mappings[pid]
+
         # Check if the virtual ID is in the unit module
         if virt_id not in vmap.unit_module.get_all_qubit_ids():
             raise AllocError
@@ -137,10 +138,11 @@ class MemoryManager(Protocol):
         # update mappings
         self._physical_mapping[phys_id] = None
         vmap.mapping[virt_id] = None
-
+        self._logger.info(f"VIRT MAPPING {vmap.mapping}")
+        self._logger.info(f"Mem BEFORE Free {self._qdevice.qprocessor.used_positions}")
         # update netsquid memory
         self._qdevice.set_mem_pos_in_use(phys_id, False)
-
+        self._logger.info(f"Memory Usage After Free {self._qdevice.qprocessor.used_positions}")
         if send_signal:
             # send a signal for components that may be blocked on resources
             self.send_signal(SIGNAL_MEMORY_FREED)
