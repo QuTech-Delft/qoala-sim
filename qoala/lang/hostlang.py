@@ -68,7 +68,7 @@ class IqoalaTuple(IqoalaVar):
     values: List[str]
 
     def __str__(self) -> str:
-        return f"tuple<{','.join(v for v in self.values)}>"
+        return f"tuple<{';'.join(v for v in self.values)}>"
 
 
 @dataclass(frozen=True)
