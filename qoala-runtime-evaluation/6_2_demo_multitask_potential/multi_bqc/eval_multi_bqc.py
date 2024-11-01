@@ -50,7 +50,7 @@ def topology_config(num_qubits: int) -> TopologyConfig:
             "INSTR_MEASURE",
         ],
         # 50e3 breaks this when -n=5
-        single_duration=50e3, # original value 1e3
+        single_duration=90e3,  # original value 1e3
         two_instructions=["INSTR_CNOT", "INSTR_CZ"],
         two_duration=100e3,
     )
@@ -194,8 +194,8 @@ def run_bqc(
 ):
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
-    #seed = random.randint(0, 1000)
-    seed = 1 # Fix the seed so that results are the same each time.
+    # seed = random.randint(0, 1000)
+    seed = 1  # Fix the seed so that results are the same each time.
     ns.set_random_state(seed=seed)
 
     server_config = get_server_config(id=0, num_qubits=server_num_qubits)
@@ -482,7 +482,7 @@ if __name__ == "__main__":
 
         print(f"# qubits = {num_qubits}:")
         # print(f"linear: {makespan_linear:_}")
-    #     print(f"interleaved, bin 5e4: {makespan_interleaved_bin_5e4:_}")
+        #     print(f"interleaved, bin 5e4: {makespan_interleaved_bin_5e4:_}")
         print(f"interleaved, bin 1e5: {makespan_interleaved_bin_1e5:_}")
 
     #     improv_5e4 = round(1 - makespan_interleaved_bin_5e4 / makespan_linear, 3)

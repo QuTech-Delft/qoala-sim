@@ -72,7 +72,10 @@ class NetstackProcessor:
         memmgr = self._interface.memmgr
         pid = process.pid
         phys_id = memmgr.phys_id_for(pid, virt_id)
-        self._logger.info(f"{self._name.replace('_netstack_protocol_NetstackProcessor', '')}: CREATING REQUEST: virt_id:{virt_id}, phys_id:{phys_id}")
+        self._logger.info(
+            f"{self._name.replace('_netstack_protocol_NetstackProcessor', '')}"
+            + ": CREATING REQUEST: virt_id:{virt_id}, phys_id:{phys_id}"
+        )
         if phys_id is None:
             raise RuntimeError(f"phys id {phys_id} not allocated")
 
@@ -115,17 +118,22 @@ class NetstackProcessor:
         self._logger.debug(log_str)
 
         virt_ids: List[int] = []
+        # For each requested entangled pair
         for i in range(num_pairs):
+            # Allocate space for each qubit
             virt_id = self._allocate_for_pair(process, request, i)
             virt_ids.append(virt_id)
             self._logger.info(f"trying to create EPR pair {i} (virt ID = {virt_id})")
             entdist_req = self._create_entdist_request(process, request, virt_id)
 
+            self._logger.info("SENDING ENTDIST MSG!")
             self._interface.send_entdist_msg(Message(-1, -1, entdist_req))
 
+        has_failed = False
         for i, virt_id in enumerate(virt_ids):
             result_msg = yield from self._interface.receive_entdist_msg()
             self._logger.info(f"got result {result_msg}")
+
             result = result_msg.content is not None
 
             if result:  # success
@@ -133,11 +141,14 @@ class NetstackProcessor:
                     f"successfully created EPR pair {i} (virt ID = {virt_id})"
                 )
             if not result:
+                has_failed = True
                 self._logger.info(f"failed creating EPR pair {i} (virt ID = {virt_id})")
-                self._logger.info(f"freeing qubits {virt_ids}")
-                for vid in virt_ids:
-                    self._interface.memmgr.free(process.pid, vid)
-                return False
+
+        if has_failed:
+            self._logger.info(f"freeing qubits {virt_ids}")
+            for vid in virt_ids:
+                self._interface.memmgr.free(process.pid, vid)
+            return False
         return True
 
     def _handle_multi_pair_md(

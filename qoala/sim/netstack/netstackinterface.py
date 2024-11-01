@@ -90,7 +90,9 @@ class NetstackInterface(ComponentProtocol):
     def receive_entdist_msg(self) -> Generator[EventExpression, None, Message]:
         """Receive a message from the Entdist. Block until there is at least one
         message."""
+        self._logger.info("YIELDING TO RECEIVE ENTDIST MSG")
         yield from self._wait_for_msg("entdist", SIGNAL_ENTD_NSTK_MSG)
+        self._logger.info("RECEIVED ENTDIST MSG")
         return self._pop_any_msg("entdist")
 
     def send_peer_msg(self, peer: str, msg: Message) -> None:

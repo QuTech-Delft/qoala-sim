@@ -187,6 +187,7 @@ class EntDist(Protocol):
         self._logger.info(f"sample duration: {sample.duration}")
         self._logger.info(f"total duration: {timed_sampler.delay}")
         total_delay = sample.duration + timed_sampler.delay
+        self._logger.info(f"TOTAL DELAY FOR ENT DIST {total_delay}")
 
         node1_mem = self._nodes[node1_id].qmemory
         node2_mem = self._nodes[node2_id].qmemory
@@ -201,12 +202,16 @@ class EntDist(Protocol):
                 f"qubit location id of {node2_phys_id} is not present in \
                     quantum memory of node ID {node2_id}."
             )
-        self._logger.info(f"PRE Qubits currently in use on the server {node1_mem.used_positions}")
+        self._logger.info(
+            f"PRE Qubits currently in use on the server {node1_mem.used_positions}"
+        )
         self._logger.info(f"About to block qubit {node1_phys_id}")
         node1_mem.mem_positions[node1_phys_id].in_use = True
         node2_mem.mem_positions[node2_phys_id].in_use = True
 
-        self._logger.info(f"POST Qubits currently in use on the server {node1_mem.used_positions}")
+        self._logger.info(
+            f"POST Qubits currently in use on the server {node1_mem.used_positions}"
+        )
         self._schedule_after(total_delay, EPR_DELIVERY)
         event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
         yield event_expr
@@ -267,11 +272,18 @@ class EntDist(Protocol):
         return None
 
     def get_next_joint_request(self) -> Optional[JointRequest]:
+        # For each nodes list of requests
         for _, local_requests in self._requests.items():
             if len(local_requests) == 0:
                 continue
+            # Pop the first request for the current node
             local_request = local_requests.pop(0)
+
+            # Get the corresponding request from another node
             remote_request_id = self.get_remote_request_for(local_request)
+
+            # If the corresponding request exists create a joint request
+            # and remove the corresponding request from its nodes list of request
             if remote_request_id is not None:
                 remote_id = local_request.remote_node_id
                 remote_request = self._requests[remote_id].pop(remote_request_id)
@@ -320,8 +332,10 @@ class EntDist(Protocol):
 
         while True:
             # Wait until a message arrives.
+            # self._interface.wait_for_any_msg() is a subcoroutine
+            # What is the 'break' condition for wait_for_any_msg()?
             yield from self._interface.wait_for_any_msg()
-
+            self._logger.info("RECEIVED MESSAGES")
             # Wait until the next time bin.
             now = ns.sim_time()
             next_slot_time, next_slot = self._netschedule.next_bin(now)
@@ -331,9 +345,19 @@ class EntDist(Protocol):
             elif next_slot_time - now < 0:
                 raise RuntimeError()
 
+            self._logger.info(
+                f"BEFORE REQUESTS NODE 0: {len(self._requests[0])}, {self._requests[0]} "
+            )
+            self._logger.info(
+                f"BEFORE REQUESTS NODE 1: {len(self._requests[1])}, {self._requests[1]} "
+            )
+
+            # At the start of each time bin, pop all of the entanglement gen request messages
             messages = self._interface.pop_all_messages()
+            self._logger.info(f"NUM MESSAGES: {len(messages)}, MESSAGES: {messages}")
 
             requesting_nodes: List[int] = []
+            # For each message
             for msg in messages:
                 self._logger.info(f"received new msg from node: {msg}")
                 request: EntDistRequest = msg.content
@@ -347,21 +371,69 @@ class EntDist(Protocol):
                 else:
                     self._logger.info(f"not handling msg {msg} (wrong timebin)")
 
+            self._logger.info(
+                f"CUR REQUESTS NODE 0: {len(self._requests[0])}, {self._requests[0]} "
+            )
+            self._logger.info(
+                f"CUR REQUESTS NODE 1: {len(self._requests[1])}, {self._requests[1]} "
+            )
+
             joint_request = self.get_next_joint_request()
+            self._logger.info(
+                f"AFTER JOINT NODE 0: {len(self._requests[0])}, {self._requests[0]} "
+            )
+            self._logger.info(
+                f"AFTER JOINT NODE 1: {len(self._requests[1])}, {self._requests[1]} "
+            )
+
             if joint_request is not None:
                 self._logger.info(f"serving request {joint_request}")
                 yield from self.serve_request(joint_request)
                 self._logger.info("served request")
+                self._logger.info(
+                    f"AFTER SERVE NODE 0: {len(self._requests[0])}, {self._requests[0]} "
+                )
+                self._logger.info(
+                    f"AFTER SERVE NODE 1: {len(self._requests[1])}, {self._requests[1]} "
+                )
+                # While next_request is not none
                 while next_request := self.get_next_joint_request():
+                    self._logger.info("GETTING NEXT REQUEST")
                     self._logger.info(f"serving request {next_request}")
+                    self._logger.info(
+                        f"AFTER NEXT SERVE NODE 0: {len(self._requests[0])}, {self._requests[0]} "
+                    )
+                    self._logger.info(
+                        f"AFTER NEXT SERVE NODE 1: {len(self._requests[1])}, {self._requests[1]} "
+                    )
                     yield from self.serve_request(next_request)
                     self._logger.info("served request")
             else:
                 yield from self._interface.wait(1000)
+                self._logger.info(
+                    f"WHEN FAILING NODE 0: {len(self._requests[0])}, {self._requests[0]} "
+                )
+                self._logger.info(
+                    f"WHEN FAILING NODE 1: {len(self._requests[1])}, {self._requests[1]} "
+                )
+
                 for node_id in requesting_nodes:
                     node = self._interface.remote_id_to_peer_name(node_id)
+                    self._logger.info(f"NODE {node_id} FAILED")
                     self._interface.send_node_msg(node, Message(-1, -1, None))
             self.clear_requests()
+            self._logger.info(
+                f"AFTER CLEAR NODE 0: {len(self._requests[0])}, {self._requests[0]} "
+            )
+            self._logger.info(
+                f"AFTER CLEAR NODE 1: {len(self._requests[1])}, {self._requests[1]} "
+            )
+
+            messages = self._interface.pop_all_messages()
+            self._logger.info(
+                f"MESSAGES AFTER CLEAR NUM MESSAGES: {len(messages)}, MESSAGES: {messages}"
+            )
+
             yield from self._interface.wait(1)
 
     def _run_without_netschedule(self) -> Generator[EventExpression, None, None]:

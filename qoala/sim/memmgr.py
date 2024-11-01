@@ -142,7 +142,9 @@ class MemoryManager(Protocol):
         self._logger.info(f"Mem BEFORE Free {self._qdevice.qprocessor.used_positions}")
         # update netsquid memory
         self._qdevice.set_mem_pos_in_use(phys_id, False)
-        self._logger.info(f"Memory Usage After Free {self._qdevice.qprocessor.used_positions}")
+        self._logger.info(
+            f"Memory Usage After Free {self._qdevice.qprocessor.used_positions}"
+        )
         if send_signal:
             # send a signal for components that may be blocked on resources
             self.send_signal(SIGNAL_MEMORY_FREED)

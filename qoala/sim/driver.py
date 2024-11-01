@@ -230,6 +230,8 @@ class QpuDriver(Driver):
     ) -> Generator[EventExpression, None, bool]:
         process = self._memmgr.get_process(task.pid)
 
+        self._logger.info(f"HANDLING THIS TASK! {task.task_id}")
+
         # The corresponding PreCallTask must have executed, and it must have written
         # to the sharded scheduler memory.
         rrcall: RrCallTuple = self._memory.read_shared_rrcall(task.shared_ptr)

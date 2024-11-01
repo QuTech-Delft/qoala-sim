@@ -838,6 +838,7 @@ class ProcessorScheduler(Protocol):
 
     def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
         assert self._task_graph is not None
+        self._logger.info("LOOPING AGAIN")
         tinfo = self._task_graph.get_tinfo(task_id)
         task = tinfo.task
 
@@ -863,6 +864,7 @@ class ProcessorScheduler(Protocol):
             self.record_end_timestamp(task.pid, after)
             self.last_finished_task_pid = (task.pid, after)
             duration = after - before
+            self._logger.info(f"TASK COMPLETED {task, duration}")
             self._task_graph.decrease_deadlines(duration)
             self._task_graph.remove_task(task_id)
 
@@ -1452,11 +1454,14 @@ class QpuScheduler(ProcessorScheduler):
             self._task_logger.debug(f"status: {self.status.status}")
             if Status.EPR_GEN in self.status.status:
                 task_id = self.status.params["task_id"]
+                self._logger.info("YIELDING TASK")
                 yield from self.handle_task(task_id)
+                self._logger.info("YIELDED TASK COMPLETE")
             elif Status.NEXT_TASK in self.status.status:
                 task_id = self.status.params["task_id"]
                 yield from self.handle_task(task_id)
             else:
+                self._logger.info("YIELDING WAITING")
                 ev_expr = self.await_port_input(self.node_scheduler_in_port)
                 if Status.WAITING_OTHER_CORE in self.status.status:
                     ev_expr = ev_expr | self.await_signal(
@@ -1475,3 +1480,4 @@ class QpuScheduler(ProcessorScheduler):
                     ev_expr = ev_expr | ev_timebin
                 self._task_logger.debug(f"yielding on {ev_expr}")
                 yield ev_expr
+                self._logger.info("YIELDING WAITING COMPLETE")

@@ -11,6 +11,10 @@ from qoala.util.logging import LogManager
 
 class MessageBuffer:
     def __init__(self) -> None:
+        # Added logger for debugging
+        self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
+            f"{self.__class__.__name__}(EntDist)"
+        )
         self._messages: Dict[
             Tuple[int, int], List[Message]
         ] = {}  # (src PID, dst PID) -> message list
@@ -51,9 +55,13 @@ class MessageBuffer:
 
     def pop_all(self) -> List[Message]:
         messages = []
-        for buf in self._messages.values():
+        self._logger.info(f"{self._messages}")
+        for _, buf in self._messages.items():
+            self._logger.info(f"BEFORE POP: {_} {len(buf)}, {buf}")
             messages.extend(buf)
             buf.clear()
+            self._logger.info(f"AFTER POP: {_} {len(buf)} {buf}")
+
         return messages
 
 
@@ -113,6 +121,7 @@ class ComponentProtocol(Protocol):
 
     def _pop_any_msg(self, listener_name: str) -> Message:
         listener = self._listeners[listener_name]
+        self._logger.info(f"MESSAGES IN THE QUEUE {listener.buffer._messages}")
         return listener.buffer.pop_any()
 
     def _pop_msg(self, listener_name: str, src_pid: int, dst_pid: int) -> Message:
@@ -165,7 +174,7 @@ class ComponentProtocol(Protocol):
         union = expressions[0]
         for i in range(1, len(expressions)):
             union = union | expressions[i]  # type: ignore
-
+        self._logger.info(f"SOMETHING IS HAPPENEING HERE? {union}")
         return union
 
     def _handle_msg_evexpr(
@@ -173,12 +182,14 @@ class ComponentProtocol(Protocol):
     ) -> Generator[EventExpression, None, None]:
         # Count the number of listeners that has messages in their buffers.
         # This number is equal to the number of events that have fired.
+
         ev_count = 0
         for listener_name in listener_names:
             listener = self._listeners[listener_name]
 
             if listener.buffer.has_any():
                 ev_count += 1
+                self._logger.info(f"NODE {listener_name} HAS A MESSAGE")
 
         # There *must* be at least one event that has fired since we yielded.
         assert ev_count > 0
@@ -186,20 +197,28 @@ class ComponentProtocol(Protocol):
         # We already yielded on one (above), but need to yield on the rest.
         for _ in range(ev_count - 1):
             yield evexpr
+            self._logger.info("ANOTHER NODE HAS MESSAGES?")
+
+        self._logger.info(f"RECEIVED MESSAGES FROM {ev_count} NODES IN TOTAL")
 
     def _wait_for_msg_any_source(
         self, listener_names: List[str], wake_up_signals: List[str]
     ) -> Generator[EventExpression, None, None]:
+        # listener names are the node names
+        # wake up signals are the type of messages that cause the listener to wake up
+
         # Get an event expression for any one of the listeners getting a message.
         evexpr = self._get_evexpr_for_any_msg(listener_names, wake_up_signals)
 
         # If None, there are already messages available.
+        # this causes wait_for_any_msg() to stop yielding, which causes run_with_netschedule to stop yielding
         if evexpr is None:
             return
-
+        self._logger.info("WAITING FOR A MESSAGE")
         # Wait until at least one of the events in the evexpr happens.
         # (i.e. wait until at least one message arrives)
         yield evexpr
+        self._logger.info("A SINGLE NODE HAS A MESSAGE ARRIVED")
 
         yield from self._handle_msg_evexpr(evexpr, listener_names)
 
