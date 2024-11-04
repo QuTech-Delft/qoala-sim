@@ -122,6 +122,7 @@ class NetstackProcessor:
 
             self._interface.send_entdist_msg(Message(-1, -1, entdist_req))
 
+        has_failed = False
         for i, virt_id in enumerate(virt_ids):
             result_msg = yield from self._interface.receive_entdist_msg()
             self._logger.info(f"got result {result_msg}")
@@ -132,12 +133,16 @@ class NetstackProcessor:
                     f"successfully created EPR pair {i} (virt ID = {virt_id})"
                 )
             if not result:
+                # A failure response has been received
+                has_failed = True
                 self._logger.info(f"failed creating EPR pair {i} (virt ID = {virt_id})")
-                self._logger.info(f"freeing qubits {virt_ids}")
-                for vid in virt_ids:
-                    self._interface.memmgr.free(process.pid, vid)
-                return False
-        return True
+
+                # Free the qubit associated with the request
+                self._logger.info(f"freeing qubit {virt_id}")
+                self._interface.memmgr.free(process.pid, virt_id)
+
+        # Returns whether entanglement generation was successful
+        return not has_failed
 
     def _handle_multi_pair_md(
         self, process: QoalaProcess, routine_name: str
