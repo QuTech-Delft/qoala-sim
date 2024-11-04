@@ -930,6 +930,54 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         )
 
     @classmethod
+    def uniform_t1t2_qubits_uniform_any_gate_duration_and_noise(
+        cls,
+        num_qubits: int,
+        t1: int,
+        t2: int,
+        single_gate_duration: int,
+        single_gate_fid: float,
+        two_gate_duration: int,
+        two_gate_fid: float,
+        all_gate_duration: int = 0,
+        all_gate_fid: float = 1.0,
+    ) -> TopologyConfig:
+        """
+        Creates a TopologyConfiguration object with a uniform qubit topology,
+        where single qubit gates experience depolarising noise, and the
+        gate duration is specified.
+
+        :param num_qubits: number of qubits
+        :param t1: Amplitude damping (ns)
+        :param t2: Dephasing time (ns)
+        :param single_gate_duration: How long it takes to execute a single qubit gate (ns)
+        :param single_gate_fid: Fidelity of single gate operations
+        :return: A TopologyConfiguration object
+        """
+        return cls.uniform_t1t2_qubits_uniform_imperfect_gates(
+            num_qubits=num_qubits,
+            t1=t1,
+            t2=t2,
+            single_instructions=[
+                "INSTR_INIT",
+                "INSTR_ROT_X",
+                "INSTR_ROT_Y",
+                "INSTR_ROT_Z",
+                "INSTR_X",
+                "INSTR_Y",
+                "INSTR_Z",
+                "INSTR_H",
+                "INSTR_MEASURE",
+                "INSTR_MEASURE_INSTANT",
+            ],
+            single_duration=single_gate_duration,
+            single_fid=single_gate_fid,
+            two_instructions=["INSTR_CNOT", "INSTR_CZ"],
+            two_fid=two_gate_fid,
+            two_duration=two_gate_duration,
+        )
+
+    @classmethod
     def config_star(
         cls,
         num_qubits: int,
