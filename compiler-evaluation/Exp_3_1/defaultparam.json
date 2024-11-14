@@ -1,0 +1,40 @@
+{
+    "client_progs": [
+        "programs/vbqc_client.iqoala"
+    ],
+    "server_progs": [
+        "programs/vbqc_server_1cooperative_block.iqoala"
+    ],
+    "client_prog_args": [
+        {
+            "alpha": 8,
+            "beta": 24,
+            "theta1": 2,
+            "theta2": 22,
+            "dummy0": 0,
+            "dummy1": 1
+        }
+    ],
+    "server_prog_args": [
+        {}
+    ],
+    "client_num_iterations": [],
+    "server_num_iterations": [],
+    "num_clients": 1,
+    "linear": false,
+    "cc": 0,
+    "t1": 0,
+    "t2": 0,
+    "single_gate_dur": 0.0,
+    "two_gate_dur": 0.0,
+    "all_gate_dur": 0.0,
+    "single_gate_fid": 1.0,
+    "two_gate_fid": 1.0,
+    "all_gate_fid": 1.0,
+    "qnos_instr_proc_time": 0,
+    "host_instr_time": 0,
+    "host_peer_latency": 0,
+    "client_num_qubits": 20,
+    "use_netschedule": true,
+    "bin_length": 0
+}

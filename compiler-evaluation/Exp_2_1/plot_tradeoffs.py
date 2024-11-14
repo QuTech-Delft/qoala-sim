@@ -70,6 +70,9 @@ def create_plots(timestamp: str, data: Data):
     :param y_axis: Either succ_prob or makespan
     """
 
+    default_suboptimal_makespan = 2480580.0
+    default_optimal_makespan = 1145580.0
+
     # Parse data from data object to get lists of x and y values
     data_points = data.data_points
     naive_y_vals_makespan = [
@@ -94,10 +97,10 @@ def create_plots(timestamp: str, data: Data):
     ]
 
     naive_x_vals = [
-        data_point.param_value for data_point in data_points if data_point.naive
+        data_point.param_value / default_suboptimal_makespan for data_point in data_points if data_point.naive
     ]
     opt_x_vals = [
-        data_point.param_value for data_point in data_points if not data_point.naive
+        data_point.param_value / default_suboptimal_makespan for data_point in data_points if not data_point.naive
     ]
 
     # Create labels for axes
