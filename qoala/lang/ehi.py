@@ -111,9 +111,9 @@ class EhiNodeInfo:
         MultiQubit, List[EhiGateInfo]
     ]  # ordered qubit ID list -> gates
     latencies: EhiLatencies
-    all_qubit_gate_infos: Optional[
-        List[EhiGateInfo]
-    ] = None  # gates that are applied to all qubits
+    all_qubit_gate_infos: Optional[List[EhiGateInfo]] = (
+        None  # gates that are applied to all qubits
+    )
 
     def find_single_gate(
         self, qubit_id: int, instr: Type[NetQASMInstruction]
@@ -567,14 +567,32 @@ class EhiNetworkSchedule:
     bin_pattern: List[EhiNetworkTimebin]
     repeat_period: int
 
-    def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
+    def _curr_pattern_start(self, time: int) -> int:
         global_offset = time - self.first_bin
 
         # Get the start of the current iteration of the repeating pattern.
         curr_pattern_index = floor(global_offset / self.repeat_period)
-        curr_pattern_start = curr_pattern_index * self.repeat_period + self.first_bin
+        return curr_pattern_index * self.repeat_period + self.first_bin
 
+    def current_bin(self, time: int) -> Optional[Tuple[int, EhiNetworkTimebin]]:
         # Get relative time within the pattern.
+        curr_pattern_start = self._curr_pattern_start(time)
+        time_since_pattern_start = time - curr_pattern_start
+
+        # Get the index of the current bin within the pattern.
+        curr_bin_index = floor(time_since_pattern_start / self.bin_length)
+
+        # It may be that we're currently not in any bin.
+        if curr_bin_index >= len(self.bin_pattern):
+            return None
+        # Else, find the current bin.
+        curr_bin_start = curr_bin_index * self.bin_length + curr_pattern_start
+        curr_bin = self.bin_pattern[curr_bin_index]
+        return curr_bin_start, curr_bin
+
+    def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
+        # Get relative time within the pattern.
+        curr_pattern_start = self._curr_pattern_start(time)
         time_since_pattern_start = time - curr_pattern_start
 
         # Get the index of the next bin within the pattern.

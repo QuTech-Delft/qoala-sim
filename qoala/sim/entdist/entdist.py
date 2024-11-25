@@ -171,6 +171,39 @@ class EntDist(Protocol):
         qubitapi.assign_qstate([q0, q1], state)
         return q0, q1
 
+    def deliver_all(
+        self, requests: List[JointRequest]
+    ) -> Generator[EventExpression, None, None]:
+        now = ns.sim_time()
+        # TODO get end of current time bin instead of start of next one
+        next_slot_time, next_slot = self._netschedule.next_bin(now)
+
+        # Event expression for all EPR generation events
+        ev_expr: EventExpression
+
+        for req in requests:
+            epr, duration = self._sample_epr_gen(req)
+            # TODO check if duration fits inside current bin
+            # if so, add to event expression
+
+        # TODO yield on ev_expr
+
+        # TODO return info about which requests were served
+        # TODO update messages sent back to nodes
+
+    def _sample_epr_gen(
+        self, request: JointRequest
+    ) -> Tuple[Tuple[Qubit, Qubit], float]:
+        timed_sampler = self.get_sampler(request.node1_id, request.node2_id)
+        sample = self.sample_state(timed_sampler.sampler)
+        epr = self.create_epr_pair_with_state(sample.state)
+
+        self._logger.info(f"sample duration: {sample.duration}")
+        self._logger.info(f"total duration: {timed_sampler.delay}")
+        total_delay = sample.duration + timed_sampler.delay
+
+        return (epr, total_delay)
+
     def deliver(
         self,
         node1_id: int,
@@ -263,6 +296,30 @@ class EntDist(Protocol):
 
         return None
 
+    def get_all_joint_requests(self) -> List[JointRequest]:
+        # TODO fix this
+        joint_requests = []
+
+        for _, local_requests in self._requests.items():
+            for loc_req in local_requests:
+                rem_req_id = self.get_remote_request_for(loc_req)
+                if rem_req_id is not None:
+                    remote_id = loc_req.remote_node_id
+                    remote_request = self._requests[remote_id].pop(rem_req_id)
+                    joint_requests.append(
+                        JointRequest(
+                            loc_req.local_node_id,
+                            remote_request.local_node_id,
+                            loc_req.local_qubit_id,
+                            remote_request.local_qubit_id,
+                            loc_req.local_pid,
+                            loc_req.remote_pid,
+                        )
+                    )
+
+        # No joint requests found
+        return None
+
     def get_next_joint_request(self) -> Optional[JointRequest]:
         for _, local_requests in self._requests.items():
             if len(local_requests) == 0:
@@ -311,6 +368,43 @@ class EntDist(Protocol):
     def stop(self) -> None:
         self._interface.stop()
         super().stop()
+
+    def _run_with_new_netschedule(self) -> Generator[EventExpression, None, None]:
+        while True:
+            # Wait until a message arrives.
+            yield from self._interface.wait_for_any_msg()
+
+            now = ns.sim_time()
+            curr_slot_time, curr_slot = self._netschedule.current_bin(now)
+            next_slot_time, next_slot = self._netschedule.next_bin(now)
+
+            messages = self._interface.pop_all_messages()
+
+            # Gather requests from the messages and add them to the request list
+            # (self._requests). Only keep those that are allowed to be served in the
+            # current time bin. For the others, immediately send back a failure response.
+            requesting_nodes: List[int] = []
+            for msg in messages:
+                self._logger.info(f"received new msg from node: {msg}")
+                request: EntDistRequest = msg.content
+                requesting_nodes.append(request.local_node_id)
+
+                self._logger.info(f"netschedule: {self._netschedule}")
+                self._logger.info(f"current slot: {curr_slot}")
+                if request.matches_timebin(curr_slot):
+                    if request in self._requests:
+                        # This exact request was already received earlier and is still pending.
+                        self._logger.info(f"not handling msg {msg} (already pending)")
+                        self._interface.send_node_msg(node, Message(-1, -1, None))
+                    else:
+                        self.put_request(request)
+                else:
+                    self._logger.info(f"not handling msg {msg} (wrong timebin)")
+                    node = self._interface.remote_id_to_peer_name(request.local_node_id)
+                    self._interface.send_node_msg(node, Message(-1, -1, None))
+
+            joint_requests = self.get_all_joint_requests()
+            yield from self.deliver_all(joint_requests)
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         assert self._netschedule is not None

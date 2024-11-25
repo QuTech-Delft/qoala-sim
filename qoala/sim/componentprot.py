@@ -11,9 +11,9 @@ from qoala.util.logging import LogManager
 
 class MessageBuffer:
     def __init__(self) -> None:
-        self._messages: Dict[
-            Tuple[int, int], List[Message]
-        ] = {}  # (src PID, dst PID) -> message list
+        self._messages: Dict[Tuple[int, int], List[Message]] = (
+            {}
+        )  # (src PID, dst PID) -> message list
 
     def add_msg(self, msg: Message) -> None:
         if (msg.src_pid, msg.dst_pid) not in self._messages:

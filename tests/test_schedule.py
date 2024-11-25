@@ -1,3 +1,5 @@
+from multiprocessing import Value
+
 import pytest
 
 from qoala.lang.ehi import EhiNetworkSchedule, EhiNetworkTimebin
@@ -29,6 +31,17 @@ def test_network_schedule():
     schedule = EhiNetworkSchedule(
         bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=1000
     )
+
+    assert schedule.current_bin(0) == (0, bin(0, 0))
+    assert schedule.current_bin(80) == (0, bin(0, 0))
+    assert schedule.current_bin(100) == (100, bin(1, 1))
+    assert schedule.current_bin(180) == (100, bin(1, 1))
+    assert schedule.current_bin(200) == (200, bin(2, 2))
+    assert schedule.current_bin(280) == (200, bin(2, 2))
+    assert schedule.current_bin(900) is None
+    assert schedule.current_bin(1000) == (1000, bin(0, 0))
+    assert schedule.current_bin(1080) == (1000, bin(0, 0))
+
     assert schedule.next_bin(0) == (0, bin(0, 0))
     assert schedule.next_bin(80) == (100, bin(1, 1))
     assert schedule.next_bin(100) == (100, bin(1, 1))
