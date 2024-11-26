@@ -22,7 +22,7 @@ from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
-from qoala.sim.events import EPR_DELIVERY, EPR_TIMEOUT
+from qoala.sim.events import EPR_DELIVERY, BIN_END
 from qoala.util.logging import LogManager
 
 
@@ -84,7 +84,7 @@ class DelayedSampler:
 class EprDeliveryEvent:
     request: JointRequest
     qubits: Tuple[Qubit, Qubit]
-    duration: float
+    abs_time: float
 
 
 class EntDist(Protocol):
@@ -110,10 +110,18 @@ class EntDist(Protocol):
         # (Node ID 1, Node ID 2) -> Sampler
         self._samplers: Dict[FrozenSet[int], DelayedSampler] = {}
 
-        # Node ID -> list of requests
+        # Requests from individual nodes that may get handled in the current time bin.
+        # Node ID -> list of requests.
         self._requests: Dict[int, List[EntDistRequest]] = {
             node.ID: [] for node in nodes
         }
+
+        # Successful deliveries of EPR pairs that have been scheduled but not actually
+        # realized yet.
+        self._deliveries: List[EprDeliveryEvent] = []
+
+        # Joint requests that will fail at the end of the current time bin.
+        self._failed_requests: List[JointRequest] = []
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}(EntDist)"
@@ -125,6 +133,10 @@ class EntDist(Protocol):
 
     def clear_requests(self) -> None:
         self._requests = {id: [] for id in self._nodes.keys()}
+
+    def node_name_for(self, id: int) -> str:
+        """Convenience method for converting a node ID to node name."""
+        return self._interface.remote_id_to_peer_name(id)
 
     def _add_sampler(
         self,
@@ -178,15 +190,10 @@ class EntDist(Protocol):
         qubitapi.assign_qstate([q0, q1], state)
         return q0, q1
 
-    def deliver_all(
-        self, requests: List[JointRequest]
-    ) -> Generator[EventExpression, None, None]:
+    def deliver_all(self, requests: List[JointRequest]) -> None:
         now = ns.sim_time()
         curr_bin = self._netschedule.current_bin(now)
         assert curr_bin is not None
-
-        deliveries: List[EprDeliveryEvent] = []
-        failed_requests: List[JointRequest] = []
 
         for req in requests:
             # Set quantum memory used for EPR pairs to "in use".
@@ -201,31 +208,48 @@ class EntDist(Protocol):
 
             if now + duration < curr_bin.end:
                 # EPR generation succeeded before end of time bin.
-                deliveries.append(EprDeliveryEvent(req, epr, duration))
+                self._deliveries.append(EprDeliveryEvent(req, epr, now + duration))
             else:
                 # EPR generation did not succeed before end of time bin.
-                failed_requests.append(req)
+                self._failed_requests.append(req)
 
         timeout_event: Optional[EventExpression] = None
 
-        if len(failed_requests) > 0:
+        if len(self._failed_requests) > 0:
             # There was at least one request that did not finish before the end of the
             # current time bin. Schedule an event that happens at the end of the time
             # bin that represents these requests being cut off and failing.
-            self._schedule_at(curr_bin.end, EPR_TIMEOUT)
-            timeout_event = EventExpression(source=self, event_type=EPR_TIMEOUT)
+            self._schedule_at(curr_bin.end, BIN_END)
+            timeout_event = EventExpression(source=self, event_type=BIN_END)
 
         # Event expression for all EPR generation events
         ev_expr: EventExpression
 
+        # Schedule an event for each devliry.
         for delivery in deliveries:
-            pass
+            self._schedule_at(delivery.abs_time, EPR_DELIVERY)
+
+        # Wait for each delivery. Since we're waiting for them in the same order that
+        # they were scheduled, we know which delivery corresponds to which event
+        # (even if two or more deliveries happen at the same time).
+        # TODO waiting for these events currently prevents receiving and acting on
+        # new request messages coming in during this time bin.
+        for delivery in deliveries:
+            event_expr = EventExpression(source=self, event_type=EPR_DELIVERY)
+            yield event_expr
+            self._logger.info(f"pair delivered: {delivery}")
+
+            # EPR creation happened. Put the qubits into actual memory.
+            node1 = self.node_name_for(delivery.request.node1_id)
+            node2 = self.node_name_for(delivery.request.node2_id)
+            node1_mem.put(qubits=epr[0], positions=delivery.request.node1_phys_id)
+            node2_mem.put(qubits=epr[1], positions=delivery.request.node2_phys_id)
 
         if timeout_event:
             yield timeout_event
             for req in failed_requests:
-                node1 = self._interface.remote_id_to_peer_name(req.node1_id)
-                node2 = self._interface.remote_id_to_peer_name(req.node2_id)
+                node1 = self.node_name_for(req.node1_id)
+                node2 = self.node_name_for(req.node2_id)
                 # TODO determine content of failure message
                 self._interface.send_node_msg(node1, Message(-1, -1, "fail"))
                 self._interface.send_node_msg(node2, Message(-1, -1, "fail"))
@@ -415,40 +439,75 @@ class EntDist(Protocol):
 
     def _run_with_new_netschedule(self) -> Generator[EventExpression, None, None]:
         while True:
-            # Wait until a message arrives.
-            yield from self._interface.wait_for_any_msg()
+            # Possible events that should make the EntDist do something:
+            # 1. A message arrived.
+            ev_msg_arrived = self._interface.get_evexpr_for_any_msg()
+            # 2. An EPR pair was created.
+            ev_epr_delivery = EventExpression(source=self, event_type=EPR_DELIVERY)
+            # 3. A time bin ends.
+            ev_bin_end = EventExpression(source=self, event_type=BIN_END)
+
+            # Wait for any of the above events to happen.
+            ev_expr = (ev_msg_arrived | ev_epr_delivery) | ev_bin_end
+            yield ev_expr
+
+            event: str
+
+            # Check which type of event happened.
+            # TODO find out if this can be done in a better way.
+            if len(ev_epr_delivery.first_term.triggered_events) > 0:
+                # First term triggered, i.e. (ev_msg_arrived | ev_epr_delivery)
+                if len(ev_epr_delivery.first_term.first_term.triggered_events) > 0:
+                    # First term triggered, i.e. ev_msg_arrived
+                    event = "message"
+                    # Need to process this event (flushing potential other messages)
+                    yield from self._host_interface.handle_msg_evexpr(
+                        ev_expr.first_term.first_term
+                    )
+                else:
+                    # Second term triggered, i.e. ev_epr_delivery
+                    event = "delivery"
+            else:
+                # Second term triggered, i.e. ev_bin_end
+                event = "bin_end"
 
             now = ns.sim_time()
-            curr_slot_time, curr_slot = self._netschedule.current_bin(now)
-            next_slot_time, next_slot = self._netschedule.next_bin(now)
+            curr_bin = self._netschedule.current_bin(now)
 
-            messages = self._interface.pop_all_messages()
+            if event == "message":
+                messages = self._interface.pop_all_messages()
 
-            # Gather requests from the messages and add them to the request list
-            # (self._requests). Only keep those that are allowed to be served in the
-            # current time bin. For the others, immediately send back a failure response.
-            requesting_nodes: List[int] = []
-            for msg in messages:
-                self._logger.info(f"received new msg from node: {msg}")
-                request: EntDistRequest = msg.content
-                requesting_nodes.append(request.local_node_id)
+                # Gather requests from the messages and add them to the request list
+                # (self._requests). Only keep those that are allowed to be served in the
+                # current time bin. For the others, immediately send back a failure response.
+                requesting_nodes: List[int] = []
+                for msg in messages:
+                    self._logger.info(f"received new msg from node: {msg}")
+                    request: EntDistRequest = msg.content
+                    requesting_nodes.append(request.local_node_id)
 
-                self._logger.info(f"netschedule: {self._netschedule}")
-                self._logger.info(f"current slot: {curr_slot}")
-                if request.matches_timebin(curr_slot):
-                    if request in self._requests:
-                        # This exact request was already received earlier and is still pending.
-                        self._logger.info(f"not handling msg {msg} (already pending)")
-                        self._interface.send_node_msg(node, Message(-1, -1, None))
+                    self._logger.info(f"netschedule: {self._netschedule}")
+                    self._logger.info(f"current bin: {curr_bin}")
+                    if curr_bin and request.matches_timebin(curr_bin.bin):
+                        if request in self._requests:
+                            # This exact request was already received earlier and is still pending.
+                            self._logger.info(
+                                f"not handling msg {msg} (already pending)"
+                            )
+                            self._interface.send_node_msg(node, Message(-1, -1, None))
+                        else:
+                            self.put_request(request)
                     else:
-                        self.put_request(request)
-                else:
-                    self._logger.info(f"not handling msg {msg} (wrong timebin)")
-                    node = self._interface.remote_id_to_peer_name(request.local_node_id)
-                    self._interface.send_node_msg(node, Message(-1, -1, None))
+                        self._logger.info(f"not handling msg {msg} (wrong timebin)")
+                        node = self._interface.remote_id_to_peer_name(
+                            request.local_node_id
+                        )
+                        self._interface.send_node_msg(node, Message(-1, -1, None))
 
-            joint_requests = self.get_all_joint_requests()
-            yield from self.deliver_all(joint_requests)
+                joint_requests = self.get_all_joint_requests()
+                self.deliver_all(joint_requests)
+            elif event == "delivery":
+                pass
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         assert self._netschedule is not None

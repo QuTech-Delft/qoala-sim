@@ -2,7 +2,7 @@ from pydynaa import EventType
 
 EVENT_WAIT = EventType("SCHEDULER_WAIT", "scheduler wait")
 EPR_DELIVERY = EventType("EPR_DELIVERY", "EPR delivery")
-EPR_TIMEOUT = EventType("EPR_TIMEOUT", "EPR timeout")
+BIN_END = EventType("BIN_END", "Time bin end")
 
 
 # Signals inside a single node
