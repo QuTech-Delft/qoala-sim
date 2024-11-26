@@ -561,6 +561,8 @@ class EhiNetworkTimebin:
 
 @dataclass
 class ExplicitTimebin:
+    """An EhiNetworkTimebin with explicit start and end time"""
+
     bin: EhiNetworkTimebin
     start: float
     end: float
@@ -614,7 +616,9 @@ class EhiNetworkSchedule:
         else:
             next_bin_start = next_bin_index * self.bin_length + curr_pattern_start
             next_bin = self.bin_pattern[next_bin_index]
-        return next_bin_start, next_bin
+
+        next_bin_end = next_bin_start + self.bin_length
+        return ExplicitTimebin(next_bin, next_bin_start, next_bin_end)
 
     def next_specific_bin(self, time: int, bin: EhiNetworkTimebin) -> int:
         bin_index: Optional[int] = None

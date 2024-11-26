@@ -13,7 +13,7 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
-from qoala.lang.ehi import EhiNetworkInfo
+from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkSchedule, EhiNetworkTimebin
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.message import Message
 from qoala.sim.build import build_qprocessor_from_topology
@@ -123,7 +123,7 @@ def test_add_sampler_many_nodes():
         entdist.get_sampler(nodes[0].ID, nodes[9].ID)
 
     assert len(entdist._samplers) == 3
-    for (i, j) in [(0, 1), (0, 2), (2, 9)]:
+    for i, j in [(0, 1), (0, 2), (2, 9)]:
         link = frozenset([nodes[i].ID, nodes[j].ID])
         assert type(entdist._samplers[link].sampler) == StateDeliverySampler
         assert entdist._samplers[link].delay == 1000
@@ -445,7 +445,7 @@ def test_serve_request_multiple_nodes():
 
     entdist = create_entdist(nodes=[alice, bob, charlie, david])
     link_info = LhiLinkInfo.perfect(1000)
-    for (node1, node2) in itertools.combinations([alice, bob, charlie, david], 2):
+    for node1, node2 in itertools.combinations([alice, bob, charlie, david], 2):
         entdist.add_sampler(node1.ID, node2.ID, link_info)
 
     req_ab = create_joint_request(alice.ID, bob.ID, 0, 0)
@@ -475,7 +475,7 @@ def test_entdist_run():
     alice, bob, charlie = create_n_nodes(3, num_qubits=2)
     entdist = create_entdist(nodes=[alice, bob, charlie])
     link_info = LhiLinkInfo.perfect(1000)
-    for (node1, node2) in itertools.combinations([alice, bob, charlie], 2):
+    for node1, node2 in itertools.combinations([alice, bob, charlie], 2):
         entdist.add_sampler(node1.ID, node2.ID, link_info)
 
     req_ab = EntDistRequest(alice.ID, bob.ID, 0, [0], [0])
@@ -526,19 +526,55 @@ def test_entdist_run():
     assert charlie.qmemory.mem_positions[1].in_use
 
 
+def test_schedule_deliveries():
+    alice, bob = create_n_nodes(2)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.perfect(1000)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    def bin(pid1: int, pid2: int) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(
+            frozenset({alice.ID, bob.ID}), {alice.ID: pid1, bob.ID: pid2}
+        )
+
+    pattern = [
+        bin(0, 0),
+        bin(1, 1),
+        bin(2, 2),
+    ]
+    entdist._netschedule = EhiNetworkSchedule(
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=1000
+    )
+
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    joint_request = JointRequest(alice.ID, bob.ID, 0, 0, 0, 0)
+    entdist.schedule_deliveries([joint_request])
+
+    assert alice.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+
+    print(entdist._requests)
+    assert entdist._deliveries == []
+    assert entdist._failed_requests == [joint_request]
+
+
 if __name__ == "__main__":
-    test_add_sampler()
-    test_add_sampler_many_nodes()
-    test_sample_perfect()
-    test_sample_depolar()
-    test_create_epr_pair_with_state()
-    test_deliver_perfect()
-    test_deliver_depolar()
-    test_put_request()
-    test_put_request_many_nodes()
-    test_get_remote_request_for()
-    test_get_next_joint_request()
-    test_get_next_joint_request_2()
-    test_serve_request()
-    test_serve_request_multiple_nodes()
-    test_entdist_run()
+    # test_add_sampler()
+    # test_add_sampler_many_nodes()
+    # test_sample_perfect()
+    # test_sample_depolar()
+    # test_create_epr_pair_with_state()
+    # test_deliver_perfect()
+    # test_deliver_depolar()
+    # test_put_request()
+    # test_put_request_many_nodes()
+    # test_get_remote_request_for()
+    # test_get_next_joint_request()
+    # test_get_next_joint_request_2()
+    # test_serve_request()
+    # test_serve_request_multiple_nodes()
+    # test_entdist_run()
+    test_schedule_deliveries()
