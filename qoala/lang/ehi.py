@@ -560,6 +560,13 @@ class EhiNetworkTimebin:
 
 
 @dataclass
+class ExplicitTimebin:
+    bin: EhiNetworkTimebin
+    start: float
+    end: float
+
+
+@dataclass
 class EhiNetworkSchedule:
     bin_length: int
     first_bin: int
@@ -574,7 +581,7 @@ class EhiNetworkSchedule:
         curr_pattern_index = floor(global_offset / self.repeat_period)
         return curr_pattern_index * self.repeat_period + self.first_bin
 
-    def current_bin(self, time: int) -> Optional[Tuple[int, EhiNetworkTimebin]]:
+    def current_bin(self, time: int) -> Optional[ExplicitTimebin]:
         # Get relative time within the pattern.
         curr_pattern_start = self._curr_pattern_start(time)
         time_since_pattern_start = time - curr_pattern_start
@@ -587,8 +594,9 @@ class EhiNetworkSchedule:
             return None
         # Else, find the current bin.
         curr_bin_start = curr_bin_index * self.bin_length + curr_pattern_start
+        curr_bin_end = curr_bin_start + self.bin_length
         curr_bin = self.bin_pattern[curr_bin_index]
-        return curr_bin_start, curr_bin
+        return ExplicitTimebin(curr_bin, curr_bin_start, curr_bin_end)
 
     def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
         # Get relative time within the pattern.

@@ -22,7 +22,7 @@ from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
-from qoala.sim.events import EPR_DELIVERY
+from qoala.sim.events import EPR_DELIVERY, EPR_TIMEOUT
 from qoala.util.logging import LogManager
 
 
@@ -78,6 +78,13 @@ class EprDeliverySample:
 class DelayedSampler:
     sampler: StateDeliverySampler
     delay: float
+
+
+@dataclass
+class EprDeliveryEvent:
+    request: JointRequest
+    qubits: Tuple[Qubit, Qubit]
+    duration: float
 
 
 class EntDist(Protocol):
@@ -175,16 +182,53 @@ class EntDist(Protocol):
         self, requests: List[JointRequest]
     ) -> Generator[EventExpression, None, None]:
         now = ns.sim_time()
-        # TODO get end of current time bin instead of start of next one
-        next_slot_time, next_slot = self._netschedule.next_bin(now)
+        curr_bin = self._netschedule.current_bin(now)
+        assert curr_bin is not None
+
+        deliveries: List[EprDeliveryEvent] = []
+        failed_requests: List[JointRequest] = []
+
+        for req in requests:
+            # Set quantum memory used for EPR pairs to "in use".
+            node1_mem = self._nodes[req.node1_id].qmemory
+            node2_mem = self._nodes[req.node2_id].qmemory
+            node1_mem.mem_positions[req.node1_qubit_id].in_use = True
+            node2_mem.mem_positions[req.node2_qubit_id].in_use = True
+
+            # Sample the EPR generation, resulting in a (noisy) EPR pair and a duration.
+            # It is not yet put into actual memory.
+            epr, duration = self._sample_epr_gen(req)
+
+            if now + duration < curr_bin.end:
+                # EPR generation succeeded before end of time bin.
+                deliveries.append(EprDeliveryEvent(req, epr, duration))
+            else:
+                # EPR generation did not succeed before end of time bin.
+                failed_requests.append(req)
+
+        timeout_event: Optional[EventExpression] = None
+
+        if len(failed_requests) > 0:
+            # There was at least one request that did not finish before the end of the
+            # current time bin. Schedule an event that happens at the end of the time
+            # bin that represents these requests being cut off and failing.
+            self._schedule_at(curr_bin.end, EPR_TIMEOUT)
+            timeout_event = EventExpression(source=self, event_type=EPR_TIMEOUT)
 
         # Event expression for all EPR generation events
         ev_expr: EventExpression
 
-        for req in requests:
-            epr, duration = self._sample_epr_gen(req)
-            # TODO check if duration fits inside current bin
-            # if so, add to event expression
+        for delivery in deliveries:
+            pass
+
+        if timeout_event:
+            yield timeout_event
+            for req in failed_requests:
+                node1 = self._interface.remote_id_to_peer_name(req.node1_id)
+                node2 = self._interface.remote_id_to_peer_name(req.node2_id)
+                # TODO determine content of failure message
+                self._interface.send_node_msg(node1, Message(-1, -1, "fail"))
+                self._interface.send_node_msg(node2, Message(-1, -1, "fail"))
 
         # TODO yield on ev_expr
 
