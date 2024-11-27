@@ -600,7 +600,7 @@ class EhiNetworkSchedule:
         curr_bin = self.bin_pattern[curr_bin_index]
         return ExplicitTimebin(curr_bin, curr_bin_start, curr_bin_end)
 
-    def next_bin(self, time: int) -> Tuple[int, EhiNetworkTimebin]:
+    def next_bin(self, time: int) -> ExplicitTimebin:
         # Get relative time within the pattern.
         curr_pattern_start = self._curr_pattern_start(time)
         time_since_pattern_start = time - curr_pattern_start

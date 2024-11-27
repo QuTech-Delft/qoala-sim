@@ -13,6 +13,7 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
+from pydynaa import Entity, EventType
 from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkSchedule, EhiNetworkTimebin
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.message import Message
@@ -21,6 +22,7 @@ from qoala.sim.entdist.entdist import (
     DelayedSampler,
     EntDist,
     EntDistRequest,
+    EprDeliveryEvent,
     EprDeliverySample,
     JointRequest,
 )
@@ -526,7 +528,7 @@ def test_entdist_run():
     assert charlie.qmemory.mem_positions[1].in_use
 
 
-def test_schedule_deliveries():
+def test_delivery_timeout():
     alice, bob = create_n_nodes(2)
 
     entdist = create_entdist(nodes=[alice, bob])
@@ -541,24 +543,192 @@ def test_schedule_deliveries():
     pattern = [
         bin(0, 0),
         bin(1, 1),
-        bin(2, 2),
     ]
     entdist._netschedule = EhiNetworkSchedule(
-        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=1000
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=200
     )
+
+    entdist.start()
 
     assert not alice.qmemory.mem_positions[0].in_use
     assert not bob.qmemory.mem_positions[0].in_use
 
-    joint_request = JointRequest(alice.ID, bob.ID, 0, 0, 0, 0)
-    entdist.schedule_deliveries([joint_request])
+    # Schedule a joint request that happens in the bin that has (start, end) times
+    # (0, 100). Since EPR creation takes 1000 (see above), it should fail at the end
+    # of the bin, i.e. at time 100.
+    joint_request1 = JointRequest(alice.ID, bob.ID, 0, 0, 0, 0)
+
+    entdist.schedule_deliveries([joint_request1])
+
+    # We have to manually schedule a "bin end" event since normally this only
+    # happens when a message arrives (which doesn't happen in this unit test).
+    entdist._schedule_next_bin_end_event()
 
     assert alice.qmemory.mem_positions[0].in_use
     assert bob.qmemory.mem_positions[0].in_use
 
-    print(entdist._requests)
-    assert entdist._deliveries == []
-    assert entdist._failed_requests == [joint_request]
+    assert entdist._deliveries == []  # no successful deliveries
+    assert entdist._failed_requests == [joint_request1]  # our request should fail
+
+    assert ns.sim_time() == 0
+    ns.sim_run()
+    assert ns.sim_time() == 100
+
+    # Memory should have been freed after failure.
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    # Schedule another joint request that happens in the bin that has (start, end) times
+    # (100, 200), but schedule it at time 150, i.e. in the middle of a time bin.
+    # Since EPR creation takes 1000 (see above), it should fail at the end
+    # of the bin, i.e. at time 200.
+
+    # Advance time to 150 with a dummy event.
+    Entity()._schedule_at(150, EventType("test", "test"))
+    ns.sim_run()
+    assert ns.sim_time() == 150
+
+    # Schedule joint request at time 150.
+    joint_request2 = JointRequest(alice.ID, bob.ID, 0, 0, 1, 1)
+    entdist.schedule_deliveries([joint_request2])
+    entdist._schedule_next_bin_end_event()
+
+    ns.sim_run()
+    assert ns.sim_time() == 200  # request should be cut off at end of time bin
+
+
+def test_delivery_success():
+    alice, bob = create_n_nodes(2)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.perfect(20)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    def bin(pid1: int, pid2: int) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(
+            frozenset({alice.ID, bob.ID}), {alice.ID: pid1, bob.ID: pid2}
+        )
+
+    pattern = [
+        bin(0, 0),
+        bin(1, 1),
+    ]
+    entdist._netschedule = EhiNetworkSchedule(
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=200
+    )
+
+    # Advance time to 10 with a dummy event.
+    Entity()._schedule_at(10, EventType("test", "test"))
+    ns.sim_run()
+    assert ns.sim_time() == 10
+
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    # Schedule a joint request that happens in the bin that has (start, end) times
+    # (0, 100). Since EPR creation takes 20 (see above), it should succeed at
+    # time 10 + 20 = 30.
+    joint_request1 = JointRequest(alice.ID, bob.ID, 0, 0, 0, 0)
+
+    entdist.start()
+
+    entdist.schedule_deliveries([joint_request1])
+
+    assert alice.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+
+    # Check that our request became a succesful delivery
+    assert entdist._deliveries[0].request == joint_request1
+    assert has_multi_state(entdist._deliveries[0].qubits, B00_DENS)
+    assert entdist._deliveries[0].abs_time == 30
+
+    # No failures
+    assert entdist._failed_requests == []
+
+    assert ns.sim_time() == 10
+    ns.sim_run()
+    assert ns.sim_time() == 30  # EPR delivery done at time 30
+
+    # Memory should still be in use after delivery.
+    assert alice.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+
+    # Check that EPR state is in qubits.
+    alice_qubit = alice.qmemory.peek([0])[0]
+    bob_qubit = bob.qmemory.peek([0])[0]
+    assert alice_qubit is not None
+    assert bob_qubit is not None
+    assert has_multi_state([alice_qubit, bob_qubit], B00_DENS)
+
+    print("done with first delivery")
+
+    # Schedule another joint request that happens in the bin that has (start, end) times
+    # (100, 200), but schedule it at time 150, i.e. in the middle of a time bin.
+    # Since EPR creation takes 20 (see above), it should succeed at time 170.
+
+    # Advance time to 150 with a dummy event.
+    Entity()._schedule_at(150, EventType("test", "test"))
+    ns.sim_run()
+    assert ns.sim_time() == 150
+
+    # Schedule joint request at time 150.
+    joint_request2 = JointRequest(alice.ID, bob.ID, 0, 0, 1, 1)
+    entdist.schedule_deliveries([joint_request2])
+
+    print(entdist._deliveries)
+
+    ns.sim_run()
+    assert ns.sim_time() == 170  # request should complete at time 170
+
+
+def test_receive_messages():
+    alice, bob = create_n_nodes(2)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.perfect(20)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    def bin(pid1: int, pid2: int) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(
+            frozenset({alice.ID, bob.ID}), {alice.ID: pid1, bob.ID: pid2}
+        )
+
+    pattern = [
+        bin(0, 0),
+        bin(1, 1),
+    ]
+    entdist._netschedule = EhiNetworkSchedule(
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=200
+    )
+
+    def advance_time_to(time: float) -> None:
+        Entity()._schedule_at(time, EventType("dummy", "dummy"))
+        ns.sim_run()
+        assert ns.sim_time() == time
+
+    entdist.start()
+
+    # Only alice sends a request.
+    # Since there is no matching request from Bob, nothing should happen in this bin.
+    request_alice = EntDistRequest(alice.ID, bob.ID, 0, 0, 0)
+    # Simulate Alice's message arriving at EntDist by putting it directly in the port.
+    entdist.comp.node_in_port(alice.name).tx_input(Message(0, 0, request_alice))
+    ns.sim_run()
+    assert ns.sim_time() == 100  # end of time bin
+
+    advance_time_to(120)
+    request_bob = EntDistRequest(bob.ID, alice.ID, 0, 0, 0)
+    entdist.comp.node_in_port(bob.name).tx_input(Message(0, 0, request_bob))
+
+    ns.sim_run()
+    assert ns.sim_time() == 200  # end of time bin
+
+    advance_time_to(240)
+    entdist.comp.node_in_port(alice.name).tx_input(Message(0, 0, request_alice))
+    advance_time_to(250)
+    entdist.comp.node_in_port(bob.name).tx_input(Message(0, 0, request_bob))
+    ns.sim_run()
+    assert ns.sim_time() == 270  # EPR delivery
 
 
 if __name__ == "__main__":
@@ -577,4 +747,6 @@ if __name__ == "__main__":
     # test_serve_request()
     # test_serve_request_multiple_nodes()
     # test_entdist_run()
-    test_schedule_deliveries()
+    # test_delivery_timeout()
+    # test_delivery_success()
+    test_receive_messages()

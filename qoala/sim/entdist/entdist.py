@@ -226,6 +226,8 @@ class EntDist(Protocol):
         # Schedule an event for each successful delivery.
         # Failed requests are handled at the end of the time bin.
         for delivery in self._deliveries:
+            self._logger.debug(f"scheduling delivery {delivery}")
+            print(f"scheduling delivery {delivery}")
             self._schedule_at(delivery.abs_time, EPR_DELIVERY)
 
     def _sample_epr_gen(
@@ -334,7 +336,6 @@ class EntDist(Protocol):
         return None
 
     def get_all_joint_requests(self) -> List[JointRequest]:
-        # TODO fix this
         joint_requests = []
 
         for _, local_requests in self._requests.items():
@@ -354,8 +355,7 @@ class EntDist(Protocol):
                         )
                     )
 
-        # No joint requests found
-        return None
+        return joint_requests
 
     def get_next_joint_request(self) -> Optional[JointRequest]:
         for _, local_requests in self._requests.items():
@@ -477,6 +477,7 @@ class EntDist(Protocol):
             self._interface.send_node_msg(node1, Message(-1, -1, "fail"))
             self._interface.send_node_msg(node2, Message(-1, -1, "fail"))
         self._failed_requests.clear()
+        self._requests.clear()
 
     def _get_event_type(
         self, ev_expr: EventExpression
@@ -489,7 +490,7 @@ class EntDist(Protocol):
             if len(ev_expr.first_term.first_term.triggered_events) > 0:
                 # First term triggered, i.e. ev_msg_arrived
                 # Need to process this event (flushing potential other messages)
-                yield from self._host_interface.handle_msg_evexpr(
+                yield from self._interface.handle_msg_evexpr(
                     ev_expr.first_term.first_term
                 )
                 return EntDistEventType.MSG_ARRIVED
@@ -499,6 +500,16 @@ class EntDist(Protocol):
         else:
             # Second term triggered, i.e. ev_bin_end
             return EntDistEventType.BIN_END
+
+    def _schedule_next_bin_end_event(self) -> None:
+        now = ns.sim_time()
+        curr_bin = self._netschedule.current_bin(now)
+        if curr_bin is None:
+            # Currently not inside a bin; get the next one.
+            next_bin = self._netschedule.next_bin(now)
+            self._schedule_at(next_bin.end, BIN_END)
+        else:
+            self._schedule_at(curr_bin.end, BIN_END)
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
         while True:
@@ -510,18 +521,34 @@ class EntDist(Protocol):
             # 3. A time bin ends.
             ev_bin_end = EventExpression(source=self, event_type=BIN_END)
 
+            print(f"{ns.sim_time()}: temp 1")
+
             # Wait for any of the above events to happen.
             ev_union = (ev_msg_arrived | ev_epr_delivery) | ev_bin_end
             yield ev_union
+
+            print(f"{ns.sim_time()}: temp 2")
 
             # Check which type of event happened.
             ev_type = yield from self._get_event_type(ev_union)
 
             if ev_type == EntDistEventType.MSG_ARRIVED:
+                self._logger.debug(f"message arrived")
                 self._handle_messages()
+
+                # Schedule the next bin end event.
+                # Note that we only do this when there are requests from nodes;
+                # if instead we would always have an event at the end of a time bin,
+                # the simulation would never stop (assuming a infinitely repeating
+                # network schedule).
+                self._schedule_next_bin_end_event()
             elif ev_type == EntDistEventType.EPR_DELIVERY:
+                self._logger.debug(f"epr delivery")
+                print(f"{ns.sim_time()}: epr delivery")
                 self._handle_delivery()
             elif ev_type == EntDistEventType.BIN_END:
+                self._logger.debug(f"bin end")
+                print(f"{ns.sim_time()}: bin end")
                 self._handle_bin_end()
 
     # def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
