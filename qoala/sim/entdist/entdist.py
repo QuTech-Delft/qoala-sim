@@ -242,9 +242,6 @@ class EntDist(Protocol):
             if not self._bin_end_event_scheduled:
                 self._schedule_next_bin_end_event()
 
-        # for req in requests:
-        #     # req.
-
     def _sample_epr_gen(
         self, request: JointRequest
     ) -> Tuple[Tuple[Qubit, Qubit], float]:
@@ -353,6 +350,8 @@ class EntDist(Protocol):
     def get_all_joint_requests(
         self, pop_node_requests: bool = True
     ) -> List[JointRequest]:
+        # pop_node_requests=False can be used to peek without changing state
+
         joint_requests = []
 
         # Dict for keeping track which requests have been matched with another one
@@ -494,7 +493,7 @@ class EntDist(Protocol):
         node1_mem.put(qubits=q0, positions=delivery.request.node1_qubit_id)
         node2_mem.put(qubits=q1, positions=delivery.request.node2_qubit_id)
 
-        # Send messages to the nodes indictating a request has been delivered.
+        # Send messages to the nodes indicating a request has been delivered.
         node1_pid, node2_pid = delivery.request.node1_pid, delivery.request.node2_pid
         self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
         self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
