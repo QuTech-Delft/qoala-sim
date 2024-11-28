@@ -111,9 +111,9 @@ class EhiNodeInfo:
         MultiQubit, List[EhiGateInfo]
     ]  # ordered qubit ID list -> gates
     latencies: EhiLatencies
-    all_qubit_gate_infos: Optional[List[EhiGateInfo]] = (
-        None  # gates that are applied to all qubits
-    )
+    all_qubit_gate_infos: Optional[
+        List[EhiGateInfo]
+    ] = None  # gates that are applied to all qubits
 
     def find_single_gate(
         self, qubit_id: int, instr: Type[NetQASMInstruction]

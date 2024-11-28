@@ -225,6 +225,7 @@ class EntDist(Protocol):
             else:
                 # EPR generation did not succeed before end of time bin.
                 self._failed_requests.append(req)
+                self._logger.info(f"failed request: {req} (duration {duration})")
 
         # Sort deliveries by increasing finish time.
         self._deliveries.sort(key=lambda d: d.abs_time)
@@ -232,7 +233,7 @@ class EntDist(Protocol):
         # Schedule an event for each successful delivery.
         # Failed requests are handled at the end of the time bin.
         for delivery in self._deliveries:
-            self._logger.debug(f"scheduling delivery {delivery}")
+            self._logger.info(f"scheduling delivery {delivery}")
             self._schedule_at(delivery.abs_time, EPR_DELIVERY)
 
         # If there is at least one failed request, there should be an event at the end
@@ -515,8 +516,15 @@ class EntDist(Protocol):
             node2_mem.mem_positions[req.node2_qubit_id].in_use = False
 
             # TODO determine content of failure message
-            self._interface.send_node_msg(node1, Message(-1, -1, "fail"))
-            self._interface.send_node_msg(node2, Message(-1, -1, "fail"))
+            self._interface.send_node_msg(node1, Message(-1, -1, None))
+            self._interface.send_node_msg(node2, Message(-1, -1, None))
+
+        # Send back a failure message for each individual request (request that didn't
+        # have a matching request from the other node during this time bin).
+        for req_list in self._requests.values():
+            for req in req_list:
+                node = self.node_name_for(req.local_node_id)
+                self._interface.send_node_msg(node, Message(-1, -1, None))
 
         # Clear all requests.
         self._failed_requests.clear()

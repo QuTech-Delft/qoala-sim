@@ -189,9 +189,9 @@ class NodeScheduler(Protocol):
 
         self._current_block_index: Dict[int, int] = {}  # program ID -> block index
         self._task_from_block_builder = TaskGraphFromBlockBuilder()
-        self._prog_instance_dependency: Dict[int, int] = (
-            {}
-        )  # program ID -> dependent program ID
+        self._prog_instance_dependency: Dict[
+            int, int
+        ] = {}  # program ID -> dependent program ID
 
         self._const_batch: Optional[ProgramBatch] = None
 
@@ -366,9 +366,9 @@ class NodeScheduler(Protocol):
                 self.initialize_process(process)
                 self._current_block_index[prog_instance.pid] = 0
                 if linear:
-                    self._prog_instance_dependency[prog_instance.pid] = (
-                        prev_prog_instance_id
-                    )
+                    self._prog_instance_dependency[
+                        prog_instance.pid
+                    ] = prev_prog_instance_id
                     prev_prog_instance_id = prog_instance.pid
                 else:
                     self._prog_instance_dependency[prog_instance.pid] = -1
@@ -1365,14 +1365,20 @@ class QpuScheduler(ProcessorScheduler):
         now = ns.sim_time()
         for e in epr_no_preds_not_blocked:
             if self._network_schedule is not None:
-                # Find the time until the next netschedule timebin that allows this EPR task.
+                # First, check if the current bin allows this EPR task.
                 bin = self.timebin_for_task(e)
-                self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")
-                delta = self._network_schedule.next_specific_bin(now, bin)
-                time_until_bin[e] = delta
-                self._task_logger.info(f"EPR ready: task {e}, delta: {delta}")
-                if delta == 0:
+                curr_bin = self._network_schedule.current_bin(now)
+                if curr_bin and curr_bin.bin == bin:
+                    # The current bin allows this task.
                     epr_ready.append(e)
+                else:
+                    # Find the time until the next netschedule timebin that allows this EPR task.
+                    self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")
+                    delta = self._network_schedule.next_specific_bin(now, bin)
+                    time_until_bin[e] = delta
+                    self._task_logger.info(f"EPR ready: task {e}, delta: {delta}")
+                    if delta == 0:
+                        epr_ready.append(e)
             else:
                 # No network schedule: immediate just execute the EPR task
                 epr_ready.append(e)
