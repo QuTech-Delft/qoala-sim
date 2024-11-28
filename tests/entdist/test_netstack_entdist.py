@@ -36,7 +36,6 @@ from qoala.sim.netstack.netstack import Netstack
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.util.logging import LogManager
 from qoala.util.math import B00_DENS, has_multi_state
 
 
