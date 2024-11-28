@@ -204,6 +204,7 @@ class EntDist(Protocol):
 
     def schedule_deliveries(self, requests: List[JointRequest]) -> None:
         now = ns.sim_time()
+        assert self._netschedule is not None
         curr_bin = self._netschedule.current_bin(now)
         assert curr_bin is not None
 
@@ -440,6 +441,7 @@ class EntDist(Protocol):
 
     def _handle_messages(self) -> None:
         now = ns.sim_time()
+        assert self._netschedule is not None
         curr_bin = self._netschedule.current_bin(now)
 
         messages = self._interface.pop_all_messages()
@@ -506,13 +508,13 @@ class EntDist(Protocol):
         self._bin_end_event_scheduled = False
 
         # Release memory for failed requests and send back a failure message.
-        for req in self._failed_requests:
-            node1 = self.node_name_for(req.node1_id)
-            node2 = self.node_name_for(req.node2_id)
-            node1_mem = self._nodes[req.node1_id].qmemory
-            node2_mem = self._nodes[req.node2_id].qmemory
-            node1_mem.mem_positions[req.node1_qubit_id].in_use = False
-            node2_mem.mem_positions[req.node2_qubit_id].in_use = False
+        for freq in self._failed_requests:
+            node1 = self.node_name_for(freq.node1_id)
+            node2 = self.node_name_for(freq.node2_id)
+            node1_mem = self._nodes[freq.node1_id].qmemory
+            node2_mem = self._nodes[freq.node2_id].qmemory
+            node1_mem.mem_positions[freq.node1_qubit_id].in_use = False
+            node2_mem.mem_positions[freq.node2_qubit_id].in_use = False
 
             # TODO determine content of failure message
             self._interface.send_node_msg(node1, Message(-1, -1, None))
@@ -535,9 +537,9 @@ class EntDist(Protocol):
         # TODO find out if this can be done in a better way.
 
         # ev_expr = (ev_msg_arrived | ev_epr_delivery) | ev_bin_end
-        if len(ev_expr.first_term.triggered_events) > 0:
+        if len(ev_expr.first_term.triggered_events) > 0:  # type: ignore
             # First term triggered, i.e. (ev_msg_arrived | ev_epr_delivery)
-            if len(ev_expr.first_term.first_term.triggered_events) > 0:
+            if len(ev_expr.first_term.first_term.triggered_events) > 0:  # type: ignore
                 # First term triggered, i.e. ev_msg_arrived
                 # Need to process this event (flushing potential other messages)
                 self._logger.debug("message evnet")
@@ -552,6 +554,7 @@ class EntDist(Protocol):
 
     def _schedule_next_bin_end_event(self) -> None:
         now = ns.sim_time()
+        assert self._netschedule is not None
         curr_bin = self._netschedule.current_bin(now)
         self._logger.debug("scheduling bin end event")
         if curr_bin is None:
@@ -573,7 +576,7 @@ class EntDist(Protocol):
             ev_bin_end = EventExpression(source=self, event_type=BIN_END)
 
             # Wait for any of the above events to happen.
-            ev_union = (ev_msg_arrived | ev_epr_delivery) | ev_bin_end
+            ev_union = (ev_msg_arrived | ev_epr_delivery) | ev_bin_end  # type: ignore
             yield ev_union
 
             # Check which type of event happened.
