@@ -1,5 +1,3 @@
-from multiprocessing import Value
-
 import pytest
 
 from qoala.lang.ehi import EhiNetworkSchedule, EhiNetworkTimebin, ExplicitTimebin

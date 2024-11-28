@@ -22,7 +22,6 @@ from qoala.sim.entdist.entdist import (
     DelayedSampler,
     EntDist,
     EntDistRequest,
-    EprDeliveryEvent,
     EprDeliverySample,
     JointRequest,
 )

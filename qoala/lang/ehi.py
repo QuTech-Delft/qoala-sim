@@ -4,7 +4,7 @@ import copy
 import itertools
 from dataclasses import dataclass
 from math import ceil, floor
-from typing import Dict, FrozenSet, List, Optional, Tuple, Type
+from typing import Dict, FrozenSet, List, Optional, Type
 
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import Flavour
