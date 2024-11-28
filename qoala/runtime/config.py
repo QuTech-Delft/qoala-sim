@@ -1323,7 +1323,9 @@ class LatenciesConfig(BaseModel, LhiLatenciesConfigInterface):
     host_instr_time: float = 0.0  # duration of classical Host instr execution
     qnos_instr_time: float = 0.0  # duration of classical Qnos instr execution
     host_peer_latency: float = 0.0  # processing time for Host messages from remote node
-    internal_sched_latency: float = 0  # processing time for messaging between node scheduler and processor schedulers
+    internal_sched_latency: float = (
+        0  # processing time for messaging between node scheduler and processor schedulers
+    )
 
     @classmethod
     def from_file(cls, path: str) -> LatenciesConfig:
