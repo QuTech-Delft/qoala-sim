@@ -11,9 +11,9 @@ from qoala.util.logging import LogManager
 
 class MessageBuffer:
     def __init__(self) -> None:
-        self._messages: Dict[
-            Tuple[int, int], List[Message]
-        ] = {}  # (src PID, dst PID) -> message list
+        self._messages: Dict[Tuple[int, int], List[Message]] = (
+            {}
+        )  # (src PID, dst PID) -> message list
 
     def add_msg(self, msg: Message) -> None:
         if (msg.src_pid, msg.dst_pid) not in self._messages:
@@ -182,14 +182,10 @@ class ComponentProtocol(Protocol):
 
         # There *must* be at least one event that has fired since we yielded.
         assert ev_count > 0
-        self._logger.debug(f"ev_count: {ev_count}")
-        print(f"ev_count: {ev_count}")
-        print(evexpr)
         # "Flush away" the events that were also in the union.
         # We already yielded on one (above), but need to yield on the rest.
         for _ in range(ev_count - 1):
             yield evexpr
-            print("flushed a yield")
 
     def _wait_for_msg_any_source(
         self, listener_names: List[str], wake_up_signals: List[str]

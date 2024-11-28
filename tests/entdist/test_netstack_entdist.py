@@ -815,14 +815,13 @@ def test_single_pair_qoala_md_request_same_virt_ids():
 
 
 if __name__ == "__main__":
-    # test_single_pair_only_netstack_interface()
+    test_single_pair_only_netstack_interface()
     test_single_pair_only_netstack_interface_with_netschedule()
-    LogManager.set_log_level("INFO")
-    # test_multiple_pairs_only_netstack_interface()
-    # test_multiple_pairs_only_netstack_interface()
-    # test_single_pair_full_netstack()
-    # test_multiple_pairs_full_netstack()
-    # test_single_pair_qoala_ck_request_only_alice()
-    # test_single_pair_qoala_ck_request()
-    # test_single_pair_qoala_md_request_different_virt_ids()
-    # test_single_pair_qoala_md_request_same_virt_ids()
+    test_multiple_pairs_only_netstack_interface()
+    test_multiple_pairs_only_netstack_interface()
+    test_single_pair_full_netstack()
+    test_multiple_pairs_full_netstack()
+    test_single_pair_qoala_ck_request_only_alice()
+    test_single_pair_qoala_ck_request()
+    test_single_pair_qoala_md_request_different_virt_ids()
+    test_single_pair_qoala_md_request_same_virt_ids()
