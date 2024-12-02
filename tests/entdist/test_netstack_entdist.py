@@ -4,7 +4,13 @@ import netsquid as ns
 from netsquid.nodes import Node
 
 from pydynaa import EventExpression
-from qoala.lang.ehi import EhiBuilder, EhiNetworkInfo, UnitModule
+from qoala.lang.ehi import (
+    EhiBuilder,
+    EhiNetworkInfo,
+    EhiNetworkSchedule,
+    EhiNetworkTimebin,
+    UnitModule,
+)
 from qoala.lang.program import ProgramMeta, QoalaProgram
 from qoala.lang.request import (
     CallbackType,
@@ -30,7 +36,6 @@ from qoala.sim.netstack.netstack import Netstack
 from qoala.sim.netstack.netstackcomp import NetstackComponent
 from qoala.sim.process import QoalaProcess
 from qoala.sim.qdevice import QDevice
-from qoala.util.logging import LogManager
 from qoala.util.math import B00_DENS, has_multi_state
 
 
@@ -90,9 +95,9 @@ def create_request(
     )
 
 
-def setup_components() -> Tuple[
-    NetstackComponent, QDevice, NetstackComponent, QDevice, EntDist
-]:
+def setup_components() -> (
+    Tuple[NetstackComponent, QDevice, NetstackComponent, QDevice, EntDist]
+):
     alice, bob = create_alice_bob_qdevices(num_qubits=3)
 
     ehi_network = EhiNetworkInfo.only_nodes(
@@ -151,6 +156,52 @@ def test_single_pair_only_netstack_interface():
     ns.sim_run()
 
     assert ns.sim_time() == 1800  # 1000 + max(800, 500)
+
+    alice_qubit = alice_qdevice.get_local_qubit(0)
+    bob_qubit = bob_qdevice.get_local_qubit(0)
+    assert has_multi_state([alice_qubit, bob_qubit], B00_DENS)
+
+
+def test_single_pair_only_netstack_interface_with_netschedule():
+    class AliceNetstackInterface(MockNetstackInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            yield from self.wait(500)
+            self.send_entdist_msg(Message(0, 0, self._requests[0]))
+
+    class BobNetstackInterface(MockNetstackInterface):
+        def run(self) -> Generator[EventExpression, None, None]:
+            yield from self.wait(500)
+            self.send_entdist_msg(Message(0, 0, self._requests[0]))
+
+    alice_comp, alice_qdevice, bob_comp, bob_qdevice, entdist = setup_components()
+    alice_id = alice_comp.node.ID
+    bob_id = bob_comp.node.ID
+    entdist._netschedule = EhiNetworkSchedule(
+        bin_length=5000,
+        first_bin=0,
+        bin_pattern=[EhiNetworkTimebin(frozenset([alice_id, bob_id]), {0: 0, 1: 0})],
+        repeat_period=5000,
+    )
+    ehi_network: EhiNetworkInfo = entdist._ehi_network
+
+    request_alice = create_request(alice_id, bob_id, 0, 0, 0)
+    request_bob = create_request(bob_id, alice_id, 0, 0, 0)
+
+    alice_intf = AliceNetstackInterface(
+        alice_comp, ehi_network, alice_qdevice, requests=[request_alice]
+    )
+    bob_intf = BobNetstackInterface(
+        bob_comp, ehi_network, bob_qdevice, requests=[request_bob]
+    )
+    ns.sim_reset()
+    assert ns.sim_time() == 0
+
+    alice_intf.start()
+    bob_intf.start()
+    entdist.start()
+    ns.sim_run()
+
+    assert ns.sim_time() == 5000 - 1  # end of time bin
 
     alice_qubit = alice_qdevice.get_local_qubit(0)
     bob_qubit = bob_qdevice.get_local_qubit(0)
@@ -763,12 +814,13 @@ def test_single_pair_qoala_md_request_same_virt_ids():
 
 
 if __name__ == "__main__":
-    # test_single_pair_only_netstack_interface()
-    LogManager.set_log_level("INFO")
+    test_single_pair_only_netstack_interface()
+    test_single_pair_only_netstack_interface_with_netschedule()
     test_multiple_pairs_only_netstack_interface()
-    # test_single_pair_full_netstack()
-    # test_multiple_pairs_full_netstack()
-    # test_single_pair_qoala_ck_request_only_alice()
-    # test_single_pair_qoala_ck_request()
-    # test_single_pair_qoala_md_request_different_virt_ids()
-    # test_single_pair_qoala_md_request_same_virt_ids()
+    test_multiple_pairs_only_netstack_interface()
+    test_single_pair_full_netstack()
+    test_multiple_pairs_full_netstack()
+    test_single_pair_qoala_ck_request_only_alice()
+    test_single_pair_qoala_ck_request()
+    test_single_pair_qoala_md_request_different_virt_ids()
+    test_single_pair_qoala_md_request_same_virt_ids()

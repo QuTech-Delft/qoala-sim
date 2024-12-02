@@ -1,6 +1,6 @@
 import pytest
 
-from qoala.lang.ehi import EhiNetworkSchedule, EhiNetworkTimebin
+from qoala.lang.ehi import EhiNetworkSchedule, EhiNetworkTimebin, ExplicitTimebin
 
 
 def test_network_schedule():
@@ -29,15 +29,26 @@ def test_network_schedule():
     schedule = EhiNetworkSchedule(
         bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=1000
     )
-    assert schedule.next_bin(0) == (0, bin(0, 0))
-    assert schedule.next_bin(80) == (100, bin(1, 1))
-    assert schedule.next_bin(100) == (100, bin(1, 1))
-    assert schedule.next_bin(180) == (200, bin(2, 2))
-    assert schedule.next_bin(200) == (200, bin(2, 2))
-    assert schedule.next_bin(280) == (1000, bin(0, 0))
-    assert schedule.next_bin(900) == (1000, bin(0, 0))
-    assert schedule.next_bin(1000) == (1000, bin(0, 0))
-    assert schedule.next_bin(1080) == (1100, bin(1, 1))
+
+    assert schedule.current_bin(0) == ExplicitTimebin(bin(0, 0), 0, 100)
+    assert schedule.current_bin(80) == ExplicitTimebin(bin(0, 0), 0, 100)
+    assert schedule.current_bin(100) == ExplicitTimebin(bin(1, 1), 100, 200)
+    assert schedule.current_bin(180) == ExplicitTimebin(bin(1, 1), 100, 200)
+    assert schedule.current_bin(200) == ExplicitTimebin(bin(2, 2), 200, 300)
+    assert schedule.current_bin(280) == ExplicitTimebin(bin(2, 2), 200, 300)
+    assert schedule.current_bin(900) is None
+    assert schedule.current_bin(1000) == ExplicitTimebin(bin(0, 0), 1000, 1100)
+    assert schedule.current_bin(1080) == ExplicitTimebin(bin(0, 0), 1000, 1100)
+
+    assert schedule.next_bin(0) == ExplicitTimebin(bin(0, 0), 0, 100)
+    assert schedule.next_bin(80) == ExplicitTimebin(bin(1, 1), 100, 200)
+    assert schedule.next_bin(100) == ExplicitTimebin(bin(1, 1), 100, 200)
+    assert schedule.next_bin(180) == ExplicitTimebin(bin(2, 2), 200, 300)
+    assert schedule.next_bin(200) == ExplicitTimebin(bin(2, 2), 200, 300)
+    assert schedule.next_bin(280) == ExplicitTimebin(bin(0, 0), 1000, 1100)
+    assert schedule.next_bin(900) == ExplicitTimebin(bin(0, 0), 1000, 1100)
+    assert schedule.next_bin(1000) == ExplicitTimebin(bin(0, 0), 1000, 1100)
+    assert schedule.next_bin(1080) == ExplicitTimebin(bin(1, 1), 1100, 1200)
 
     assert schedule.next_specific_bin(0, bin(0, 0)) == 0
     assert schedule.next_specific_bin(0, bin(1, 1)) == 100

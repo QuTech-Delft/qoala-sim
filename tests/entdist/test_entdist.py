@@ -13,7 +13,8 @@ from netsquid_magic.state_delivery_sampler import (
     StateDeliverySampler,
 )
 
-from qoala.lang.ehi import EhiNetworkInfo
+from pydynaa import Entity, EventType
+from qoala.lang.ehi import EhiNetworkInfo, EhiNetworkSchedule, EhiNetworkTimebin
 from qoala.runtime.lhi import LhiLinkInfo, LhiTopologyBuilder
 from qoala.runtime.message import Message
 from qoala.sim.build import build_qprocessor_from_topology
@@ -123,7 +124,7 @@ def test_add_sampler_many_nodes():
         entdist.get_sampler(nodes[0].ID, nodes[9].ID)
 
     assert len(entdist._samplers) == 3
-    for (i, j) in [(0, 1), (0, 2), (2, 9)]:
+    for i, j in [(0, 1), (0, 2), (2, 9)]:
         link = frozenset([nodes[i].ID, nodes[j].ID])
         assert type(entdist._samplers[link].sampler) == StateDeliverySampler
         assert entdist._samplers[link].delay == 1000
@@ -391,6 +392,64 @@ def test_get_next_joint_request_2():
     )
 
 
+def test_get_all_joint_requests():
+    alice, bob = create_n_nodes(2)
+    entdist = create_entdist(nodes=[alice, bob])
+
+    request_alice = create_request(alice.ID, bob.ID, 0, 0)
+    entdist.put_request(request_alice)
+    assert len(entdist.get_requests(alice.ID)) == 1
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+    # Only Alice's request registered; no corresponding request from Bob yet.
+    assert entdist.get_all_joint_requests(pop_node_requests=False) == []
+
+    # No requests should have been popped.
+    assert len(entdist.get_requests(alice.ID)) == 1
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+    request_bob = create_request(bob.ID, alice.ID, 0, 0)
+    entdist.put_request(request_bob)
+    assert len(entdist.get_requests(bob.ID)) == 1
+
+    # Alice and Bob have corresponding requests.
+    joint_requests = entdist.get_all_joint_requests(pop_node_requests=False)
+    assert len(joint_requests) > 0
+    # No requests should have been popped.
+    assert len(entdist.get_requests(alice.ID)) == 1
+    assert len(entdist.get_requests(bob.ID)) == 1
+
+    joint_requests = entdist.get_all_joint_requests()  # pop = True
+    assert len(joint_requests) > 0
+    # Requests have been popped.
+    assert len(entdist.get_requests(alice.ID)) == 0
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+
+def test_get_all_joint_requests_2():
+    alice, bob = create_n_nodes(2)
+    entdist = create_entdist(nodes=[alice, bob])
+
+    entdist.put_request(create_request(alice.ID, bob.ID, 0, 0))
+    entdist.put_request(create_request(alice.ID, bob.ID, 1, 1))
+    entdist.put_request(create_request(alice.ID, bob.ID, 2, 2))
+
+    entdist.put_request(create_request(bob.ID, alice.ID, 1, 1))
+
+    assert len(entdist.get_requests(alice.ID)) == 3
+    assert len(entdist.get_requests(bob.ID)) == 1
+
+    # Only a match for (1, 1)
+    joint_requests = entdist.get_all_joint_requests(pop_node_requests=False)
+    assert len(joint_requests) == 1
+
+    joint_requests = entdist.get_all_joint_requests()  # pop = True
+    assert len(joint_requests) == 1
+    # Requests have been popped.
+    assert len(entdist.get_requests(alice.ID)) == 2
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+
 def test_serve_request():
     alice, bob = create_n_nodes(2, num_qubits=2)
 
@@ -445,7 +504,7 @@ def test_serve_request_multiple_nodes():
 
     entdist = create_entdist(nodes=[alice, bob, charlie, david])
     link_info = LhiLinkInfo.perfect(1000)
-    for (node1, node2) in itertools.combinations([alice, bob, charlie, david], 2):
+    for node1, node2 in itertools.combinations([alice, bob, charlie, david], 2):
         entdist.add_sampler(node1.ID, node2.ID, link_info)
 
     req_ab = create_joint_request(alice.ID, bob.ID, 0, 0)
@@ -475,7 +534,7 @@ def test_entdist_run():
     alice, bob, charlie = create_n_nodes(3, num_qubits=2)
     entdist = create_entdist(nodes=[alice, bob, charlie])
     link_info = LhiLinkInfo.perfect(1000)
-    for (node1, node2) in itertools.combinations([alice, bob, charlie], 2):
+    for node1, node2 in itertools.combinations([alice, bob, charlie], 2):
         entdist.add_sampler(node1.ID, node2.ID, link_info)
 
     req_ab = EntDistRequest(alice.ID, bob.ID, 0, [0], [0])
@@ -526,6 +585,224 @@ def test_entdist_run():
     assert charlie.qmemory.mem_positions[1].in_use
 
 
+def test_delivery_timeout():
+    ns.sim_reset()
+
+    alice, bob = create_n_nodes(2)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.perfect(1000)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    def bin(pid1: int, pid2: int) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(
+            frozenset({alice.ID, bob.ID}), {alice.ID: pid1, bob.ID: pid2}
+        )
+
+    pattern = [
+        bin(0, 0),
+        bin(1, 1),
+    ]
+    entdist._netschedule = EhiNetworkSchedule(
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=200
+    )
+
+    def advance_time_to(time: float) -> None:
+        Entity()._schedule_at(time, EventType("dummy", "dummy"))
+        ns.sim_run(end_time=time)
+        assert ns.sim_time() == time
+
+    entdist.start()
+
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    # Schedule a joint request that happens in the bin that has (start, end) times
+    # (0, 100). Since EPR creation takes 1000 (see above), it should fail at the end
+    # of the bin, i.e. at time 100.
+    joint_request1 = JointRequest(alice.ID, bob.ID, 0, 0, 0, 0)
+
+    entdist.schedule_deliveries([joint_request1])
+
+    # We have to manually schedule a "bin end" event since normally this only
+    # happens when a message arrives (which doesn't happen in this unit test).
+    entdist._schedule_next_bin_end_event()
+
+    assert alice.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+
+    assert entdist._deliveries == []  # no successful deliveries
+    assert entdist._failed_requests == [joint_request1]  # our request should fail
+
+    assert ns.sim_time() == 0
+    ns.sim_run()
+    assert ns.sim_time() == 100 - 1  # end time (100) is excluded
+
+    # Memory should have been freed after failure.
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    # Schedule another joint request that happens in the bin that has (start, end) times
+    # (100, 200), but schedule it at time 150, i.e. in the middle of a time bin.
+    # Since EPR creation takes 1000 (see above), it should fail at the end
+    # of the bin, i.e. at time 200.
+
+    advance_time_to(150)
+
+    # Schedule joint request at time 150.
+    joint_request2 = JointRequest(alice.ID, bob.ID, 0, 0, 1, 1)
+    entdist.schedule_deliveries([joint_request2])
+    entdist._schedule_next_bin_end_event()
+
+    ns.sim_run()
+    assert ns.sim_time() == 200 - 1  # request should be cut off at end of time bin
+
+
+def test_delivery_success():
+    ns.sim_reset()
+
+    alice, bob = create_n_nodes(2)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.perfect(20)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    def bin(pid1: int, pid2: int) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(
+            frozenset({alice.ID, bob.ID}), {alice.ID: pid1, bob.ID: pid2}
+        )
+
+    pattern = [
+        bin(0, 0),
+        bin(1, 1),
+    ]
+    entdist._netschedule = EhiNetworkSchedule(
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=200
+    )
+
+    def advance_time_to(time: float) -> None:
+        Entity()._schedule_at(time, EventType("dummy", "dummy"))
+        ns.sim_run(end_time=time)
+        assert ns.sim_time() == time
+
+    advance_time_to(10)
+
+    assert not alice.qmemory.mem_positions[0].in_use
+    assert not bob.qmemory.mem_positions[0].in_use
+
+    # Schedule a joint request that happens in the bin that has (start, end) times
+    # (0, 100). Since EPR creation takes 20 (see above), it should succeed at
+    # time 10 + 20 = 30.
+    joint_request1 = JointRequest(alice.ID, bob.ID, 0, 0, 0, 0)
+
+    entdist.start()
+
+    entdist.schedule_deliveries([joint_request1])
+
+    assert alice.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+
+    # Check that our request became a succesful delivery
+    assert entdist._deliveries[0].request == joint_request1
+    assert has_multi_state(entdist._deliveries[0].qubits, B00_DENS)
+    assert entdist._deliveries[0].abs_time == 30
+
+    # No failures
+    assert entdist._failed_requests == []
+
+    assert ns.sim_time() == 10
+    ns.sim_run()
+    assert ns.sim_time() == 30  # EPR delivery done at time 30
+
+    # Memory should still be in use after delivery.
+    assert alice.qmemory.mem_positions[0].in_use
+    assert bob.qmemory.mem_positions[0].in_use
+
+    # Check that EPR state is in qubits.
+    alice_qubit = alice.qmemory.peek([0])[0]
+    bob_qubit = bob.qmemory.peek([0])[0]
+    assert alice_qubit is not None
+    assert bob_qubit is not None
+    assert has_multi_state([alice_qubit, bob_qubit], B00_DENS)
+
+    # Schedule another joint request that happens in the bin that has (start, end) times
+    # (100, 200), but schedule it at time 150, i.e. in the middle of a time bin.
+    # Since EPR creation takes 20 (see above), it should succeed at time 170.
+
+    advance_time_to(150)
+
+    # Schedule joint request at time 150.
+    joint_request2 = JointRequest(alice.ID, bob.ID, 0, 0, 1, 1)
+    entdist.schedule_deliveries([joint_request2])
+
+    ns.sim_run()
+    assert ns.sim_time() == 170  # request should complete at time 170
+
+
+def test_receive_messages():
+    ns.sim_reset()
+
+    alice, bob = create_n_nodes(2)
+
+    entdist = create_entdist(nodes=[alice, bob])
+    link_info = LhiLinkInfo.perfect(20)
+    entdist.add_sampler(alice.ID, bob.ID, link_info)
+
+    def bin(pid1: int, pid2: int) -> EhiNetworkTimebin:
+        return EhiNetworkTimebin(
+            frozenset({alice.ID, bob.ID}), {alice.ID: pid1, bob.ID: pid2}
+        )
+
+    pattern = [
+        bin(0, 0),
+        bin(1, 1),
+    ]
+    entdist._netschedule = EhiNetworkSchedule(
+        bin_length=100, first_bin=0, bin_pattern=pattern, repeat_period=200
+    )
+
+    def advance_time_to(time: float) -> None:
+        Entity()._schedule_at(time, EventType("dummy", "dummy"))
+        ns.sim_run(end_time=time)
+        assert ns.sim_time() == time
+
+    entdist.start()
+
+    # Only alice sends a request.
+    # Since there is no matching request from Bob, nothing should happen in this bin.
+    request_alice = EntDistRequest(alice.ID, bob.ID, 0, 0, 0)
+    # Simulate Alice's message arriving at EntDist by putting it directly in the port.
+    entdist.comp.node_in_port(alice.name).tx_input(Message(0, 0, request_alice))
+    advance_time_to(20)
+    assert len(entdist.get_requests(alice.ID)) == 1  # alice's message
+
+    advance_time_to(120)
+    # alice's message should have been removed (at time 100 when bin ended)
+    assert len(entdist.get_requests(alice.ID)) == 0
+
+    request_bob = EntDistRequest(bob.ID, alice.ID, 0, 0, 0)
+    entdist.comp.node_in_port(bob.name).tx_input(Message(0, 0, request_bob))
+
+    ns.sim_run()
+    assert ns.sim_time() == 200 - 1  # end of time bin
+
+    advance_time_to(240)
+    # Alice sends request at 240.
+    entdist.comp.node_in_port(alice.name).tx_input(Message(0, 0, request_alice))
+    advance_time_to(250)
+    # Bob sends request at 250.
+    entdist.comp.node_in_port(bob.name).tx_input(Message(0, 0, request_bob))
+    advance_time_to(260)
+    # There should be a delivery scheduled for 270
+    assert len(entdist._deliveries) == 1
+    assert entdist._deliveries[0].abs_time == 270
+    advance_time_to(300)
+    assert len(entdist._deliveries) == 0
+    assert len(entdist._failed_requests) == 0
+    assert len(entdist.get_requests(alice.ID)) == 0
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+
 if __name__ == "__main__":
     test_add_sampler()
     test_add_sampler_many_nodes()
@@ -539,6 +816,11 @@ if __name__ == "__main__":
     test_get_remote_request_for()
     test_get_next_joint_request()
     test_get_next_joint_request_2()
+    test_get_all_joint_requests()
+    test_get_all_joint_requests_2()
     test_serve_request()
     test_serve_request_multiple_nodes()
     test_entdist_run()
+    test_delivery_timeout()
+    test_delivery_success()
+    test_receive_messages()

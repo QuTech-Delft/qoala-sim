@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import Enum, auto
+from itertools import combinations
 from typing import Any, Dict, FrozenSet, Generator, List, Optional, Tuple
 
 import netsquid as ns
@@ -22,8 +24,14 @@ from qoala.runtime.lhi import LhiLinkInfo
 from qoala.runtime.message import Message
 from qoala.sim.entdist.entdistcomp import EntDistComponent
 from qoala.sim.entdist.entdistinterface import EntDistInterface
-from qoala.sim.events import EPR_DELIVERY
+from qoala.sim.events import BIN_END, EPR_DELIVERY
 from qoala.util.logging import LogManager
+
+
+class EntDistEventType(Enum):
+    MSG_ARRIVED = auto()
+    EPR_DELIVERY = auto()
+    BIN_END = auto()
 
 
 @dataclass(frozen=True)
@@ -80,6 +88,13 @@ class DelayedSampler:
     delay: float
 
 
+@dataclass
+class EprDeliveryEvent:
+    request: JointRequest
+    qubits: Tuple[Qubit, Qubit]
+    abs_time: float
+
+
 class EntDist(Protocol):
     def __init__(
         self,
@@ -103,10 +118,22 @@ class EntDist(Protocol):
         # (Node ID 1, Node ID 2) -> Sampler
         self._samplers: Dict[FrozenSet[int], DelayedSampler] = {}
 
-        # Node ID -> list of requests
+        # Requests from individual nodes that may get handled in the current time bin.
+        # Node ID -> list of requests.
         self._requests: Dict[int, List[EntDistRequest]] = {
             node.ID: [] for node in nodes
         }
+
+        # Successful deliveries of EPR pairs that have been scheduled but not actually
+        # realized yet. Sorted by increasing delivery time.
+        self._deliveries: List[EprDeliveryEvent] = []
+
+        # Joint requests that will fail at the end of the current time bin.
+        self._failed_requests: List[JointRequest] = []
+
+        # Whether an event has been scheduled that will be triggered at the end of the
+        # current time bin.
+        self._bin_end_event_scheduled: bool = False
 
         self._logger: logging.Logger = LogManager.get_stack_logger(  # type: ignore
             f"{self.__class__.__name__}(EntDist)"
@@ -118,6 +145,10 @@ class EntDist(Protocol):
 
     def clear_requests(self) -> None:
         self._requests = {id: [] for id in self._nodes.keys()}
+
+    def node_name_for(self, id: int) -> str:
+        """Convenience method for converting a node ID to node name."""
+        return self._interface.remote_id_to_peer_name(id)
 
     def _add_sampler(
         self,
@@ -170,6 +201,60 @@ class EntDist(Protocol):
         q0, q1 = qubitapi.create_qubits(2)
         qubitapi.assign_qstate([q0, q1], state)
         return q0, q1
+
+    def schedule_deliveries(self, requests: List[JointRequest]) -> None:
+        now = ns.sim_time()
+        assert self._netschedule is not None
+        curr_bin = self._netschedule.current_bin(now)
+        assert curr_bin is not None
+
+        for req in requests:
+            # Set quantum memory used for EPR pairs to "in use".
+            node1_mem = self._nodes[req.node1_id].qmemory
+            node2_mem = self._nodes[req.node2_id].qmemory
+            node1_mem.mem_positions[req.node1_qubit_id].in_use = True
+            node2_mem.mem_positions[req.node2_qubit_id].in_use = True
+
+            # Sample the EPR generation, resulting in a (noisy) EPR pair and a duration.
+            # It is not yet put into actual memory.
+            epr, duration = self._sample_epr_gen(req)
+
+            if now + duration < curr_bin.end:
+                # EPR generation succeeded before end of time bin.
+                self._deliveries.append(EprDeliveryEvent(req, epr, now + duration))
+            else:
+                # EPR generation did not succeed before end of time bin.
+                self._failed_requests.append(req)
+                self._logger.info(f"failed request: {req} (duration {duration})")
+
+        # Sort deliveries by increasing finish time.
+        self._deliveries.sort(key=lambda d: d.abs_time)
+
+        # Schedule an event for each successful delivery.
+        # Failed requests are handled at the end of the time bin.
+        for delivery in self._deliveries:
+            self._logger.info(f"scheduling delivery {delivery}")
+            self._schedule_at(delivery.abs_time, EPR_DELIVERY)
+
+        # If there is at least one failed request, there should be an event at the end
+        # of the current time bin, simulating that EPR creation for these requests
+        # stops at that time.
+        if len(self._failed_requests) > 0:
+            if not self._bin_end_event_scheduled:
+                self._schedule_next_bin_end_event()
+
+    def _sample_epr_gen(
+        self, request: JointRequest
+    ) -> Tuple[Tuple[Qubit, Qubit], float]:
+        timed_sampler = self.get_sampler(request.node1_id, request.node2_id)
+        sample = self.sample_state(timed_sampler.sampler)
+        epr = self.create_epr_pair_with_state(sample.state)
+
+        self._logger.info(f"sample duration: {sample.duration}")
+        self._logger.info(f"total duration: {timed_sampler.delay}")
+        total_delay = sample.duration + timed_sampler.delay
+
+        return (epr, total_delay)
 
     def deliver(
         self,
@@ -263,6 +348,48 @@ class EntDist(Protocol):
 
         return None
 
+    def get_all_joint_requests(
+        self, pop_node_requests: bool = True
+    ) -> List[JointRequest]:
+        # pop_node_requests=False can be used to peek without changing state
+
+        joint_requests = []
+
+        # Dict for keeping track which requests have been matched with another one
+        # and can be removed.
+        # node ID -> index in request list
+        matched_local_requests: Dict[int, List[int]] = {
+            node_id: [] for node_id, _ in self._nodes.items()
+        }
+
+        for loc_node_id, rem_node_id in combinations(self._requests.keys(), 2):
+            local_requests = self._requests[loc_node_id]
+            remote_requests = self._requests[rem_node_id]
+            for loc_req_idx, loc_req in enumerate(local_requests):
+                for rem_req_idx, rem_req in enumerate(remote_requests):
+                    if loc_req.is_opposite(rem_req):
+                        joint_requests.append(
+                            JointRequest(
+                                loc_req.local_node_id,
+                                rem_req.local_node_id,
+                                loc_req.local_qubit_id,
+                                rem_req.local_qubit_id,
+                                loc_req.local_pid,
+                                loc_req.remote_pid,
+                            )
+                        )
+                        matched_local_requests[loc_node_id].append(loc_req_idx)
+                        matched_local_requests[rem_node_id].append(rem_req_idx)
+
+        self._logger.debug(f"matched requests: {matched_local_requests}")
+
+        if pop_node_requests:
+            for node_id, req_idxs in matched_local_requests.items():
+                for i in sorted(req_idxs, reverse=True):
+                    del self._requests[node_id][i]
+
+        return joint_requests
+
     def get_next_joint_request(self) -> Optional[JointRequest]:
         for _, local_requests in self._requests.items():
             if len(local_requests) == 0:
@@ -312,54 +439,159 @@ class EntDist(Protocol):
         self._interface.stop()
         super().stop()
 
-    def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
+    def _handle_messages(self) -> None:
+        now = ns.sim_time()
         assert self._netschedule is not None
+        curr_bin = self._netschedule.current_bin(now)
 
-        while True:
-            # Wait until a message arrives.
-            yield from self._interface.wait_for_any_msg()
+        messages = self._interface.pop_all_messages()
 
-            # Wait until the next time bin.
-            now = ns.sim_time()
-            next_slot_time, next_slot = self._netschedule.next_bin(now)
+        # Gather requests from the messages and add them to the request list
+        # (self._requests). Only keep those that are allowed to be served in the
+        # current time bin. For the others, immediately send back a failure response.
+        for msg in messages:
+            self._logger.info(f"received new msg from node: {msg}")
+            request: EntDistRequest = msg.content
 
-            if next_slot_time - now > 0:
-                yield from self._interface.wait(next_slot_time - now + 1)
-            elif next_slot_time - now < 0:
-                raise RuntimeError()
-
-            messages = self._interface.pop_all_messages()
-
-            requesting_nodes: List[int] = []
-            for msg in messages:
-                self._logger.info(f"received new msg from node: {msg}")
-                request: EntDistRequest = msg.content
-                requesting_nodes.append(request.local_node_id)
-
-                self._logger.info(f"netschedule: {self._netschedule}")
-                self._logger.info(f"next slot: {next_slot}")
-                if request.matches_timebin(next_slot):
-                    self._logger.info(f"putting request: {request}")
-                    self.put_request(request)
-                else:
-                    self._logger.info(f"not handling msg {msg} (wrong timebin)")
-
-            joint_request = self.get_next_joint_request()
-            if joint_request is not None:
-                self._logger.info(f"serving request {joint_request}")
-                yield from self.serve_request(joint_request)
-                self._logger.info("served request")
-                while next_request := self.get_next_joint_request():
-                    self._logger.info(f"serving request {next_request}")
-                    yield from self.serve_request(next_request)
-                    self._logger.info("served request")
-            else:
-                yield from self._interface.wait(1000)
-                for node_id in requesting_nodes:
-                    node = self._interface.remote_id_to_peer_name(node_id)
+            self._logger.info(f"netschedule: {self._netschedule}")
+            self._logger.info(f"current bin: {curr_bin}")
+            node = self._interface.remote_id_to_peer_name(request.local_node_id)
+            if curr_bin and request.matches_timebin(curr_bin.bin):
+                if request in self._requests:
+                    # This exact request was already received earlier and is still pending.
+                    self._logger.info(f"not handling msg {msg} (already pending)")
                     self._interface.send_node_msg(node, Message(-1, -1, None))
-            self.clear_requests()
-            yield from self._interface.wait(1)
+                else:
+                    self.put_request(request)
+            else:
+                self._logger.info(f"not handling msg {msg} (wrong timebin)")
+                self._interface.send_node_msg(node, Message(-1, -1, None))
+
+        # Find pairs of requests which match.
+        joint_requests = self.get_all_joint_requests()
+
+        # Schedule EPR delivery events for them.
+        self.schedule_deliveries(joint_requests)
+
+        # Schedule an event for the end of the time bin (if not already scheduled),
+        # such that non-fulfilled node requests can be removed at that time.
+        if not self._bin_end_event_scheduled:
+            self._schedule_next_bin_end_event()
+
+    def _handle_delivery(self) -> None:
+        now = ns.sim_time()
+
+        # Pop the first scheduled delivery.
+        # Since self._deliveries is sorted by time, the one we just popped (call it D)
+        # had the earliest scheduled completion, and hence the delivery event that just
+        # happened and triggered this method must match D.
+        delivery = self._deliveries.pop(0)
+        assert delivery.abs_time == now
+
+        node1 = self.node_name_for(delivery.request.node1_id)
+        node2 = self.node_name_for(delivery.request.node2_id)
+        node1_mem = self._nodes[delivery.request.node1_id].qmemory
+        node2_mem = self._nodes[delivery.request.node2_id].qmemory
+
+        # EPR creation happened. Put the qubits into actual memory.
+        q0, q1 = delivery.qubits
+        node1_mem.put(qubits=q0, positions=delivery.request.node1_qubit_id)
+        node2_mem.put(qubits=q1, positions=delivery.request.node2_qubit_id)
+
+        # Send messages to the nodes indicating a request has been delivered.
+        node1_pid, node2_pid = delivery.request.node1_pid, delivery.request.node2_pid
+        self._interface.send_node_msg(node1, Message(-1, -1, node1_pid))
+        self._interface.send_node_msg(node2, Message(-1, -1, node2_pid))
+
+    def _handle_bin_end(self) -> None:
+        # Reset flag.
+        self._bin_end_event_scheduled = False
+
+        # Release memory for failed requests and send back a failure message.
+        for freq in self._failed_requests:
+            node1 = self.node_name_for(freq.node1_id)
+            node2 = self.node_name_for(freq.node2_id)
+            node1_mem = self._nodes[freq.node1_id].qmemory
+            node2_mem = self._nodes[freq.node2_id].qmemory
+            node1_mem.mem_positions[freq.node1_qubit_id].in_use = False
+            node2_mem.mem_positions[freq.node2_qubit_id].in_use = False
+
+            # TODO determine content of failure message
+            self._interface.send_node_msg(node1, Message(-1, -1, None))
+            self._interface.send_node_msg(node2, Message(-1, -1, None))
+
+        # Send back a failure message for each individual request (request that didn't
+        # have a matching request from the other node during this time bin).
+        for req_list in self._requests.values():
+            for req in req_list:
+                node = self.node_name_for(req.local_node_id)
+                self._interface.send_node_msg(node, Message(-1, -1, None))
+
+        # Clear all requests.
+        self._failed_requests.clear()
+        self.clear_requests()
+
+    def _get_event_type(
+        self, ev_expr: EventExpression
+    ) -> Generator[EventExpression, None, EntDistEventType]:
+        # TODO find out if this can be done in a better way.
+
+        # ev_expr = (ev_msg_arrived | ev_epr_delivery) | ev_bin_end
+        if len(ev_expr.first_term.triggered_events) > 0:  # type: ignore
+            # First term triggered, i.e. (ev_msg_arrived | ev_epr_delivery)
+            if len(ev_expr.first_term.first_term.triggered_events) > 0:  # type: ignore
+                # First term triggered, i.e. ev_msg_arrived
+                # Need to process this event (flushing potential other messages)
+                self._logger.debug("message evnet")
+                yield from self._interface.handle_msg_evexpr(ev_expr)
+                return EntDistEventType.MSG_ARRIVED
+            else:
+                # Second term triggered, i.e. ev_epr_delivery
+                return EntDistEventType.EPR_DELIVERY
+        else:
+            # Second term triggered, i.e. ev_bin_end
+            return EntDistEventType.BIN_END
+
+    def _schedule_next_bin_end_event(self) -> None:
+        now = ns.sim_time()
+        assert self._netschedule is not None
+        curr_bin = self._netschedule.current_bin(now)
+        self._logger.debug("scheduling bin end event")
+        if curr_bin is None:
+            # Currently not inside a bin; get the next one.
+            next_bin = self._netschedule.next_bin(now)
+            # end - 1 since time bin is *excluding* end time
+            self._schedule_at(next_bin.end - 1, BIN_END)
+        else:
+            self._schedule_at(curr_bin.end - 1, BIN_END)
+        self._bin_end_event_scheduled = True
+
+    def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
+        while True:
+            # Possible events that should make the EntDist do something:
+            # 1. A message arrived.
+            ev_msg_arrived = self._interface.get_evexpr_for_any_msg()
+            # 2. An EPR pair was created.
+            ev_epr_delivery = EventExpression(source=self, event_type=EPR_DELIVERY)
+            # 3. A time bin ends.
+            ev_bin_end = EventExpression(source=self, event_type=BIN_END)
+
+            # Wait for any of the above events to happen.
+            ev_union = (ev_msg_arrived | ev_epr_delivery) | ev_bin_end  # type: ignore
+            yield ev_union
+
+            # Check which type of event happened.
+            ev_type = yield from self._get_event_type(ev_union)
+
+            if ev_type == EntDistEventType.MSG_ARRIVED:
+                self._logger.debug("message arrived")
+                self._handle_messages()
+            elif ev_type == EntDistEventType.EPR_DELIVERY:
+                self._logger.debug("epr delivery")
+                self._handle_delivery()
+            elif ev_type == EntDistEventType.BIN_END:
+                self._logger.debug("bin end")
+                self._handle_bin_end()
 
     def _run_without_netschedule(self) -> Generator[EventExpression, None, None]:
         while True:

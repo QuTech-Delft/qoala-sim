@@ -1365,16 +1365,24 @@ class QpuScheduler(ProcessorScheduler):
         now = ns.sim_time()
         for e in epr_no_preds_not_blocked:
             if self._network_schedule is not None:
-                # Find the time until the next netschedule timebin that allows this EPR task.
+                # First, check if the current bin allows this EPR task.
                 bin = self.timebin_for_task(e)
-                self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")
-                delta = self._network_schedule.next_specific_bin(now, bin)
-                time_until_bin[e] = delta
-                self._task_logger.info(f"EPR ready: task {e}, delta: {delta}")
-                if delta == 0:
+                curr_bin = self._network_schedule.current_bin(now)
+                if curr_bin and curr_bin.bin == bin and curr_bin.end - 1 != now:
+                    # The current bin allows this task.
+                    # The last check (end - 1 != now) is needed since we don't allow
+                    # generation to start at the last 'tick' of the bin.
                     epr_ready.append(e)
+                else:
+                    # Find the time until the next netschedule timebin that allows this EPR task.
+                    self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")
+                    delta = self._network_schedule.next_specific_bin(now, bin)
+                    time_until_bin[e] = delta
+                    self._task_logger.info(f"EPR ready: task {e}, delta: {delta}")
+                    if delta == 0:
+                        epr_ready.append(e)
             else:
-                # No network schedule: immediate just execute the EPR task
+                # No network schedule: immediately just execute the EPR task
                 epr_ready.append(e)
 
         epr_non_zero_delta = {

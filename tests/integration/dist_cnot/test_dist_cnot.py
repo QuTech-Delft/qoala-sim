@@ -92,7 +92,7 @@ def run_dist_cnot(num_iterations: int) -> Result:
     return Result(alice_result, bob_result)
 
 
-def test_dist_not():
+def test_dist_cnot():
     LogManager.set_log_level("DEBUG")
     LogManager.set_task_log_level("INFO")
     LogManager.log_to_file("dist_cnot.log")
@@ -105,3 +105,7 @@ def test_dist_not():
     outcomes = [result.values["outcome"] for result in program_results]
     print(outcomes)
     assert all(outcome == 1 for outcome in outcomes)
+
+
+if __name__ == "__main__":
+    test_dist_cnot()
