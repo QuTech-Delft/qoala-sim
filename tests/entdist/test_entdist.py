@@ -636,7 +636,7 @@ def test_delivery_timeout():
 
     assert ns.sim_time() == 0
     ns.sim_run()
-    assert ns.sim_time() == 100
+    assert ns.sim_time() == 100 - 1  # end time (100) is excluded
 
     # Memory should have been freed after failure.
     assert not alice.qmemory.mem_positions[0].in_use
@@ -655,7 +655,7 @@ def test_delivery_timeout():
     entdist._schedule_next_bin_end_event()
 
     ns.sim_run()
-    assert ns.sim_time() == 200  # request should be cut off at end of time bin
+    assert ns.sim_time() == 200 - 1  # request should be cut off at end of time bin
 
 
 def test_delivery_success():
@@ -784,7 +784,7 @@ def test_receive_messages():
     entdist.comp.node_in_port(bob.name).tx_input(Message(0, 0, request_bob))
 
     ns.sim_run()
-    assert ns.sim_time() == 200  # end of time bin
+    assert ns.sim_time() == 200 - 1  # end of time bin
 
     advance_time_to(240)
     # Alice sends request at 240.

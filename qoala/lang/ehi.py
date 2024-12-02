@@ -561,7 +561,9 @@ class EhiNetworkTimebin:
 
 @dataclass
 class ExplicitTimebin:
-    """An EhiNetworkTimebin with explicit start and end time"""
+    """An EhiNetworkTimebin with explicit start and end time.
+    The bin is *including* the start time and *excluding* the end time.
+    """
 
     bin: EhiNetworkTimebin
     start: float

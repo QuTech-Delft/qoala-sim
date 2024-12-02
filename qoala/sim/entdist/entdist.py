@@ -560,9 +560,10 @@ class EntDist(Protocol):
         if curr_bin is None:
             # Currently not inside a bin; get the next one.
             next_bin = self._netschedule.next_bin(now)
-            self._schedule_at(next_bin.end, BIN_END)
+            # end - 1 since time bin is *excluding* end time
+            self._schedule_at(next_bin.end - 1, BIN_END)
         else:
-            self._schedule_at(curr_bin.end, BIN_END)
+            self._schedule_at(curr_bin.end - 1, BIN_END)
         self._bin_end_event_scheduled = True
 
     def _run_with_netschedule(self) -> Generator[EventExpression, None, None]:
