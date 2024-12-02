@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlock,
     BasicBlockType,
     ClassicalIqoalaOp,
+    CriticalSection,
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
@@ -33,6 +34,9 @@ class ProgramMeta:
     parameters: List[str]  # list of parameter names (all have type int)
     csockets: Dict[int, str]  # socket ID -> remote node name
     epr_sockets: Dict[int, str]  # socket ID -> remote node name
+    critical_sections: Dict[
+        str, Tuple[bool, bool]
+    ]  # CS name -> (atomic_execution, atomic_alloc)
 
     @classmethod
     def empty(cls, name: str) -> ProgramMeta:

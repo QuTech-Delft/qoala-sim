@@ -1079,11 +1079,22 @@ class BasicBlock:
     typ: BasicBlockType
     instructions: List[ClassicalIqoalaOp]
     deadlines: Optional[Dict[str, int]] = None
+    critical_section: Optional[str] = None
 
     def __str__(self) -> str:
         annotations = f"type = {self.typ.name}"
         if self.deadlines is not None:
             annotations += f", deadlines: {self.deadlines}"
+        if self.critical_section is not None:
+            annotations += f", critical_section: {self.critical_section}"
         annotations = "{" + annotations + "}"
         s = f"^{self.name} {annotations}:\n"
         return s + "\n".join("    " + str(i) for i in self.instructions)
+
+
+@dataclass
+class CriticalSection:
+    name: str
+
+    atomic_execution: bool
+    atomic_alloc: bool
