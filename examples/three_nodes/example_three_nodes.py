@@ -66,7 +66,7 @@ def run_three_nodes(num_iterations: int) -> Result:
     )
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        nodes=[alice_node_cfg, bob_node_cfg, charlie_node_cfg], link_duration=1000
+        nodes=[alice_node_cfg, bob_node_cfg, charlie_node_cfg], link_duration=500
     )
     bin_pattern = []
     for i in range(num_iterations):
