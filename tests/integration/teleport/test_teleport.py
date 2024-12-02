@@ -19,6 +19,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramInput
+from qoala.util.logging import LogManager
 from qoala.util.runner import run_two_node_app, run_two_node_app_separate_inputs
 
 
@@ -65,7 +66,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
     network_cfg.cconns = [cconn]
     pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
     network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=20_000
+        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=2e7
     )
 
     alice_program = load_program("teleport_alice.iqoala")
@@ -105,10 +106,10 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
 
 
 def test_teleport():
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_to_file("teleport.log")
-    # LogManager.log_tasks_to_file("teleport_tasks.log")
+    LogManager.set_log_level("DEBUG")
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_to_file("teleport.log")
+    LogManager.log_tasks_to_file("teleport_tasks.log")
     num_iterations = 2
 
     result = run_teleport(num_iterations=num_iterations)

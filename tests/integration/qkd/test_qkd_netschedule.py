@@ -91,8 +91,11 @@ def run_qkd(
 
 def qkd_1pair_md():
     ns.sim_reset()
-    # LogManager.enable_task_logger(True)
-    LogManager.set_log_level("WARNING")
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_tasks_to_file("test_qkd_netschedule_tasks.log")
+
+    LogManager.set_log_level("DEBUG")
+    LogManager.log_to_file("test_qkd_netschedule.log")
 
     num_iterations = 10
     alice_file = "qkd_1pair_MD_alice.iqoala"

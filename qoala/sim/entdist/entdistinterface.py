@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generator, List
+from typing import Generator, List, Optional
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo
@@ -44,6 +44,19 @@ class EntDistInterface(ComponentProtocol):
         yield from self._wait_for_msg_any_source(
             [f"node_{node}" for node in self._all_node_names],
             [f"{SIGNAL_NSTK_ENTD_MSG}_{node}" for node in self._all_node_names],
+        )
+
+    def get_evexpr_for_any_msg(self) -> Optional[EventExpression]:
+        return self._get_evexpr_for_any_msg(
+            [f"node_{node}" for node in self._all_node_names],
+            [f"{SIGNAL_NSTK_ENTD_MSG}_{node}" for node in self._all_node_names],
+        )
+
+    def handle_msg_evexpr(
+        self, evexpr: EventExpression
+    ) -> Generator[EventExpression, None, None]:
+        yield from self._handle_msg_evexpr(
+            evexpr, [f"node_{node}" for node in self._all_node_names]
         )
 
     def receive_msg(self) -> Generator[EventExpression, None, Message]:
