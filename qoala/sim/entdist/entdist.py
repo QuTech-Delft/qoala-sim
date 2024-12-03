@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum, auto
-from itertools import combinations
 from typing import Any, Dict, FrozenSet, Generator, List, Optional, Tuple
 
 import netsquid as ns
@@ -352,41 +351,37 @@ class EntDist(Protocol):
         self, pop_node_requests: bool = True
     ) -> List[JointRequest]:
         # pop_node_requests=False can be used to peek without changing state
+        # However it may reorder the requests internally (but I don't think this matters)
 
         joint_requests = []
 
-        # Dict for keeping track which requests have been matched with another one
-        # and can be removed.
-        # node ID -> index in request list
-        matched_local_requests: Dict[int, List[int]] = {
-            node_id: [] for node_id, _ in self._nodes.items()
-        }
+        nextJointRequest = self.get_next_joint_request()
+        while nextJointRequest is not None:
+            self._logger.debug(
+                f"Handling Joint Request for Nodes: ({nextJointRequest.node1_id}, {nextJointRequest.node2_id})"
+            )
+            joint_requests.append(nextJointRequest)
+            nextJointRequest = self.get_next_joint_request()
 
-        for loc_node_id, rem_node_id in combinations(self._requests.keys(), 2):
-            local_requests = self._requests[loc_node_id]
-            remote_requests = self._requests[rem_node_id]
-            for loc_req_idx, loc_req in enumerate(local_requests):
-                for rem_req_idx, rem_req in enumerate(remote_requests):
-                    if loc_req.is_opposite(rem_req):
-                        joint_requests.append(
-                            JointRequest(
-                                loc_req.local_node_id,
-                                rem_req.local_node_id,
-                                loc_req.local_qubit_id,
-                                rem_req.local_qubit_id,
-                                loc_req.local_pid,
-                                loc_req.remote_pid,
-                            )
-                        )
-                        matched_local_requests[loc_node_id].append(loc_req_idx)
-                        matched_local_requests[rem_node_id].append(rem_req_idx)
-
-        self._logger.debug(f"matched requests: {matched_local_requests}")
-
-        if pop_node_requests:
-            for node_id, req_idxs in matched_local_requests.items():
-                for i in sorted(req_idxs, reverse=True):
-                    del self._requests[node_id][i]
+        # Need to reconstruct the requests
+        if not pop_node_requests:
+            for joint_request in joint_requests:
+                node1_id = joint_request.node1_id
+                node2_id = joint_request.node2_id
+                node1_qubit_id = joint_request.node1_qubit_id
+                node2_qubit_id = joint_request.node2_qubit_id
+                node1_pid = joint_request.node1_pid
+                node2_pid = joint_request.node2_pid
+                self.put_request(
+                    EntDistRequest(
+                        node1_id, node2_id, node1_qubit_id, node1_pid, node2_pid
+                    )
+                )
+                self.put_request(
+                    EntDistRequest(
+                        node2_id, node1_id, node2_qubit_id, node2_pid, node1_pid
+                    )
+                )
 
         return joint_requests
 
