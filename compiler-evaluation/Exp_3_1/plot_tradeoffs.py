@@ -171,8 +171,8 @@ if __name__ == "__main__":
     filename = args.filename
     client_nums = args.client_nums
     num_qubits = args.num_qubits
-    # "host_peer_latency", "host_instr_time" ,
-    param_strings = ["bin_length", "cc",  "host_instr_time", "host_peer_latency", "qnos_instr_proc_time", "t2"] # "single_gate_dur", "single_gate_fid", 
+    # "host_peer_latency", "host_instr_time" ,"cc",
+    param_strings = ["bin_length",   "host_instr_time", "host_peer_latency", "qnos_instr_proc_time", "t2"] # "single_gate_dur", "single_gate_fid", 
     filenames = [f"{filename}_{param_name}" for param_name in param_strings]
 
     for file in filenames:

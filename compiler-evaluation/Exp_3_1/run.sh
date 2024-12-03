@@ -8,11 +8,11 @@ decoherence_times="t2 1e3 3e3 5e3 7e3 1e4 3e4 5e4 7e4 1e5 3e5 5e5 7e5 1e6 3e6 5e
 # single_gate_durations="single_gate_dur 1e0 1e1 1e2 1e3 1e4 1e5 1e6"
 # fidelities="single_gate_fid 0.95 0.955 0.96 0.965 0.97 0.975 0.98 0.985 0.99 0.995 0.999"
 
-qnos_instr_time="qnos_instr_proc_time 1e3 3e3 5e3 7e3 1e4 3e4 5e4 7e4 1e5 3e5 5e5 7e5 1e6"
+qnos_instr_time="qnos_instr_proc_time 1e3 3e3 5e3 7e3 1.01e4 3e4 5e4 7e4 1e5 3e5 5e5 7e5 1e6"
 host_instr_time="host_instr_time 1e2 3e2 5e2 7e2 1e3 3e3 5e3 7e3 1e4 3.0001e4 5e4 7e4 1e5"
-host_peer_latency="host_peer_latency 1e2 3e2 5e2 7e2 9e2  1e3 3e3 5e3 7e3 9e3 1e4 3e4 5e4 1e5"
+host_peer_latency="host_peer_latency 1e2 3e2 5e2 7e2 9e2  1e3 3e3 5e3 7e3 9e3 1e4 2.9e4 5.0001e4 1.01e5"
 
-netsched_timebin="bin_length 2e3 3e3 5e3 7e3 1e4 3e4 5e4 7e4 1e5 3e5 5e5 7e5 1e6 3e6 5e6 7e6"
+netsched_timebin="bin_length 2e3 3e3 5e3 6.95e3 1e4 3e4 5.0001e4 7e4 1e5 3e5 5e5 7e5 1e6 3e6 5e6 7e6"
 
 # param_list=("$netsched_timebin")
 param_list=("$cc_latency" "$decoherence_times" "$single_gate_durations" "$fidelities" "$qnos_instr_time" "$host_instr_time" "$host_peer_latency" "$netsched_timebin")
