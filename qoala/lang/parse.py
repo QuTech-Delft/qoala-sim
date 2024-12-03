@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from logging import critical
 from typing import Dict, List, Optional, Tuple, Union
 
 from netqasm.lang.instr.flavour import Flavour, VanillaFlavour
@@ -556,7 +557,7 @@ class HostCodeParser:
 
     def _parse_block_annotations(
         self, annotations: str
-    ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]]]:
+    ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]], Optional[int]]:
         """
         Parses the annotations of a block which are the block type and deadlines. The annotations format is given
         in the class description.
@@ -580,16 +581,21 @@ class HostCodeParser:
                 "Invalid block type. Block type must be one of the "
                 "following: 'CL', 'CC', 'QL', 'QC' (case insensitive)."
             )
-        if len(annotations_parts) == 1:  # no deadline
-            deadlines = None
-        else:
-            deadlines_str = annotations_parts[1].strip()
-            deadlines = self._parse_deadlines(deadlines_str[12:])
-        return typ, deadlines
+
+        deadlines: Optional[Dict[str, int]] = None
+        critical_section: Optional[int] = None
+        if len(annotations_parts) >= 2:
+            for ann_part in annotations_parts[1:]:
+                k, v = [p.strip() for p in ann_part.strip().split("=")]
+                if k == "deadlines":
+                    deadlines = self._parse_deadlines(v)
+                elif k == "critical_section":
+                    critical_section = int(v)
+        return typ, deadlines, critical_section
 
     def _parse_block_header(
         self, line: str
-    ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]]]:
+    ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]], Optional[int]]:
         """
         Parses the header of a block. Header contains the block name, block type, and block deadlines. The header
         format is given in the class description.
@@ -623,8 +629,8 @@ class HostCodeParser:
         annotations_str = header_parts[1][:close_brace]
         if header_parts[1][close_brace + 1 :] != ":":
             raise QoalaParseError("Block header must end with ':'.")
-        typ, deadline = self._parse_block_annotations(annotations_str)
-        return name, typ, deadline
+        typ, deadline, critical_section = self._parse_block_annotations(annotations_str)
+        return name, typ, deadline, critical_section
 
     def parse_block(self, text: str) -> hl.BasicBlock:
         """
@@ -635,13 +641,13 @@ class HostCodeParser:
         """
         lines = [line.strip() for line in text.split("\n")]
         lines = [line for line in lines if len(line) > 0]
-        name, typ, deadline = self._parse_block_header(lines[0])
+        name, typ, deadline, critical_section = self._parse_block_header(lines[0])
         instr_lines = lines[1:]
         instrs = IqoalaInstrParser(
             "\n".join(instr_lines), self._defined_vectors
         ).parse()
 
-        return hl.BasicBlock(name, typ, instrs, deadline)
+        return hl.BasicBlock(name, typ, instrs, deadline, critical_section)
 
     def parse(self) -> List[hl.BasicBlock]:
         """

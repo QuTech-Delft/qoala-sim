@@ -1,4 +1,5 @@
 import os
+from logging import critical
 
 import pytest
 from netqasm.lang.instr.core import MeasInstruction, SetInstruction
@@ -90,7 +91,7 @@ META_END
     )
 
 
-def test_parse_meta_with_critial_sections():
+def test_parse_meta_with_critical_sections():
     text = """
 META_START
 name: alice
@@ -270,19 +271,41 @@ my_vec<N> = run_request() : req1
 def test_parse_block_header():
     text = "^b0 {type = CL}:"
 
-    name, typ, duration = HostCodeParser("")._parse_block_header(text)
+    name, typ, duration, critical_section = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
     assert duration is None
+    assert critical_section is None
 
 
 def test_parse_block_header_with_deadlines():
     text = "^b0 {type = CL, deadlines = [b1: 1000]}:"
 
-    name, typ, deadline = HostCodeParser("")._parse_block_header(text)
+    name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
     assert deadline == {"b1": 1000}
+    assert critical_section is None
+
+
+def test_parse_block_header_with_critical_section():
+    text = "^b0 {type = CL, critical_section = 7}:"
+
+    name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert deadline is None
+    assert critical_section == 7
+
+
+def test_parse_block_header_with_deadline_and_critical_section():
+    text = "^b0 {type = CL, deadlines = [b1: 1000], critical_section = 7}:"
+
+    name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert deadline == {"b1": 1000}
+    assert critical_section == 7
 
 
 def test_parse_block():
@@ -1297,6 +1320,7 @@ if __name__ == "__main__":
     test_parse_incomplete_meta()
     test_parse_meta_no_end()
     test_parse_meta()
+    test_parse_meta_with_critical_sections()
     test_parse_meta_multiple_remotes()
     test_parse_1_instr()
     test_parse_2_instr()
@@ -1311,6 +1335,8 @@ if __name__ == "__main__":
     test_parse_vector_with_var()
     test_parse_block_header()
     test_parse_block_header_with_deadlines()
+    test_parse_block_header_with_critical_section()
+    test_parse_block_header_with_deadline_and_critical_section()
     test_parse_block()
     test_get_block_texts()
     test_parse_multiple_blocks()
