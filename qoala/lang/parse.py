@@ -8,7 +8,12 @@ from netqasm.lang.parsing.text import parse_text_subroutine
 
 from qoala.lang import hostlang as hl
 from qoala.lang.hostlang import IqoalaSingleton, IqoalaValue, IqoalaVar, IqoalaVector
-from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
+from qoala.lang.program import (
+    CriticalSectionType,
+    LocalRoutine,
+    ProgramMeta,
+    QoalaProgram,
+)
 from qoala.lang.request import (
     CallbackType,
     EprRole,
@@ -214,13 +219,37 @@ class IqoalaMetaParser:
                         f"Value {node_name} in Qoala Program Meta is not a valid remote node name."
                     )
 
-            end_line = self._read_line()
+            # Critical sections line is optional.
+            next_line = self._read_line()
+            end_line: str
+            critical_sections: Dict[int, str]
+            try:
+                critical_sections_map = self._parse_meta_line(
+                    "critical_sections", next_line
+                )
+                critical_sections = self._parse_meta_mapping(critical_sections_map)
+                for val in critical_sections.values():
+                    if not val in ["A", "E", "AE"]:
+                        raise QoalaParseError(
+                            f"Value {val} in Qoala Program Meta is not a valid critical section type."
+                        )
+                # Convert string to CriticalSectionType
+                critical_sections = {
+                    k: CriticalSectionType[v] for k, v in critical_sections.items()
+                }
+                # There was a critical sections line; the next line is the META_END line.
+                end_line = self._read_line()
+            except:
+                # No criticial sections line; the line we already read is the META_END line.
+                end_line = next_line
+                critical_sections = {}
+
             if end_line != "META_END":
-                raise QoalaParseError("Qoala Program Meta must start with META_END.")
+                raise QoalaParseError("Qoala Program Meta must end with META_END.")
         except EndOfTextException:
             raise QoalaParseError("Qoala Program Meta finished unexpectedly.")
 
-        return ProgramMeta(name, parameters, csockets, epr_sockets)
+        return ProgramMeta(name, parameters, csockets, epr_sockets, critical_sections)
 
 
 class IqoalaInstrParser:

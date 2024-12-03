@@ -1079,7 +1079,7 @@ class BasicBlock:
     typ: BasicBlockType
     instructions: List[ClassicalIqoalaOp]
     deadlines: Optional[Dict[str, int]] = None
-    critical_section: Optional[str] = None
+    critical_section: Optional[int] = None
 
     def __str__(self) -> str:
         annotations = f"type = {self.typ.name}"

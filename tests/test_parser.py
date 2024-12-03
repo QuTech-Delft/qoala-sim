@@ -9,6 +9,7 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     BusyOp,
+    CriticalSection,
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
@@ -29,7 +30,7 @@ from qoala.lang.parse import (
     QoalaParser,
     RequestRoutineParser,
 )
-from qoala.lang.program import LocalRoutine, ProgramMeta
+from qoala.lang.program import CriticalSectionType, LocalRoutine, ProgramMeta
 from qoala.lang.request import (
     CallbackType,
     EprRole,
@@ -81,7 +82,37 @@ META_END
     meta = IqoalaMetaParser(text).parse()
 
     assert meta == ProgramMeta(
-        name="alice", parameters=[], csockets={0: "bob"}, epr_sockets={}
+        name="alice",
+        parameters=[],
+        csockets={0: "bob"},
+        epr_sockets={},
+        critical_sections={},
+    )
+
+
+def test_parse_meta_with_critial_sections():
+    text = """
+META_START
+name: alice
+parameters: 
+csockets: 0 -> bob
+epr_sockets: 
+critical_sections: 0 -> A, 1 -> AE, 2 -> E
+META_END
+    """
+
+    meta = IqoalaMetaParser(text).parse()
+
+    assert meta == ProgramMeta(
+        name="alice",
+        parameters=[],
+        csockets={0: "bob"},
+        epr_sockets={},
+        critical_sections={
+            0: CriticalSectionType.A,
+            1: CriticalSectionType.AE,
+            2: CriticalSectionType.E,
+        },
     )
 
 
@@ -102,6 +133,7 @@ META_END
         parameters=["theta1", "theta2"],
         csockets={0: "bob", 1: "charlie"},
         epr_sockets={0: "bob"},
+        critical_sections={},
     )
 
 

@@ -65,7 +65,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
     network_cfg.cconns = [cconn]
     pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
     network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=20_000
+        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=2e7
     )
 
     alice_program = load_program("teleport_alice.iqoala")

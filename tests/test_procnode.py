@@ -441,6 +441,7 @@ def test_classical_comm():
         parameters=["csocket_id", "message"],
         csockets={0: "bob"},
         epr_sockets={},
+        critical_sections={},
     )
     alice_program = create_program(instrs=alice_instrs, meta=alice_meta)
     alice_process = create_process(
@@ -457,7 +458,11 @@ def test_classical_comm():
         ReceiveCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("result"))
     ]
     bob_meta = ProgramMeta(
-        name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
+        name="bob",
+        parameters=["csocket_id"],
+        csockets={0: "alice"},
+        epr_sockets={},
+        critical_sections={},
     )
     bob_program = create_program(instrs=bob_instrs, meta=bob_meta)
     bob_process = create_process(
@@ -553,6 +558,7 @@ def test_classical_comm_three_nodes():
         parameters=["csocket_id", "message"],
         csockets={0: "charlie"},
         epr_sockets={},
+        critical_sections={},
     )
     alice_program = create_program(instrs=alice_instrs, meta=alice_meta)
     alice_process = create_process(
@@ -571,6 +577,7 @@ def test_classical_comm_three_nodes():
         parameters=["csocket_id", "message"],
         csockets={0: "charlie"},
         epr_sockets={},
+        critical_sections={},
     )
     bob_program = create_program(instrs=bob_instrs, meta=bob_meta)
     bob_process = create_process(
@@ -594,6 +601,7 @@ def test_classical_comm_three_nodes():
         parameters=["csocket_id_alice", "csocket_id_bob"],
         csockets={0: "alice", 1: "bob"},
         epr_sockets={},
+        critical_sections={},
     )
     charlie_program = create_program(instrs=charlie_instrs, meta=charlie_meta)
     charlie_process = create_process(
@@ -714,6 +722,7 @@ def test_epr():
         parameters=["csocket_id", "message"],
         csockets={0: "bob"},
         epr_sockets={},
+        critical_sections={},
     )
     alice_program = create_program(
         instrs=alice_instrs,
@@ -732,7 +741,11 @@ def test_epr():
 
     bob_instrs = [ReceiveCMsgOp("csocket_id", "result")]
     bob_meta = ProgramMeta(
-        name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
+        name="bob",
+        parameters=["csocket_id"],
+        csockets={0: "alice"},
+        epr_sockets={},
+        critical_sections={},
     )
     bob_program = create_program(
         instrs=bob_instrs, req_routines={"req1": bob_request_routine}, meta=bob_meta
