@@ -450,6 +450,33 @@ def test_get_all_joint_requests_2():
     assert len(entdist.get_requests(bob.ID)) == 0
 
 
+def test_get_all_joint_requests_3():
+    alice, bob = create_n_nodes(2)
+    entdist = create_entdist(nodes=[alice, bob])
+
+    # There can be multiple requests for the same process
+    # e.g. a multipair request
+    entdist.put_request(create_request(alice.ID, bob.ID, 0, 0))
+    entdist.put_request(create_request(alice.ID, bob.ID, 0, 0))
+    entdist.put_request(create_request(alice.ID, bob.ID, 1, 1))
+
+    entdist.put_request(create_request(bob.ID, alice.ID, 0, 0))
+    entdist.put_request(create_request(bob.ID, alice.ID, 0, 0))
+
+    assert len(entdist.get_requests(alice.ID)) == 3
+    assert len(entdist.get_requests(bob.ID)) == 2
+
+    # Matches for (0,0), (1,1)
+    joint_requests = entdist.get_all_joint_requests(pop_node_requests=False)
+    assert len(joint_requests) == 2
+
+    joint_requests = entdist.get_all_joint_requests()  # pop = True
+    assert len(joint_requests) == 2
+    # Requests have been popped.
+    assert len(entdist.get_requests(alice.ID)) == 1
+    assert len(entdist.get_requests(bob.ID)) == 0
+
+
 def test_serve_request():
     alice, bob = create_n_nodes(2, num_qubits=2)
 
@@ -818,6 +845,7 @@ if __name__ == "__main__":
     test_get_next_joint_request_2()
     test_get_all_joint_requests()
     test_get_all_joint_requests_2()
+    test_get_all_joint_requests_3()
     test_serve_request()
     test_serve_request_multiple_nodes()
     test_entdist_run()
