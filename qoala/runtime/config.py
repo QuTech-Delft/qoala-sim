@@ -730,7 +730,112 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
             multi_gates=multi_gates,
             all_qubit_gates=all_qubit_gates,
         )
+    @classmethod
+    def uniform_t1t2_qubits_uniform_imperfect_gates_limited_comm(
+        cls,
+        num_qubits: int,
+        num_comm_qubits: int,
+        t1: int,
+        t2: int,
+        single_instructions: List[str],
+        single_duration: int,
+        single_fid: float,
+        two_instructions: List[str],
+        two_duration: int,
+        two_fid: float,
+        all_qubit_gate_instructions: List[str] = None,
+        all_qubit_gate_duration: int = 0,
+        all_fid: float = 1,
+    ) -> TopologyConfig:
+        """
+        Creates a topology configuration where only a limited number of qubits can be used for communication. 
+        However, all qubits have the same memory parameters, and all
+        gate parameters (depolarising noise, gate duration) are uniform for
+        gates of the same size (single qubit, two qubit, all qubit).
 
+        The topology of these qubits is a complete graph, that is a two qubit gate
+        can be executed on any pair of qubits. The noise these qubits experience
+        is uniform, they all share the same t1 and t2 values.
+
+        :param num_qubits: Number of qubits in the topology
+        :param t1: Amplitude damping time (ns)
+        :param t2: Dephasing time (ns)
+        :param single_instructions: List of single qubit instructions
+        :param single_duration: Duration of single qubit instructions (ns)
+        :param single_fid: Fidelity of a single qubit gate operation
+        :param two_instructions: List of two qubit instructions
+        :param two_duration: Duration of two qubit instructions (ns)
+        :param two_fid: Fidelity of two qubit gate operations
+        :param all_qubit_gate_instructions: List of all qubit instructions, defaults to None
+        :param all_qubit_gate_duration: Duration of all qubit instructions (ns), defaults to 0
+        :param all_fid: Fidelity of all qubit gate operations, defaults to 1
+        :return: A TopologyConfig object for the specified configuration
+        """
+        qubits = [
+            QubitIdConfig(
+                qubit_id=i,
+                qubit_config=QubitConfig.t1t2_config(
+                    is_communication=(i < num_comm_qubits), T1=t1, T2=t2
+                ),
+            )
+            for i in range(num_qubits)
+        ]
+
+        single_gates = [
+            SingleGateConfig(
+                qubit_id=i,
+                gate_configs=[
+                    GateConfig.with_all_qubit_gate_fidelity(
+                        name=name,
+                        duration=single_duration,
+                        fidelity=single_fid,
+                        num_qubits=1,
+                    )
+                    for name in single_instructions
+                ],
+            )
+            for i in range(num_qubits)
+        ]
+
+        multi_gates = []
+        for i in range(num_qubits):
+            for j in range(num_qubits):
+                if i == j:
+                    continue
+                cfg = MultiGateConfig(
+                    qubit_ids=[i, j],
+                    gate_configs=[
+                        GateConfig.with_all_qubit_gate_fidelity(
+                            name=name,
+                            duration=two_duration,
+                            fidelity=two_fid,
+                            num_qubits=2,
+                        )
+                        for name in two_instructions
+                    ],
+                )
+                multi_gates.append(cfg)
+
+        all_qubit_gates = None
+        if all_qubit_gate_instructions is not None:
+            all_qubit_gates = AllQubitGateConfig(
+                gate_configs=[
+                    GateConfig.with_all_qubit_gate_fidelity(
+                        name=name,
+                        duration=all_qubit_gate_duration,
+                        fidelity=all_fid,
+                        num_qubits=num_qubits,
+                    )
+                    for name in all_qubit_gate_instructions
+                ]
+            )
+
+        return TopologyConfig(
+            qubits=qubits,
+            single_gates=single_gates,
+            multi_gates=multi_gates,
+            all_qubit_gates=all_qubit_gates,
+        )
     @classmethod
     def uniform_t1t2_qubits_perfect_gates(
         cls,
@@ -956,6 +1061,56 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         """
         return cls.uniform_t1t2_qubits_uniform_imperfect_gates(
             num_qubits=num_qubits,
+            t1=t1,
+            t2=t2,
+            single_instructions=[
+                "INSTR_INIT",
+                "INSTR_ROT_X",
+                "INSTR_ROT_Y",
+                "INSTR_ROT_Z",
+                "INSTR_X",
+                "INSTR_Y",
+                "INSTR_Z",
+                "INSTR_H",
+                "INSTR_MEASURE",
+                "INSTR_MEASURE_INSTANT",
+            ],
+            single_duration=single_gate_duration,
+            single_fid=single_gate_fid,
+            two_instructions=["INSTR_CNOT", "INSTR_CZ"],
+            two_fid=two_gate_fid,
+            two_duration=two_gate_duration,
+        )
+    
+    @classmethod
+    def uniform_t1t2_qubits_uniform_any_gate_duration_and_noise_limited_comm(
+        cls,
+        num_qubits: int,
+        num_comm_qubits:int,
+        t1: int,
+        t2: int,
+        single_gate_duration: int,
+        single_gate_fid: float,
+        two_gate_duration: int,
+        two_gate_fid: float,
+        all_gate_duration: int = 0,
+        all_gate_fid: float = 1.0,
+    ) -> TopologyConfig:
+        """
+        Creates a TopologyConfiguration object with a limited number of communication qubits, uniform qubit topology,
+        where single qubit gates experience depolarising noise, and the
+        gate duration is specified.
+
+        :param num_qubits: number of qubits
+        :param t1: Amplitude damping (ns)
+        :param t2: Dephasing time (ns)
+        :param single_gate_duration: How long it takes to execute a single qubit gate (ns)
+        :param single_gate_fid: Fidelity of single gate operations
+        :return: A TopologyConfiguration object
+        """
+        return cls.uniform_t1t2_qubits_uniform_imperfect_gates_limited_comm(
+            num_qubits=num_qubits,
+            num_comm_qubits=num_comm_qubits,
             t1=t1,
             t2=t2,
             single_instructions=[

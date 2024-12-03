@@ -51,6 +51,10 @@ SUBROUTINE meas_qubit_1
     keeps:
     request: 
   NETQASM_START
+    // Z rotate
+    // Convert to Z basis
+    // Measure
+    // Results in a |+_delta1> basis measurement (also denoted M(delta1))
     load C0 @input[0]
     set Q1 1
     rot_z Q1 C0 4

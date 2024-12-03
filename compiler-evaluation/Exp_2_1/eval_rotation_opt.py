@@ -291,17 +291,19 @@ def rotation_exp(
     # succ_std_dev = math.sqrt(sum([((1 if res == 0 else 0) - avg_succ_prob)**2 for res in results]) / (num_iterations))
 
     # batched population STD Dev
-    n_batches = 10
-    batch_size = int(num_iterations / n_batches)
-    batches = [
-        [results[j] for j in range(i * batch_size, (i + 1) * batch_size)]
-        for i in range(0, n_batches)
-    ]
-    batches_avgs = [(batch_size - sum(batch)) / len(batch) for batch in batches]
-    succ_batch_std = math.sqrt(
-        sum([(batch_avg - avg_succ_prob) ** 2 for batch_avg in batches_avgs])
-        / (n_batches)
-    )
+    succ_batch_std = 0
+    if num_iterations > 10:
+        n_batches = 10
+        batch_size = int(num_iterations / n_batches)
+        batches = [
+            [results[j] for j in range(i * batch_size, (i + 1) * batch_size)]
+            for i in range(0, n_batches)
+        ]
+        batches_avgs = [(batch_size - sum(batch)) / len(batch) for batch in batches]
+        succ_batch_std = math.sqrt(
+            sum([(batch_avg - avg_succ_prob) ** 2 for batch_avg in batches_avgs])
+            / (n_batches)
+        )
 
     print(
         f"succ prob: {avg_succ_prob}, std dev:{succ_batch_std}, makespan: {avg_makespan}"

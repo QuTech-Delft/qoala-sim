@@ -80,12 +80,13 @@ def create_network(
     cc: float,
     use_netschedule: bool,
     bin_length: float,
+    link_duration: int=1000,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
     node_cfgs = [server_cfg] + client_configs
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        nodes=node_cfgs, link_duration=1000
+        nodes=node_cfgs, link_duration=link_duration
     )
 
     # pattern = []
@@ -115,7 +116,7 @@ def create_network(
 
         client_pid_index += client_num_iterations[client_prog]
 
-    print(pattern)
+    # print(pattern)
 
     if use_netschedule:
         network_cfg.netschedule = NetworkScheduleConfig(
@@ -223,6 +224,7 @@ def run_eval_programs(
     client_num_qubits: int = 20,
     use_netschedule: bool = False,
     bin_length: int = 0,
+    link_duration: int=1000,
     scheduling_alg: str = "",
 ):
     """
@@ -307,6 +309,7 @@ def run_eval_programs(
         cc,
         use_netschedule,
         bin_length,
+        link_duration,
     )
 
     server_procnode = network.nodes["server"]
@@ -477,6 +480,7 @@ def run_eval_exp(
     client_num_qubits: int = 20,
     use_netschedule: bool = False,
     bin_length: int = 0,
+    link_duration: int=1000,
     scheduling_alg: str = "",
     compute_succ_probs: List[function] = [],
 ):
@@ -505,6 +509,7 @@ def run_eval_exp(
         client_num_qubits = client_num_qubits,
         use_netschedule = use_netschedule,
         bin_length = bin_length,
+        link_duration=link_duration,
         scheduling_alg = scheduling_alg
     ) 
 
@@ -514,6 +519,7 @@ def run_eval_exp(
     server_results = exp_results.server_results
     client_results = exp_results.client_results
     # print(client_results)
+    
 
     # (client_id, program #) -> succ probability
     # A client_id of -1 corresponds to a server only program
@@ -668,6 +674,7 @@ if __name__ == "__main__":
         "client_num_qubits": 20,
         "use_netschedule": True,
         "bin_length": 1e5,
+        "link_duration": 1e3,
         "compute_succ_probs": [bqc_compute_succ_prob, bqc_compute_succ_prob]
     }
 
@@ -745,6 +752,7 @@ if __name__ == "__main__":
                 two_gate_dur=params["two_gate_dur"],
                 single_gate_fid=params["single_gate_fid"],
                 two_gate_fid=params["two_gate_fid"],
+                link_duration=params["link_duration"],
                 compute_succ_probs=params["compute_succ_probs"]
             )
             print(f"Selfish Results\tMakespan: {selfish_makespan}\tSuccess Prob: {selfish_succ_probs}")
@@ -775,6 +783,7 @@ if __name__ == "__main__":
                 two_gate_dur=params["two_gate_dur"],
                 single_gate_fid=params["single_gate_fid"],
                 two_gate_fid=params["two_gate_fid"],
+                link_duration=params["link_duration"],
                 compute_succ_probs=params["compute_succ_probs"]
             )
             print(f"1-Cooperative Results\tMakespan: {cooperative_makespan}\tSuccess Prob: {cooperative_succ_probs}\n\n")

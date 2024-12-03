@@ -87,7 +87,7 @@ def create_plots(timestamp: str, data: List[Data], num_qubits: List[int]):
     num_clients = data[0].meta.num_clients
 
     x_vals = [
-        data_point.param_value for data_point in data_points if data_point.num_qubits_server == 2
+        data_point.param_value for data_point in data_points if data_point.num_qubits_server == num_qubits[0]
     ]
     
     selfish_makespans = [[[data_point.makespan_selfish for data_point in d.data_points if data_point.num_qubits_server == q] for q in num_qubits] for d in data]
@@ -103,6 +103,8 @@ def create_plots(timestamp: str, data: List[Data], num_qubits: List[int]):
     makespan_label = "Makespan of quantum programs (ns)"
 
     xlabel = data[0].meta.param_name
+    num_qubits_str = "_num_qubits"+ "".join([f'_{str(q)}' for q in num_qubits])
+    num_clients_str = "_num_clients" + "".join([f'_{d.meta.num_clients}' for d in data])
 
     # Plot Makespan
     plt.xscale("log")
@@ -124,15 +126,15 @@ def create_plots(timestamp: str, data: List[Data], num_qubits: List[int]):
     for d in range(0, len(data)):
         for i in range(0,len(num_qubits)):
             q=num_qubits[i]
-            plt.plot(x_vals, cooperative_makespans[d][i], label=f"{d+1} C, Coop {q} qbs", marker="s")
+            plt.plot(x_vals, cooperative_makespans[d][i], label=f"{data[d].meta.num_clients} clients, Coop, {q} server qbts", marker="s")
             plt.plot(
-                x_vals, selfish_makespans[d][i], label=f"{d+1} C, Self {q} qbs", marker="o"
+                x_vals, selfish_makespans[d][i], label=f"{data[d].meta.num_clients} clients, Self, {q} server qbts", marker="o"
             )
 
     plt.legend(loc="upper left", fontsize=11)
 
-    create_png("LAST_" + xlabel  +"_makespan")
-    create_png(timestamp + "_" + xlabel  +"_makespan")
+    create_png("LAST_" + xlabel + num_clients_str + num_qubits_str + "_makespan")
+    create_png(timestamp + "_" + xlabel + num_clients_str + num_qubits_str +"_makespan")
     plt.cla()
 
     # Plot Success Probability
@@ -146,15 +148,15 @@ def create_plots(timestamp: str, data: List[Data], num_qubits: List[int]):
     for d in range(0,len(data)):
         for i in range(0,len(num_qubits)):
             q=num_qubits[i]
-            plt.plot(x_vals, cooperative_succ_probs[d][i], label=f"{d+1} C, Coop {q} qbs", marker="s")
+            plt.plot(x_vals, cooperative_succ_probs[d][i], label=f"{data[d].meta.num_clients} clients, Coop, {q} server qbts", marker="s")
             plt.plot(
-                x_vals, selfish_succ_probs[d][i], label=f"{d+1} C, Self {q} qbs", marker="o"
+                x_vals, selfish_succ_probs[d][i], label=f"{data[d].meta.num_clients} clients, Self, {q} server qbts", marker="o"
             )
 
     plt.legend(loc="lower right", fontsize=11)
 
-    create_png("LAST_" + xlabel + "_succ_prob")
-    create_png(timestamp + "_" + xlabel  +"_succ_prob")
+    create_png("LAST_" + xlabel + num_clients_str + num_qubits_str + "_succ_prob")
+    create_png(timestamp + "_" + xlabel + num_clients_str + num_qubits_str +"_succ_prob")
     plt.cla()
 
 

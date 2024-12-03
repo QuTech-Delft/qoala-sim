@@ -29,15 +29,34 @@ META_END
     tuple<p1> = run_subroutine(tuple<theta1; epr1_rot_y; epr1_rot_z>) : post_epr_1
 
 ^b5 {type = CL}:
+    // Here we are going to compute the angle to measure epr_1
+    // p1 is our measurement outcome from measuring in the Z basis
+    // So if p1 = 0 we are in |+_theta1> and p1 = 1 we are in |-_theta1> (I need to double check this again)
+    // So here depending on p1, x = pi or x = 0
+    // This is s_j * pij * pij * pij * pij * pij * pij * pij * pi 
     x = mult_const(p1) : 16
+    
     minus_theta1 = mult_const(theta1) : -1
+    // x - theta1
     delta1 = add_cval_c(minus_theta1, x)
+    // x - theta1 + alpha
+    // alpha is the actual angle we want to measure...
+    // so if we do an X basis measurement (alpha = 0) we will teleport this state (|+>) to qubit 0
     delta1 = add_cval_c(delta1, alpha)
 
+    // If this is not a dummy qubit, then minus_dummy0 also is 0
     minus_dummy0 = mult_const(dummy0) : -1
+
+    // So if not a dummy qubit then this is 1
     should_correct_0 = add_cval_c(const_1, minus_dummy0)
+
+    // So if not a dummy qubit we multiply alpha by 0
     delta1_correction = bcond_mult_const(alpha, should_correct_0) : 0
+
+    // Then we multiply 0 by -1
     delta1_correction = mult_const(delta1_correction) : -1
+
+    // then delta1 remains the same (if not a dummy)
     delta1 = add_cval_c(delta1, delta1_correction)
 
     send_cmsg(csocket, delta1)
@@ -77,6 +96,16 @@ SUBROUTINE post_epr_0
     keeps:
     request:
   NETQASM_START
+    // Need to prepare a randomized |+> state from a bell pair
+    // theta2 is to hide the input
+    // epr0_rot_y is 24 unless this is a dummy input (in which case 0)
+    // epr1_rot_z is 16 unless this is a dummy input (in which case 0)
+    // If this is a dummy input then the server is left with a qubit in |0> or |1>
+    // This combo of RY RZ is equivalent to a Hadamard gate (up to some global phase)
+    // After measuring we have teleported a |+> or |-> state to the server
+    // However if theta2 is not 0, we first Z rotate by theta2
+    // If after measuring in the Z basis we measure 0 we know the state is |+_theta2> 
+    // If after measuring in the Z basis we measure 1 we know the state is |-_theta2>
     load C0 @input[0]
     load C1 @input[1]
     load C2 @input[2]

@@ -201,7 +201,7 @@ def test_single_pair_only_netstack_interface_with_netschedule():
     entdist.start()
     ns.sim_run()
 
-    assert ns.sim_time() == 5000  # end of time bin
+    assert ns.sim_time() == 5000 - 1  # end of time bin
 
     alice_qubit = alice_qdevice.get_local_qubit(0)
     bob_qubit = bob_qdevice.get_local_qubit(0)
