@@ -11,10 +11,10 @@ from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import (
     LatenciesConfig,
+    NetworkScheduleConfig,
     NtfConfig,
     ProcNodeConfig,
     ProcNodeNetworkConfig,
-    NetworkScheduleConfig,
     TopologyConfig,
 )
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
@@ -85,21 +85,21 @@ def create_network(
     # Need to build the pattern.
     # Each bin is of the form (client node, client pid, server node, server pid)
     server_pid = 0
-    for client_id in range(1,num_clients+1):
-        for client_pid in range(0, client_num_iterations[client_id-1]):
+    for client_id in range(1, num_clients + 1):
+        for client_pid in range(0, client_num_iterations[client_id - 1]):
             pattern.append((client_id, client_pid, 0, server_pid))
             server_pid += 1
     # print(pattern)
 
     network_cfg.netschedule = NetworkScheduleConfig(
-            bin_length=bin_length,
-            first_bin=0,
-            bin_pattern=pattern,
-            repeat_period=bin_length
-            * num_clients
-            * len(client_num_iterations)
-            * max(client_num_iterations),
-        )
+        bin_length=bin_length,
+        first_bin=0,
+        bin_pattern=pattern,
+        repeat_period=bin_length
+        * num_clients
+        * len(client_num_iterations)
+        * max(client_num_iterations),
+    )
     return build_network_from_config(network_cfg)
 
 
