@@ -47,7 +47,7 @@ from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.scheduler import NodeScheduler
+from qoala.sim.scheduling.nodesched import NodeScheduler
 from qoala.util.math import has_multi_state
 from qoala.util.tests import netsquid_run
 

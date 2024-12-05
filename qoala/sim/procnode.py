@@ -19,7 +19,9 @@ from qoala.sim.process import QoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import Qnos, QnosComponent, QnosLatencies
-from qoala.sim.scheduler import NodeScheduler, OnlineNodeScheduler, StaticNodeScheduler
+from qoala.sim.scheduling.nodesched import NodeScheduler
+from qoala.sim.scheduling.onlinenodesched import OnlineNodeScheduler
+from qoala.sim.scheduling.staticnodesched import StaticNodeScheduler
 
 
 class ProcNode(Protocol):

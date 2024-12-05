@@ -28,7 +28,7 @@ from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
-from qoala.sim.scheduler import NodeScheduler
+from qoala.sim.scheduling.nodesched import NodeScheduler
 from qoala.util.math import has_state
 
 

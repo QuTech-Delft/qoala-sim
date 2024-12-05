@@ -6,7 +6,8 @@ from pydynaa import EventExpression
 from qoala.runtime.task import ProcessorType, QoalaTask, TaskGraph
 from qoala.sim.driver import Driver
 from qoala.sim.events import EVENT_WAIT
-from qoala.sim.scheduler import CpuEdfScheduler, Status
+from qoala.sim.scheduling.cpusched import CpuEdfScheduler
+from qoala.sim.scheduling.procsched import Status
 from qoala.util.logging import LogManager
 
 

@@ -29,7 +29,8 @@ from qoala.runtime.task import (
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
-from qoala.sim.scheduler import CpuEdfScheduler, QpuScheduler
+from qoala.sim.scheduling.cpusched import CpuEdfScheduler
+from qoala.sim.scheduling.qpusched import QpuScheduler
 from qoala.util.builder import ObjectBuilder
 from qoala.util.logging import LogManager
 
