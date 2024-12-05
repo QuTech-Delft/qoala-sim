@@ -1,5 +1,4 @@
 import os
-from logging import critical
 
 import pytest
 from netqasm.lang.instr.core import MeasInstruction, SetInstruction
@@ -10,7 +9,6 @@ from qoala.lang.hostlang import (
     AssignCValueOp,
     BasicBlockType,
     BusyOp,
-    CriticalSection,
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,

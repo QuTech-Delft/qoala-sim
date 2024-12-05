@@ -15,7 +15,6 @@ from qoala.runtime.config import (
     TopologyConfigBuilder,
 )
 from qoala.runtime.program import ProgramInput
-from qoala.util.logging import LogManager
 from qoala.util.runner import run_single_node_app
 
 

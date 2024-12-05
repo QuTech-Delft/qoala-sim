@@ -134,4 +134,4 @@ def test_teleport_different_inputs():
 
 if __name__ == "__main__":
     test_teleport()
-    test_teleport_different_inputs()
+    # test_teleport_different_inputs()

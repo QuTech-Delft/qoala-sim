@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from logging import critical
 from typing import Dict, List, Optional, Tuple, Union
 
 from netqasm.lang.instr.flavour import Flavour, VanillaFlavour
@@ -223,24 +222,24 @@ class IqoalaMetaParser:
             # Critical sections line is optional.
             next_line = self._read_line()
             end_line: str
-            critical_sections: Dict[int, str]
+            critical_sections: Dict[int, CriticalSectionType]
             try:
                 critical_sections_map = self._parse_meta_line(
                     "critical_sections", next_line
                 )
-                critical_sections = self._parse_meta_mapping(critical_sections_map)
-                for val in critical_sections.values():
-                    if not val in ["A", "E", "AE"]:
+                critical_sections_str = self._parse_meta_mapping(critical_sections_map)
+                for val in critical_sections_str.values():
+                    if val not in ["A", "E", "AE"]:
                         raise QoalaParseError(
                             f"Value {val} in Qoala Program Meta is not a valid critical section type."
                         )
                 # Convert string to CriticalSectionType
                 critical_sections = {
-                    k: CriticalSectionType[v] for k, v in critical_sections.items()
+                    k: CriticalSectionType[v] for k, v in critical_sections_str.items()
                 }
                 # There was a critical sections line; the next line is the META_END line.
                 end_line = self._read_line()
-            except:
+            except QoalaParseError:
                 # No criticial sections line; the line we already read is the META_END line.
                 end_line = next_line
                 critical_sections = {}
