@@ -9,7 +9,8 @@ from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.lang.hostlang import BasicBlockType
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramBatch, ProgramInstance
-from qoala.runtime.task import ProcessorType, TaskGraphFromBlockBuilder, TaskInfo
+from qoala.runtime.task import ProcessorType, TaskInfo
+from qoala.runtime.taskbuilder import TaskGraphFromBlockBuilder
 from qoala.sim.events import SIGNAL_TASK_COMPLETED
 from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager

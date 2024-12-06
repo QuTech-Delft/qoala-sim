@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generator
+from typing import Dict, Generator, List, Optional
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
@@ -42,6 +42,28 @@ class StaticNodeScheduler(NodeScheduler):
             prio_epr=prio_epr,
             is_predictable=True,
         )
+
+    def create_processes_for_batches(
+        self,
+        remote_pids: Optional[Dict[int, List[int]]] = None,  # batch ID -> PID list
+        linear: bool = False,
+    ) -> None:
+        for batch_id, batch in self._batches.items():
+            for i, prog_instance in enumerate(batch.instances):
+                if remote_pids is not None and batch_id in remote_pids:
+                    remote_pid = remote_pids[batch_id][i]
+                else:
+                    remote_pid = None
+                process = self.create_process(prog_instance, remote_pid)
+
+                self.memmgr.add_process(process)
+                self.initialize_process(process)
+
+        if self._const_batch is not None:
+            for i, prog_instance in enumerate(self._const_batch.instances):
+                process = self.create_process(prog_instance)
+                self.memmgr.add_process(process)
+                self.initialize_process(process)
 
     def start(self) -> None:
         # Processor schedulers start first to ensure that they will start running tasks after they receive the first

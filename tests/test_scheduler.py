@@ -23,9 +23,9 @@ from qoala.runtime.task import (
     LocalRoutineTask,
     PostCallTask,
     PreCallTask,
-    TaskGraphBuilder,
     TaskInfo,
 )
+from qoala.runtime.taskbuilder import TaskGraphBuilder
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
