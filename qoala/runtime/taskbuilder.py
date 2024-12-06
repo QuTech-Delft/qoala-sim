@@ -388,6 +388,10 @@ class TaskGraphFromBlockBuilder:
 
 
 class QoalaGraphFromProgramBuilder:
+    """
+    Builder for complete tasks based on predictable programs.
+    """
+
     def __init__(self, first_task_id: int = 0) -> None:
         self._first_task_id = first_task_id
         self._task_id_counter = first_task_id
@@ -407,106 +411,27 @@ class QoalaGraphFromProgramBuilder:
         network_ehi: Optional[EhiNetworkInfo] = None,
         prog_input: Optional[Dict[str, int]] = None,
     ) -> TaskGraph:
+        """
+        Builds a complete task graph for a program.
+        The program must be *predictable*.
+        """
         prev_block_task_id: Optional[int] = None
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
-                if ehi is not None:
-                    duration = ehi.latencies.host_instr_time * len(block.instructions)
-                else:
-                    duration = None
-                task_id = self.unique_id()
-                self._graph.add_tasks(
-                    [HostLocalTask(task_id, pid, block.name, duration)]
+                task_id = self._build_tasks_for_cl_block(
+                    pid, ehi, block, prev_block_task_id
                 )
-                self._block_to_task_map[block.name] = task_id
-                # Task for this block should come after task for previous block
-                # (Assuming linear program!)
-                if prev_block_task_id is not None:
-                    self._graph.get_tinfo(task_id).predecessors.add(prev_block_task_id)
-                if block.deadlines is not None:
-                    for blk, dl in block.deadlines.items():
-                        other_task = self._block_to_task_map[blk]
-                        self._graph.get_tinfo(task_id).rel_deadlines[other_task] = dl
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.CC:
-                assert len(block.instructions) == 1
-                instr = block.instructions[0]
-                assert isinstance(instr, ReceiveCMsgOp)
-                if ehi is not None:
-                    duration = ehi.latencies.host_peer_latency
-                else:
-                    duration = None
-                task_id = self.unique_id()
-                self._graph.add_tasks(
-                    [HostEventTask(task_id, pid, block.name, duration)]
+                task_id = self._build_tasks_for_cc_block(
+                    pid, ehi, block, prev_block_task_id
                 )
-                self._block_to_task_map[block.name] = task_id
-                # Task for this block should come after task for previous block
-                # (Assuming linear program!)
-                if prev_block_task_id is not None:
-                    self._graph.get_tinfo(task_id).predecessors.add(prev_block_task_id)
                 prev_block_task_id = task_id
             elif block.typ == BasicBlockType.QL:
-                assert len(block.instructions) == 1
-                instr = block.instructions[0]
-                assert isinstance(instr, RunSubroutineOp)
-                if ehi is not None:
-                    local_routine = program.local_routines[instr.subroutine]
-                    lr_duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
-                    pre_duration = ehi.latencies.host_instr_time
-                    post_duration = ehi.latencies.host_instr_time
-                else:
-                    lr_duration = None
-                    pre_duration = None
-                    post_duration = None
-
-                deadlines: Dict[int, int] = {}  # other task ID -> relative deadline
-                if block.deadlines is not None:
-                    for blk, dl in block.deadlines.items():
-                        other_task = self._block_to_task_map[blk]
-                        deadlines[other_task] = dl
-
-                precall_id = self.unique_id()
-                # Use a unique "pointer" or identifier which is used at runtime to point
-                # to shared data. The PreCallTask will store the lrcall object
-                # to this location, such that the LR- and postcall task can
-                # access this object using the shared pointer.
-                shared_ptr = precall_id  # just use this task id so we know it's unique
-                precall_task = PreCallTask(
-                    precall_id, pid, block.name, shared_ptr, pre_duration
+                last_task_id = self._build_tasks_for_ql_block(
+                    pid, ehi, block, prev_block_task_id
                 )
-                self._graph.add_tasks([precall_task])
-                for other_task, dl in deadlines.items():
-                    # TODO: fix this hack
-                    self._graph.get_tinfo(precall_id).rel_deadlines[other_task] = dl
-
-                lr_id = self.unique_id()
-                qputask = LocalRoutineTask(
-                    lr_id, pid, block.name, shared_ptr, lr_duration
-                )
-                self._graph.add_tasks([qputask])
-
-                postcall_id = self.unique_id()
-                postcall_task = PostCallTask(
-                    postcall_id, pid, block.name, shared_ptr, post_duration
-                )
-                self._graph.add_tasks([postcall_task])
-                self._block_to_task_map[block.name] = postcall_id
-
-                # LR task should come after precall task
-                self._graph.get_tinfo(lr_id).predecessors.add(precall_id)
-                # postcall task should come after LR task
-                self._graph.get_tinfo(postcall_id).predecessors.add(lr_id)
-
-                # Tasks for this block should come after task for previous block
-                # (Assuming linear program!)
-                if prev_block_task_id is not None:
-                    # First task for this block is precall task.
-                    self._graph.get_tinfo(precall_id).predecessors.add(
-                        prev_block_task_id
-                    )
-                # Last task for this block is postcall task.
-                prev_block_task_id = postcall_id
+                prev_block_task_id = last_task_id
             elif block.typ == BasicBlockType.QC:
                 precall_id, postcall_id = self._build_from_qc_task_routine_split(
                     program, block, pid, ehi, network_ehi, prog_input
@@ -523,6 +448,118 @@ class QoalaGraphFromProgramBuilder:
 
         self._graph.update_successors()
         return self._graph
+
+    def _build_tasks_for_cl_block(
+        self,
+        pid: int,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+        prev_block_task_id: Optional[int],
+    ) -> int:
+        if ehi is not None:
+            duration = ehi.latencies.host_instr_time * len(block.instructions)
+        else:
+            duration = None
+        task_id = self.unique_id()
+        self._graph.add_tasks([HostLocalTask(task_id, pid, block.name, duration)])
+        self._block_to_task_map[block.name] = task_id
+        # Task for this block should come after task for previous block
+        # (Assuming linear program!)
+        if prev_block_task_id is not None:
+            self._graph.get_tinfo(task_id).predecessors.add(prev_block_task_id)
+        if block.deadlines is not None:
+            for blk, dl in block.deadlines.items():
+                other_task = self._block_to_task_map[blk]
+                self._graph.get_tinfo(task_id).rel_deadlines[other_task] = dl
+        return task_id
+
+    def _build_tasks_for_cc_block(
+        self,
+        pid: int,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+        prev_block_task_id: Optional[int],
+    ) -> int:
+        assert len(block.instructions) == 1
+        instr = block.instructions[0]
+        assert isinstance(instr, ReceiveCMsgOp)
+        if ehi is not None:
+            duration = ehi.latencies.host_peer_latency
+        else:
+            duration = None
+        task_id = self.unique_id()
+        self._graph.add_tasks([HostEventTask(task_id, pid, block.name, duration)])
+        self._block_to_task_map[block.name] = task_id
+        # Task for this block should come after task for previous block
+        # (Assuming linear program!)
+        if prev_block_task_id is not None:
+            self._graph.get_tinfo(task_id).predecessors.add(prev_block_task_id)
+        return task_id
+
+    def _build_tasks_for_ql_block(
+        self,
+        program: QoalaProgram,
+        pid: int,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+        prev_block_task_id: Optional[int],
+    ) -> int:
+        assert len(block.instructions) == 1
+        instr = block.instructions[0]
+        assert isinstance(instr, RunSubroutineOp)
+        if ehi is not None:
+            local_routine = program.local_routines[instr.subroutine]
+            lr_duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
+            pre_duration = ehi.latencies.host_instr_time
+            post_duration = ehi.latencies.host_instr_time
+        else:
+            lr_duration = None
+            pre_duration = None
+            post_duration = None
+
+        deadlines: Dict[int, int] = {}  # other task ID -> relative deadline
+        if block.deadlines is not None:
+            for blk, dl in block.deadlines.items():
+                other_task = self._block_to_task_map[blk]
+                deadlines[other_task] = dl
+
+        precall_id = self.unique_id()
+        # Use a unique "pointer" or identifier which is used at runtime to point
+        # to shared data. The PreCallTask will store the lrcall object
+        # to this location, such that the LR- and postcall task can
+        # access this object using the shared pointer.
+        shared_ptr = precall_id  # just use this task id so we know it's unique
+        precall_task = PreCallTask(
+            precall_id, pid, block.name, shared_ptr, pre_duration
+        )
+        self._graph.add_tasks([precall_task])
+        for other_task, dl in deadlines.items():
+            # TODO: fix this hack
+            self._graph.get_tinfo(precall_id).rel_deadlines[other_task] = dl
+
+        lr_id = self.unique_id()
+        qputask = LocalRoutineTask(lr_id, pid, block.name, shared_ptr, lr_duration)
+        self._graph.add_tasks([qputask])
+
+        postcall_id = self.unique_id()
+        postcall_task = PostCallTask(
+            postcall_id, pid, block.name, shared_ptr, post_duration
+        )
+        self._graph.add_tasks([postcall_task])
+        self._block_to_task_map[block.name] = postcall_id
+
+        # LR task should come after precall task
+        self._graph.get_tinfo(lr_id).predecessors.add(precall_id)
+        # postcall task should come after LR task
+        self._graph.get_tinfo(postcall_id).predecessors.add(lr_id)
+
+        # Tasks for this block should come after task for previous block
+        # (Assuming linear program!)
+        if prev_block_task_id is not None:
+            # First task for this block is precall task.
+            self._graph.get_tinfo(precall_id).predecessors.add(prev_block_task_id)
+        # Last task for this block is postcall task.
+        return postcall_id
 
     def _build_from_qc_task_routine_split(
         self,
