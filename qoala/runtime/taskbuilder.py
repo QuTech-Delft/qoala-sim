@@ -193,7 +193,6 @@ class TaskGraphFromBlockBuilder:
         block_index: int,
         network_ehi: Optional[EhiNetworkInfo] = None,
     ) -> TaskGraph:
-        graph = TaskGraph()
         block = program_instance.program.blocks[block_index]
         pid = program_instance.pid
         local_routines = program_instance.program.local_routines
@@ -202,194 +201,306 @@ class TaskGraphFromBlockBuilder:
         prog_input = program_instance.inputs.values
 
         if block.typ == BasicBlockType.CL:
-            if ehi is not None:
-                duration = ehi.latencies.host_instr_time * len(block.instructions)
-            else:
-                duration = None
-            task_id = self.unique_id()
-            graph.add_tasks([HostLocalTask(task_id, pid, block.name, duration)])
-
-            if block.deadlines is not None:
-                graph.get_tinfo(task_id).deadline = 0
+            return self._build_tasks_for_cl_block(pid, ehi, block)
         elif block.typ == BasicBlockType.CC:
-            assert len(block.instructions) == 1
-            instr = block.instructions[0]
-            assert isinstance(instr, ReceiveCMsgOp)
-
-            if ehi is not None:
-                duration = ehi.latencies.host_peer_latency
-            else:
-                duration = None
-            task_id = self.unique_id()
-            graph.add_tasks([HostEventTask(task_id, pid, block.name, duration)])
-            if block.deadlines is not None:
-                # TODO: fix this hack
-                graph.get_tinfo(task_id).deadline = 0
+            return self._build_tasks_for_cc_block(pid, ehi, block)
         elif block.typ == BasicBlockType.QL:
-            assert len(block.instructions) == 1
-            instr = block.instructions[0]
-            assert isinstance(instr, RunSubroutineOp)
-            if ehi is not None:
-                local_routine = local_routines[instr.subroutine]
-                lr_duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
-                pre_duration = ehi.latencies.host_instr_time
-                post_duration = ehi.latencies.host_instr_time
-            else:
-                lr_duration = None
-                pre_duration = None
-                post_duration = None
-
-            precall_id = self.unique_id()
-            # Use a unique "pointer" or identifier which is used at runtime to point
-            # to shared data. The PreCallTask will store the lrcall object
-            # to this location, such that the LR- and postcall task can
-            # access this object using the shared pointer.
-            shared_ptr = precall_id  # just use this task id so we know it's unique
-            precall_task = PreCallTask(
-                precall_id, pid, block.name, shared_ptr, pre_duration
-            )
-            graph.add_tasks([precall_task])
-
-            lr_id = self.unique_id()
-            qputask = LocalRoutineTask(lr_id, pid, block.name, shared_ptr, lr_duration)
-            graph.add_tasks([qputask])
-
-            postcall_id = self.unique_id()
-            postcall_task = PostCallTask(
-                postcall_id, pid, block.name, shared_ptr, post_duration
-            )
-            graph.add_tasks([postcall_task])
-
-            # LR task should come after precall task
-            graph.get_tinfo(lr_id).predecessors.add(precall_id)
-            # postcall task should come after LR task
-            graph.get_tinfo(postcall_id).predecessors.add(lr_id)
-
-            if block.deadlines is not None:
-                # TODO: fix this hack
-                graph.get_tinfo(precall_id).deadline = 0
-                graph.get_tinfo(lr_id).deadline = 0
-                graph.get_tinfo(postcall_id).deadline = 0
+            return self._build_tasks_for_ql_block(pid, ehi, block, local_routines)
         elif block.typ == BasicBlockType.QC:
-            assert len(block.instructions) == 1
-            instr = block.instructions[0]
-            assert isinstance(instr, RunRequestOp)
-            req_routine = request_routines[instr.req_routine]
-            callback = req_routine.callback
-
-            if ehi is not None:
-                # TODO: make more accurate!
-                pre_duration = ehi.latencies.host_instr_time
-                post_duration = ehi.latencies.host_instr_time
-                cb_duration = ehi.latencies.qnos_instr_time
-            else:
-                pre_duration = None
-                post_duration = None
-                cb_duration = None
-
-            if network_ehi is not None:
-                pair_duration = list(network_ehi.links.values())[0].duration
-                num_pairs = req_routine.request.num_pairs
-                if isinstance(num_pairs, Template):
-                    assert prog_input is not None
-                    num_pairs = prog_input[num_pairs.name]
-                multi_duration = pair_duration * num_pairs
-            else:
-                pair_duration = None
-                multi_duration = None
-
-            precall_id = self.unique_id()
-            # Use a unique "pointer" or identifier which is used at runtime to point
-            # to shared data. The PreCallTask will store the lrcall or rrcall object
-            # to this location, such that the pair- callback- and postcall tasks can
-            # access this object using the shared pointer.
-            shared_ptr = precall_id  # just use this task id so we know it's unique
-            precall_task = PreCallTask(
-                precall_id, pid, block.name, shared_ptr, pre_duration
+            return self._build_tasks_for_qc_block(
+                pid, ehi, block, request_routines, network_ehi, prog_input
             )
-            graph.add_tasks([precall_task])
 
-            postcall_id = self.unique_id()
-            postcall_task = PostCallTask(
-                postcall_id, pid, block.name, shared_ptr, post_duration
+    def _build_tasks_for_cl_block(
+        self,
+        pid: int,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+    ) -> TaskGraph:
+        """Create a single HostLocalTask for the CL block."""
+        graph = TaskGraph()
+
+        if ehi is not None:
+            duration = ehi.latencies.host_instr_time * len(block.instructions)
+        else:
+            duration = None
+        task_id = self.unique_id()
+        graph.add_tasks([HostLocalTask(task_id, pid, block.name, duration)])
+
+        # TODO check what's up with this??
+        if block.deadlines is not None:
+            graph.get_tinfo(task_id).deadline = 0
+
+        return graph
+
+    def _build_tasks_for_cc_block(
+        self,
+        pid: int,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+    ) -> TaskGraph:
+        """Create a single HostEventTask for the CC block."""
+        graph = TaskGraph()
+
+        assert len(block.instructions) == 1
+        instr = block.instructions[0]
+        assert isinstance(instr, ReceiveCMsgOp)
+
+        if ehi is not None:
+            duration = ehi.latencies.host_peer_latency
+        else:
+            duration = None
+        task_id = self.unique_id()
+        graph.add_tasks([HostEventTask(task_id, pid, block.name, duration)])
+        if block.deadlines is not None:
+            # TODO: fix this hack
+            graph.get_tinfo(task_id).deadline = 0
+
+        return graph
+
+    def _build_tasks_for_ql_block(
+        self,
+        pid: int,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+        local_routines: Dict[str, LocalRoutine],
+    ) -> TaskGraph:
+        """Create a PreCallTask, a LocalRoutineTask, and a PostCallTask for the QL block."""
+        graph = TaskGraph()
+
+        assert len(block.instructions) == 1
+        instr = block.instructions[0]
+        assert isinstance(instr, RunSubroutineOp)
+        if ehi is not None:
+            local_routine = local_routines[instr.subroutine]
+            lr_duration = TaskDurationEstimator.lr_duration(ehi, local_routine)
+            pre_duration = ehi.latencies.host_instr_time
+            post_duration = ehi.latencies.host_instr_time
+        else:
+            lr_duration = None
+            pre_duration = None
+            post_duration = None
+
+        precall_id = self.unique_id()
+        # Use a unique "pointer" or identifier which is used at runtime to point
+        # to shared data. The PreCallTask will store the lrcall object
+        # to this location, such that the LR- and postcall task can
+        # access this object using the shared pointer.
+        shared_ptr = precall_id  # just use this task id so we know it's unique
+        precall_task = PreCallTask(
+            precall_id, pid, block.name, shared_ptr, pre_duration
+        )
+        graph.add_tasks([precall_task])
+
+        lr_id = self.unique_id()
+        qputask = LocalRoutineTask(lr_id, pid, block.name, shared_ptr, lr_duration)
+        graph.add_tasks([qputask])
+
+        postcall_id = self.unique_id()
+        postcall_task = PostCallTask(
+            postcall_id, pid, block.name, shared_ptr, post_duration
+        )
+        graph.add_tasks([postcall_task])
+
+        # LR task should come after precall task
+        graph.get_tinfo(lr_id).predecessors.add(precall_id)
+        # postcall task should come after LR task
+        graph.get_tinfo(postcall_id).predecessors.add(lr_id)
+
+        if block.deadlines is not None:
+            # TODO: fix this hack
+            graph.get_tinfo(precall_id).deadline = 0
+            graph.get_tinfo(lr_id).deadline = 0
+            graph.get_tinfo(postcall_id).deadline = 0
+
+        return graph
+
+    def _build_tasks_for_qc_block(
+        self,
+        pid: int,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+        request_routines: Dict[str, RequestRoutine],
+        network_ehi: Optional[EhiNetworkInfo] = None,
+        prog_input: Optional[Dict[str, int]] = None,
+    ) -> TaskGraph:
+        """
+        Create a PreCallTask, a PostCallTask, and either
+        - (a) a MultiPairTask and optionally a MultipairCallbackTask (for WAIT_ALL),
+        - or (b) 1 or more SinglePairTasks and optionally 1 or more SinglePairCallbackTasks (SEQUENTIALA)
+        for the QC block.
+        """
+        graph = TaskGraph()
+        assert len(block.instructions) == 1
+        instr = block.instructions[0]
+        assert isinstance(instr, RunRequestOp)
+        req_routine = request_routines[instr.req_routine]
+        callback_name = req_routine.callback
+
+        if ehi is not None:
+            # TODO: make more accurate!
+            pre_duration = ehi.latencies.host_instr_time
+            post_duration = ehi.latencies.host_instr_time
+            cb_duration = ehi.latencies.qnos_instr_time
+        else:
+            pre_duration = None
+            post_duration = None
+            cb_duration = None
+
+        if network_ehi is not None:
+            pair_duration = list(network_ehi.links.values())[0].duration
+            num_pairs = req_routine.request.num_pairs
+            if isinstance(num_pairs, Template):
+                assert prog_input is not None
+                num_pairs = prog_input[num_pairs.name]
+            multi_duration = pair_duration * num_pairs
+        else:
+            pair_duration = None
+            multi_duration = None
+
+        precall_id = self.unique_id()
+        # Use a unique "pointer" or identifier which is used at runtime to point
+        # to shared data. The PreCallTask will store the lrcall or rrcall object
+        # to this location, such that the pair- callback- and postcall tasks can
+        # access this object using the shared pointer.
+        shared_ptr = precall_id  # just use this task id so we know it's unique
+        precall_task = PreCallTask(
+            precall_id, pid, block.name, shared_ptr, pre_duration
+        )
+        graph.add_tasks([precall_task])
+
+        postcall_id = self.unique_id()
+        postcall_task = PostCallTask(
+            postcall_id, pid, block.name, shared_ptr, post_duration
+        )
+        graph.add_tasks([postcall_task])
+
+        if block.deadlines is not None:
+            # TODO: fix this hack
+            graph.get_tinfo(precall_id).deadline = 0
+            graph.get_tinfo(postcall_id).deadline = 0
+
+        if req_routine.callback_type == CallbackType.WAIT_ALL:
+            graph = self._build_multipair_tasks_for_qc_block(
+                graph,
+                block,
+                pid,
+                shared_ptr,
+                precall_id,
+                postcall_id,
+                callback_name,
+                multi_duration,
+                cb_duration,
             )
-            graph.add_tasks([postcall_task])
+        else:
+            assert req_routine.callback_type == CallbackType.SEQUENTIAL
+            graph = self._build_singlepair_tasks_for_qc_block(
+                graph,
+                block,
+                pid,
+                shared_ptr,
+                req_routine,
+                prog_input,
+                precall_id,
+                postcall_id,
+                callback_name,
+                pair_duration,
+                cb_duration,
+            )
 
+        return graph
+
+    def _build_multipair_tasks_for_qc_block(
+        self,
+        graph: TaskGraph,
+        block: BasicBlock,
+        pid: int,
+        shared_ptr: int,
+        precall_id: int,
+        postcall_id: int,
+        callback_name: Optional[str],
+        multi_duration: Optional[float],
+        cb_duration: Optional[float],
+    ) -> TaskGraph:
+        rr_id = self.unique_id()
+        rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
+        graph.add_tasks([rr_task])
+        # RR task should come after precall task
+        graph.get_tinfo(rr_id).predecessors.add(precall_id)
+
+        if callback_name is not None:
+            cb_id = self.unique_id()
+            cb_task = MultiPairCallbackTask(
+                cb_id, pid, callback_name, shared_ptr, cb_duration
+            )
+            graph.add_tasks([cb_task])
             if block.deadlines is not None:
                 # TODO: fix this hack
-                graph.get_tinfo(precall_id).deadline = 0
-                graph.get_tinfo(postcall_id).deadline = 0
+                graph.get_tinfo(cb_id).deadline = 0
+            # callback task should come after RR task
+            graph.get_tinfo(cb_id).predecessors.add(rr_id)
+            # postcall task should come after callback task
+            graph.get_tinfo(postcall_id).predecessors.add(cb_id)
+        else:  # no callback
+            # postcall task should come after RR task
+            graph.get_tinfo(postcall_id).predecessors.add(rr_id)
+        return graph
 
-            if req_routine.callback_type == CallbackType.WAIT_ALL:
-                rr_id = self.unique_id()
-                rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
-                graph.add_tasks([rr_task])
-                # RR task should come after precall task
-                graph.get_tinfo(rr_id).predecessors.add(precall_id)
+    def _build_singlepair_tasks_for_qc_block(
+        self,
+        graph: TaskGraph,
+        block: BasicBlock,
+        pid: int,
+        shared_ptr: int,
+        req_routine: RequestRoutine,
+        prog_input: Optional[Dict[str, int]],
+        precall_id: int,
+        postcall_id: int,
+        callback_name: Optional[str],
+        pair_duration: Optional[float],
+        cb_duration: Optional[float],
+    ) -> TaskGraph:
+        num_pairs = req_routine.request.num_pairs
+        if isinstance(num_pairs, Template):
+            assert prog_input is not None
+            num_pairs = prog_input[num_pairs.name]
 
-                if callback is not None:
-                    cb_id = self.unique_id()
-                    cb_task = MultiPairCallbackTask(
-                        cb_id, pid, callback, shared_ptr, cb_duration
-                    )
-                    graph.add_tasks([cb_task])
-                    if block.deadlines is not None:
-                        # TODO: fix this hack
-                        graph.get_tinfo(cb_id).deadline = 0
-                    # callback task should come after RR task
-                    graph.get_tinfo(cb_id).predecessors.add(rr_id)
-                    # postcall task should come after callback task
-                    graph.get_tinfo(postcall_id).predecessors.add(cb_id)
-                else:  # no callback
-                    # postcall task should come after RR task
-                    graph.get_tinfo(postcall_id).predecessors.add(rr_id)
-
-            else:
-                assert req_routine.callback_type == CallbackType.SEQUENTIAL
-
-                num_pairs = req_routine.request.num_pairs
-                if isinstance(num_pairs, Template):
-                    assert prog_input is not None
-                    num_pairs = prog_input[num_pairs.name]
-
-                for i in range(num_pairs):
-                    rr_pair_id = self.unique_id()
-                    rr_pair_task = SinglePairTask(
-                        rr_pair_id, pid, i, shared_ptr, pair_duration
-                    )
-                    graph.add_tasks([rr_pair_task])
-                    if block.deadlines is not None:
-                        # TODO: fix this hack
-                        graph.get_tinfo(rr_pair_id).deadline = 0
-                    # RR pair task should come after precall task.
-                    # Note: the RR pair tasks do not have precedence
-                    # constraints among each other.
-                    graph.get_tinfo(rr_pair_id).predecessors.add(precall_id)
-                    if callback is not None:
-                        pair_cb_id = self.unique_id()
-                        pair_cb_task = SinglePairCallbackTask(
-                            pair_cb_id, pid, callback, i, shared_ptr, cb_duration
-                        )
-                        graph.add_tasks([pair_cb_task])
-                        if block.deadlines is not None:
-                            # TODO: fix this hack
-                            graph.get_tinfo(pair_cb_id).deadline = 0
-                        # Callback task for pair should come after corresponding
-                        # RR pair task. Note: the pair callback tasks do not have
-                        # precedence constraints among each other.
-                        graph.get_tinfo(pair_cb_id).predecessors.add(rr_pair_id)
-                        # postcall task should come after callback task
-                        graph.get_tinfo(postcall_id).predecessors.add(pair_cb_id)
-                    else:  # no callback
-                        # postcall task should come after RR task
-                        graph.get_tinfo(postcall_id).predecessors.add(rr_pair_id)
-
+        for i in range(num_pairs):
+            rr_pair_id = self.unique_id()
+            rr_pair_task = SinglePairTask(rr_pair_id, pid, i, shared_ptr, pair_duration)
+            graph.add_tasks([rr_pair_task])
+            if block.deadlines is not None:
+                # TODO: fix this hack
+                graph.get_tinfo(rr_pair_id).deadline = 0
+            # RR pair task should come after precall task.
+            # Note: the RR pair tasks do not have precedence
+            # constraints among each other.
+            graph.get_tinfo(rr_pair_id).predecessors.add(precall_id)
+            if callback_name is not None:
+                pair_cb_id = self.unique_id()
+                pair_cb_task = SinglePairCallbackTask(
+                    pair_cb_id, pid, callback_name, i, shared_ptr, cb_duration
+                )
+                graph.add_tasks([pair_cb_task])
+                if block.deadlines is not None:
+                    # TODO: fix this hack
+                    graph.get_tinfo(pair_cb_id).deadline = 0
+                # Callback task for pair should come after corresponding
+                # RR pair task. Note: the pair callback tasks do not have
+                # precedence constraints among each other.
+                graph.get_tinfo(pair_cb_id).predecessors.add(rr_pair_id)
+                # postcall task should come after callback task
+                graph.get_tinfo(postcall_id).predecessors.add(pair_cb_id)
+            else:  # no callback
+                # postcall task should come after RR task
+                graph.get_tinfo(postcall_id).predecessors.add(rr_pair_id)
         return graph
 
 
 class QoalaGraphFromProgramBuilder:
     """
-    Builder for complete tasks based on predictable programs.
+    Builder for complete task graphs (i.e. containing all tasks for the whole program)
+    based on predictable programs.
     """
 
     def __init__(self, first_task_id: int = 0) -> None:
