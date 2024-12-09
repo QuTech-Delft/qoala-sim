@@ -15,7 +15,7 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
 )
 from qoala.lang.program import QoalaProgram
-from qoala.lang.request import CallbackType
+from qoala.lang.request import CallbackType, RequestRoutine
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.program import ProgramInstance
 from qoala.runtime.task import (
@@ -418,33 +418,27 @@ class QoalaGraphFromProgramBuilder:
         prev_block_task_id: Optional[int] = None
         for block in program.blocks:
             if block.typ == BasicBlockType.CL:
-                task_id = self._build_tasks_for_cl_block(
+                prev_block_task_id = self._build_tasks_for_cl_block(
                     pid, ehi, block, prev_block_task_id
                 )
-                prev_block_task_id = task_id
             elif block.typ == BasicBlockType.CC:
-                task_id = self._build_tasks_for_cc_block(
+                prev_block_task_id = self._build_tasks_for_cc_block(
                     pid, ehi, block, prev_block_task_id
                 )
-                prev_block_task_id = task_id
             elif block.typ == BasicBlockType.QL:
-                last_task_id = self._build_tasks_for_ql_block(
-                    pid, ehi, block, prev_block_task_id
+                prev_block_task_id = self._build_tasks_for_ql_block(
+                    program, pid, ehi, block, prev_block_task_id
                 )
-                prev_block_task_id = last_task_id
             elif block.typ == BasicBlockType.QC:
-                precall_id, postcall_id = self._build_from_qc_task_routine_split(
-                    program, block, pid, ehi, network_ehi, prog_input
+                prev_block_task_id = self._build_tasks_for_qc_block(
+                    program,
+                    pid,
+                    ehi,
+                    block,
+                    prev_block_task_id,
+                    network_ehi,
+                    prog_input,
                 )
-                # Tasks for this block should come after task for previous block
-                # (Assuming linear program!)
-                if prev_block_task_id is not None:
-                    # First task for QC block is precall task.
-                    self._graph.get_tinfo(precall_id).predecessors.add(
-                        prev_block_task_id
-                    )
-                # Last task for QC block is postcall task.
-                prev_block_task_id = postcall_id  # (not precall_id !)
 
         self._graph.update_successors()
         return self._graph
@@ -456,6 +450,7 @@ class QoalaGraphFromProgramBuilder:
         block: BasicBlock,
         prev_block_task_id: Optional[int],
     ) -> int:
+        """Create a single HostLocalTask for the CL block."""
         if ehi is not None:
             duration = ehi.latencies.host_instr_time * len(block.instructions)
         else:
@@ -480,6 +475,7 @@ class QoalaGraphFromProgramBuilder:
         block: BasicBlock,
         prev_block_task_id: Optional[int],
     ) -> int:
+        """Create a single HostEventTask for the CC block."""
         assert len(block.instructions) == 1
         instr = block.instructions[0]
         assert isinstance(instr, ReceiveCMsgOp)
@@ -504,6 +500,7 @@ class QoalaGraphFromProgramBuilder:
         block: BasicBlock,
         prev_block_task_id: Optional[int],
     ) -> int:
+        """Create a PreCallTask, a LocalRoutineTask, and a PostCallTask for the QL block."""
         assert len(block.instructions) == 1
         instr = block.instructions[0]
         assert isinstance(instr, RunSubroutineOp)
@@ -561,22 +558,31 @@ class QoalaGraphFromProgramBuilder:
         # Last task for this block is postcall task.
         return postcall_id
 
-    def _build_from_qc_task_routine_split(
+    def _build_tasks_for_qc_block(
         self,
         program: QoalaProgram,
-        block: BasicBlock,
         pid: int,
-        ehi: Optional[EhiNodeInfo] = None,
+        ehi: Optional[EhiNodeInfo],
+        block: BasicBlock,
+        prev_block_task_id: Optional[int],
         network_ehi: Optional[EhiNetworkInfo] = None,
         prog_input: Optional[Dict[str, int]] = None,
-    ) -> Tuple[int, int]:
-        """Returns (precall_id, post_call_id)"""
+    ) -> int:
+        """
+        Create a PreCallTask, a PostCallTask, and either
+        - (a) a MultiPairTask and optionally a MultipairCallbackTask (for WAIT_ALL),
+        - or (b) 1 or more SinglePairTasks and optionally 1 or more SinglePairCallbackTasks (SEQUENTIALA)
+        for the QC block.
+        """
+
+        # Only allow a single run_request() call in the block
         assert len(block.instructions) == 1
         instr = block.instructions[0]
         assert isinstance(instr, RunRequestOp)
         req_routine = program.request_routines[instr.req_routine]
         callback_name = req_routine.callback
 
+        # Estimate task durations.
         if ehi is not None:
             # TODO: make more accurate!
             pre_duration = ehi.latencies.host_instr_time
@@ -600,6 +606,7 @@ class QoalaGraphFromProgramBuilder:
             pair_duration = None
             multi_duration = None
 
+        # Create PreCallTask
         precall_id = self.unique_id()
         # Use a unique "pointer" or identifier which is used at runtime to point
         # to shared data. The PreCallTask will store the lrcall or rrcall object
@@ -611,6 +618,7 @@ class QoalaGraphFromProgramBuilder:
         )
         self._graph.add_tasks([precall_task])
 
+        # Create PostCallTask
         postcall_id = self.unique_id()
         postcall_task = PostCallTask(
             postcall_id, pid, block.name, shared_ptr, post_duration
@@ -618,59 +626,106 @@ class QoalaGraphFromProgramBuilder:
         self._graph.add_tasks([postcall_task])
         self._block_to_task_map[block.name] = postcall_id
 
+        # Create Single/MultiPairTasks and CallbackTasks
         if req_routine.callback_type == CallbackType.WAIT_ALL:
-            rr_id = self.unique_id()
-            rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
-            self._graph.add_tasks([rr_task])
-            # RR task should come after precall task
-            self._graph.get_tinfo(rr_id).predecessors.add(precall_id)
-
-            if callback_name is not None:
-                cb_id = self.unique_id()
-                cb_task = MultiPairCallbackTask(
-                    cb_id, pid, callback_name, shared_ptr, cb_duration
-                )
-                self._graph.add_tasks([cb_task])
-                # callback task should come after RR task
-                self._graph.get_tinfo(cb_id).predecessors.add(rr_id)
-                # postcall task should come after callback task
-                self._graph.get_tinfo(postcall_id).predecessors.add(cb_id)
-            else:  # no callback
-                # postcall task should come after RR task
-                self._graph.get_tinfo(postcall_id).predecessors.add(rr_id)
-
+            self._build_multipair_tasks_for_qc_block(
+                pid,
+                shared_ptr,
+                precall_id,
+                postcall_id,
+                callback_name,
+                multi_duration,
+                cb_duration,
+            )
         else:
             assert req_routine.callback_type == CallbackType.SEQUENTIAL
+            self._build_singlepair_tasks_for_qc_block(
+                pid,
+                shared_ptr,
+                req_routine,
+                prog_input,
+                precall_id,
+                postcall_id,
+                callback_name,
+                pair_duration,
+                cb_duration,
+            )
 
-            num_pairs = req_routine.request.num_pairs
-            if isinstance(num_pairs, Template):
-                assert prog_input is not None
-                num_pairs = prog_input[num_pairs.name]
+        # Tasks for this block should come after task for previous block
+        # (Assuming linear program!)
+        if prev_block_task_id is not None:
+            # First task for QC block is precall task.
+            self._graph.get_tinfo(precall_id).predecessors.add(prev_block_task_id)
+        # Last task for QC block is postcall task.
+        return postcall_id
 
-            for i in range(num_pairs):
-                rr_pair_id = self.unique_id()
-                rr_pair_task = SinglePairTask(
-                    rr_pair_id, pid, i, shared_ptr, pair_duration
+    def _build_multipair_tasks_for_qc_block(
+        self,
+        pid: int,
+        shared_ptr: int,
+        precall_id: int,
+        postcall_id: int,
+        callback_name: Optional[str],
+        multi_duration: Optional[float],
+        cb_duration: Optional[float],
+    ) -> None:
+        rr_id = self.unique_id()
+        rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
+        self._graph.add_tasks([rr_task])
+        # RR task should come after precall task
+        self._graph.get_tinfo(rr_id).predecessors.add(precall_id)
+
+        if callback_name is not None:
+            cb_id = self.unique_id()
+            cb_task = MultiPairCallbackTask(
+                cb_id, pid, callback_name, shared_ptr, cb_duration
+            )
+            self._graph.add_tasks([cb_task])
+            # callback task should come after RR task
+            self._graph.get_tinfo(cb_id).predecessors.add(rr_id)
+            # postcall task should come after callback task
+            self._graph.get_tinfo(postcall_id).predecessors.add(cb_id)
+        else:  # no callback
+            # postcall task should come after RR task
+            self._graph.get_tinfo(postcall_id).predecessors.add(rr_id)
+
+    def _build_singlepair_tasks_for_qc_block(
+        self,
+        pid: int,
+        shared_ptr: int,
+        req_routine: RequestRoutine,
+        prog_input: Optional[Dict[str, int]],
+        precall_id: int,
+        postcall_id: int,
+        callback_name: Optional[str],
+        pair_duration: Optional[float],
+        cb_duration: Optional[float],
+    ) -> None:
+        num_pairs = req_routine.request.num_pairs
+        if isinstance(num_pairs, Template):
+            assert prog_input is not None
+            num_pairs = prog_input[num_pairs.name]
+
+        for i in range(num_pairs):
+            rr_pair_id = self.unique_id()
+            rr_pair_task = SinglePairTask(rr_pair_id, pid, i, shared_ptr, pair_duration)
+            self._graph.add_tasks([rr_pair_task])
+            # RR pair task should come after precall task.
+            # Note: the RR pair tasks do not have precedence
+            # constraints among each other.
+            self._graph.get_tinfo(rr_pair_id).predecessors.add(precall_id)
+            if callback_name is not None:
+                pair_cb_id = self.unique_id()
+                pair_cb_task = SinglePairCallbackTask(
+                    pair_cb_id, pid, callback_name, i, shared_ptr, cb_duration
                 )
-                self._graph.add_tasks([rr_pair_task])
-                # RR pair task should come after precall task.
-                # Note: the RR pair tasks do not have precedence
-                # constraints among each other.
-                self._graph.get_tinfo(rr_pair_id).predecessors.add(precall_id)
-                if callback_name is not None:
-                    pair_cb_id = self.unique_id()
-                    pair_cb_task = SinglePairCallbackTask(
-                        pair_cb_id, pid, callback_name, i, shared_ptr, cb_duration
-                    )
-                    self._graph.add_tasks([pair_cb_task])
-                    # Callback task for pair should come after corresponding
-                    # RR pair task. Note: the pair callback tasks do not have
-                    # precedence constraints among each other.
-                    self._graph.get_tinfo(pair_cb_id).predecessors.add(rr_pair_id)
-                    # postcall task should come after callback task
-                    self._graph.get_tinfo(postcall_id).predecessors.add(pair_cb_id)
-                else:  # no callback
-                    # postcall task should come after RR task
-                    self._graph.get_tinfo(postcall_id).predecessors.add(rr_pair_id)
-
-        return precall_id, postcall_id
+                self._graph.add_tasks([pair_cb_task])
+                # Callback task for pair should come after corresponding
+                # RR pair task. Note: the pair callback tasks do not have
+                # precedence constraints among each other.
+                self._graph.get_tinfo(pair_cb_id).predecessors.add(rr_pair_id)
+                # postcall task should come after callback task
+                self._graph.get_tinfo(postcall_id).predecessors.add(pair_cb_id)
+            else:  # no callback
+                # postcall task should come after RR task
+                self._graph.get_tinfo(postcall_id).predecessors.add(rr_pair_id)
