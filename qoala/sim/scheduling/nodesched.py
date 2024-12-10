@@ -171,9 +171,6 @@ class NodeScheduler(Protocol):
 
         self._const_batch: Optional[ProgramBatch] = None
 
-        self._last_cpu_task_pid = -1
-        self._last_qpu_task_pid = -1
-
         scheduler_memory = SharedSchedulerMemory()
         netschedule = network_ehi.network_schedule
 
