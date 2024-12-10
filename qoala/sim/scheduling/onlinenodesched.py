@@ -8,7 +8,7 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.lang.hostlang import BasicBlockType
 from qoala.runtime.message import Message
-from qoala.runtime.program import ProgramBatch, ProgramInstance
+from qoala.runtime.program import ProgramInstance
 from qoala.runtime.task import ProcessorType, TaskInfo
 from qoala.runtime.taskbuilder import TaskGraphFromBlockBuilder
 from qoala.sim.events import SIGNAL_TASK_COMPLETED
@@ -57,9 +57,6 @@ class OnlineNodeScheduler(NodeScheduler):
         self._prog_instance_dependency: Dict[
             int, int
         ] = {}  # program ID -> dependent program ID
-
-        self._last_cpu_task_pid = -1
-        self._last_qpu_task_pid = -1
 
     def create_processes_for_batches(
         self,
@@ -117,20 +114,7 @@ class OnlineNodeScheduler(NodeScheduler):
     def run(self) -> Generator[EventExpression, None, None]:
         while True:
             self._logger.debug("main node scheduler loop")
-            if (
-                self._last_cpu_task_pid != -1
-                and (
-                    self.is_from_const_batch(self._last_cpu_task_pid)
-                    or self.is_program_instance_finished(self._last_cpu_task_pid)
-                )
-            ) or (
-                self._last_qpu_task_pid != -1
-                and (
-                    self.is_from_const_batch(self._last_qpu_task_pid)
-                    or self.is_program_instance_finished(self._last_qpu_task_pid)
-                )
-            ):
-                self.schedule_all()
+
             ev_expr = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
             ev_expr = ev_expr | self.await_signal(
                 self._qpu_scheduler, SIGNAL_TASK_COMPLETED
@@ -139,30 +123,29 @@ class OnlineNodeScheduler(NodeScheduler):
             self._logger.debug("got a TASK COMPLETED signal")
 
             now = ns.sim_time()
-            self._logger.debug(f"now: {now}")
 
-            # Gets the pid of the last finished task at the current time,
-            # if there is no task that is finished at the current time, it returns -1
-            self._last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(
-                now
-            )
-            # If there is a task that is finished at the current time, assign the next
-            if self._last_cpu_task_pid != -1 and not self.is_from_const_batch(
-                self._last_cpu_task_pid
-            ):
-                self.schedule_next_for(self._last_cpu_task_pid)
+            # Gets the pid of the most recently finished task.
+            last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(now)
+            last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(now)
 
-            self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
-                now
-            )
-            # If there is a task that is finished at the current time, assign the next, but we do not need to assign
-            # again if it is the same pid as the one that came from CPU
-            if (
-                self._last_qpu_task_pid != -1
-                and self._last_qpu_task_pid != self._last_cpu_task_pid
-                and not self.is_from_const_batch(self._last_qpu_task_pid)
-            ):
-                self.schedule_next_for(self._last_qpu_task_pid)
+            # One of the ProcSchedulers must have just finished a task.
+            # (It could happen, although rare, that both CPU and QPU schedulers just
+            # finished a task at the same time. However, in that case, the 2nd task
+            # fired its own TASK COMPLETED signal which will be handled in the next
+            # iteration of this main loop.)
+            assert last_cpu_task_pid != -1 or last_qpu_task_pid != -1
+
+            # Get the PID of the last recent task.
+            pid = last_cpu_task_pid if last_cpu_task_pid != -1 else last_qpu_task_pid
+
+            is_const = self.is_from_const_batch(pid)
+            is_finished = self.is_prog_inst_finished(pid)
+
+            if not is_const:
+                self.schedule_next_for(pid)
+
+            if is_const or is_finished:
+                self.schedule_all()
 
     def schedule_next_for(self, pid: int) -> None:
         """
@@ -174,10 +157,10 @@ class OnlineNodeScheduler(NodeScheduler):
         :return: None
         """
         self._logger.debug("schedule_next_for()")
-        new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
+        new_cpu_tasks, new_qpu_tasks = self.find_new_tasks_for(pid)
 
         # If there are new tasks, send a message to schedulers
-        # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
+        # Note that find_new_tasks_for() returns None if there are no new tasks for that processor
         if new_cpu_tasks:
             self._logger.debug(
                 f"schedule_next_for: adding new cpu tasks: {new_cpu_tasks}"
@@ -223,8 +206,8 @@ class OnlineNodeScheduler(NodeScheduler):
                 if dep_cur_index < dep_block_length:
                     continue
 
-            # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
-            new_cpu_tasks, new_qpu_tasks = self.find_next_tasks_for(pid)
+            # Note that find_new_tasks_for() returns None if there are no new tasks for that processor
+            new_cpu_tasks, new_qpu_tasks = self.find_new_tasks_for(pid)
             if new_cpu_tasks:
                 all_new_cpu_tasks.update(new_cpu_tasks)
             if new_qpu_tasks:
@@ -241,7 +224,7 @@ class OnlineNodeScheduler(NodeScheduler):
             self._task_logger.debug("sending 'New Task' msg to QPU scheduler")
             self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
 
-    def find_next_tasks_for(
+    def find_new_tasks_for(
         self, pid: int
     ) -> Tuple[Optional[Dict[int, TaskInfo]], Optional[Dict[int, TaskInfo]]]:
         """
@@ -313,7 +296,7 @@ class OnlineNodeScheduler(NodeScheduler):
 
             return cpu_graph, qpu_graph
 
-    def is_program_instance_finished(self, pid: int) -> bool:
+    def is_prog_inst_finished(self, pid: int) -> bool:
         return self._curr_blk_idx[pid] >= len(
             self.memmgr.get_process(pid).prog_instance.program.blocks
         )

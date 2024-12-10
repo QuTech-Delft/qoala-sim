@@ -111,12 +111,10 @@ class ProcessorScheduler(Protocol):
         """
         self._task_graph = graph
 
-    # Gets the pid of the last finished task at the current time,
-    # if there is no task that is finished at the current time, it returns -1
     def get_last_finished_task_pid_at(self, time: float) -> int:
         """
-        Finds the pid of the last finished task at the given time and returns it,
-        if there is no task that is finished at the current time, it returns -1
+        Get the pid of the last finished task at the given time and returns it.
+        If there is no task that is finished at the current time, it returns -1
 
         :param time: The time to check for finished tasks.
         :return: The pid of the last finished task at the given time if such task exists, -1 otherwise.
