@@ -50,11 +50,13 @@ class OnlineNodeScheduler(NodeScheduler):
             prio_epr=prio_epr,
         )
 
-        self._current_block_index: Dict[int, int] = {}  # program ID -> block index
+        # For each program instance, keep track of which block is currently being
+        # executed or which one is to be executed next (if the prev block just finished)
+        self._curr_blk_idx: Dict[int, int] = {}  # program ID -> block index
         self._task_from_block_builder = TaskGraphFromBlockBuilder()
-        self._prog_instance_dependency: Dict[int, int] = (
-            {}
-        )  # program ID -> dependent program ID
+        self._prog_instance_dependency: Dict[
+            int, int
+        ] = {}  # program ID -> dependent program ID
 
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
@@ -75,11 +77,11 @@ class OnlineNodeScheduler(NodeScheduler):
 
                 self.memmgr.add_process(process)
                 self.initialize_process(process)
-                self._current_block_index[prog_instance.pid] = 0
+                self._curr_blk_idx[prog_instance.pid] = 0
                 if linear:
-                    self._prog_instance_dependency[prog_instance.pid] = (
-                        prev_prog_instance_id
-                    )
+                    self._prog_instance_dependency[
+                        prog_instance.pid
+                    ] = prev_prog_instance_id
                     prev_prog_instance_id = prog_instance.pid
                 else:
                     self._prog_instance_dependency[prog_instance.pid] = -1
@@ -96,7 +98,7 @@ class OnlineNodeScheduler(NodeScheduler):
         process = self.create_process(prog_instance, remote_pid)
         self.memmgr.add_process(process)
         self.initialize_process(process)
-        self._current_block_index[prog_instance.pid] = 0
+        self._curr_blk_idx[prog_instance.pid] = 0
         self._prog_instance_dependency[prog_instance.pid] = -1
 
     def start(self) -> None:
@@ -134,6 +136,7 @@ class OnlineNodeScheduler(NodeScheduler):
                 self._qpu_scheduler, SIGNAL_TASK_COMPLETED
             )
             yield ev_expr
+            self._logger.debug("got a TASK COMPLETED signal")
 
             now = ns.sim_time()
             self._logger.debug(f"now: {now}")
@@ -176,9 +179,15 @@ class OnlineNodeScheduler(NodeScheduler):
         # If there are new tasks, send a message to schedulers
         # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
         if new_cpu_tasks:
+            self._logger.debug(
+                f"schedule_next_for: adding new cpu tasks: {new_cpu_tasks}"
+            )
             self._cpu_scheduler.add_tasks(new_cpu_tasks)
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
         if new_qpu_tasks:
+            self._logger.debug(
+                f"schedule_next_for: adding new qpu tasks: {new_qpu_tasks}"
+            )
             self._qpu_scheduler.add_tasks(new_qpu_tasks)
             self._task_logger.debug("sending 'New Task' msg to QPU scheduler")
             self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
@@ -207,7 +216,7 @@ class OnlineNodeScheduler(NodeScheduler):
             # If there is a dependency, check if it is finished
             dependency_pid = self._prog_instance_dependency[pid]
             if dependency_pid != -1:
-                dep_cur_index = self._current_block_index[dependency_pid]
+                dep_cur_index = self._curr_blk_idx[dependency_pid]
                 dep_block_length = len(
                     self.memmgr.get_process(dependency_pid).prog_instance.program.blocks
                 )
@@ -223,9 +232,11 @@ class OnlineNodeScheduler(NodeScheduler):
 
         # If there are new tasks, send a message to schedulers
         if len(all_new_cpu_tasks) > 0:
+            self._logger.debug(f"schedule_all: adding new cpu tasks: {new_cpu_tasks}")
             self._cpu_scheduler.add_tasks(all_new_cpu_tasks)
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
         if len(all_new_qpu_tasks) > 0:
+            self._logger.debug(f"schedule_all: adding new qpu tasks: {new_qpu_tasks}")
             self._qpu_scheduler.add_tasks(all_new_qpu_tasks)
             self._task_logger.debug("sending 'New Task' msg to QPU scheduler")
             self._comp.send_qpu_scheduler_message(Message(-1, -1, "New Task"))
@@ -234,53 +245,62 @@ class OnlineNodeScheduler(NodeScheduler):
         self, pid: int
     ) -> Tuple[Optional[Dict[int, TaskInfo]], Optional[Dict[int, TaskInfo]]]:
         """
-        Finds the tasks of the next block for program instance with given pid,
-        and returns them as CPU tasks and QPU tasks separately.
+        Find new tasks, for a specific program instance (with the given PID),
+        to add to the CPU task graph and/or QPU task graph.
+        If the CPU or QPU task graph still contains tasks for this program instance,
+        no new tasks are returned. This is because it means that program instance has
+        not fully completed the current block.
 
         :param pid: The program instance ID for which to find the next tasks.
         :return: A 2-tuple containing the new CPU tasks and new QPU tasks. If no tasks are
              found for the given PID, both elements of the tuple will be set to None.
         """
-        new_cpu_tasks: Dict[int, TaskInfo] = {}
-        new_qpu_tasks: Dict[int, TaskInfo] = {}
 
+        # Check if this program instance just executed a jump, in which case we need to
+        # update which block is the next one to execute.
         if (
             pid in self.host.interface.program_instance_jumps
             and self.host.interface.program_instance_jumps[pid] != -1
         ):
-            self._current_block_index[pid] = self.host.interface.program_instance_jumps[
-                pid
-            ]
+            self._curr_blk_idx[pid] = self.host.interface.program_instance_jumps[pid]
             self.host.interface.program_instance_jumps[pid] = -1
 
-        current_block_index = self._current_block_index[pid]
+        # Find the block we're currently executing or (in case we just finished one)
+        # the block which is the next one to execute.
+        current_block_index = self._curr_blk_idx[pid]
         prog_instance = self.memmgr.get_process(pid).prog_instance
         blocks = prog_instance.program.blocks
 
-        is_program_finished = current_block_index >= len(blocks)
-        # If program is finished or CPU scheduler has a task for this pid, do not schedule
-        # Note that for all block types, there will be tasks for CPU scheduler
-        if is_program_finished or self.cpu_scheduler.task_exists_for_pid(pid):
+        # If the program has finished, return no tasks.
+        if current_block_index >= len(blocks):
             return None, None
 
+        # If the CPU or QPU scheduler still has tasks for this pid, it means that
+        # execution of the current block has not yet finished, and hence we don't
+        # return any new tasks to add.
+        cpu_tasks_for_pid: bool = self.cpu_scheduler.task_exists_for_pid(pid)
+        qpu_tasks_for_pid: bool = self.qpu_scheduler.task_exists_for_pid(pid)
+        if cpu_tasks_for_pid or qpu_tasks_for_pid:
+            return None, None
+
+        # If we arrive here, it means that we should find new tasks to be added
+        # (to CPU and/or QPU scheduler), based on the next block to execute.
         block = prog_instance.program.blocks[current_block_index]
 
         # If it is CL or CC it will only have tasks in CPU but others will have tasks in both
-        if block.typ in {
-            BasicBlockType.CL,
-            BasicBlockType.CC,
-        }:
+        if block.typ in {BasicBlockType.CL, BasicBlockType.CC}:
             graph = self._task_from_block_builder.build(
                 prog_instance, current_block_index, self._network_ehi
             )
-            new_cpu_tasks.update(graph.get_tasks())
+            cpu_graph = graph.get_tasks()
 
-            self._current_block_index[pid] += 1
+            # TODO: fix this; not quite correct/intuitive
+            self._curr_blk_idx[pid] += 1
+
             # If scheduler does not have any task send a message to wake it up
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
-            return new_cpu_tasks, None
-        elif not self.qpu_scheduler.task_exists_for_pid(pid):
-            # Note that we know that cpu does not have any tasks for this pid
+            return cpu_graph, None
+        else:  # block.typ in {QL, QC}
             graph = self._task_from_block_builder.build(
                 prog_instance, current_block_index, self._network_ehi
             )
@@ -288,14 +308,12 @@ class OnlineNodeScheduler(NodeScheduler):
             qpu_graph = graph.partial_graph(ProcessorType.QPU).get_tasks()
             self._task_logger.debug(f"adding CPU tasks {cpu_graph}")
             self._task_logger.debug(f"adding QPU tasks {qpu_graph}")
-            new_cpu_tasks.update(cpu_graph)
-            new_qpu_tasks.update(qpu_graph)
 
-            self._current_block_index[pid] += 1
+            self._curr_blk_idx[pid] += 1
 
-        return new_cpu_tasks, new_qpu_tasks
+            return cpu_graph, qpu_graph
 
     def is_program_instance_finished(self, pid: int) -> bool:
-        return self._current_block_index[pid] >= len(
+        return self._curr_blk_idx[pid] >= len(
             self.memmgr.get_process(pid).prog_instance.program.blocks
         )

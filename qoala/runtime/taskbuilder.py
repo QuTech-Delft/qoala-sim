@@ -701,6 +701,8 @@ class QoalaGraphFromProgramBuilder:
             if callback_name is not None:
                 callback = program.local_routines[callback_name]
                 cb_duration = TaskDurationEstimator.lr_duration(ehi, callback)
+            else:
+                cb_duration = None
         else:
             pre_duration = None
             post_duration = None

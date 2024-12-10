@@ -14,6 +14,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import ProgramInput
+from qoala.util.logging import LogManager
 from qoala.util.runner import run_single_node_app
 
 
@@ -38,9 +39,15 @@ def load_program(name: str) -> QoalaProgram:
 
 
 def test_simple_program():
+    LogManager.set_log_level("DEBUG")
+    LogManager.log_to_file("simple_program.log")
+
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_tasks_to_file("simple_program_tasks.log")
+
     ns.sim_reset()
 
-    num_iterations = 100
+    num_iterations = 1
 
     node_cfg = get_config()
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
@@ -110,5 +117,5 @@ def test_return_vector_loop():
 
 if __name__ == "__main__":
     test_simple_program()
-    test_return_vector()
-    test_return_vector_loop()
+    # test_return_vector()
+    # test_return_vector_loop()
