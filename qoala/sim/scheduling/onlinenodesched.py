@@ -115,11 +115,9 @@ class OnlineNodeScheduler(NodeScheduler):
         while True:
             self._logger.debug("main node scheduler loop")
 
-            ev_expr = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
-            ev_expr = ev_expr | self.await_signal(
-                self._qpu_scheduler, SIGNAL_TASK_COMPLETED
-            )
-            yield ev_expr
+            cpu_signal = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
+            qpu_signal = self.await_signal(self._qpu_scheduler, SIGNAL_TASK_COMPLETED)
+            yield cpu_signal | qpu_signal
             self._logger.debug("got a TASK COMPLETED signal")
 
             now = ns.sim_time()
@@ -142,9 +140,14 @@ class OnlineNodeScheduler(NodeScheduler):
             is_finished = self.is_prog_inst_finished(pid)
 
             if not is_const:
+                # Find new tasks for this program instance to add to the CPU and QPU
+                # schedulers (there may be none).
                 self.schedule_next_for(pid)
 
+            # TODO is this const business still needed??
             if is_const or is_finished:
+                # Find new tasks for all program instances to add to the CPU and QPU
+                # schedulers (there may be none).
                 self.schedule_all()
 
     def schedule_next_for(self, pid: int) -> None:
@@ -177,15 +180,17 @@ class OnlineNodeScheduler(NodeScheduler):
 
     def schedule_all(self) -> None:
         """
-        Schedules the tasks of the next block for each available program instance in the memory manager
-        by assigning respective tasks to CPU and QPU schedulers and sends a message
-        to schedulers for informing them about the newly assigned tasks.
+        Schedules the tasks of the next block for each available program instance in
+        the memory manager by assigning respective tasks to CPU and QPU schedulers and
+        sends a message to schedulers for informing them about the newly assigned tasks.
 
-        This method is responsible for scheduling tasks for each available program instance in the memory manager.
-        A program instance is considered available if it meets two conditions:
+        This method is responsible for scheduling tasks for each available program
+        instance in the memory manager. A program instance is considered available if
+        it meets two conditions:
         1. It is not finished.
         2. It does not have any dependencies on an unfinished program instance
-        (it can have such dependencies if the batch of program instances are submitted to run linearly).
+        (it can have such dependencies if the batch of program instances are submitted
+        to run linearly).
 
         :return: None
         """
@@ -230,9 +235,15 @@ class OnlineNodeScheduler(NodeScheduler):
         """
         Find new tasks, for a specific program instance (with the given PID),
         to add to the CPU task graph and/or QPU task graph.
+
         If the CPU or QPU task graph still contains tasks for this program instance,
         no new tasks are returned. This is because it means that program instance has
         not fully completed the current block.
+
+        If the CPU and QPU task graphs don't have any tasks for this PID however,
+        new tasks are created based on the next program block to be executed.
+        Also, the curr_blk_idx is then already advanced to the next block.
+        TODO this advancing is error-prone; improve this.
 
         :param pid: The program instance ID for which to find the next tasks.
         :return: A 2-tuple containing the new CPU tasks and new QPU tasks. If no tasks are
