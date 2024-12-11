@@ -6,7 +6,6 @@ import netsquid as ns
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
-from qoala.lang.hostlang import BasicBlockType
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInstance
 from qoala.runtime.task import ProcessorType, TaskInfo
@@ -279,33 +278,40 @@ class OnlineNodeScheduler(NodeScheduler):
 
         # If we arrive here, it means that we should find new tasks to be added
         # (to CPU and/or QPU scheduler), based on the next block to execute.
-        block = prog_instance.program.blocks[current_block_index]
+        block = blocks[current_block_index]
 
-        # If it is CL or CC it will only have tasks in CPU but others will have tasks in both
-        if block.typ in {BasicBlockType.CL, BasicBlockType.CC}:
-            graph = self._task_from_block_builder.build(
-                prog_instance, current_block_index, self._network_ehi
-            )
-            cpu_graph = graph.get_tasks()
+        self._logger.warning("critical section stuff")
+        # Check if the next block is part of a critical section (CS).
+        if block.critical_section is not None:
+            cs = block.critical_section
+            # Find all other blocks in this CS by looping over all program blocks
+            # starting at the current block. This assumes that the blocks in the CS
+            # are consecutive.
+            cs_blocks = []
+            for i in range(current_block_index, len(blocks)):
+                if blocks[i].critical_section == cs:
+                    self._logger.warning(f"block {i} is in CS {cs}")
+                    cs_blocks.append(blocks[i])
+                else:
+                    # We found the end of the consecutive blocks that are part of
+                    # this CS.
+                    break
 
-            # TODO: fix this; not quite correct/intuitive
-            self._curr_blk_idx[pid] += 1
+            self._logger.warning(f"CS blocks: {cs_blocks}")
 
-            # If scheduler does not have any task send a message to wake it up
-            self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
-            return cpu_graph, None
-        else:  # block.typ in {QL, QC}
-            graph = self._task_from_block_builder.build(
-                prog_instance, current_block_index, self._network_ehi
-            )
-            cpu_graph = graph.partial_graph(ProcessorType.CPU).get_tasks()
-            qpu_graph = graph.partial_graph(ProcessorType.QPU).get_tasks()
-            self._task_logger.debug(f"adding CPU tasks {cpu_graph}")
-            self._task_logger.debug(f"adding QPU tasks {qpu_graph}")
+        graph = self._task_from_block_builder.build(
+            prog_instance, current_block_index, self._network_ehi
+        )
+        cpu_tasks = graph.partial_graph(ProcessorType.CPU).get_tasks()
+        qpu_tasks = graph.partial_graph(ProcessorType.QPU).get_tasks()
 
-            self._curr_blk_idx[pid] += 1
+        # TODO: fix this; not quite correct/intuitive
+        self._curr_blk_idx[pid] += 1
 
-            return cpu_graph, qpu_graph
+        cpu_graph = cpu_tasks if len(cpu_tasks) > 0 else None
+        qpu_graph = qpu_tasks if len(qpu_tasks) > 0 else None
+
+        return cpu_graph, qpu_graph
 
     def is_prog_inst_finished(self, pid: int) -> bool:
         return self._curr_blk_idx[pid] >= len(
