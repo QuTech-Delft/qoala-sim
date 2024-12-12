@@ -109,21 +109,6 @@ class NodeScheduler(Protocol):
     The NodeScheduler has a single task graph, containing tasks to be executed.
     These tasks may be for different programs and program instances, allowing
     concurrent execution of programs and program instances.
-
-    The scheduler's behavior is different depending on the `is_predictable` parameter
-    used when constructing the NodeScheduler object.
-    - When `is_predictable` is True, the scheduler assumes that the control-flow of all programs
-    being executed is known beforehand, and that this control-flow is already encoded in the task
-    graph that is uploaded to it (using `upload_task_graph()`). That is, when predictable programs
-    are to be executed, the user must create a "full" task graph (meaning, a graph containing all
-    tasks needed for full execution of the programs), and upload it before starting the scheduler.
-    The scheduler then simply executes all tasks until the task graph is empty.
-    It will hence never itself add new tasks to the task graph at runtime.
-    - When `is_predictable` is False, the scheduler assumes that the control-flow of the programs
-    being executed is *not* necessarily known beforehand. Therefore, the scheduler expects that the
-    initial task graph uploaded only contains the first task(s) of each of the programs to be executed.
-    Then, upon completing any of the tasks, the scheduler will itself check the program contents and
-    dynamically create and add new tasks to the task graph, based on the control-flow of the program.
     """
 
     def __init__(
@@ -139,7 +124,6 @@ class NodeScheduler(Protocol):
         use_deadlines: bool = True,
         fcfs: bool = False,
         prio_epr: bool = False,
-        is_predictable: bool = False,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 

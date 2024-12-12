@@ -225,12 +225,16 @@ class TaskGraphFromBlockBuilder:
         else:
             duration = None
         task_id = self.unique_id()
-        graph.add_tasks([HostLocalTask(task_id, pid, block.name, duration)])
+
+        graph.add_tasks(
+            [HostLocalTask(task_id, pid, block.name, duration, block.critical_section)]
+        )
 
         # TODO check what's up with this??
         if block.deadlines is not None:
             graph.get_tinfo(task_id).deadline = 0
 
+        graph.update_successors()
         return graph
 
     def _build_tasks_for_cc_block(
@@ -251,11 +255,14 @@ class TaskGraphFromBlockBuilder:
         else:
             duration = None
         task_id = self.unique_id()
-        graph.add_tasks([HostEventTask(task_id, pid, block.name, duration)])
+        graph.add_tasks(
+            [HostEventTask(task_id, pid, block.name, duration, block.critical_section)]
+        )
         if block.deadlines is not None:
             # TODO: fix this hack
             graph.get_tinfo(task_id).deadline = 0
 
+        graph.update_successors()
         return graph
 
     def _build_tasks_for_ql_block(
@@ -288,17 +295,29 @@ class TaskGraphFromBlockBuilder:
         # access this object using the shared pointer.
         shared_ptr = precall_id  # just use this task id so we know it's unique
         precall_task = PreCallTask(
-            precall_id, pid, block.name, shared_ptr, pre_duration
+            precall_id,
+            pid,
+            block.name,
+            shared_ptr,
+            pre_duration,
+            block.critical_section,
         )
         graph.add_tasks([precall_task])
 
         lr_id = self.unique_id()
-        qputask = LocalRoutineTask(lr_id, pid, block.name, shared_ptr, lr_duration)
+        qputask = LocalRoutineTask(
+            lr_id, pid, block.name, shared_ptr, lr_duration, block.critical_section
+        )
         graph.add_tasks([qputask])
 
         postcall_id = self.unique_id()
         postcall_task = PostCallTask(
-            postcall_id, pid, block.name, shared_ptr, post_duration
+            postcall_id,
+            pid,
+            block.name,
+            shared_ptr,
+            post_duration,
+            block.critical_section,
         )
         graph.add_tasks([postcall_task])
 
@@ -313,6 +332,7 @@ class TaskGraphFromBlockBuilder:
             graph.get_tinfo(lr_id).deadline = 0
             graph.get_tinfo(postcall_id).deadline = 0
 
+        graph.update_successors()
         return graph
 
     def _build_tasks_for_qc_block(
@@ -365,13 +385,23 @@ class TaskGraphFromBlockBuilder:
         # access this object using the shared pointer.
         shared_ptr = precall_id  # just use this task id so we know it's unique
         precall_task = PreCallTask(
-            precall_id, pid, block.name, shared_ptr, pre_duration
+            precall_id,
+            pid,
+            block.name,
+            shared_ptr,
+            pre_duration,
+            block.critical_section,
         )
         graph.add_tasks([precall_task])
 
         postcall_id = self.unique_id()
         postcall_task = PostCallTask(
-            postcall_id, pid, block.name, shared_ptr, post_duration
+            postcall_id,
+            pid,
+            block.name,
+            shared_ptr,
+            post_duration,
+            block.critical_section,
         )
         graph.add_tasks([postcall_task])
 
@@ -408,6 +438,7 @@ class TaskGraphFromBlockBuilder:
                 cb_duration,
             )
 
+        graph.update_successors()
         return graph
 
     def _build_multipair_tasks_for_qc_block(
@@ -423,7 +454,9 @@ class TaskGraphFromBlockBuilder:
         cb_duration: Optional[float],
     ) -> TaskGraph:
         rr_id = self.unique_id()
-        rr_task = MultiPairTask(rr_id, pid, shared_ptr, multi_duration)
+        rr_task = MultiPairTask(
+            rr_id, pid, shared_ptr, multi_duration, block.critical_section
+        )
         graph.add_tasks([rr_task])
         # RR task should come after precall task
         graph.get_tinfo(rr_id).predecessors.add(precall_id)
@@ -431,7 +464,12 @@ class TaskGraphFromBlockBuilder:
         if callback_name is not None:
             cb_id = self.unique_id()
             cb_task = MultiPairCallbackTask(
-                cb_id, pid, callback_name, shared_ptr, cb_duration
+                cb_id,
+                pid,
+                callback_name,
+                shared_ptr,
+                cb_duration,
+                block.critical_section,
             )
             graph.add_tasks([cb_task])
             if block.deadlines is not None:
@@ -467,7 +505,9 @@ class TaskGraphFromBlockBuilder:
 
         for i in range(num_pairs):
             rr_pair_id = self.unique_id()
-            rr_pair_task = SinglePairTask(rr_pair_id, pid, i, shared_ptr, pair_duration)
+            rr_pair_task = SinglePairTask(
+                rr_pair_id, pid, i, shared_ptr, pair_duration, block.critical_section
+            )
             graph.add_tasks([rr_pair_task])
             if block.deadlines is not None:
                 # TODO: fix this hack
@@ -479,7 +519,13 @@ class TaskGraphFromBlockBuilder:
             if callback_name is not None:
                 pair_cb_id = self.unique_id()
                 pair_cb_task = SinglePairCallbackTask(
-                    pair_cb_id, pid, callback_name, i, shared_ptr, cb_duration
+                    pair_cb_id,
+                    pid,
+                    callback_name,
+                    i,
+                    shared_ptr,
+                    cb_duration,
+                    block.critical_section,
                 )
                 graph.add_tasks([pair_cb_task])
                 if block.deadlines is not None:

@@ -20,11 +20,13 @@ class QoalaTask:
         processor_type: ProcessorType,
         pid: int,
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         self._task_id = task_id
         self._processor_type = processor_type
         self._pid = pid
         self._duration = duration
+        self._critical_section = critical_section
 
     def __str__(self) -> str:
         s = f"{self.__class__.__name__}(pid={self.pid}, tid={self.task_id})"
@@ -47,6 +49,10 @@ class QoalaTask:
     @property
     def duration(self) -> Optional[float]:
         return self._duration
+
+    @property
+    def critical_section(self) -> Optional[int]:
+        return self._critical_section
 
     def is_epr_task(self) -> bool:
         return isinstance(self, SinglePairTask) or isinstance(self, MultiPairTask)
@@ -72,12 +78,14 @@ class HostLocalTask(QoalaTask):
         pid: int,
         block_name: str,
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.CPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._block_name = block_name
 
@@ -93,13 +101,19 @@ class HostLocalTask(QoalaTask):
 
 class HostEventTask(QoalaTask):
     def __init__(
-        self, task_id: int, pid: int, block_name: str, duration: Optional[float] = None
+        self,
+        task_id: int,
+        pid: int,
+        block_name: str,
+        duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.CPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._block_name = block_name
 
@@ -121,12 +135,14 @@ class LocalRoutineTask(QoalaTask):
         block_name: str,
         shared_ptr: int,
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.QPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._block_name = block_name
         self._shared_ptr = shared_ptr
@@ -157,12 +173,14 @@ class PreCallTask(QoalaTask):
         block_name: str,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.CPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._block_name = block_name
         self._shared_ptr = shared_ptr
@@ -193,12 +211,14 @@ class PostCallTask(QoalaTask):
         block_name: str,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.CPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._block_name = block_name
         self._shared_ptr = shared_ptr
@@ -229,12 +249,14 @@ class SinglePairTask(QoalaTask):
         pair_index: int,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.QPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._pair_index = pair_index
         self._shared_ptr = shared_ptr
@@ -264,12 +286,14 @@ class MultiPairTask(QoalaTask):
         pid: int,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.QPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._shared_ptr = shared_ptr
 
@@ -292,12 +316,14 @@ class SinglePairCallbackTask(QoalaTask):
         pair_index: int,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.QPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._callback_name = callback_name
         self._pair_index = pair_index
@@ -334,12 +360,14 @@ class MultiPairCallbackTask(QoalaTask):
         callback_name: str,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
         duration: Optional[float] = None,
+        critical_section: Optional[int] = None,
     ) -> None:
         super().__init__(
             task_id=task_id,
             processor_type=ProcessorType.QPU,
             pid=pid,
             duration=duration,
+            critical_section=critical_section,
         )
         self._callback_name = callback_name
         self._shared_ptr = shared_ptr
@@ -509,7 +537,9 @@ class TaskGraph:
         for _ in range(len(self._tasks) - 1):
             successors = self.get_tinfo(chain[-1]).successors
             if len(successors) != 1:
-                raise RuntimeError("Task Graph cannot be Linearized")
+                raise RuntimeError(
+                    f"Task Graph cannot be Linearized: number of successors is {len(successors)}"
+                )
             successor = successors.pop()
             chain.append(successor)
             successors.add(successor)

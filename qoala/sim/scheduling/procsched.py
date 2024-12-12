@@ -184,6 +184,9 @@ class ProcessorScheduler(Protocol):
         tinfo = self._task_graph.get_tinfo(task_id)
         task = tinfo.task
 
+        # TODO: do something with critical sections
+        # task.critical_section
+
         self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
 
         before = ns.sim_time()

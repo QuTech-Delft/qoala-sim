@@ -12,7 +12,16 @@ from qoala.sim.scheduling.nodesched import NodeScheduler
 
 
 class StaticNodeScheduler(NodeScheduler):
-    """TODO docstrings"""
+    """
+    The static node scheduler assumes that the control-flow of all programs being
+    executed is known beforehand, and that this control-flow is already encoded in the
+    task graph that is uploaded to it (using `upload_task_graph()`).
+    That is, when predictable programs are to be executed, the user must create a
+    "full" task graph (meaning, a graph containing all tasks needed for full execution
+    of the programs), and upload it before starting the scheduler.
+    The scheduler then simply executes all tasks until the task graph is empty.
+    It will hence never itself add new tasks to the task graph at runtime.
+    """
 
     def __init__(
         self,
@@ -40,7 +49,6 @@ class StaticNodeScheduler(NodeScheduler):
             use_deadlines=use_deadlines,
             fcfs=fcfs,
             prio_epr=prio_epr,
-            is_predictable=True,
         )
 
     def create_processes_for_batches(

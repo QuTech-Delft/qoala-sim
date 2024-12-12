@@ -8,8 +8,8 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInstance
-from qoala.runtime.task import ProcessorType, TaskInfo
-from qoala.runtime.taskbuilder import TaskGraphFromBlockBuilder
+from qoala.runtime.task import ProcessorType, TaskGraph, TaskInfo
+from qoala.runtime.taskbuilder import TaskGraphBuilder, TaskGraphFromBlockBuilder
 from qoala.sim.events import SIGNAL_TASK_COMPLETED
 from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager
@@ -19,7 +19,9 @@ from qoala.sim.scheduling.nodesched import NodeScheduler
 
 
 class OnlineNodeScheduler(NodeScheduler):
-    """TODO docstrings"""
+    """A Node scheduler that at runtime (hence 'online') creates new tasks
+    based on the control flow of the program and adds them to the processor
+    schedulers."""
 
     def __init__(
         self,
@@ -280,28 +282,42 @@ class OnlineNodeScheduler(NodeScheduler):
         # (to CPU and/or QPU scheduler), based on the next block to execute.
         block = blocks[current_block_index]
 
-        self._logger.warning("critical section stuff")
+        graph: TaskGraph
+
         # Check if the next block is part of a critical section (CS).
         if block.critical_section is not None:
             cs = block.critical_section
             # Find all other blocks in this CS by looping over all program blocks
             # starting at the current block. This assumes that the blocks in the CS
             # are consecutive.
-            cs_blocks = []
+            cs_block_idxs = []
             for i in range(current_block_index, len(blocks)):
                 if blocks[i].critical_section == cs:
                     self._logger.warning(f"block {i} is in CS {cs}")
-                    cs_blocks.append(blocks[i])
+                    cs_block_idxs.append(i)
                 else:
                     # We found the end of the consecutive blocks that are part of
                     # this CS.
                     break
 
-            self._logger.warning(f"CS blocks: {cs_blocks}")
+            # Create a task graph for each of the blocks in the CS.
+            self._logger.debug(f"CS blocks: {cs_block_idxs}")
+            block_graphs = []
+            for i in cs_block_idxs:
+                graph = self._task_from_block_builder.build(
+                    prog_instance, i, self._network_ehi
+                )
+                block_graphs.append(graph)
 
-        graph = self._task_from_block_builder.build(
-            prog_instance, current_block_index, self._network_ehi
-        )
+            # Merge these graphs into a linear graph representing the whole CS.
+            graph = TaskGraphBuilder.merge_linear(block_graphs)
+
+        else:  # no CS, just create a task graph for the next block
+            graph = self._task_from_block_builder.build(
+                prog_instance, current_block_index, self._network_ehi
+            )
+
+        # Split the newly created graph into cpu tasks and qpu tasks.
         cpu_tasks = graph.partial_graph(ProcessorType.CPU).get_tasks()
         qpu_tasks = graph.partial_graph(ProcessorType.QPU).get_tasks()
 
