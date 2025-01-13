@@ -75,6 +75,7 @@ class ProcessorScheduler(Protocol):
         self._comp = ProcessorSchedulerComponent(name + "_comp")
 
         self._status: SchedulerStatus = SchedulerStatus(status=set(), params={})
+        self._critical_section: Optional[int] = None
 
     @property
     def node_scheduler_in_port(self) -> Port:
@@ -186,6 +187,11 @@ class ProcessorScheduler(Protocol):
 
         # TODO: do something with critical sections
         # task.critical_section
+        if task.critical_section is not None:
+            self._critical_section = task.critical_section
+            self._task_logger.debug(
+                f"setting critical_section to {self._critical_section} because starting task {task}"
+            )
 
         self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
 

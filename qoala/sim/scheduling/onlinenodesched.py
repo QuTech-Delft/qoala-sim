@@ -312,17 +312,21 @@ class OnlineNodeScheduler(NodeScheduler):
             # Merge these graphs into a linear graph representing the whole CS.
             graph = TaskGraphBuilder.merge_linear(block_graphs)
 
+            # TODO: fix this; not quite correct/intuitive
+            # Set next block to first block after CS
+            self._curr_blk_idx[pid] = cs_block_idxs[-1] + 1
+
         else:  # no CS, just create a task graph for the next block
             graph = self._task_from_block_builder.build(
                 prog_instance, current_block_index, self._network_ehi
             )
 
+            # TODO: fix this; not quite correct/intuitive
+            self._curr_blk_idx[pid] += 1
+
         # Split the newly created graph into cpu tasks and qpu tasks.
         cpu_tasks = graph.partial_graph(ProcessorType.CPU).get_tasks()
         qpu_tasks = graph.partial_graph(ProcessorType.QPU).get_tasks()
-
-        # TODO: fix this; not quite correct/intuitive
-        self._curr_blk_idx[pid] += 1
 
         cpu_graph = cpu_tasks if len(cpu_tasks) > 0 else None
         qpu_graph = qpu_tasks if len(qpu_tasks) > 0 else None

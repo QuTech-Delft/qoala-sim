@@ -49,7 +49,9 @@ class TeleportResult:
     bob_results: BatchResult
 
 
-def run_teleport(num_iterations: int, different_inputs: bool = False) -> TeleportResult:
+def run_teleport(
+    num_iterations: int, different_inputs: bool = False, cs: bool = False
+) -> TeleportResult:
     ns.sim_reset()
 
     num_qubits = 4
@@ -70,7 +72,10 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
     )
 
     alice_program = load_program("teleport_alice.iqoala")
-    bob_program = load_program("teleport_bob.iqoala")
+    if cs:
+        bob_program = load_program("teleport_bob_cs.iqoala")
+    else:
+        bob_program = load_program("teleport_bob.iqoala")
 
     if different_inputs:
         alice_inputs: List[ProgramInput] = []
@@ -132,6 +137,22 @@ def test_teleport_different_inputs():
     assert all(outcome == 0 for outcome in outcomes)
 
 
+def test_teleport_cs():
+    LogManager.set_log_level("DEBUG")
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_to_file("teleport_cs.log")
+    LogManager.log_tasks_to_file("teleport_cs_tasks.log")
+    num_iterations = 2
+
+    result = run_teleport(num_iterations=num_iterations, cs=True)
+
+    program_results = result.bob_results.results
+    outcomes = [result.values["outcome"] for result in program_results]
+    print(outcomes)
+    assert all(outcome == 1 for outcome in outcomes)
+
+
 if __name__ == "__main__":
-    test_teleport()
+    # test_teleport()
     # test_teleport_different_inputs()
+    test_teleport_cs()

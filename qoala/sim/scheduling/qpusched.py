@@ -169,18 +169,39 @@ class QpuScheduler(ProcessorScheduler):
     def update_status(self) -> None:
         tg = self._task_graph
 
+        self._task_logger.debug(
+            f"update_status(): critical_section = {self._critical_section}"
+        )
         if tg is None or len(tg.get_tasks()) == 0:
+            # No tasks in the task graph.
+            # If we were in a critical section, we have now completed it.
+            self._critical_section = None
+            # Return empty graph status.
             self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
             return
 
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
+        # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
+        if self._critical_section:
+            no_predecessors = [
+                t
+                for t in no_predecessors
+                if tg.get_tinfo(t).task.critical_section == self._critical_section
+            ]
         self._task_logger.debug(
             f"no_predecessors: {[str(tg.get_tinfo(t).task) for t in no_predecessors]}"
         )
 
         # All tasks that have only external predecessors.
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
+        # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
+        if self._critical_section:
+            blocked_on_other_core = [
+                t
+                for t in blocked_on_other_core
+                if tg.get_tinfo(t).task.critical_section == self._critical_section
+            ]
         self._task_logger.debug(
             f"blocked_on_other_core : {[str(tg.get_tinfo(t).task) for t in blocked_on_other_core]}"
         )
