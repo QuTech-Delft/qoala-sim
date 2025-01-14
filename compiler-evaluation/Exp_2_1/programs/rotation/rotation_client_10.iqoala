@@ -1,0 +1,25 @@
+META_START
+    name: client
+    parameters: server_id, theta0, theta1, theta2, theta3, theta4, theta5, theta6, theta7, theta8, theta9
+    csockets: 0 -> server
+    epr_sockets: 0 -> server
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+    send_cmsg(csocket, theta0)
+    send_cmsg(csocket, theta1)
+    send_cmsg(csocket, theta2)
+    send_cmsg(csocket, theta3)
+    send_cmsg(csocket, theta4)
+    send_cmsg(csocket, theta5)
+    send_cmsg(csocket, theta6)
+    send_cmsg(csocket, theta7)
+    send_cmsg(csocket, theta8)
+    send_cmsg(csocket, theta9)
+
+^b1 {type = CC}:
+    result = recv_cmsg(csocket)
+
+^b29 {type = CL}:
+    return_result(result)

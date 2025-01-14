@@ -1,0 +1,210 @@
+META_START
+    name: server
+    parameters: client_id, state
+    csockets: 0 -> client
+    epr_sockets: 0 -> client
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = QL}:
+    run_subroutine(tuple<state>) : prepare_qubit
+
+^b2 {type = CC}:
+    theta0 = recv_cmsg(csocket)
+
+^b4 {type = QL}:
+    run_subroutine(tuple<theta0>) : rotate_x_q0
+
+^b5 {type = CC}:
+    theta1 = recv_cmsg(csocket)
+
+^b7 {type = QL}:
+    run_subroutine(tuple<theta1>) : rotate_x_q0
+
+^b8 {type = CC}:
+    theta2 = recv_cmsg(csocket)
+
+^b10 {type = QL}:
+    run_subroutine(tuple<theta2>) : rotate_x_q0
+
+^b11 {type = CC}:
+    theta3 = recv_cmsg(csocket)
+
+^b13 {type = QL}:
+    run_subroutine(tuple<theta3>) : rotate_x_q0
+
+^b20 {type = CC}:
+    theta4 = recv_cmsg(csocket)
+
+^b24 {type = QL}:
+    run_subroutine(tuple<theta4>) : rotate_x_q0
+
+^b25 {type = CC}:
+    theta5 = recv_cmsg(csocket)
+
+^b27 {type = QL}:
+    run_subroutine(tuple<theta5>) : rotate_x_q0
+
+^b28 {type = CC}:
+    theta6 = recv_cmsg(csocket)
+
+^b100 {type = QL}:
+    run_subroutine(tuple<theta6>) : rotate_x_q0
+
+^b110 {type = CC}:
+    theta7 = recv_cmsg(csocket)
+
+^b130 {type = QL}:
+    run_subroutine(tuple<theta7>) : rotate_x_q0
+
+^b140 {type = QL}:
+    tuple<outcome> = run_subroutine(tuple<state>) : measure
+
+^b150 {type = CL}:
+    send_cmsg(csocket, outcome)
+
+
+
+SUBROUTINE prepare_qubit
+    params: state
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    // get state
+    // 0: |+>, 1: |->
+    // 2: |+i>, 3: |-i>
+    // 4: |0>, 5: |1>
+    load C0 @input[0]
+
+    set Q0 0
+    init Q0
+
+    set C1 0
+    bne C0 C1 3  // check state == 0
+    // rotate to |+>
+    rot_y Q0 8 4
+    jmp 19
+
+    set C1 1
+    bne C0 C1 3  // check state == 1
+    // rotate to |->
+    rot_y Q0 24 4
+    jmp 15
+
+    set C1 2
+    bne C0 C1 3  // check state == 2
+    // rotate to |+i>
+    rot_x Q0 24 4
+    jmp 11
+
+    set C1 3
+    bne C0 C1 3  // check state == 3
+    // rotate to |-i>
+    rot_x Q0 8 4
+    jmp 7
+
+    set C1 4
+    bne C0 C1 2  // check state == 4
+    // rotate to |0>, i.e. no rotation
+    jmp 4
+
+    set C1 5
+    bne C0 C1 2  // check state == 5
+    // rotate to |1>
+    rot_x Q0 16 4
+
+    // no-op used as final instr to jump to
+    jmp 1
+  NETQASM_END
+
+SUBROUTINE measure
+    params: state
+    returns: outcome
+    uses: 0
+    keeps: 
+    request:
+  NETQASM_START
+    // get state
+    // 0: |+>, 1: |->
+    // 2: |+i>, 3: |-i>
+    // 4: |0>, 5: |1>
+    load C0 @input[0]
+
+    set Q0 0
+
+    set C1 0
+    bne C0 C1 3  // check state == 0
+    // measure +X
+    rot_y Q1 24 4
+    jmp 19
+
+    set C1 1
+    bne C0 C1 3  // check state == 1
+    // measure -X
+    rot_y Q1 8 4
+    jmp 15
+
+    set C1 2
+    bne C0 C1 3  // check state == 2
+    // measure +Y
+    rot_x Q1 8 4
+    jmp 11
+
+    set C1 3
+    bne C0 C1 3  // check state == 3
+    // measure -Y
+    rot_x Q1 24 4
+    jmp 7
+
+    set C1 4
+    bne C0 C1 2  // check state == 4
+    // measure +Z, i.e. no rotation
+    jmp 4
+
+    set C1 5
+    bne C0 C1 2  // check state == 5
+    // measure -Z
+    rot_x Q1 16 4
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE init_q0
+    params:
+    returns:
+    uses: 0
+    keeps: 0
+    request:
+    NETQASM_START
+        set Q0 0
+        init Q0
+    NETQASM_END
+
+SUBROUTINE rotate_x_q0
+    params: theta
+    returns:
+    uses: 0
+    keeps: 0
+    request:
+    NETQASM_START
+        load C0 @input[0]
+        set Q0 0
+        rot_x Q0 C0 4
+    NETQASM_END
+
+SUBROUTINE meas_q0
+    params: 
+    returns: output
+    uses: 0
+    keeps:
+    request:
+    NETQASM_START
+        set Q0 0
+        meas Q0 M0
+        store M0 @output[0]
+    NETQASM_END

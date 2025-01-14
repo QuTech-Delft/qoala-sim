@@ -18,16 +18,13 @@ class DataPoint:
     param_name: str
     param_value: float
     succ_std_dev: float
+    prog_size: float
 
 
 @dataclass
 class DataMeta:
     timestamp: str
     num_iterations: int
-    theta0: float
-    theta1: float
-    theta2: float
-    theta3: float
     t1: float
     t2: float
     cc: float
@@ -63,44 +60,57 @@ def load_data(path: str) -> Data:
     return dacite.from_dict(Data, all_data)
 
 
-def create_plots(timestamp: str, data: Data):
+def create_plots(timestamp: str, data: Data, prog_size: int):
     """
 
     :param data:
     :param y_axis: Either succ_prob or makespan
     """
 
-    default_suboptimal_makespan = 2480580.0
-    default_optimal_makespan = 1145580.0
-
     # Parse data from data object to get lists of x and y values
     data_points = data.data_points
     naive_y_vals_makespan = [
-        data_point.makespan for data_point in data_points if data_point.naive
+        data_point.makespan
+        for data_point in data_points
+        if (data_point.naive and data_point.prog_size == prog_size)
     ]
     opt_y_vals_makespan = [
-        data_point.makespan for data_point in data_points if not data_point.naive
+        data_point.makespan
+        for data_point in data_points
+        if (not data_point.naive and data_point.prog_size == prog_size)
     ]
 
     naive_y_vals_succ_prob = [
-        data_point.succ_prob for data_point in data_points if data_point.naive
+        data_point.succ_prob
+        for data_point in data_points
+        if (data_point.naive and data_point.prog_size == prog_size)
     ]
     opt_y_vals_succ_prob = [
-        data_point.succ_prob for data_point in data_points if not data_point.naive
+        data_point.succ_prob
+        for data_point in data_points
+        if (not data_point.naive and data_point.prog_size == prog_size)
     ]
 
     naive_y_vals_succ_prob_errors = [
-        data_point.succ_std_dev for data_point in data_points if data_point.naive
+        data_point.succ_std_dev
+        for data_point in data_points
+        if (data_point.naive and data_point.prog_size == prog_size)
     ]
     opt_y_vals_succ_prob_errors = [
-        data_point.succ_std_dev for data_point in data_points if not data_point.naive
+        data_point.succ_std_dev
+        for data_point in data_points
+        if (not data_point.naive and data_point.prog_size == prog_size)
     ]
 
     naive_x_vals = [
-        data_point.param_value / default_suboptimal_makespan for data_point in data_points if data_point.naive
+        data_point.param_value
+        for data_point in data_points
+        if (data_point.naive and data_point.prog_size == prog_size)
     ]
     opt_x_vals = [
-        data_point.param_value / default_suboptimal_makespan for data_point in data_points if not data_point.naive
+        data_point.param_value
+        for data_point in data_points
+        if (not data_point.naive and data_point.prog_size == prog_size)
     ]
 
     # Create labels for axes
@@ -121,7 +131,7 @@ def create_plots(timestamp: str, data: Data):
         xlabel = "Quantum instruction processing time (ns)"
 
     # Plot Makespan
-    plt.xscale("log")
+    # plt.xscale("log")
 
     plt.xlabel(xlabel, fontsize=12)
     plt.ylabel(makespan_label, fontsize=12)
@@ -129,8 +139,8 @@ def create_plots(timestamp: str, data: Data):
     # Fix ticks
     plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
 
-    plt.yscale("log")
-    plt.ylim(1e4, 1e9)
+    # plt.yscale("log")
+    # plt.ylim(1e4, 1e9)
     # if x_axis == "cc_dur":
     #     plt.ylim(0,9e8)
     # elif x_axis == "instr_time":
@@ -145,12 +155,12 @@ def create_plots(timestamp: str, data: Data):
 
     plt.legend(loc="upper left", fontsize=11)
 
-    create_png("LAST_" + x_axis + "_makespan")
-    create_png(timestamp + "_" + x_axis + "_makespan")
+    create_png("LAST_" + x_axis + "_makespan_n" + str(prog_size))
+    create_png(timestamp + "_" + x_axis + "_makespan_n" + str(prog_size))
     plt.cla()
 
     # Plot Success Probability
-    plt.xscale("log")
+    # plt.xscale("log")
 
     plt.xlabel(xlabel, fontsize=12)
     plt.ylabel(succ_label, fontsize=12)
@@ -161,7 +171,7 @@ def create_plots(timestamp: str, data: Data):
         x=naive_x_vals,
         y=naive_y_vals_succ_prob,
         yerr=naive_y_vals_succ_prob_errors,
-        label="Suboptimal program",
+        label=f"Suboptimal program, n={prog_size}",
         marker="o",
         capsize=6,
     )
@@ -169,15 +179,15 @@ def create_plots(timestamp: str, data: Data):
         x=opt_x_vals,
         y=opt_y_vals_succ_prob,
         yerr=opt_y_vals_succ_prob_errors,
-        label="Optimal program",
+        label=f"Optimal program, n={prog_size}",
         marker="s",
         capsize=6,
     )
 
     plt.legend(loc="lower right", fontsize=11)
 
-    create_png("LAST_" + x_axis + "_succ_prob")
-    create_png(timestamp + "_" + x_axis + "_succ_prob")
+    create_png("LAST_" + x_axis + "_succ_prob_n" + str(prog_size))
+    create_png(timestamp + "_" + x_axis + "_succ_prob_n" + str(prog_size))
     plt.cla()
 
 
@@ -191,4 +201,5 @@ if __name__ == "__main__":
 
     for file in filenames:
         data = load_data(file)
-        create_plots(timestamp, data)
+        for prog_size in [2, 4, 6, 8, 10]:
+            create_plots(timestamp, data, prog_size)

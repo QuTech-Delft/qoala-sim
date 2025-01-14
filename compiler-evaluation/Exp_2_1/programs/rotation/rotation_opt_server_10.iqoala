@@ -11,51 +11,35 @@ META_END
 ^b1 {type = CC}: 
     theta0 = recv_cmsg(csocket)
 
-^b2 {type = CL}:
-    send_cmsg(csocket, theta0)
-
 ^b3 {type = CC}: 
     theta1 = recv_cmsg(csocket)
-
-^b4 {type = CL}:
-    send_cmsg(csocket, theta1)
 
 ^b5 {type = CC}: 
     theta2 = recv_cmsg(csocket)
 
-^b6 {type = CL}:
-    send_cmsg(csocket, theta2)
-
 ^b7 {type = CC}: 
     theta3 = recv_cmsg(csocket)
-
-^b8 {type = CL}:
-    send_cmsg(csocket, theta3)
 
 ^b9 {type = CC}: 
     theta4 = recv_cmsg(csocket)
 
-^b10 {type = CL}:
-    send_cmsg(csocket, theta4)
-
 ^b11 {type = CC}: 
     theta5 = recv_cmsg(csocket)
-
-^b12 {type = CL}:
-    send_cmsg(csocket, theta5)
 
 ^b13 {type = CC}: 
     theta6 = recv_cmsg(csocket)
 
-^b14 {type = CL}:
-    send_cmsg(csocket, theta6)
-
 ^b15 {type = CC}: 
     theta7 = recv_cmsg(csocket)
 
-^b16 {type = CL}:
-    send_cmsg(csocket, theta7)
+^b16 {type = CC}: 
+    theta8 = recv_cmsg(csocket)
 
+^b17 {type = CC}: 
+    theta9 = recv_cmsg(csocket)
+
+
+^b18 {type = CL}:
     res0 = add_cval_c(theta0, theta1)
     res1 = add_cval_c(theta2, theta3)
     res2 = add_cval_c(theta4, theta5)
@@ -64,12 +48,15 @@ META_END
     res4 = add_cval_c(res0, res1) 
     res5 = add_cval_c(res2, res3)
 
-    theta = add_cval_c(res4, res5)
+    res6 = add_cval_c(res4, res5)
+    res7 = add_cval_c(theta8, theta9) 
 
-^b17 {type = QL}:
+    theta = add_cval_c(res6, res7)
+
+^b19 {type = QL}:
     tuple<outcome> = run_subroutine(tuple<state; theta>) : prepare_measure
 
-^b18 {type = CL}:
+^b20 {type = CL}:
     send_cmsg(csocket, outcome)
 
 SUBROUTINE init_rot_meas

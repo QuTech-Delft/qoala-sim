@@ -90,15 +90,8 @@ class RotationExpResult:
 
 def run_rotation_exp(
     num_iterations: int,
-    theta0: float,
-    theta1: float,
-    theta2: float,
-    theta3: float,
-    theta4: float,
-    theta5: float,
-    theta6: float,
-    theta7: float,
     naive: bool,
+    prog_size: int,
     t1: int,
     t2: int,
     cc: float,
@@ -142,36 +135,33 @@ def run_rotation_exp(
 
     # Load the program onto the client and server
     if naive:
-        client_program = load_program("rotation_naive_client.iqoala")
-        server_program = load_program("rotation_naive_server.iqoala")
+        client_program = load_program(
+            f"programs/rotation/rotation_client_{prog_size}.iqoala"
+        )
+        server_program = load_program(
+            f"programs/rotation/rotation_naive_server_{prog_size}.iqoala"
+        )
     else:
         # Naive client is used so that only the server program is varied.
-        client_program = load_program("rotation_naive_client.iqoala")
-        server_program = load_program("rotation_opt_server.iqoala")
+        client_program = load_program(
+            f"programs/rotation/rotation_client_{prog_size}.iqoala"
+        )
+        server_program = load_program(
+            f"programs/rotation/rotation_opt_server_{prog_size}.iqoala"
+        )
 
-    theta0_int = int(theta0 * 16 / math.pi)
-    theta1_int = int(theta1 * 16 / math.pi)
-    theta2_int = int(theta2 * 16 / math.pi)
-    theta3_int = int(theta3 * 16 / math.pi)
-    theta4_int = int(theta4 * 16 / math.pi)
-    theta5_int = int(theta5 * 16 / math.pi)
-    theta6_int = int(theta6 * 16 / math.pi)
-    theta7_int = int(theta7 * 16 / math.pi)
+    # Angles are randomly chosen to be x*pi/16
+    # The last theta should be chosen such that the total is equivalent to 2pi (the identity)
+    # Each angle can be between pi/32 and 2pi
+    thetas = [random.randint(1, 32) for i in range(0, prog_size - 1)]
+    # The angle to reverse
+    thetas.append(-1 * sum(thetas))
 
     # Input parameters for client program
     client_inputs = [
         ProgramInput(
-            {
-                "server_id": server_id,
-                "theta0": theta0_int,
-                "theta1": theta1_int,
-                "theta2": theta2_int,
-                "theta3": theta3_int,
-                "theta4": theta4_int,
-                "theta5": theta5_int,
-                "theta6": theta6_int,
-                "theta7": theta7_int,
-            }
+            {f"theta{i}": thetas[i] for i in range(0, prog_size)}
+            | {"server_id": server_id}
         )
         for _ in range(num_iterations)
     ]
@@ -180,7 +170,7 @@ def run_rotation_exp(
     # Randomly vary the initial state for each program instance
     random.seed(0)
     server_inputs = [
-        ProgramInput({"client_id": client_id, "state": random.randint(0, 5)})
+        ProgramInput({"client_id": client_id, "state": random.randint(4, 4)})
         for _ in range(num_iterations)
     ]
 
@@ -208,20 +198,13 @@ class DataPoint:
     param_name: str
     param_value: float
     succ_std_dev: float
+    prog_size: int
 
 
 @dataclass
 class DataMeta:
     timestamp: str
     num_iterations: int
-    theta0: float
-    theta1: float
-    theta2: float
-    theta3: float
-    theta4: float
-    theta5: float
-    theta6: float
-    theta7: float
     t1: float
     t2: float
     cc: float
@@ -240,15 +223,8 @@ class Data:
 
 def rotation_exp(
     num_iterations: int,
-    theta0: float,
-    theta1: float,
-    theta2: float,
-    theta3: float,
-    theta4: float,
-    theta5: float,
-    theta6: float,
-    theta7: float,
     naive: bool,
+    prog_size: int,
     t1: int,
     t2: int,
     cc: float,
@@ -258,15 +234,8 @@ def rotation_exp(
 ) -> float:
     result = run_rotation_exp(
         num_iterations,
-        theta0,
-        theta1,
-        theta2,
-        theta3,
-        theta4,
-        theta5,
-        theta6,
-        theta7,
         naive,
+        prog_size,
         t1,
         t2,
         cc,
@@ -342,7 +311,7 @@ if __name__ == "__main__":
 
     # Memory
     t1 = 1e9  # 1 second
-    t2 = 1e7  # 1e7 10ms
+    t2 = 5e8  # 0.5s
 
     # Gate Noise
     single_gate_fid = 1  # perfect gates
@@ -354,101 +323,83 @@ if __name__ == "__main__":
     qnos_instr_time = 50e3  # 50 micro seconds
 
     # Classical Communication latency
-    cc = 0  # 0 seconds
+    cc = 1e6  # 1 ms (Other slower realistic values would be 5, 10, 20, 50 ms)
 
-    # Convert thetas
-    theta0 = math.pi / 4
-    theta1 = math.pi / 4
-    theta2 = math.pi / 4
-    theta3 = math.pi / 4
-    theta4 = math.pi / 4
-    theta5 = math.pi / 4
-    theta6 = math.pi / 4
-    theta7 = math.pi / 4
+    # How long the program is
+    prog_size = 4
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     start = time.time()
     data_points: List[DataPoint] = []
 
-    for param_val in param_vals:
-        if param_name == "q_mem":
-            t2 = param_val
-        elif param_name == "g_fid":
-            single_gate_fid = param_val
-        elif param_name == "g_dur":
-            single_gate_duration = param_val
-        elif param_name == "instr_time":
-            qnos_instr_time = param_val
-        elif param_name == "cc_dur":
-            cc = param_val
-        else:
-            print(
-                "Error. Param name should be one of the five: q_mem, g_fid, g_dur, instr_time, cc_dur"
-            )
-            exit()
+    for prog_size in [2, 4, 6, 8, 10]:
+        for param_val in param_vals:
+            if param_name == "q_mem":
+                t2 = param_val
+            elif param_name == "g_fid":
+                single_gate_fid = param_val
+            elif param_name == "g_dur":
+                single_gate_duration = param_val
+            elif param_name == "instr_time":
+                qnos_instr_time = param_val
+            elif param_name == "cc_dur":
+                cc = param_val
+            else:
+                print(
+                    "Error. Param name should be one of the five: q_mem, g_fid, g_dur, instr_time, cc_dur"
+                )
+                exit()
 
-        # Run the naive program and get results
-        succ_prob_naive, succ_std_dev_naive, makespan_naive = rotation_exp(
-            naive=True,
-            num_iterations=num_iterations,
-            theta0=theta0,
-            theta1=theta1,
-            theta2=theta2,
-            theta3=theta3,
-            theta4=theta4,
-            theta5=theta5,
-            theta6=theta6,
-            theta7=theta7,
-            t1=t1,
-            t2=t2,
-            cc=cc,
-            single_gate_fid=single_gate_fid,
-            single_gate_duration=single_gate_duration,
-            qnos_instr_time=qnos_instr_time,
-        )
-        # Store the naive datapoint
-        data_points.append(
-            DataPoint(
+            # Run the naive program and get results
+            succ_prob_naive, succ_std_dev_naive, makespan_naive = rotation_exp(
                 naive=True,
-                succ_prob=succ_prob_naive,
-                makespan=makespan_naive,
-                param_name=param_name,
-                param_value=param_val,
-                succ_std_dev=succ_std_dev_naive,
+                num_iterations=num_iterations,
+                prog_size=prog_size,
+                t1=t1,
+                t2=t2,
+                cc=cc,
+                single_gate_fid=single_gate_fid,
+                single_gate_duration=single_gate_duration,
+                qnos_instr_time=qnos_instr_time,
             )
-        )
+            # Store the naive datapoint
+            data_points.append(
+                DataPoint(
+                    naive=True,
+                    succ_prob=succ_prob_naive,
+                    makespan=makespan_naive,
+                    param_name=param_name,
+                    param_value=param_val,
+                    succ_std_dev=succ_std_dev_naive,
+                    prog_size=prog_size,
+                )
+            )
 
-        # Run the optimal program and get results
-        succ_prob_opt, succ_std_dev_opt, makespan_opt = rotation_exp(
-            naive=False,
-            num_iterations=num_iterations,
-            theta0=theta0,
-            theta1=theta1,
-            theta2=theta2,
-            theta3=theta3,
-            theta4=theta4,
-            theta5=theta5,
-            theta6=theta6,
-            theta7=theta7,
-            t1=t1,
-            t2=t2,
-            cc=cc,
-            single_gate_fid=single_gate_fid,
-            single_gate_duration=single_gate_duration,
-            qnos_instr_time=qnos_instr_time,
-        )
-        # Store the optimal datapoint
-        data_points.append(
-            DataPoint(
+            # Run the optimal program and get results
+            succ_prob_opt, succ_std_dev_opt, makespan_opt = rotation_exp(
                 naive=False,
-                succ_prob=succ_prob_opt,
-                makespan=makespan_opt,
-                param_name=param_name,
-                param_value=param_val,
-                succ_std_dev=succ_std_dev_opt,
+                num_iterations=num_iterations,
+                prog_size=prog_size,
+                t1=t1,
+                t2=t2,
+                cc=cc,
+                single_gate_fid=single_gate_fid,
+                single_gate_duration=single_gate_duration,
+                qnos_instr_time=qnos_instr_time,
             )
-        )
+            # Store the optimal datapoint
+            data_points.append(
+                DataPoint(
+                    naive=False,
+                    succ_prob=succ_prob_opt,
+                    makespan=makespan_opt,
+                    param_name=param_name,
+                    param_value=param_val,
+                    succ_std_dev=succ_std_dev_opt,
+                    prog_size=prog_size,
+                )
+            )
 
     # Finish computing how long the experiment took to run
     end = time.time()
@@ -464,14 +415,6 @@ if __name__ == "__main__":
     meta = DataMeta(
         timestamp=timestamp,
         num_iterations=num_iterations,
-        theta0=theta0,
-        theta1=theta1,
-        theta2=theta2,
-        theta3=theta3,
-        theta4=theta4,
-        theta5=theta5,
-        theta6=theta6,
-        theta7=theta7,
         t1=t1,
         t2=t2,
         cc=cc,

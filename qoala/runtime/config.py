@@ -730,6 +730,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
             multi_gates=multi_gates,
             all_qubit_gates=all_qubit_gates,
         )
+
     @classmethod
     def uniform_t1t2_qubits_uniform_imperfect_gates_limited_comm(
         cls,
@@ -748,7 +749,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
         all_fid: float = 1,
     ) -> TopologyConfig:
         """
-        Creates a topology configuration where only a limited number of qubits can be used for communication. 
+        Creates a topology configuration where only a limited number of qubits can be used for communication.
         However, all qubits have the same memory parameters, and all
         gate parameters (depolarising noise, gate duration) are uniform for
         gates of the same size (single qubit, two qubit, all qubit).
@@ -836,6 +837,7 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
             multi_gates=multi_gates,
             all_qubit_gates=all_qubit_gates,
         )
+
     @classmethod
     def uniform_t1t2_qubits_perfect_gates(
         cls,
@@ -1081,12 +1083,12 @@ class TopologyConfig(BaseModel, LhiTopologyConfigInterface):
             two_fid=two_gate_fid,
             two_duration=two_gate_duration,
         )
-    
+
     @classmethod
     def uniform_t1t2_qubits_uniform_any_gate_duration_and_noise_limited_comm(
         cls,
         num_qubits: int,
-        num_comm_qubits:int,
+        num_comm_qubits: int,
         t1: int,
         t2: int,
         single_gate_duration: int,

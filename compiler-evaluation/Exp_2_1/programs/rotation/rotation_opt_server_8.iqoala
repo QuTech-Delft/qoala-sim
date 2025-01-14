@@ -1,0 +1,163 @@
+META_START
+    name: server
+    parameters: client_id, state
+    csockets: 0 -> client
+    epr_sockets: 0 -> client
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b1 {type = CC}: 
+    theta0 = recv_cmsg(csocket)
+
+^b3 {type = CC}: 
+    theta1 = recv_cmsg(csocket)
+
+^b5 {type = CC}: 
+    theta2 = recv_cmsg(csocket)
+
+^b7 {type = CC}: 
+    theta3 = recv_cmsg(csocket)
+
+^b9 {type = CC}: 
+    theta4 = recv_cmsg(csocket)
+
+^b11 {type = CC}: 
+    theta5 = recv_cmsg(csocket)
+
+^b13 {type = CC}: 
+    theta6 = recv_cmsg(csocket)
+
+^b15 {type = CC}: 
+    theta7 = recv_cmsg(csocket)
+
+^b16 {type = CL}:
+    res0 = add_cval_c(theta0, theta1)
+    res1 = add_cval_c(theta2, theta3)
+    res2 = add_cval_c(theta4, theta5)
+    res3 = add_cval_c(theta6, theta7)
+
+    res4 = add_cval_c(res0, res1) 
+    res5 = add_cval_c(res2, res3)
+
+    theta = add_cval_c(res4, res5)
+
+^b17 {type = QL}:
+    tuple<outcome> = run_subroutine(tuple<state; theta>) : prepare_measure
+
+^b18 {type = CL}:
+    send_cmsg(csocket, outcome)
+
+SUBROUTINE init_rot_meas
+    params: theta
+    returns: output
+    uses: 0
+    keeps:
+    request:
+    NETQASM_START
+        set Q0 0
+        init Q0
+        load C0 @input[0]
+        rot_x Q0 C0 4
+        meas Q0 M0
+        store M0 @output[0]
+    NETQASM_END
+
+SUBROUTINE prepare_measure
+    params: state, theta
+    returns: outcome
+    uses: 0
+    keeps: 
+    request: 
+  NETQASM_START
+    // Same as above but prepares the qubit in one of the 6 basis states
+    // and measures it in the chosen basis
+
+    // get state
+    // 0: |+>, 1: |->
+    // 2: |+i>, 3: |-i>
+    // 4: |0>, 5: |1>
+    load C0 @input[0]
+    load C2 @input[1]
+    
+    set Q0 0
+    init Q0
+
+    set C1 0
+    bne C0 C1 3  // check state == 0
+    // rotate to |+>
+    rot_y Q0 8 4
+    jmp 19
+
+    set C1 1
+    bne C0 C1 3  // check state == 1
+    // rotate to |->
+    rot_y Q0 24 4
+    jmp 15
+
+    set C1 2
+    bne C0 C1 3  // check state == 2
+    // rotate to |+i>
+    rot_x Q0 24 4
+    jmp 11
+
+    set C1 3
+    bne C0 C1 3  // check state == 3
+    // rotate to |-i>
+    rot_x Q0 8 4
+    jmp 7
+
+    set C1 4
+    bne C0 C1 2  // check state == 4
+    // rotate to |0>, i.e. no rotation
+    jmp 4
+
+    set C1 5
+    bne C0 C1 2  // check state == 5
+    // rotate to |1>
+    rot_x Q0 16 4
+
+    // Rotate by theta
+    rot_x Q0 C2 4    
+
+
+    // Since our measurement basis is determined by the 
+    // initial state, we have 0 is success and 1 is failure
+    set C1 0
+    bne C0 C1 3  // check state == 0
+    // measure +X
+    rot_y Q1 24 4
+    jmp 19
+
+    set C1 1
+    bne C0 C1 3  // check state == 1
+    // measure -X
+    rot_y Q1 8 4
+    jmp 15
+
+    set C1 2
+    bne C0 C1 3  // check state == 2
+    // measure +Y
+    rot_x Q1 8 4
+    jmp 11
+
+    set C1 3
+    bne C0 C1 3  // check state == 3
+    // measure -Y
+    rot_x Q1 24 4
+    jmp 7
+
+    set C1 4
+    bne C0 C1 2  // check state == 4
+    // measure +Z, i.e. no rotation
+    jmp 4
+
+    set C1 5
+    bne C0 C1 2  // check state == 5
+    // measure -Z
+    rot_x Q1 16 4
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
