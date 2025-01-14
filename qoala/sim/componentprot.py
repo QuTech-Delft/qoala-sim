@@ -149,6 +149,7 @@ class ComponentProtocol(Protocol):
         for listener_name, wake_up_signal in zip(listener_names, wake_up_signals):
             listener = self._listeners[listener_name]
             if listener.buffer.has_any():
+                self._logger.info(f"no listener with messages in the buffer!!!")
                 return None
 
         # Else, get an EventExpression for each listener.
