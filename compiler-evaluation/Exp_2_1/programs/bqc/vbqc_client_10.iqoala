@@ -77,124 +77,97 @@ META_END
     epr9_rot_y = bcond_mult_const(epr_rot_y, dummy9) : 0
     epr9_rot_z = bcond_mult_const(epr_rot_z, dummy9) : 0
 
-// Prepare the qubit to the input state
-^b1 {type = QL}:
-   run_subroutine(tuple<input0; x0; theta0>) : prepare_qubit 
 
-// Now we need to (optionally) mask the qubit
-
+// We should send the input states in the order that they are measured 
+// 0,5,1,6,2,7,3,8,4,9
 // Now we send the qubit to the server via teleportation
 ^b10 {type = QC}:
    run_request() : req 
 
-// Measure
+// Prepare the qubit to the input state
 ^b11 {type = QL}:
-    tuple<x_correction; z_correction> = run_subroutine() : teleport
+   run_subroutine(tuple<input0; x0; theta0>) : prepare_qubit 
 
-// Send corrections
-^b12 {type = CL}:
-  send_cmsg(csocket, x_correction)
-  send_cmsg(csocket, z_correction)
+// Measure
+^b12 {type = QL}:
+    tuple<x_correction0; z_correction0> = run_subroutine() : teleport
+
+// Now we send the qubit to the server via teleportation
+^b13 {type = QC}:
+   run_request() : req 
+
+// Prepare the qubit to other input state
+^b14 {type = QL}:
+   run_subroutine(tuple<input5; x5; theta5>) : prepare_qubit 
+
+// Measure
+^b15 {type = QL}:
+    tuple<x_correction5; z_correction5> = run_subroutine() : teleport
 
 // Teleport the remaining |+> (possibly rotated by theta) states to form the cluster state
-^b13 {type = QC}:
+^b16 {type = QC}:
    run_request() : req
 
-^b14 {type=QL}:
+^b17 {type=QL}:
   tuple<p1> = run_subroutine(tuple<theta1; epr1_rot_y; epr1_rot_z>) : post_epr
 
-// Send correction
-^b15 {type=CL}:
-  send_cmsg(csocket, p1)
+^b18 {type = QC}:
+   run_request() : req
 
-^b16 {type = QC}:
+^b19 {type=QL}:
+  tuple<p6> = run_subroutine(tuple<theta6; epr6_rot_y; epr6_rot_z>) : post_epr
+
+^b20 {type = QC}:
   run_request() : req
 
-^b17 {type=QL}:
+^b21 {type=QL}:
   tuple<p2> = run_subroutine(tuple<theta2; epr2_rot_y; epr2_rot_z>) : post_epr
-
-// Send correction
-^b18 {type=CL}:
-  send_cmsg(csocket, p2)
-
-^b19 {type = QC}:
-  run_request() : req
-
-^b20 {type=QL}:
-  tuple<p3> = run_subroutine(tuple<theta3; epr3_rot_y; epr3_rot_z>) : post_epr
-
-// Send correction
-^b21 {type=CL}:
-  send_cmsg(csocket, p3)
 
 ^b22 {type = QC}:
   run_request() : req
 
 ^b23 {type=QL}:
-  tuple<p4> = run_subroutine(tuple<theta4; epr4_rot_y; epr4_rot_z>) : post_epr
-
-// Send correction
-^b24 {type=CL}:
-  send_cmsg(csocket, p4)
-
-// Prepare the qubit to other input state
-^b29 {type = QL}:
-   run_subroutine(tuple<input5; x5; theta5>) : prepare_qubit 
-
-// Now we need to (optionally) mask the qubit
-
-// Now we send the qubit to the server via teleportation
-^b30 {type = QC}:
-   run_request() : req 
-
-// Measure
-^b31 {type = QL}:
-    tuple<x_correction; z_correction> = run_subroutine() : teleport
-
-// Send corrections
-^b32 {type = CL}:
-  send_cmsg(csocket, x_correction)
-  send_cmsg(csocket, z_correction)
-
-// Teleport the remaining |+> (possibly rotated by theta) states to form the cluster state
-^b33 {type = QC}:
-   run_request() : req
-
-^b34 {type=QL}:
-  tuple<p6> = run_subroutine(tuple<theta6; epr6_rot_y; epr6_rot_z>) : post_epr
-
-// Send correction
-^b35 {type=CL}:
-  send_cmsg(csocket, p6)
-
-^b36 {type = QC}:
-  run_request() : req
-
-^b37 {type=QL}:
   tuple<p7> = run_subroutine(tuple<theta7; epr7_rot_y; epr7_rot_z>) : post_epr
 
-// Send correction
-^b38 {type=CL}:
-  send_cmsg(csocket, p7)
-
-^b39 {type = QC}:
+^b24 {type = QC}:
   run_request() : req
 
-^b40 {type=QL}:
+^b25 {type=QL}:
+  tuple<p3> = run_subroutine(tuple<theta3; epr3_rot_y; epr3_rot_z>) : post_epr
+
+^b26 {type = QC}:
+  run_request() : req
+
+^b27 {type=QL}:
   tuple<p8> = run_subroutine(tuple<theta8; epr8_rot_y; epr8_rot_z>) : post_epr
 
-// Send correction
-^b41 {type=CL}:
-  send_cmsg(csocket, p8)
-
-^b42 {type = QC}:
+^b28 {type = QC}:
   run_request() : req
 
-^b43 {type=QL}:
+^b29 {type=QL}:
+  tuple<p4> = run_subroutine(tuple<theta4; epr4_rot_y; epr4_rot_z>) : post_epr
+
+^b30 {type = QC}:
+  run_request() : req
+
+^b31 {type=QL}:
   tuple<p9> = run_subroutine(tuple<theta9; epr9_rot_y; epr9_rot_z>) : post_epr
 
-// Send correction
-^b44 {type=CL}:
+// Send corrections
+^b40 {type = CL}:
+  send_cmsg(csocket, x_correction0)
+  send_cmsg(csocket, z_correction0)
+
+  send_cmsg(csocket, x_correction5)
+  send_cmsg(csocket, z_correction5)
+
+  send_cmsg(csocket, p1)
+  send_cmsg(csocket, p6)
+  send_cmsg(csocket, p2)
+  send_cmsg(csocket, p7)
+  send_cmsg(csocket, p3)
+  send_cmsg(csocket, p8)
+  send_cmsg(csocket, p4)
   send_cmsg(csocket, p9)
 
 // This is 10 requests so the cluster state will be a brickwork state

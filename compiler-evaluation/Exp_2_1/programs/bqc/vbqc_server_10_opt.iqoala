@@ -7,6 +7,8 @@ META_END
 
 ^b0 {type = CL}:
     csocket = assign_cval() : 0
+    pi = assign_cval() : 16
+    one = assign_cval() : 1
 
 // We should teleport the input states in the order that they are measured 
 // 0,5,1,6,2,7,3,8,4,9
@@ -65,43 +67,25 @@ META_END
 ^b42 {type = CC}:
     p1 = recv_cmsg(csocket)
 
-^b43 {type = QL}:
-    run_subroutine(tuple<p1>) : zcorrect_qubit_1
-
 // Teleportation Z corrections
 ^b44 {type = CC}:
     p6 = recv_cmsg(csocket)
-
-^b45 {type = QL}:
-    run_subroutine(tuple<p6>) : zcorrect_qubit_6
 
 // Teleportation Z corrections
 ^b46 {type = CC}:
     p2 = recv_cmsg(csocket)
 
-^b47 {type = QL}:
-    run_subroutine(tuple<p2>) : zcorrect_qubit_2
-
 // Teleportation Z corrections
 ^b48 {type = CC}:
     p7 = recv_cmsg(csocket)
-
-^b49 {type = QL}:
-    run_subroutine(tuple<p7>) : zcorrect_qubit_7
 
 // Teleportation Z corrections
 ^b50 {type = CC}:
     p3 = recv_cmsg(csocket)
 
-^b51 {type = QL}:
-    run_subroutine(tuple<p3>) : zcorrect_qubit_3
-
 // Teleportation Z corrections
 ^b52 {type = CC}:
     p8 = recv_cmsg(csocket)
-
-^b53 {type = QL}:
-    run_subroutine(tuple<p8>) : zcorrect_qubit_8
 
 // Teleportation Z corrections
 ^b54 {type = CC}:
@@ -147,75 +131,123 @@ META_END
 ^b69 {type = CC}:
     delta1 = recv_cmsg(csocket)
 
-^b70 {type = QL}:
+^b70 {type = CL}:
+   // If p1 is 1 we add pi to delta1 
+   not_p1 = bcond_mult_const(one,p1): 0
+   // If p1 is 1 then delta1_correction = pi
+   delta1_correction = bcond_mult_const(pi,not_p1): 0
+
+   delta1 = add_cval_c(delta1, delta1_correction)
+
+^b71 {type = QL}:
     tuple<m1> = run_subroutine(tuple<delta1>) : meas_qubit_1
 
-^b71 {type = CL}:
+^b72 {type = CL}:
     send_cmsg(csocket, m1)
 
-^b72 {type = CC}:
+^b73 {type = CC}:
     delta6 = recv_cmsg(csocket)
 
-^b73 {type = QL}:
+^b74 {type = CL}:
+   // If p6 is 1 we add pi to delta6 
+   not_p6 = bcond_mult_const(one,p6): 0
+   // If p6 is 1 then delta1_correction = pi
+   delta6_correction = bcond_mult_const(pi,not_p6): 0
+
+   delta6 = add_cval_c(delta6, delta6_correction)
+
+^b75 {type = QL}:
     tuple<m6> = run_subroutine(tuple<delta6>) : meas_qubit_6
 
-^b74 {type = CL}:
+^b76 {type = CL}:
     send_cmsg(csocket, m6)
 
-^b75 {type = CC}:
+^b77 {type = CC}:
     delta2 = recv_cmsg(csocket)
 
-^b76 {type = QL}:
-    tuple<m2> = run_subroutine(tuple<delta2>) : meas_qubit_2
+^b78 {type = CL}:
+   // If p2 is 1 we add pi to delta2 
+   not_p2 = bcond_mult_const(one,p2): 0
+   // If p2 is 1 then delta1_correction = pi
+   delta2_correction = bcond_mult_const(pi,not_p2): 0
 
-^b77 {type = CL}:
-    send_cmsg(csocket, m2)
-
-^b78 {type = CC}:
-    delta7 = recv_cmsg(csocket)
+   delta2 = add_cval_c(delta2, delta2_correction)
 
 ^b79 {type = QL}:
-    tuple<m7> = run_subroutine(tuple<delta7>) : meas_qubit_7
+    tuple<m2> = run_subroutine(tuple<delta2>) : meas_qubit_2
 
 ^b80 {type = CL}:
-    send_cmsg(csocket, m7)
+    send_cmsg(csocket, m2)
 
 ^b81 {type = CC}:
+    delta7 = recv_cmsg(csocket)
+
+^b82 {type = CL}:
+   // If p7 is 1 we add pi to delta7
+   not_p7 = bcond_mult_const(one,p7): 0
+   // If p7 is 1 then delta1_correction = pi
+   delta7_correction = bcond_mult_const(pi,not_p7): 0
+
+   delta7 = add_cval_c(delta7, delta7_correction)
+
+^b83 {type = QL}:
+    tuple<m7> = run_subroutine(tuple<delta7>) : meas_qubit_7
+
+^b84 {type = CL}:
+    send_cmsg(csocket, m7)
+
+^b85 {type = CC}:
     delta3 = recv_cmsg(csocket)
 
-^b82 {type = QL}:
+^b86 {type = CL}:
+   // If p3 is 1 we add pi to delta3 
+   not_p3 = bcond_mult_const(one,p3): 0
+   // If p3 is 1 then delta1_correction = pi
+   delta3_correction = bcond_mult_const(pi,not_p3): 0
+
+   delta3 = add_cval_c(delta3, delta3_correction)
+
+^b87 {type = QL}:
     tuple<m3> = run_subroutine(tuple<delta3>) : meas_qubit_3
 
-^b83 {type = CL}:
+^b88 {type = CL}:
     send_cmsg(csocket, m3)
 
-^b84 {type = CC}:
+^b89 {type = CC}:
     delta8 = recv_cmsg(csocket)
 
-^b85 {type = QL}:
+^b90 {type = CL}:
+   // If p8 is 1 we add pi to delta8 
+   not_p8 = bcond_mult_const(one,p8): 0
+   // If p8 is 1 then delta1_correction = pi
+   delta8_correction = bcond_mult_const(pi,not_p8): 0
+
+   delta8 = add_cval_c(delta8, delta8_correction)
+
+^b91 {type = QL}:
     tuple<m8> = run_subroutine(tuple<delta8>) : meas_qubit_8
 
-^b86 {type = CL}:
+^b92 {type = CL}:
     send_cmsg(csocket, m8)
 
-^b87 {type = CC}:
+^b93 {type = CC}:
     delta4 = recv_cmsg(csocket)
 
-^b88 {type = QL}:
+^b94 {type = QL}:
     tuple<m4> = run_subroutine(tuple<m3>) : zmeas_qubit_4
     //tuple<m4> = run_subroutine(tuple<delta4>) : meas_qubit_4
 
-^b89 {type = CL}:
+^b95 {type = CL}:
     send_cmsg(csocket, m4)
 
-^b90 {type = CC}:
+^b96 {type = CC}:
     delta9 = recv_cmsg(csocket)
 
-^b91 {type = QL}:
+^b97 {type = QL}:
     tuple<m9> = run_subroutine(tuple<m8>) : zmeas_qubit_9
     //tuple<m9> = run_subroutine(tuple<delta9>) : meas_qubit_9
 
-^b92 {type = CL}:
+^b98 {type = CL}:
     send_cmsg(csocket, m9)
 
 SUBROUTINE teleport_corrections0
