@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Type
 
-from netqasm.lang.instr import core, nv, trapped_ion, vanilla
+from netqasm.lang.instr import core, nv, trapped_ion, trapped_ion_ionq, vanilla
 from netqasm.lang.instr.base import NetQASMInstruction
 from netqasm.lang.instr.flavour import (
     Flavour,
@@ -20,6 +20,7 @@ from netsquid.components.instructions import (
     INSTR_ROT_X,
     INSTR_ROT_Y,
     INSTR_ROT_Z,
+    #INSTR_MS,
     INSTR_X,
     INSTR_Y,
     INSTR_Z,
@@ -143,6 +144,9 @@ class TrappedIonNtf(NtfInterface):
     _NS_NQ_MAP: Dict[Type[NetSquidInstruction], List[Type[NetQASMInstruction]]] = {
         INSTR_INIT: [core.InitInstruction, trapped_ion.AllQubitsInitInstruction],
         INSTR_ROT_Z: [trapped_ion.RotZInstruction],
+        INSTR_ROT_X: [trapped_ion_ionq.RotYInstruction],
+        INSTR_ROT_Y: [trapped_ion_ionq.RotXInstruction],
+        #INSTR_MS: [trapped_ion_ionq.MSInstruction],
         INSTR_BICHROMATIC: [trapped_ion.BichromaticInstruction],
         INSTR_MEASURE_ALL: [trapped_ion.AllQubitsMeasInstruction],
         INSTR_ROT_X_ALL: [trapped_ion.AllQubitsRotXInstruction],
@@ -156,6 +160,9 @@ class TrappedIonNtf(NtfInterface):
         core.InitInstruction: [INSTR_INIT],
         trapped_ion.AllQubitsInitInstruction: [INSTR_INIT],
         trapped_ion.RotZInstruction: [INSTR_ROT_Z],
+        trapped_ion_ionq.RotYInstruction: [INSTR_ROT_Y],
+        trapped_ion_ionq.RotXInstruction: [INSTR_ROT_X],
+        #trapped_ion_ionq.MSInstruction: [INSTR_MS],
         core.MeasInstruction: [INSTR_MEASURE],
         trapped_ion.AllQubitsMeasInstruction: [INSTR_MEASURE_ALL],
         trapped_ion.AllQubitsRotXInstruction: [INSTR_ROT_X_ALL],

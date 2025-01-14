@@ -417,6 +417,8 @@ class LhiTopologyBuilder:
             single_instructions=[
                 INSTR_INIT,
                 INSTR_ROT_Z,
+                INSTR_ROT_X,
+                INSTR_ROT_Y,
                 INSTR_MEASURE,
                 INSTR_MEASURE_INSTANT,
             ],

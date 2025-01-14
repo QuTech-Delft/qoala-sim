@@ -5,7 +5,7 @@ from copy import deepcopy
 from typing import Any, Dict, Generator, Optional, Union
 
 import netsquid as ns
-from netqasm.lang.instr import NetQASMInstruction, core, nv, trapped_ion, vanilla
+from netqasm.lang.instr import NetQASMInstruction, core, nv, trapped_ion, trapped_ion_ionq, vanilla
 from netqasm.lang.operand import Register
 from netsquid.components.instructions import (
     INSTR_CNOT,
@@ -808,8 +808,12 @@ class IonTrapProcessor(QnosProcessor):
     def _interpret_single_rotation_instr(
         self, pid: int, instr: core.RotationInstruction
     ) -> Generator[EventExpression, None, None]:
-        if isinstance(instr, trapped_ion.RotZInstruction):
+        if isinstance(instr, trapped_ion.RotZInstruction) or isinstance(instr, trapped_ion_ionq.RotZInstruction):
             yield from self._do_single_rotation(pid, instr, INSTR_ROT_Z)
+        elif isinstance(instr, trapped_ion_ionq.RotYInstruction):
+            yield from self._do_single_rotation(pid, instr, INSTR_ROT_Y)
+        elif isinstance(instr, trapped_ion_ionq.RotXInstruction):
+            yield from self._do_single_rotation(pid, instr, INSTR_ROT_X)
         else:
             raise UnsupportedNetqasmInstructionError
         return None
@@ -877,9 +881,9 @@ class IonTrapProcessor(QnosProcessor):
     ) -> Generator[EventExpression, None, None]:
         if isinstance(instr, trapped_ion.BichromaticInstruction):
             yield from self._interpret_bichromatic_instr(instr)
-        elif isinstance(instr, trapped_ion.AllQubitsInitInstruction):
+        elif isinstance(instr, trapped_ion.AllQubitsInitInstruction) or isinstance(instr, trapped_ion_ionq.AllQubitsInitInstruction):
             yield from self._interpret_all_qubit_init()
-        elif isinstance(instr, trapped_ion.AllQubitsMeasInstruction):
+        elif isinstance(instr, trapped_ion.AllQubitsMeasInstruction) or isinstance(instr, trapped_ion_ionq.AllQubitsMeasInstruction):
             yield from self._interpret_all_qubit_meas(instr)
         elif isinstance(instr, trapped_ion.AllQubitsRotXInstruction):
             yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_X_ALL)
