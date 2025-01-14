@@ -80,7 +80,7 @@ def create_network(
     cc: float,
     use_netschedule: bool,
     bin_length: float,
-    link_duration: int=1000,
+    link_duration: int = 1000,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
@@ -224,7 +224,7 @@ def run_eval_programs(
     client_num_qubits: int = 20,
     use_netschedule: bool = False,
     bin_length: int = 0,
-    link_duration: int=1000,
+    link_duration: int = 1000,
     scheduling_alg: str = "",
 ):
     """
@@ -448,12 +448,13 @@ def run_eval_programs(
 
     server_results: Dict[int, BatchResult]
     server_results = server_procnode.scheduler.get_batch_results()
-    # print(client_results[0]) 
+    # print(client_results[0])
     return EvalExpResult(
         server_results=server_results,
         client_results=client_results,
         total_duration=makespan,
     )
+
 
 def run_eval_exp(
     client_progs: List[str],
@@ -480,38 +481,38 @@ def run_eval_exp(
     client_num_qubits: int = 20,
     use_netschedule: bool = False,
     bin_length: int = 0,
-    link_duration: int=1000,
+    link_duration: int = 1000,
     scheduling_alg: str = "",
     compute_succ_probs: List[function] = [],
 ):
     exp_results = run_eval_programs(
-        client_progs = client_progs,
-        server_progs = server_progs,
-        client_prog_args = client_prog_args,
-        server_prog_args = server_prog_args,
-        client_num_iterations = client_num_iterations,
-        server_num_iterations = server_num_iterations,
-        num_clients = num_clients,
-        linear = linear,
-        cc = cc,
-        t1 = t1,
-        t2 = t2,
-        single_gate_dur = single_gate_dur,
-        two_gate_dur = two_gate_dur,
-        all_gate_dur = all_gate_dur,
-        single_gate_fid = single_gate_fid,
-        two_gate_fid = two_gate_fid,
-        all_gate_fid = all_gate_fid,
-        qnos_instr_proc_time = qnos_instr_proc_time,
-        host_instr_time = host_instr_time,
-        host_peer_latency = host_peer_latency,
-        server_num_qubits = server_num_qubits,
-        client_num_qubits = client_num_qubits,
-        use_netschedule = use_netschedule,
-        bin_length = bin_length,
+        client_progs=client_progs,
+        server_progs=server_progs,
+        client_prog_args=client_prog_args,
+        server_prog_args=server_prog_args,
+        client_num_iterations=client_num_iterations,
+        server_num_iterations=server_num_iterations,
+        num_clients=num_clients,
+        linear=linear,
+        cc=cc,
+        t1=t1,
+        t2=t2,
+        single_gate_dur=single_gate_dur,
+        two_gate_dur=two_gate_dur,
+        all_gate_dur=all_gate_dur,
+        single_gate_fid=single_gate_fid,
+        two_gate_fid=two_gate_fid,
+        all_gate_fid=all_gate_fid,
+        qnos_instr_proc_time=qnos_instr_proc_time,
+        host_instr_time=host_instr_time,
+        host_peer_latency=host_peer_latency,
+        server_num_qubits=server_num_qubits,
+        client_num_qubits=client_num_qubits,
+        use_netschedule=use_netschedule,
+        bin_length=bin_length,
         link_duration=link_duration,
-        scheduling_alg = scheduling_alg
-    ) 
+        scheduling_alg=scheduling_alg,
+    )
 
     makespan = exp_results.total_duration
 
@@ -519,11 +520,10 @@ def run_eval_exp(
     server_results = exp_results.server_results
     client_results = exp_results.client_results
     # print(client_results)
-    
 
     # (client_id, program #) -> succ probability
     # A client_id of -1 corresponds to a server only program
-    succ_probs : Dict[(int, int), float] = {}
+    succ_probs: Dict[(int, int), float] = {}
 
     if compute_succ_probs is not None:
         for prog_index in range(len(compute_succ_probs)):
@@ -539,29 +539,37 @@ def run_eval_exp(
                     # Results for client index + 1 for program prog_index
                     # Results for the client are indexed first by client, and then by batch
                     # The ith batch on the client is the ith program
-                    client_prog_results = client_results[client_index][prog_index].results
+                    client_prog_results = client_results[client_index][
+                        prog_index
+                    ].results
 
                     # Need to get corresponding server program results
                     # The server results are a little different than the client results
                     # We first iterate over programs, and then clients
-                    # So for two programs and two clients we have 
+                    # So for two programs and two clients we have
                     # batch 0: program 0, client 0
                     # batch 1: program 0, client 1
                     # batch 2: program 1, client 0
                     # batch 3: program 1, client 1
                     # So we have batch index = num_clients*program index + 1*client index
-                    server_batch_index = num_clients*prog_index + client_index
+                    server_batch_index = num_clients * prog_index + client_index
                     server_prog_results = server_results[server_batch_index].results
 
-                    # Compute the success probability and store it 
-                    succ_probs[(client_index+1, prog_index+1)] = compute_succ_func(server_prog_results, client_prog_results, server_prog_args[prog_index], client_prog_args[prog_index])
-                    
+                    # Compute the success probability and store it
+                    succ_probs[(client_index + 1, prog_index + 1)] = compute_succ_func(
+                        server_prog_results,
+                        client_prog_results,
+                        server_prog_args[prog_index],
+                        client_prog_args[prog_index],
+                    )
+
             # This function computes the success probs for a server only app
             else:
-                #TODO
+                # TODO
                 continue
-    
+
     return succ_probs, makespan
+
 
 @dataclass
 class DataPoint:
@@ -570,8 +578,9 @@ class DataPoint:
     makespan_cooperative: float
     succ_prob_selfish: float
     succ_prob_cooperative: float
-    param_name: str # Name of param being varied
-    param_value: float # Value of the varied param 
+    param_name: str  # Name of param being varied
+    param_value: float  # Value of the varied param
+
 
 @dataclass
 class DataMeta:
@@ -594,24 +603,28 @@ class DataMeta:
     single_gate_fid: float
     two_gate_fid: float
     all_gate_fid: float
-    qnos_instr_proc_time: int 
-    host_instr_time: int 
+    qnos_instr_proc_time: int
+    host_instr_time: int
     host_peer_latency: int
     client_num_qubits: int
     use_netschedule: bool
-    bin_length: int 
-    param_name: str # The parameter being varied
+    bin_length: int
+    param_name: str  # The parameter being varied
+
 
 @dataclass
 class Data:
     meta: DataMeta
     data_points: List[DataPoint]
 
-def bqc_compute_succ_prob(server_batch_results, client_batch_results, server_prog_args, client_prog_args):
+
+def bqc_compute_succ_prob(
+    server_batch_results, client_batch_results, server_prog_args, client_prog_args
+):
     dummy0 = client_prog_args["dummy0"]
 
     num_iterations = len(client_batch_results)
-    
+
     p1s = [result.values["p1"] for result in client_batch_results]
     p2s = [result.values["p2"] for result in client_batch_results]
     m1s = [result.values["m1"] for result in client_batch_results]
@@ -623,7 +636,7 @@ def bqc_compute_succ_prob(server_batch_results, client_batch_results, server_pro
         num_fails = len([(p, m) for (p, m) in zip(p2s, m1s) if p != m])
 
     frac_fail = round(num_fails / num_iterations, 2)
-    return (1 - frac_fail)
+    return 1 - frac_fail
 
 
 if __name__ == "__main__":
@@ -631,40 +644,40 @@ if __name__ == "__main__":
     # LogManager.log_to_file("eval_debug.log")
     # LogManager.set_task_log_level("DEBUG")
     # LogManager.log_tasks_to_file("eval_debug_TASKS.log")
-    
+
     # Default values
     params = {
         "client_progs": ["programs/vbqc_client.iqoala", "programs/vbqc_client.iqoala"],
         "server_progs": ["programs/vbqc_server.iqoala", "programs/vbqc_server.iqoala"],
         "client_prog_args": [
-                {
-                    "alpha": 8,
-                    "beta": 24,
-                    "theta1": 2,
-                    "theta2": 22,
-                    "dummy0": 0,
-                    "dummy1": 1,
-                },
-                {
-                    "alpha": 8,
-                    "beta": 24,
-                    "theta1": 2,
-                    "theta2": 22,
-                    "dummy0": 0,
-                    "dummy1": 1,
-                },
-            ],
-        "server_prog_args": [{},{}],
+            {
+                "alpha": 8,
+                "beta": 24,
+                "theta1": 2,
+                "theta2": 22,
+                "dummy0": 0,
+                "dummy1": 1,
+            },
+            {
+                "alpha": 8,
+                "beta": 24,
+                "theta1": 2,
+                "theta2": 22,
+                "dummy0": 0,
+                "dummy1": 1,
+            },
+        ],
+        "server_prog_args": [{}, {}],
         "client_num_iterations": [],
         "server_num_iterations": [],
         "num_clients": 1,
-        "linear": False, 
-        "cc": 1e5, 
+        "linear": False,
+        "cc": 1e5,
         "t1": 1e9,
         "t2": 1e8,
         "single_gate_dur": 1e3,
         "two_gate_dur": 100e3,
-        "all_gate_dur": 100e3, 
+        "all_gate_dur": 100e3,
         "single_gate_fid": 1.0,
         "two_gate_fid": 1.0,
         "all_gate_fid": 1.0,
@@ -675,7 +688,7 @@ if __name__ == "__main__":
         "use_netschedule": True,
         "bin_length": 1e5,
         "link_duration": 1e3,
-        "compute_succ_probs": [bqc_compute_succ_prob, bqc_compute_succ_prob]
+        "compute_succ_probs": [bqc_compute_succ_prob, bqc_compute_succ_prob],
     }
 
     parser = ArgumentParser()
@@ -691,19 +704,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
     num_clients = args.num_clients
     num_iterations = args.num_iterations
-    params_filename = args.default_params_file 
-    param_name = args.param_name 
-    param_vals = args.param_values 
+    params_filename = args.default_params_file
+    param_name = args.param_name
+    param_vals = args.param_values
     param_sweep_list = args.param_sweep_list
     save = args.save
 
     if params_filename is not None:
         # Load param values from .json file
-        params_file = open(params_filename) 
+        params_file = open(params_filename)
         params_obj = json.load(params_file)
         for key, val in params_obj.items():
             print(key, val)
-            params[key] = val 
+            params[key] = val
 
     params["num_clients"] = num_clients
     params["client_num_iterations"] = num_iterations
@@ -713,11 +726,11 @@ if __name__ == "__main__":
         if param_sweep_list is not None:
             param_name = param_sweep_list[0]
             param_vals = [float(val) for val in param_sweep_list[1:]]
-        else: 
+        else:
             param_name = "cc"
             param_vals = [params["cc"]]
-    
-    datapoints: List[DataPoint] = [] 
+
+    datapoints: List[DataPoint] = []
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -727,8 +740,8 @@ if __name__ == "__main__":
             print(f"Num Qubits: {num_qubits}\t {param_name}: {param_val}")
             params[param_name] = param_val
             # Run selfish version
-            params["client_progs"]=["programs/vbqc_client.iqoala"]
-            params["server_progs"]=["programs/vbqc_server_selfish_block.iqoala"]
+            params["client_progs"] = ["programs/vbqc_client.iqoala"]
+            params["server_progs"] = ["programs/vbqc_server_selfish_block.iqoala"]
             selfish_succ_probs, selfish_makespan = run_eval_exp(
                 client_progs=params["client_progs"],
                 server_progs=params["server_progs"],
@@ -753,13 +766,15 @@ if __name__ == "__main__":
                 single_gate_fid=params["single_gate_fid"],
                 two_gate_fid=params["two_gate_fid"],
                 link_duration=params["link_duration"],
-                compute_succ_probs=params["compute_succ_probs"]
+                compute_succ_probs=params["compute_succ_probs"],
             )
-            print(f"Selfish Results\tMakespan: {selfish_makespan}\tSuccess Prob: {selfish_succ_probs}")
+            print(
+                f"Selfish Results\tMakespan: {selfish_makespan}\tSuccess Prob: {selfish_succ_probs}"
+            )
 
             # Run 1-cooperative version
-            params["client_progs"]=["programs/vbqc_client.iqoala"]
-            params["server_progs"]=["programs/vbqc_server_1cooperative_block.iqoala"]
+            params["client_progs"] = ["programs/vbqc_client.iqoala"]
+            params["server_progs"] = ["programs/vbqc_server_1cooperative_block.iqoala"]
             cooperative_succ_probs, cooperative_makespan = run_eval_exp(
                 client_progs=params["client_progs"],
                 server_progs=params["server_progs"],
@@ -784,10 +799,12 @@ if __name__ == "__main__":
                 single_gate_fid=params["single_gate_fid"],
                 two_gate_fid=params["two_gate_fid"],
                 link_duration=params["link_duration"],
-                compute_succ_probs=params["compute_succ_probs"]
+                compute_succ_probs=params["compute_succ_probs"],
             )
-            print(f"1-Cooperative Results\tMakespan: {cooperative_makespan}\tSuccess Prob: {cooperative_succ_probs}\n\n")
-            
+            print(
+                f"1-Cooperative Results\tMakespan: {cooperative_makespan}\tSuccess Prob: {cooperative_succ_probs}\n\n"
+            )
+
             # Average succ_probs for each program
             prog_selfish_succ_probs = []
             prog_cooperative_succ_probs = []
@@ -797,21 +814,27 @@ if __name__ == "__main__":
                     self_avg = 0
                     coop_avg = 0
                     for client_index in range(num_clients):
-                        self_avg += selfish_succ_probs[(client_index+1,prog_index+1)]
-                        coop_avg += cooperative_succ_probs[(client_index+1,prog_index+1)]
+                        self_avg += selfish_succ_probs[
+                            (client_index + 1, prog_index + 1)
+                        ]
+                        coop_avg += cooperative_succ_probs[
+                            (client_index + 1, prog_index + 1)
+                        ]
                     prog_selfish_succ_probs += [self_avg / num_clients]
                     prog_cooperative_succ_probs += [coop_avg / num_clients]
-            
+
             # Create datapoint
-            datapoints.append(DataPoint(
-                num_qubits_server=num_qubits,
-                makespan_selfish=selfish_makespan,
-                makespan_cooperative=cooperative_makespan,
-                succ_prob_selfish=prog_selfish_succ_probs[0],
-                succ_prob_cooperative=prog_cooperative_succ_probs[0],
-                param_name=param_name,
-                param_value=param_val
-            ))
+            datapoints.append(
+                DataPoint(
+                    num_qubits_server=num_qubits,
+                    makespan_selfish=selfish_makespan,
+                    makespan_cooperative=cooperative_makespan,
+                    succ_prob_selfish=prog_selfish_succ_probs[0],
+                    succ_prob_cooperative=prog_cooperative_succ_probs[0],
+                    param_name=param_name,
+                    param_value=param_val,
+                )
+            )
 
     # Finish computing how long the experiment took to run
     end = time.time()
@@ -821,7 +844,9 @@ if __name__ == "__main__":
     abs_dir = relative_to_cwd(f"data")
     Path(abs_dir).mkdir(parents=True, exist_ok=True)
     last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_nclients_{num_clients}.json")
+    timestamp_path = os.path.join(
+        abs_dir, f"{timestamp}_{param_name}_nclients_{num_clients}.json"
+    )
 
     # Store the metadata about the experiment
     meta = DataMeta(
@@ -856,7 +881,7 @@ if __name__ == "__main__":
     # Format the metadata and datapoints into a json object
     data = Data(meta=meta, data_points=datapoints)
     json_data = asdict(data)
-    
+
     if save:
         # Write the data
         with open(last_path, "w") as datafile:
