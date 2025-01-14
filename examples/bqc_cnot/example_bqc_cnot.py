@@ -373,7 +373,7 @@ def run_eval_programs(
         for client_id in range(1, num_clients + 1):
 
             client_inputs = [
-                ProgramInput({"server_id": 0} | client_prog_args[prog_index])
+                ProgramInput(dict({"server_id": 0}.items() | client_prog_args[prog_index].items()))
                 for _ in range(client_num_iterations[prog_index])
             ]
 
