@@ -448,6 +448,8 @@ class NodeScheduler(Protocol):
         self._cpu_scheduler.start()
         self._qpu_scheduler.start()
         if not self._is_predictable:
+            # Are we sure about this??? The NodeScheduler will only "start" if it has
+            # been build to be "not predictable".
             super().start()
             self.schedule_all()
 
@@ -494,8 +496,9 @@ class NodeScheduler(Protocol):
             self._last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(
                 now
             )
-            # If there is a task that is finished at the current time, assign the next, but we do not need to assign
-            # again if it is the same pid as the one that came from CPU
+            # If there is a task that is finished at the current time, assign the next,
+            # but we do not need to assign again if it is the same pid as the one that
+            # came from CPU
             if (
                 self._last_qpu_task_pid != -1
                 and self._last_qpu_task_pid != self._last_cpu_task_pid
@@ -518,6 +521,7 @@ class NodeScheduler(Protocol):
         # Note that find_next_tasks_for() returns None if there are no new tasks for that processor
         if new_cpu_tasks:
             self._cpu_scheduler.add_tasks(new_cpu_tasks)
+            self._task_logger.debug("sending 'New Task' msg to CPU scheduler")
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
         if new_qpu_tasks:
             self._qpu_scheduler.add_tasks(new_qpu_tasks)
@@ -637,6 +641,9 @@ class NodeScheduler(Protocol):
     def upload_task_graph(self, graph: TaskGraph) -> None:
         """
         Assigns tasks in the given task graph to the CPU and QPU schedulers.
+        Note: This method submits the tasks directly to the CPU and QPU schedulers.
+        Being this said, it does not allow the NodeScheduler to take any part in the
+        scheduling logic, since it will not create any netsquid events to handle.
 
         :param graph: The task graph to upload.
         :return: None
@@ -919,16 +926,8 @@ class CpuScheduler(ProcessorScheduler):
         self._host_interface = host_interface
 
     def is_message_available(self, tid: int) -> bool:
-        assert self._task_graph is not None
-        task = self._task_graph.get_tinfo(tid).task
-        assert isinstance(task, HostEventTask)
-        process = self._memmgr.get_process(task.pid)
-        block = process.program.get_block(task.block_name)
-        instr = block.instructions[0]
-        assert isinstance(instr, ReceiveCMsgOp)
-        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
-        csck_id = process.host_mem.read(instr.arguments[0].name)
-        csck = process.csockets[csck_id]
+        csck = self._get_csocket_for_tid(tid)
+        task = self._get_task_for_tid(tid)
         remote_name = csck.remote_name
         remote_pid = csck.remote_pid
         self._task_logger.debug(f"checking if msg from {remote_name} is available")
@@ -940,11 +939,46 @@ class CpuScheduler(ProcessorScheduler):
             self._task_logger.debug(f"task {tid} blocked on message")
             return False
 
+    def _get_peer_name_for_tid(self, tid: int) -> str:
+        return self._get_csocket_for_tid(tid).remote_name
+
+    def _get_task_for_tid(self, tid: int) -> Optional[QoalaTask]:
+        return self._task_graph.get_tinfo(tid).task
+
+    def _get_csocket_for_tid(self, tid: int) -> ClassicalSocket:
+        assert self._task_graph is not None
+        task = self._get_task_for_tid(tid)
+        assert isinstance(task, HostEventTask)
+        process = self._memmgr.get_process(task.pid)
+        block = process.program.get_block(task.block_name)
+        instr = block.instructions[0]
+        assert isinstance(instr, ReceiveCMsgOp)
+        assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
+        csck_id = process.host_mem.read(instr.arguments[0].name)
+        return process.csockets[csck_id]
+
     @abstractmethod
     def choose_next_task(self, ready_tasks: List[int]) -> None:
         raise NotImplementedError
 
-    def update_status(self) -> None:
+    def _get_peer_names_waiting_message_from(self) -> List[str]:
+        # Very similar to the first lines of update_status:
+        # We simply need to compute the peer names from which we are waiting
+        # for a message, but there is NOT a message already on the queue
+        tg = self._task_graph
+        no_predecessors = tg.get_roots()
+
+        event_no_predecessors = [
+            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
+        ]
+
+        return [
+            self._get_peer_name_for_tid(tid)
+            for tid in event_no_predecessors
+            if not self.is_message_available(tid)
+        ]
+
+    def update_status(self):
         tg = self._task_graph
 
         if tg is None or len(tg.get_tasks()) == 0:
@@ -1039,15 +1073,23 @@ class CpuScheduler(ProcessorScheduler):
                     ev_expr = ev_expr | ev_start_time
 
                 if Status.WAITING_MSG in self.status.status:
-                    ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
+                    # We should NOT wait for any message, but rather wait for the message
+                    # on which the blocked tasks depend on
+                    waiting_msg_from_peer = self._get_peer_names_waiting_message_from()
+                    ev_msg_arrived = self._host_interface.get_evexpr_for_msg_from(
+                        waiting_msg_from_peer
+                    )
 
                     ev_expr = ev_msg_arrived | ev_expr
                     yield ev_expr
                     if len(ev_expr.first_term.triggered_events) > 0:
                         # It was "ev_msg_arrived" that triggered.
                         # Need to process this event (flushing potential other messages)
+                        # WARNING: We should yield _on messages from peers that we are waiting
+                        # messages from_ otherwise the simulation might stall
                         yield from self._host_interface.handle_msg_evexpr(
-                            ev_expr.first_term
+                            ev_expr.first_term,
+                            peers=waiting_msg_from_peer
                         )
                 else:
                     yield ev_expr

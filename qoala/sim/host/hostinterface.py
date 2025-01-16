@@ -95,10 +95,22 @@ class HostInterface(ComponentProtocol):
     def get_evexpr_for_any_msg(self) -> Optional[EventExpression]:
         return self._get_evexpr_for_any_msg(self._listener_names, self._signal_names)
 
+    def get_evexpr_for_msg_from(self, peers: List[str]):
+        specific_listener_names = []
+        specific_signal_names = []
+        for peer in peers:
+            specific_listener_names.append(f"peer_{peer}")
+            specific_signal_names.append(f"{SIGNAL_HOST_HOST_MSG}_{peer}")
+        return self._get_evexpr_for_any_msg(specific_listener_names, specific_signal_names)
+
     def handle_msg_evexpr(
-        self, evexpr: EventExpression
+        self, evexpr: EventExpression, peers: Optional[List[str]] = None
     ) -> Generator[EventExpression, None, None]:
-        yield from self._handle_msg_evexpr(evexpr, self._listener_names)
+        if peers is None:
+            listeners = self._listeners_names
+        else:
+            listeners = [f"peer_{peer}" for peer in peers]
+        yield from self._handle_msg_evexpr(evexpr, listeners)
 
     def pop_msg(self, peer: str, src_pid: int, dst_pid: int) -> Message:
         return self._pop_msg(f"peer_{peer}", src_pid, dst_pid)
