@@ -598,25 +598,20 @@ def run_eval_exp(
 
 @dataclass
 class DataPoint:
-    num_qubits_server: int
-    makespan_selfish: float
-    makespan_cooperative: float
-    succ_prob_selfish: float
-    succ_prob_cooperative: float
+    naive_makespan: float
+    opt_makespan: float
+    naive_succ_prob: float
+    opt_succ_prob: float
     param_name: str  # Name of param being varied
     param_value: float  # Value of the varied param
-
 
 @dataclass
 class DataMeta:
     timestamp: str
     sim_duration: float
-    client_progs: List[str]
-    server_progs: List[str]
-    client_prog_args: List[dict]
-    server_prog_args: List[dict]
-    client_num_iterations: List[int]
-    server_num_iterations: List[int]
+    prog_name: str 
+    prog_sizes: List[int]
+    num_iterations: int
     num_clients: int
     linear: bool
     cc: int
@@ -632,10 +627,10 @@ class DataMeta:
     host_instr_time: int
     host_peer_latency: int
     client_num_qubits: int
-    use_netschedule: bool
-    bin_length: int
+    server_num_qubits: int
+    # use_netschedule: bool
+    # bin_length: int
     param_name: str  # The parameter being varied
-
 
 @dataclass
 class Data:
@@ -706,16 +701,16 @@ def bqc_compute_succ_prob_10(
 def bqc_inputs_3(server_id):
     # Input for a 3 qubit BQC app
     # The qubit is initialized to the |-> state
-    # Then three Z gates are applied so that the qubit is in the |+> state
+    # Then a Z gates is applied so that the qubit is in the |+> state
     # The finally output will be |+>
     # The thetas are randomized to hide the input state
     inputs = {
         "server_id" : server_id,
         "input0": 1,
         "x0": 0,
-        "angle0": 8,
+        "angle0": 16,
         "angle1": 0,
-        "angle2": 8,
+        "angle2": 0,
         "theta0": random.randint(0,32),
         "theta1": random.randint(0,32),
         "theta2": random.randint(0,32),
@@ -865,7 +860,7 @@ if __name__ == "__main__":
         config_file = open(config)
         config_obj = json.load(config_file)
         for key, val in config_obj.items():
-            print(key, val)
+            #print(key, val)
             params[key] = val
 
     params["num_clients"] = num_clients
@@ -956,7 +951,8 @@ if __name__ == "__main__":
                 random_server_inputs=params["random_server_inputs"],
                 server_input_func=[params["server_input_func"][prog_size_index]]
             )
-            print(f"Naive Results\tMakespan: {naive_makespan}\tSuccess Prob: {naive_succ_probs[(1,1)]}")
+            naive_succ_prob = naive_succ_probs[(1,1)]
+            print(f"Naive Results\tMakespan: {naive_makespan}\tSuccess Prob: {naive_succ_prob}")
 
             # Run opt version
             opt_succ_probs, opt_makespan = run_eval_exp(
@@ -989,4 +985,60 @@ if __name__ == "__main__":
                 random_server_inputs=params["random_server_inputs"],
                 server_input_func=[params["server_input_func"][prog_size_index]]
             )
-            print(f"Opt Results\tMakespan: {opt_makespan}\tSuccess Prob: {opt_succ_probs[(1,1)]}")
+            opt_succ_prob = opt_succ_probs[(1,1)]
+            print(f"Opt Results\tMakespan: {opt_makespan}\tSuccess Prob: {opt_succ_prob}")
+            
+            datapoints.append(DataPoint(
+                naive_makespan=naive_makespan,
+                opt_makespan=opt_makespan,
+                naive_succ_prob=naive_succ_prob,
+                opt_succ_prob=opt_succ_prob,
+                param_name=param_name,
+                param_value=param_val
+            ))
+            
+    # Finish computing how long the experiment took to run
+    end = time.time()
+    duration = round(end - start, 2)
+
+    # compute the path to the directory for storing data
+    abs_dir = relative_to_cwd(f"data")
+    Path(abs_dir).mkdir(parents=True, exist_ok=True)
+    last_path = os.path.join(abs_dir, "LAST.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}.json")
+
+    metadata = DataMeta(
+        timestamp=timestamp,
+        sim_duration=(start-end),
+        prog_name=params["prog_name"],
+        prog_sizes=program_sizes,
+        num_iterations=num_iterations,
+        num_clients=num_clients,
+        linear=params["linear"],
+        cc=params["cc"],
+        t1=params["t1"],
+        t2=params["t2"],
+        single_gate_dur=params["single_gate_dur"],
+        two_gate_dur=params["two_gate_dur"],
+        all_gate_dur=params["all_gate_dur"],
+        single_gate_fid=params["single_gate_fid"],
+        two_gate_fid=params["two_gate_fid"],
+        all_gate_fid=params["all_gate_fid"],
+        qnos_instr_proc_time=params["qnos_instr_proc_time"],
+        host_instr_time=params["host_instr_time"],
+        host_peer_latency=params["host_peer_latency"],
+        client_num_qubits=params["client_num_qubits"],
+        server_num_qubits=num_qubits,
+        param_name=param_name,
+    )
+
+    # Format the metadata and datapoints into a json object
+    data = Data(meta=metadata, data_points=datapoints)
+    json_data = asdict(data)
+
+    if save:
+        # Write the data
+        with open(last_path, "w") as datafile:
+            json.dump(json_data, datafile)
+        with open(timestamp_path, "w") as datafile:
+            json.dump(json_data, datafile)
