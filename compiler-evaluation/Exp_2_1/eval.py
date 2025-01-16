@@ -226,6 +226,10 @@ def run_eval_programs(
     bin_length: int = 0,
     link_duration: int = 1000,
     scheduling_alg: str = "",
+    random_client_inputs: bool = False,
+    client_input_func: List[function] = [],
+    random_server_inputs: bool = False,
+    server_input_func: List[function] = [] 
 ):
     """
 
@@ -254,12 +258,15 @@ def run_eval_programs(
     :param use_netschedule: _description_, defaults to False
     :param bin_length: _description_, defaults to 0
     :param scheduling_alg: _description_, defaults to ""
+    :param random_client_inputs: randomize client inputs
+    :param client_input_func: function used to randomize client inputs
     :return: _description_
     """
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
     # seed = random.randint(0, 1000)
     ns.set_random_state(seed=1)
+    random.seed(1)
 
     # Configure server node
     server_config = get_node_config(
@@ -300,7 +307,6 @@ def run_eval_programs(
     ]
 
     # Create the network
-    # needs rewrite...
     network = create_network(
         server_config,
         client_configs,
@@ -331,12 +337,17 @@ def run_eval_programs(
         # This is a client<->server application
         if prog_index < len(client_progs):
             for client_id in range(1, num_clients + 1):
-                server_inputs = [
-                    ProgramInput(
-                        {"client_id": client_id} | server_prog_args[prog_index]
-                    )
-                    for _ in range(server_num_iterations[prog_index])
-                ]
+                server_inputs = []
+                if random_server_inputs:
+                    server_inputs = [server_input_func[prog_index](client_id)
+                                     for _ in range(server_num_iterations[prog_index])]
+                else:
+                    server_inputs = [
+                        ProgramInput(
+                            {"client_id": client_id} | server_prog_args[prog_index]
+                        )
+                        for _ in range(server_num_iterations[prog_index])
+                    ]
 
                 server_unit_module = UnitModule.from_full_ehi(
                     server_procnode.memmgr.get_ehi()
@@ -378,11 +389,18 @@ def run_eval_programs(
     # Create the client batches
     for prog_index in range(len(client_progs)):
         for client_id in range(1, num_clients + 1):
+            
+            client_inputs = []
 
-            client_inputs = [
-                ProgramInput({"server_id": 0} | client_prog_args[prog_index])
-                for _ in range(client_num_iterations[prog_index])
-            ]
+            if random_client_inputs:
+                # Use the input function to generate the input for each program instance
+                client_inputs = [client_input_func[prog_index](0) 
+                                 for _ in range(client_num_iterations[prog_index])]
+            else:
+                client_inputs = [
+                    ProgramInput({"server_id": 0} | client_prog_args[prog_index])
+                    for _ in range(client_num_iterations[prog_index])
+                ]
 
             client_procnode = network.nodes[f"client_{client_id}"]
 
@@ -484,6 +502,10 @@ def run_eval_exp(
     link_duration: int = 1000,
     scheduling_alg: str = "",
     compute_succ_probs: List[function] = [],
+    random_client_inputs: bool = False,
+    client_input_func: List[function] = [],
+    random_server_inputs: bool = False,
+    server_input_func: List[function] = []
 ):
     exp_results = run_eval_programs(
         client_progs=client_progs,
@@ -512,6 +534,10 @@ def run_eval_exp(
         bin_length=bin_length,
         link_duration=link_duration,
         scheduling_alg=scheduling_alg,
+        random_client_inputs=random_client_inputs,
+        client_input_func=client_input_func,
+        random_server_inputs= random_server_inputs,
+        server_input_func = server_input_func
     )
 
     makespan = exp_results.total_duration
@@ -529,9 +555,10 @@ def run_eval_exp(
         for prog_index in range(len(compute_succ_probs)):
             # There will be one function to compute success probabilities for each program
             compute_succ_func = compute_succ_probs[prog_index]
+            
             if not callable(compute_succ_func):
                 continue
-
+            
             # This function computes the success probs for a client-server app
             if prog_index < len(client_progs):
                 # Need to compute the success probabilities for each client
@@ -559,8 +586,6 @@ def run_eval_exp(
                     succ_probs[(client_index + 1, prog_index + 1)] = compute_succ_func(
                         server_prog_results,
                         client_prog_results,
-                        server_prog_args[prog_index],
-                        client_prog_args[prog_index],
                     )
 
             # This function computes the success probs for a server only app
@@ -617,19 +642,161 @@ class Data:
     meta: DataMeta
     data_points: List[DataPoint]
 
+def rotation_server_input(client_id):
+    return ProgramInput({
+        "client_id" : client_id,
+        "state": random.randint(0,5)
+    })
 
-def bqc_compute_succ_prob(
-    server_batch_results, client_batch_results, server_prog_args, client_prog_args
+def rotation_client_input_generator(prog_size): 
+    def ret_input(server_id):
+        thetas = [random.randint(1,32) for i in range(0,prog_size-1)]
+        inputs = { 
+            f"theta{i}" : thetas[i] for i in range(0,prog_size-1)
+        }
+        inputs[f"theta{prog_size-1}"] = -1 * sum(thetas)
+        inputs["server_id"] = server_id
+        return ProgramInput(inputs)
+    return ret_input
+
+def rotation_compute_succ_prob(server_batch_results, client_batch_results):
+    results = [result.values["result"] for result in client_batch_results]
+    num_iterations = len(results)
+    # A success is when the program measures a 0
+    # (the measurement outcome is the same as the initial state)
+    successes = 0
+    for res in results:
+        if res == 0:
+            successes += 1
+    return (successes / num_iterations)
+
+def bqc_compute_succ_prob_3(
+    server_batch_results, client_batch_results
 ):
     num_iterations = len(client_batch_results)
-
     meas_outcomes = [
-        (result.values["m4"], result.values["m9"]) for result in client_batch_results
+        result.values["m2"] for result in client_batch_results
     ]
-    successes = [1 if outcome[0] == outcome[1] else 0 for outcome in meas_outcomes]
+    successes = [1 if (outcome == 0) else 0 for outcome in meas_outcomes]
 
     return sum(successes) / num_iterations
 
+def bqc_compute_succ_prob_5(
+    server_batch_results, client_batch_results
+):
+    num_iterations = len(client_batch_results)
+    meas_outcomes = [
+        result.values["m4"] for result in client_batch_results
+    ]
+    successes = [1 if (outcome == 0) else 0 for outcome in meas_outcomes]
+
+    return sum(successes) / num_iterations
+
+def bqc_compute_succ_prob_10(
+    server_batch_results, client_batch_results
+):
+    num_iterations = len(client_batch_results)
+    meas_outcomes = [
+        (result.values["m4"], result.values["m9"]) for result in client_batch_results
+    ]
+    successes = [1 if ((outcome[0] == outcome[1]) and (outcome[0] == 1)) else 0 for outcome in meas_outcomes]
+
+    return sum(successes) / num_iterations
+
+def bqc_inputs_3(server_id):
+    # Input for a 3 qubit BQC app
+    # The qubit is initialized to the |-> state
+    # Then three Z gates are applied so that the qubit is in the |+> state
+    # The finally output will be |+>
+    # The thetas are randomized to hide the input state
+    inputs = {
+        "server_id" : server_id,
+        "input0": 1,
+        "x0": 0,
+        "angle0": 8,
+        "angle1": 0,
+        "angle2": 8,
+        "theta0": random.randint(0,32),
+        "theta1": random.randint(0,32),
+        "theta2": random.randint(0,32),
+        "dummy0": 0,
+        "dummy1": 0,
+        "dummy2": 0
+    }
+    return ProgramInput(inputs)
+
+def bqc_inputs_5(server_id):
+    # Input for a 5 qubit BQC app
+    # The qubit is initialized to the |0> state
+    # Then an H gate is applied using three pi/2 measurements
+    # So the final qubit will be in the |+> state 
+    # The thetas are randomized to hide the input state
+    inputs = {
+        "server_id" : server_id,
+        "input0": 4,
+        "x0": 0,
+        "angle0": 8,
+        "angle1": 8,
+        "angle2": 8,
+        "angle3": 0,
+        "angle4": 0,
+        "theta0": random.randint(0,32),
+        "theta1": random.randint(0,32),
+        "theta2": random.randint(0,32),
+        "theta3": random.randint(0,32),
+        "theta4": random.randint(0,32),
+        "dummy0": 0,
+        "dummy1": 0,
+        "dummy2": 0,
+        "dummy3": 0,
+        "dummy4": 0,
+    }
+    return ProgramInput(inputs)
+
+def bqc_inputs_10(server_id):
+    # Input for a 10 qubit BQC app
+    # The two input qubits are initialized to |1> and |0>
+    # Then a CNOT gate is applied
+    # So the final state will be |11>
+    # The thetas are randomized to hide the input state
+    inputs = {
+        "server_id" : server_id,
+        "input0": 5,
+        "x0": 0,
+        "input5": 4,
+        "x5": 0,
+        "angle0": 0,
+        "angle1": 0,
+        "angle2": 8,
+        "angle3": 0,
+        "angle4": 0,
+        "angle5": 0,
+        "angle6": 8,
+        "angle7": 0,
+        "angle8": -8,
+        "angle9": 0,
+        "theta0": 0,
+        "theta1": random.randint(0,32),
+        "theta2": random.randint(0,32),
+        "theta3": random.randint(0,32),
+        "theta4": random.randint(0,32),
+        "theta5": random.randint(0,32),
+        "theta6": random.randint(0,32),
+        "theta7": random.randint(0,32),
+        "theta8": random.randint(0,32),
+        "theta9": random.randint(0,32),
+        "dummy0": 0,
+        "dummy1": 0,
+        "dummy2": 0,
+        "dummy3": 0,
+        "dummy4": 0,
+        "dummy5": 0,
+        "dummy6": 0,
+        "dummy7": 0,
+        "dummy8": 0,
+        "dummy9": 0,
+    }
+    return ProgramInput(inputs)
 
 if __name__ == "__main__":
     # LogManager.set_log_level("DEBUG")
@@ -637,51 +804,23 @@ if __name__ == "__main__":
     # LogManager.set_task_log_level("DEBUG")
     # LogManager.log_tasks_to_file("eval_debug_TASKS.log")
 
+    # Succ prob function map
+    succ_prob_func = {
+        "bqc_compute_succ_prob_3" : bqc_compute_succ_prob_3,
+        "bqc_compute_succ_prob_5" : bqc_compute_succ_prob_5,
+        "bqc_compute_succ_prob_10" : bqc_compute_succ_prob_10,
+    }
+
+    # Input function map
+    client_input_func = {
+        "bqc_inputs_3" : bqc_inputs_3,
+        "bqc_inputs_5" : bqc_inputs_5,
+        "bqc_inputs_10" : bqc_inputs_10,
+    }
+
     # Default values
-    params = {
-        "client_progs": ["programs/bqc/vbqc_client_10.iqoala"],
-        "server_progs": ["programs/bqc/vbqc_server_10.iqoala"],
-        "client_prog_args": [
-            {
-                "input0": 5,
-                "x0": 0,
-                "input5": 4,
-                "x5": 0,
-                "angle0": 0,
-                "angle1": 0,
-                "angle2": 8,
-                "angle3": 0,
-                "angle4": 0,
-                "angle5": 0,
-                "angle6": 8,
-                "angle7": 0,
-                "angle8": -8,
-                "angle9": 0,
-                "theta0": 3,
-                "theta1": 7,
-                "theta2": 3,
-                "theta3": 9,
-                "theta4": 0,
-                "theta5": 12,
-                "theta6": 2,
-                "theta7": 18,
-                "theta8": 24,
-                "theta9": 0,
-                "dummy0": 0,
-                "dummy1": 0,
-                "dummy2": 0,
-                "dummy3": 0,
-                "dummy4": 0,
-                "dummy5": 0,
-                "dummy6": 0,
-                "dummy7": 0,
-                "dummy8": 0,
-                "dummy9": 0,
-            },
-        ],
-        "server_prog_args": [{}, {}],
-        "client_num_iterations": [],
-        "server_num_iterations": [],
+    params = { 
+        "prog_name": "vbqc",
         "num_clients": 1,
         "linear": True,
         "cc": 0,
@@ -694,19 +833,18 @@ if __name__ == "__main__":
         "two_gate_fid": 1.0,
         "all_gate_fid": 1.0,
         "qnos_instr_proc_time": 0,
-        "host_instr_time": 0,
+        "host_instr_time": 100,
         "host_peer_latency": 0,
         "client_num_qubits": 20,
         "use_netschedule": False,
-        "bin_length": 1e5,
-        "link_duration": 1e2,
-        "compute_succ_probs": [bqc_compute_succ_prob],
+        "bin_length": 0,
+        "link_duration": 0,
     }
 
     parser = ArgumentParser()
     parser.add_argument("--num_clients", "-c", type=int, required=True)
     parser.add_argument("--num_iterations", "-n", type=int, nargs="+", required=True)
-    parser.add_argument("--default_params_file", type=str, required=False)
+    parser.add_argument("--config", type=str, required=False)
     parser.add_argument("--param_name", type=str, required=False)
     parser.add_argument("--param_values", type=float, nargs="+", required=False)
     parser.add_argument("--param_sweep_list", type=str, nargs="+", required=False)
@@ -716,17 +854,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
     num_clients = args.num_clients
     num_iterations = args.num_iterations
-    params_filename = args.default_params_file
+    config = args.config
     param_name = args.param_name
     param_vals = args.param_values
     param_sweep_list = args.param_sweep_list
     save = args.save
 
-    if params_filename is not None:
+    if config is not None:
         # Load param values from .json file
-        params_file = open(params_filename)
-        params_obj = json.load(params_file)
-        for key, val in params_obj.items():
+        config_file = open(config)
+        config_obj = json.load(config_file)
+        for key, val in config_obj.items():
             print(key, val)
             params[key] = val
 
@@ -734,6 +872,7 @@ if __name__ == "__main__":
     params["client_num_iterations"] = num_iterations
     params["server_num_iterations"] = num_iterations
 
+    # Load the configuration
     if param_name is None:
         if param_sweep_list is not None:
             param_name = param_sweep_list[0]
@@ -742,39 +881,112 @@ if __name__ == "__main__":
             param_name = "cc"
             param_vals = [params["cc"]]
 
+    # Finish the setup
+    program_sizes = []
+    if params["prog_name"] == "vbqc":
+        program_sizes = [3,5,10]
+        params["client_progs"] = [f"programs/bqc/vbqc_client_{i}.iqoala" for i in program_sizes]
+        
+        params["server_progs_naive"] = [f"programs/bqc/vbqc_server_{i}_naive.iqoala" for i in program_sizes]
+        params["server_progs_opt"] = [f"programs/bqc/vbqc_server_{i}_opt.iqoala" for i in program_sizes]
+        
+        params["random_client_inputs"] = True
+        params["client_input_func"] = [client_input_func[f"bqc_inputs_{i}"] for i in program_sizes]
+
+        params["random_server_inputs"] = False
+        params["server_input_func"] = [[] for i in program_sizes]
+
+        params["compute_succ_probs"] = [succ_prob_func[f"bqc_compute_succ_prob_{i}"] for i in program_sizes]
+    elif params["prog_name"] == "rotation":
+        program_sizes = [2,4,6,8,10]
+
+        params["client_progs"] = [f"programs/rotation/rotation_client_{i}.iqoala" for i in program_sizes]
+        
+        params["server_progs_naive"] = [f"programs/rotation/rotation_server_{i}_naive.iqoala" for i in program_sizes]
+        params["server_progs_opt"] = [f"programs/rotation/rotation_server_{i}_opt.iqoala" for i in program_sizes]
+        
+        params["random_client_inputs"] = True
+        params["client_input_func"] = [rotation_client_input_generator(i) for i in program_sizes]
+
+        params["random_server_inputs"] = True
+        params["server_input_func"] = [rotation_server_input for i in program_sizes]
+
+        params["compute_succ_probs"] = [rotation_compute_succ_prob for i in program_sizes]
+    else:
+        print("Please enter a valid program name. Either 'vbqc' OR 'rotation'")
+    
+
     datapoints: List[DataPoint] = []
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     start = time.time()
     num_qubits = 10
-    for param_val in param_vals:
-        params[param_name] = param_val
-        # Run selfish version
-        succ_probs, makespan = run_eval_exp(
-            client_progs=params["client_progs"],
-            server_progs=params["server_progs"],
-            client_prog_args=params["client_prog_args"],
-            server_prog_args=params["server_prog_args"],
-            client_num_iterations=params["client_num_iterations"],
-            server_num_iterations=params["server_num_iterations"],
-            num_clients=params["num_clients"],
-            server_num_qubits=num_qubits,
-            client_num_qubits=params["client_num_qubits"],
-            linear=params["linear"],
-            use_netschedule=params["use_netschedule"],
-            bin_length=params["bin_length"],
-            cc=params["cc"],
-            t1=params["t1"],
-            t2=params["t2"],
-            host_instr_time=params["host_instr_time"],
-            host_peer_latency=params["host_peer_latency"],
-            qnos_instr_proc_time=params["qnos_instr_proc_time"],
-            single_gate_dur=params["single_gate_dur"],
-            two_gate_dur=params["two_gate_dur"],
-            single_gate_fid=params["single_gate_fid"],
-            two_gate_fid=params["two_gate_fid"],
-            link_duration=params["link_duration"],
-            compute_succ_probs=params["compute_succ_probs"],
-        )
-        print(f"Results\tMakespan: {makespan}\tSuccess Prob: {succ_probs}")
+    for prog_size_index in range(0,len(program_sizes)):
+        for param_val in param_vals:
+            params[param_name] = param_val
+            # Run naive version
+            naive_succ_probs, naive_makespan = run_eval_exp(
+                client_progs=[params["client_progs"][prog_size_index]],
+                server_progs=[params["server_progs_naive"][prog_size_index]],
+                client_prog_args=[{}],
+                server_prog_args=[{}],
+                client_num_iterations=params["client_num_iterations"],
+                server_num_iterations=params["server_num_iterations"],
+                num_clients=params["num_clients"],
+                server_num_qubits=num_qubits,
+                client_num_qubits=params["client_num_qubits"],
+                linear=params["linear"],
+                use_netschedule=params["use_netschedule"],
+                bin_length=params["bin_length"],
+                cc=params["cc"],
+                t1=params["t1"],
+                t2=params["t2"],
+                host_instr_time=params["host_instr_time"],
+                host_peer_latency=params["host_peer_latency"],
+                qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                single_gate_dur=params["single_gate_dur"],
+                two_gate_dur=params["two_gate_dur"],
+                single_gate_fid=params["single_gate_fid"],
+                two_gate_fid=params["two_gate_fid"],
+                link_duration=params["link_duration"],
+                compute_succ_probs=[params["compute_succ_probs"][prog_size_index]],
+                random_client_inputs=params["random_client_inputs"],
+                client_input_func=[params["client_input_func"][prog_size_index]],
+                random_server_inputs=params["random_server_inputs"],
+                server_input_func=[params["server_input_func"][prog_size_index]]
+            )
+            print(f"Naive Results\tMakespan: {naive_makespan}\tSuccess Prob: {naive_succ_probs[(1,1)]}")
+
+            # Run opt version
+            opt_succ_probs, opt_makespan = run_eval_exp(
+                client_progs=[params["client_progs"][prog_size_index]],
+                server_progs=[params["server_progs_opt"][prog_size_index]],
+                client_prog_args=[{}],
+                server_prog_args=[{}],
+                client_num_iterations=params["client_num_iterations"],
+                server_num_iterations=params["server_num_iterations"],
+                num_clients=params["num_clients"],
+                server_num_qubits=num_qubits,
+                client_num_qubits=params["client_num_qubits"],
+                linear=params["linear"],
+                use_netschedule=params["use_netschedule"],
+                bin_length=params["bin_length"],
+                cc=params["cc"],
+                t1=params["t1"],
+                t2=params["t2"],
+                host_instr_time=params["host_instr_time"],
+                host_peer_latency=params["host_peer_latency"],
+                qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                single_gate_dur=params["single_gate_dur"],
+                two_gate_dur=params["two_gate_dur"],
+                single_gate_fid=params["single_gate_fid"],
+                two_gate_fid=params["two_gate_fid"],
+                link_duration=params["link_duration"],
+                compute_succ_probs=[params["compute_succ_probs"][prog_size_index]],
+                random_client_inputs=params["random_client_inputs"],
+                client_input_func=[params["client_input_func"][prog_size_index]],
+                random_server_inputs=params["random_server_inputs"],
+                server_input_func=[params["server_input_func"][prog_size_index]]
+            )
+            print(f"Opt Results\tMakespan: {opt_makespan}\tSuccess Prob: {opt_succ_probs[(1,1)]}")

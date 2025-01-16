@@ -1,0 +1,21 @@
+{ 
+    "prog_name": "rotation",
+    "num_clients": 1,
+    "linear": true,
+    "cc": 0,
+    "t1": 1e9,
+    "t2": 1e9,
+    "single_gate_dur": 0,
+    "two_gate_dur": 0,
+    "all_gate_dur": 0,
+    "single_gate_fid": 0.99,
+    "two_gate_fid": 1.0,
+    "all_gate_fid": 1.0,
+    "qnos_instr_proc_time": 1,
+    "host_instr_time": 0,
+    "host_peer_latency": 0,
+    "client_num_qubits": 2,
+    "use_netschedule": false,
+    "bin_length": 0,
+    "link_duration":0 
+}
