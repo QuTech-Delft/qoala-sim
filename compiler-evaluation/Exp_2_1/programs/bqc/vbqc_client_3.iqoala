@@ -42,25 +42,17 @@ META_END
     epr2_rot_y = bcond_mult_const(epr_rot_y, dummy2) : 0
     epr2_rot_z = bcond_mult_const(epr_rot_z, dummy2) : 0
 
+// Now we send the qubit to the server via teleportation
+^b1 {type = QC}:
+   run_request() : req 
 
 // Prepare the qubit to the input state
-^b1 {type = QL}:
+^b10 {type = QL}:
    run_subroutine(tuple<input0; x0; theta0>) : prepare_qubit 
-
-// Now we need to (optionally) mask the qubit
-
-// Now we send the qubit to the server via teleportation
-^b10 {type = QC}:
-   run_request() : req 
 
 // Measure
 ^b11 {type = QL}:
     tuple<x_correction; z_correction> = run_subroutine() : teleport
-
-// Send corrections
-^b12 {type = CL}:
-  send_cmsg(csocket, x_correction)
-  send_cmsg(csocket, z_correction)
 
 // Teleport the remaining |+> (possibly rotated by theta) states to form the cluster state
 ^b13 {type = QC}:
@@ -69,25 +61,27 @@ META_END
 ^b14 {type=QL}:
   tuple<p1> = run_subroutine(tuple<theta1; epr1_rot_y; epr1_rot_z>) : post_epr
 
-// Send correction
-^b15 {type=CL}:
-  send_cmsg(csocket, p1)
-
 ^b16 {type = QC}:
   run_request() : req
 
 ^b17 {type=QL}:
   tuple<p2> = run_subroutine(tuple<theta2; epr2_rot_y; epr2_rot_z>) : post_epr
 
-// Send correction
-^b18 {type=CL}:
-  send_cmsg(csocket, p2)
-
 // This is 3 requests so the cluster state will be a linear chain
 // Send corrections to quantum state
 
-// TODO doublecheck if something needs to be changed regarding corrections if one (or more) qubits are dummies
-// If the qubit is a dummy, we don't send the measurement angle... JUST theta and x_correction actually this shouldn't matter since measuring a Z qubit in the X,Y basis will still yield equally likely outcomes for 0,1
+^b18 {type = CL}:
+  send_cmsg(csocket, x_correction)
+  send_cmsg(csocket, z_correction)
+
+// Send correction
+^b19 {type=CL}:
+  send_cmsg(csocket, p1)
+
+// Send correction
+^b20 {type=CL}:
+  send_cmsg(csocket, p2)
+
 ^b30 {type = CL}:
     one = assign_cval() : 1
     neg_one = assign_cval() : -1

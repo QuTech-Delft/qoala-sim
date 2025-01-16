@@ -12,33 +12,33 @@ META_END
 ^b1 {type = QC}:
     run_request() : req0
 
-^b2 {type = CC}:
-    x_correction = recv_cmsg(csocket)
-
-^b3 {type = CC}:
-    z_correction = recv_cmsg(csocket)
-
-^b4 {type = QL}: 
-    run_subroutine(tuple<x_correction; z_correction>) : teleport_corrections0
-
-^b20 {type = QC}:
+^b2 {type = QC}:
     run_request() : req1
 
-// Teleportation Z corrections
-^b21 {type = CC}:
-    p1 = recv_cmsg(csocket)
-
-^b22 {type = QL}:
-    run_subroutine(tuple<p1>) : zcorrect_qubit_1
-
-^b30 {type = QC}:
+^b3 {type = QC}:
     run_request() : req2
 
+^b4 {type = CC}:
+    x_correction = recv_cmsg(csocket)
+
+^b5 {type = CC}:
+    z_correction = recv_cmsg(csocket)
+
+^b6 {type = QL}: 
+    run_subroutine(tuple<x_correction; z_correction>) : teleport_corrections0
+
 // Teleportation Z corrections
-^b31 {type = CC}:
+^b7 {type = CC}:
+    p1 = recv_cmsg(csocket)
+
+^b8 {type = QL}:
+    run_subroutine(tuple<p1>) : zcorrect_qubit_1
+
+// Teleportation Z corrections
+^b9 {type = CC}:
     p2 = recv_cmsg(csocket)
 
-^b32 {type = QL}:
+^b10 {type = QL}:
     run_subroutine(tuple<p2>) : zcorrect_qubit_2
 
 ^b56 {type = QL}:
@@ -66,8 +66,8 @@ META_END
     delta2 = recv_cmsg(csocket)
 
 ^b64 {type = QL}:
-    tuple<m2> = run_subroutine(tuple<m1>) : zmeas_qubit_2
-    //tuple<m2> = run_subroutine(tuple<delta2>) : meas_qubit_2
+    //tuple<m2> = run_subroutine(tuple<m1>) : zmeas_qubit_2
+    tuple<m2> = run_subroutine(tuple<delta2>) : meas_qubit_2
 
 ^b65 {type = CL}:
     send_cmsg(csocket, m2)
