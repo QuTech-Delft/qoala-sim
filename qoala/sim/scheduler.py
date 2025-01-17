@@ -972,11 +972,15 @@ class CpuScheduler(ProcessorScheduler):
             tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
         ]
 
-        return [
+        # In scenarios of a batch with multiple iterations, we could be waiting for
+        # messages from the same peer; include them only once in the list (so we use
+        # a dictionary for storing peer names)
+        peer_names = {
             self._get_peer_name_for_tid(tid)
             for tid in event_no_predecessors
             if not self.is_message_available(tid)
-        ]
+        }
+        return list(peer_names)
 
     def update_status(self):
         tg = self._task_graph
@@ -1081,8 +1085,10 @@ class CpuScheduler(ProcessorScheduler):
                     )
 
                     ev_expr = ev_msg_arrived | ev_expr
+                    self._task_logger.debug(f"AAAA sleeping on: {waiting_msg_from_peer}")
                     yield ev_expr
                     if len(ev_expr.first_term.triggered_events) > 0:
+                        self._task_logger.debug(f"AAAA waking up on first term: {waiting_msg_from_peer}")
                         # It was "ev_msg_arrived" that triggered.
                         # Need to process this event (flushing potential other messages)
                         # WARNING: We should yield _on messages from peers that we are waiting
