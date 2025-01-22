@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import ent_rate
 import json
 import math
 import os
@@ -81,12 +82,13 @@ def create_network(
     use_netschedule: bool,
     bin_length: float,
     link_duration: int = 1000,
+    link_fid: float = 1.0,
 ) -> ProcNodeNetwork:
     assert len(client_configs) == num_clients
 
     node_cfgs = [server_cfg] + client_configs
-    network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        nodes=node_cfgs, link_duration=link_duration
+    network_cfg = ProcNodeNetworkConfig.from_nodes_imperfect_links(
+        nodes=node_cfgs, link_fid=link_fid, link_duration=link_duration
     )
 
     # pattern = []
@@ -225,6 +227,7 @@ def run_eval_programs(
     use_netschedule: bool = False,
     bin_length: int = 0,
     link_duration: int = 1000,
+    link_fid: float = 1.0,
     scheduling_alg: str = "",
     random_client_inputs: bool = False,
     client_input_func: List[function] = [],
@@ -316,6 +319,7 @@ def run_eval_programs(
         use_netschedule,
         bin_length,
         link_duration,
+        link_fid
     )
 
     server_procnode = network.nodes["server"]
@@ -500,6 +504,7 @@ def run_eval_exp(
     use_netschedule: bool = False,
     bin_length: int = 0,
     link_duration: int = 1000,
+    link_fid: float = 1.0,
     scheduling_alg: str = "",
     compute_succ_probs: List[function] = [],
     random_client_inputs: bool = False,
@@ -533,6 +538,7 @@ def run_eval_exp(
         use_netschedule=use_netschedule,
         bin_length=bin_length,
         link_duration=link_duration,
+        link_fid=link_fid,
         scheduling_alg=scheduling_alg,
         random_client_inputs=random_client_inputs,
         client_input_func=client_input_func,
@@ -609,6 +615,8 @@ class DataPoint:
 class DataMeta:
     timestamp: str
     sim_duration: float
+    hardware: str
+    qia_sga: int
     prog_name: str 
     prog_sizes: List[int]
     num_iterations: int
@@ -631,6 +639,8 @@ class DataMeta:
     # use_netschedule: bool
     # bin_length: int
     param_name: str  # The parameter being varied
+    link_duration: int
+    link_fid: float
 
 @dataclass
 class Data:
@@ -683,7 +693,7 @@ def bqc_compute_succ_prob_5(
     meas_outcomes = [
         result.values["m4"] for result in client_batch_results
     ]
-    successes = [1 if (outcome == 0) else 0 for outcome in meas_outcomes]
+    successes = [1 if (outcome == 1) else 0 for outcome in meas_outcomes]
 
     return sum(successes) / num_iterations
 
@@ -722,13 +732,13 @@ def bqc_inputs_3(server_id):
 
 def bqc_inputs_5(server_id):
     # Input for a 5 qubit BQC app
-    # The qubit is initialized to the |0> state
+    # The qubit is initialized to the |1> state
     # Then an H gate is applied using three pi/2 measurements
-    # So the final qubit will be in the |+> state 
+    # So the final qubit will be in the |-> state 
     # The thetas are randomized to hide the input state
     inputs = {
         "server_id" : server_id,
-        "input0": 4,
+        "input0": 5,
         "x0": 0,
         "angle0": 8,
         "angle1": 8,
@@ -816,6 +826,8 @@ if __name__ == "__main__":
     # Default values
     params = { 
         "prog_name": "vbqc",
+        "hardware": "TI",
+        "distance": 0,
         "num_clients": 1,
         "linear": True,
         "cc": 0,
@@ -910,6 +922,12 @@ if __name__ == "__main__":
     else:
         print("Please enter a valid program name. Either 'vbqc' OR 'rotation'")
     
+    # We now want to change all other fidelity parameters to be perfect
+    if param_name == "gate_fid":
+        params["t1"] = 0
+        params["t2"] = 0
+        params["link_fid"] = 1
+        
 
     datapoints: List[DataPoint] = []
 
@@ -918,8 +936,20 @@ if __name__ == "__main__":
     start = time.time()
     num_qubits = 10
     for prog_size_index in range(0,len(program_sizes)):
+        print(f"Results for program size: {program_sizes[prog_size_index]}")
         for param_val in param_vals:
+            print(f"Results for {param_name} : {param_val}")
             params[param_name] = param_val
+
+            hardware = params["hardware"]
+            params["cc"] = ent_rate.cc_time(distance=params["distance"])
+            if hardware == "TI":
+                link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
+                params["link_duration"] = link_duration
+                params["link_fid"] = link_fid
+            elif hardware == "NV":
+                pass
+
             # Run naive version
             naive_succ_probs, naive_makespan = run_eval_exp(
                 client_progs=[params["client_progs"][prog_size_index]],
@@ -945,6 +975,7 @@ if __name__ == "__main__":
                 single_gate_fid=params["single_gate_fid"],
                 two_gate_fid=params["two_gate_fid"],
                 link_duration=params["link_duration"],
+                link_fid=params["link_fid"],
                 compute_succ_probs=[params["compute_succ_probs"][prog_size_index]],
                 random_client_inputs=params["random_client_inputs"],
                 client_input_func=[params["client_input_func"][prog_size_index]],
@@ -979,6 +1010,7 @@ if __name__ == "__main__":
                 single_gate_fid=params["single_gate_fid"],
                 two_gate_fid=params["two_gate_fid"],
                 link_duration=params["link_duration"],
+                link_fid=params["link_fid"],
                 compute_succ_probs=[params["compute_succ_probs"][prog_size_index]],
                 random_client_inputs=params["random_client_inputs"],
                 client_input_func=[params["client_input_func"][prog_size_index]],
@@ -1011,6 +1043,8 @@ if __name__ == "__main__":
         timestamp=timestamp,
         sim_duration=(start-end),
         prog_name=params["prog_name"],
+        hardware=params["hardware"],
+        qia_sga=params["qia_sga"],
         prog_sizes=program_sizes,
         num_iterations=num_iterations,
         num_clients=num_clients,

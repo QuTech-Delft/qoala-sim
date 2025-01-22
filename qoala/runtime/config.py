@@ -2085,3 +2085,25 @@ class ProcNodeNetworkConfig(BaseModel):
                 )
             )
         return ProcNodeNetworkConfig(nodes=nodes, links=links)
+
+    @classmethod
+    def from_nodes_imperfect_links(
+        cls, nodes: List[ProcNodeConfig], link_duration: float, link_fid: float
+    ) -> ProcNodeNetworkConfig:
+        """
+        Creates a network configuration with identical depolarizing quantum channels between all nodes
+        :param nodes: Connected nodes in the network 
+        :param link_duration: Time to generate entanglement (ns)
+        :param link_fid: Fidelity of the resulting EPR pair 
+        :return: Network configuration 
+        """
+        links: List[LinkBetweenNodesConfig] = []
+        for node1, node2 in itertools.combinations(nodes, 2):
+            links.append(
+                LinkBetweenNodesConfig(
+                    node_id1=node1.node_id,
+                    node_id2=node2.node_id,
+                    link_config=LinkConfig.simple_depolarise_config(link_fid, link_duration),
+                )
+            )
+        return ProcNodeNetworkConfig(nodes=nodes, links=links)
