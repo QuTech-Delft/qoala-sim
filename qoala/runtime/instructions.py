@@ -154,10 +154,48 @@ class IBichromaticGate(Instruction):
         operator = self.construct_operator(n=len(positions), angle=angle)
         # print("operator: \n", np.around(operator.arr, 2))
         quantum_memory.operate(positions=positions, operator=operator)
+ 
+class IMSGate(Instruction):
+    """
+    ms gate instruction.
+    """
 
+    @property
+    def name(self) -> str:
+        """instruction name."""
+        return "ms"
 
+    @property
+    def num_positions(self) -> int:
+        """number of targeted memory positions. If -1, number is unrestricted."""
+        return 2 
+
+    def execute(
+        self,
+        quantum_memory: QuantumMemory,
+        positions: List[int],
+        angle: float,
+        **kwargs
+    ) -> None:
+        """Execute instruction on a quantum memory.
+
+        :param quantum_memory: NetSquid Quantum memory to execute instruction on.
+        :param positions: Memory positions to do instruction on. 
+        """
+        cos_term = np.cos(angle)
+        sin_term = -1j*np.sin(angle)
+        operator = np.array([
+            [cos_term,0,0,sin_term],
+            [0,cos_term,sin_term,0],
+            [0,sin_term,cos_term,0],
+            [sin_term,0,0,cos_term]
+        ])
+        # print("operator: \n", np.around(operator.arr, 2))
+        quantum_memory.operate(positions=positions, operator=operator)
+ 
 INSTR_MEASURE_ALL = IMeasAll()
 INSTR_ROT_X_ALL = IRotationAllGate("x_rot_all_gate", axis=(1, 0, 0))
 INSTR_ROT_Y_ALL = IRotationAllGate("y_rot_all_gate", axis=(0, 1, 0))
 INSTR_ROT_Z_ALL = IRotationAllGate("z_rot_all_gate", axis=(0, 0, 1))
 INSTR_BICHROMATIC = IBichromaticGate()
+INSTR_MS = IMSGate()

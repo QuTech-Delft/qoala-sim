@@ -27,6 +27,7 @@ from netsquid.components.instructions import Instruction as NsInstr
 from pydynaa import EventExpression
 from qoala.lang.routine import LocalRoutine
 from qoala.runtime.instructions import (
+    INSTR_MS,
     INSTR_BICHROMATIC,
     INSTR_MEASURE_ALL,
     INSTR_ROT_X_ALL,
@@ -875,6 +876,36 @@ class IonTrapProcessor(QnosProcessor):
         commands = [QDeviceCommand(INSTR_BICHROMATIC, angle=angle)]
         yield from self.qdevice.execute_commands(commands)
         return None
+    
+    def _interpret_ms_instr(
+        self, pid: int, instr: trapped_ion_ionq.MSInstruction 
+    ) -> Generator[EventExpression, None, None]:
+        qnos_mem = self._prog_mem().qnos_mem
+        virt_id0 = qnos_mem.get_reg_value(instr.reg0)
+        phys_id0 = self._interface.memmgr.phys_id_for(pid, virt_id0)
+        if phys_id0 is None:
+            raise NotAllocatedError
+        virt_id1 = qnos_mem.get_reg_value(instr.reg1)
+        phys_id1 = self._interface.memmgr.phys_id_for(pid, virt_id1)
+        if phys_id1 is None:
+            raise NotAllocatedError
+
+        if isinstance(instr.angle_num, Register):
+            n = qnos_mem.get_reg_value(instr.angle_num)
+        else:
+            n = instr.angle_num.value
+        if isinstance(instr.angle_denom, Register):
+            d = qnos_mem.get_reg_value(instr.angle_denom)
+        else:
+            d = instr.angle_denom.value
+        angle = self._get_rotation_angle_from_operands(n=n, d=d)
+        self._logger.debug(f"Performing {instr} with angle {angle} on physical qubits {phys_id0, phys_id1}")
+
+        commands = [QDeviceCommand(INSTR_MS, [phys_id0, phys_id1], angle=angle)]
+        yield from self.qdevice.execute_commands(commands)
+        return None
+
+
 
     def _interpret_other_instr(
         self, pid: int, instr: NetQASMInstruction
@@ -891,5 +922,7 @@ class IonTrapProcessor(QnosProcessor):
             yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_Y_ALL)
         elif isinstance(instr, trapped_ion.AllQubitsRotZInstruction):
             yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_Z_ALL)
+        elif isinstance(instr,trapped_ion_ionq.MSInstruction):
+            yield from self._interpret_ms_instr(instr)
         else:
             raise UnsupportedNetqasmInstructionError
