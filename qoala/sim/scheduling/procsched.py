@@ -12,8 +12,10 @@ from netsquid.protocols import Protocol
 from pydynaa import EventExpression
 from qoala.runtime.task import QoalaTask, TaskGraph, TaskInfo
 from qoala.sim.driver import Driver
+from qoala.runtime.message import Message
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.memmgr import MemoryManager
+from qoala.sim.scheduling.schedmsg import TaskFinishedMsg
 from qoala.util.logging import LogManager
 
 
@@ -27,7 +29,7 @@ class ProcessorSchedulerComponent(Component):
 
     def __init__(self, name):
         super().__init__(name=name)
-        self.add_ports(["node_scheduler_in"])
+        self.add_ports(["node_scheduler_in", "node_scheduler_out"])
 
     @property
     def node_scheduler_in_port(self) -> Port:
@@ -36,8 +38,30 @@ class ProcessorSchedulerComponent(Component):
         """
         return self.ports["node_scheduler_in"]
 
+    @property
+    def node_scheduler_out_port(self) -> Port:
+        """
+        Port that this component uses to send messages to the node scheduler.
+        """
+        return self.ports["node_scheduler_out"]
+
+    def send_node_scheduler_message(self, msg: Message) -> None:
+        """
+        Send a message to the CPU scheduler.
+        :param msg: Message to send.
+        :return: None
+        """
+        self.node_scheduler_out_port.tx_output(msg)
+
+
+@dataclass
+class ActiveCriticalSection:
+    pid: int  # program instance ID
+    cs_id: int  # critical section ID
+
 
 class ProcessorScheduler(Protocol):
+
     def __init__(
         self,
         name: str,
@@ -75,11 +99,15 @@ class ProcessorScheduler(Protocol):
         self._comp = ProcessorSchedulerComponent(name + "_comp")
 
         self._status: SchedulerStatus = SchedulerStatus(status=set(), params={})
-        self._critical_section: Optional[int] = None
+        self._critical_section: Optional[ActiveCriticalSection] = None
 
     @property
     def node_scheduler_in_port(self) -> Port:
         return self._comp.node_scheduler_in_port
+
+    @property
+    def node_scheduler_out_port(self) -> Port:
+        return self._comp.node_scheduler_out_port
 
     @property
     def driver(self) -> Driver:
@@ -188,8 +216,10 @@ class ProcessorScheduler(Protocol):
         # TODO: do something with critical sections
         # task.critical_section
         if task.critical_section is not None:
-            self._critical_section = task.critical_section
-            self._task_logger.debug(
+            self._critical_section = ActiveCriticalSection(
+                task.pid, task.critical_section
+            )
+            self._task_logger.info(
                 f"setting critical_section to {self._critical_section} because starting task {task}"
             )
 
@@ -219,7 +249,15 @@ class ProcessorScheduler(Protocol):
             self._task_graph.remove_task(task_id)
 
             self._finished_tasks.append(task.task_id)
+
+            # Send (1) signal and (2) message saying the task completed.
+            # (1) signal: no info other than that "a" task finished;
+            #             it is broadcast, so the other proc scheduler sees it
+            # (2) Message to Node Scheduler, with info which task finished.
             self.send_signal(SIGNAL_TASK_COMPLETED)
+            msg = TaskFinishedMsg(task.processor_type, task.pid, task.task_id)
+            self._comp.send_node_scheduler_message(Message(-1, -1, msg))
+
             self._logger.info(f"finished task {task}")
             if is_busy_task:
                 self._task_logger.info(f"BUSY finish {task}")

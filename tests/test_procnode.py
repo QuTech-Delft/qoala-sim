@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Type
+from netsquid.protocols import Protocol
 
 import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
@@ -218,6 +219,7 @@ class MockScheduler(NodeScheduler):
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
         self._is_predictable = True
+        self._interface = Protocol()
         pass
 
     def schedule_next_for(self, pid: int) -> None:

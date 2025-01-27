@@ -75,24 +75,43 @@ class CpuScheduler(ProcessorScheduler):
             self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
             return
 
+        if self._critical_section is not None:
+            cs = self._critical_section  # to make following lines more compact
+            tasks = tg.get_tasks()
+            cs_tasks = [
+                tinfo.task
+                for _, tinfo in tasks.items()
+                if (tinfo.task.critical_section == cs.cs_id)
+                and (tinfo.task.pid == cs.pid)
+            ]
+            if len(cs_tasks) == 0:
+                self._task_logger.info(
+                    "setting critical_section to False since no more tasks in graph"
+                )
+                self._critical_section = None
+
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
+            cs = self._critical_section  # to make following lines more compact
             no_predecessors = [
                 t
                 for t in no_predecessors
-                if tg.get_tinfo(t).task.critical_section == self._critical_section
+                if (tg.get_tinfo(t).task.critical_section == cs.cs_id)
+                and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
 
         # All tasks that have only external predecessors.
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
+            cs = self._critical_section  # to make following lines more compact
             blocked_on_other_core = [
                 t
                 for t in blocked_on_other_core
-                if tg.get_tinfo(t).task.critical_section == self._critical_section
+                if (tg.get_tinfo(t).task.critical_section == cs.cs_id)
+                and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
 
         # All "receive message" tasks without predecessors (internal nor external).
@@ -126,7 +145,7 @@ class CpuScheduler(ProcessorScheduler):
             if tid not in event_blocked_on_message and tid not in with_future_start
         ]
         ready_task_dict = {tid: str(tg.get_tinfo(tid).task) for tid in ready}
-        self._task_logger.debug(f"ready tasks: {ready}\n{ready_task_dict}")
+        self._task_logger.info(f"ready tasks: {ready}\n{ready_task_dict}")
 
         if len(ready) > 0:
             # self._task_logger.warning(f"ready tasks: {ready}")

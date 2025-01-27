@@ -10,6 +10,7 @@ from netsquid.components import QuantumProcessor
 from netsquid.qubits import ketstates, qubitapi
 
 from pydynaa import EventExpression
+from netsquid.protocols import Protocol
 from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import QoalaParser
@@ -40,6 +41,7 @@ class MockScheduler(NodeScheduler):
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
         self._is_predictable = True
+        self._interface = Protocol()
         pass
 
     def schedule_next_for(self, pid: int) -> None:

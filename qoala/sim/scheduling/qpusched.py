@@ -169,7 +169,7 @@ class QpuScheduler(ProcessorScheduler):
     def update_status(self) -> None:
         tg = self._task_graph
 
-        self._task_logger.debug(
+        self._task_logger.info(
             f"update_status(): critical_section = {self._critical_section}"
         )
         if tg is None or len(tg.get_tasks()) == 0:
@@ -180,14 +180,31 @@ class QpuScheduler(ProcessorScheduler):
             self._status = SchedulerStatus(status={Status.GRAPH_EMPTY}, params={})
             return
 
+        if self._critical_section is not None:
+            cs = self._critical_section  # to make following lines more compact
+            tasks = tg.get_tasks()
+            cs_tasks = [
+                tinfo.task
+                for _, tinfo in tasks.items()
+                if (tinfo.task.critical_section == cs.cs_id)
+                and (tinfo.task.pid == cs.pid)
+            ]
+            if len(cs_tasks) == 0:
+                self._task_logger.info(
+                    "setting critical_section to False since no more tasks in graph"
+                )
+                self._critical_section = None
+
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
+            cs = self._critical_section  # to make following lines more compact
             no_predecessors = [
                 t
                 for t in no_predecessors
-                if tg.get_tinfo(t).task.critical_section == self._critical_section
+                if (tg.get_tinfo(t).task.critical_section == cs.cs_id)
+                and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
         self._task_logger.debug(
             f"no_predecessors: {[str(tg.get_tinfo(t).task) for t in no_predecessors]}"
@@ -197,10 +214,12 @@ class QpuScheduler(ProcessorScheduler):
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
+            cs = self._critical_section  # to make following lines more compact
             blocked_on_other_core = [
                 t
                 for t in blocked_on_other_core
-                if tg.get_tinfo(t).task.critical_section == self._critical_section
+                if (tg.get_tinfo(t).task.critical_section == cs.cs_id)
+                and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
         self._task_logger.debug(
             f"blocked_on_other_core : {[str(tg.get_tinfo(t).task) for t in blocked_on_other_core]}"
@@ -256,6 +275,9 @@ class QpuScheduler(ProcessorScheduler):
                 # First, check if the current bin allows this EPR task.
                 bin = self.timebin_for_task(e)
                 curr_bin = self._network_schedule.current_bin(now)
+                self._task_logger.warning(f"bin for task: {bin}")
+                self._task_logger.warning(f"current bin: {curr_bin}")
+                delta = self._network_schedule.next_specific_bin(now, bin)
                 if curr_bin and curr_bin.bin == bin and curr_bin.end - 1 != now:
                     # The current bin allows this task.
                     # The last check (end - 1 != now) is needed since we don't allow

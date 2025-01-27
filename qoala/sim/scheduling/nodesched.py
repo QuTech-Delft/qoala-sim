@@ -34,73 +34,11 @@ from qoala.sim.scheduling.cpusched import (
     CpuFcfsScheduler,
     CpuScheduler,
 )
+from qoala.sim.scheduling.nodeschedcomp import NodeSchedulerComponent
+from qoala.sim.scheduling.nodeschedinterface import NodeSchedulerInterface
 from qoala.sim.scheduling.procsched import ProcessorScheduler
 from qoala.sim.scheduling.qpusched import QpuScheduler
 from qoala.util.logging import LogManager
-
-
-class NodeSchedulerComponent(Component):
-    """
-    NetSquid component representing for a node scheduler.
-    It is used to send messages from the node scheduler to processor schedulers.
-
-    :param name: Name of the component
-    :param cpu_scheduler: CPU scheduler that node scheduler will send messages to.
-    :param qpu_scheduler: QPU scheduler that node scheduler will send messages to.
-
-    """
-
-    def __init__(
-        self,
-        name,
-        cpu_scheduler: ProcessorScheduler,
-        qpu_scheduler: ProcessorScheduler,
-        internal_sched_latency: float = 0.0,
-    ):
-        super().__init__(name=name)
-        self.add_ports(["cpu_scheduler_out"])
-        self.add_ports(["qpu_scheduler_out"])
-
-        node_sched_to_cpu = ClassicalChannel(
-            "node_scheduler_to_cpu_scheduler", delay=internal_sched_latency
-        )
-        self.cpu_scheduler_out_port.connect(node_sched_to_cpu.ports["send"])
-        node_sched_to_cpu.ports["recv"].connect(cpu_scheduler.node_scheduler_in_port)
-        node_sched_to_qpu = ClassicalChannel(
-            "node_scheduler_to_qpu_scheduler", delay=internal_sched_latency
-        )
-        self.qpu_scheduler_out_port.connect(node_sched_to_qpu.ports["send"])
-        node_sched_to_qpu.ports["recv"].connect(qpu_scheduler.node_scheduler_in_port)
-
-    @property
-    def cpu_scheduler_out_port(self) -> Port:
-        """
-        Port used to send messages to the CPU scheduler.
-        """
-        return self.ports["cpu_scheduler_out"]
-
-    @property
-    def qpu_scheduler_out_port(self) -> Port:
-        """
-        Port used to send messages to the QPU scheduler.
-        """
-        return self.ports["qpu_scheduler_out"]
-
-    def send_cpu_scheduler_message(self, msg: Message) -> None:
-        """
-        Send a message to the CPU scheduler.
-        :param msg: Message to send.
-        :return: None
-        """
-        self.cpu_scheduler_out_port.tx_output(msg)
-
-    def send_qpu_scheduler_message(self, msg: Message) -> None:
-        """
-        Send a message to the QPU scheduler.
-        :param msg: Message to send.
-        :return: None
-        """
-        self.qpu_scheduler_out_port.tx_output(msg)
 
 
 class NodeScheduler(Protocol):
@@ -197,6 +135,7 @@ class NodeScheduler(Protocol):
             self._qpu_scheduler,
             internal_sched_latency=local_ehi.latencies.internal_sched_latency,
         )
+        self._interface = NodeSchedulerInterface(self._comp)
 
         self._cpu_scheduler.set_other_scheduler(self._qpu_scheduler)
         self._qpu_scheduler.set_other_scheduler(self._cpu_scheduler)
@@ -375,9 +314,11 @@ class NodeScheduler(Protocol):
 
     def start(self) -> None:
         super().start()
+        self._interface.start()
 
     def stop(self) -> None:
         super().stop()
+        self._interface.stop()
 
     def upload_task_graph(self, graph: TaskGraph) -> None:
         """

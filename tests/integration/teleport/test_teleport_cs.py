@@ -20,7 +20,7 @@ from qoala.runtime.config import (
 )
 from qoala.runtime.program import BatchResult, ProgramInput
 from qoala.util.logging import LogManager
-from qoala.util.runner import run_two_node_app, run_two_node_app_separate_inputs
+from qoala.util.runner import run_two_node_app
 
 
 def create_procnode_cfg(
@@ -49,7 +49,7 @@ class TeleportResult:
     bob_results: BatchResult
 
 
-def run_teleport(num_iterations: int, different_inputs: bool = False) -> TeleportResult:
+def run_teleport(num_iterations: int, cs: bool = False) -> TeleportResult:
     ns.sim_reset()
 
     num_qubits = 4
@@ -59,45 +59,33 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
     alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits, determ=True)
     bob_node_cfg = create_procnode_cfg("bob", bob_id, num_qubits, determ=True)
 
-    cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 1e9)
+    cconn = ClassicalConnectionConfig.from_nodes(alice_id, bob_id, 4e6)
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        nodes=[alice_node_cfg, bob_node_cfg], link_duration=1000
+        nodes=[alice_node_cfg, bob_node_cfg], link_duration=1e6
     )
     network_cfg.cconns = [cconn]
     pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
     network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=2e7
+        bin_length=1.1e6, first_bin=0, bin_pattern=pattern, repeat_period=1.2e6
     )
 
     alice_program = load_program("teleport_alice.iqoala")
-    bob_program = load_program("teleport_bob.iqoala")
-
-    if different_inputs:
-        alice_inputs: List[ProgramInput] = []
-        bob_inputs: List[ProgramInput] = []
-        for _ in range(num_iterations):
-            basis = random.randint(0, 5)
-            alice_inputs.append(ProgramInput({"bob_id": bob_id, "state": basis}))
-            bob_inputs.append(ProgramInput({"alice_id": alice_id, "state": basis}))
-
-        app_result = run_two_node_app_separate_inputs(
-            num_iterations=num_iterations,
-            programs={"alice": alice_program, "bob": bob_program},
-            program_inputs={"alice": alice_inputs, "bob": bob_inputs},
-            network_cfg=network_cfg,
-        )
+    if cs:
+        bob_program = load_program("teleport_bob_cs.iqoala")
     else:
-        # state = 5 -> teleport |1> state
-        alice_input = ProgramInput({"bob_id": bob_id, "state": 5})
-        # state = 4 -> measure in +Z, i.e. expect a "1" outcome
-        bob_input = ProgramInput({"alice_id": alice_id, "state": 4})
+        bob_program = load_program("teleport_bob.iqoala")
 
-        app_result = run_two_node_app(
-            num_iterations=num_iterations,
-            programs={"alice": alice_program, "bob": bob_program},
-            program_inputs={"alice": alice_input, "bob": bob_input},
-            network_cfg=network_cfg,
-        )
+    # state = 5 -> teleport |1> state
+    alice_input = ProgramInput({"bob_id": bob_id, "state": 5})
+    # state = 4 -> measure in +Z, i.e. expect a "1" outcome
+    bob_input = ProgramInput({"alice_id": alice_id, "state": 4})
+
+    app_result = run_two_node_app(
+        num_iterations=num_iterations,
+        programs={"alice": alice_program, "bob": bob_program},
+        program_inputs={"alice": alice_input, "bob": bob_input},
+        network_cfg=network_cfg,
+    )
 
     alice_result = app_result.batch_results["alice"]
     bob_result = app_result.batch_results["bob"]
@@ -107,7 +95,7 @@ def run_teleport(num_iterations: int, different_inputs: bool = False) -> Telepor
 
 def test_teleport():
     LogManager.set_log_level("DEBUG")
-    LogManager.set_task_log_level("DEBUG")
+    LogManager.set_task_log_level("INFO")
     LogManager.log_to_file("teleport.log")
     LogManager.log_tasks_to_file("teleport_tasks.log")
     num_iterations = 2
@@ -120,18 +108,21 @@ def test_teleport():
     assert all(outcome == 1 for outcome in outcomes)
 
 
-def test_teleport_different_inputs():
-    # LogManager.set_task_log_level("DEBUG")
+def test_teleport_cs():
+    LogManager.set_log_level("DEBUG")
+    LogManager.set_task_log_level("INFO")
+    LogManager.log_to_file("teleport_cs.log")
+    LogManager.log_tasks_to_file("teleport_cs_tasks.log")
     num_iterations = 2
 
-    result = run_teleport(num_iterations=num_iterations, different_inputs=True)
+    result = run_teleport(num_iterations=num_iterations, cs=True)
 
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
     print(outcomes)
-    assert all(outcome == 0 for outcome in outcomes)
+    assert all(outcome == 1 for outcome in outcomes)
 
 
 if __name__ == "__main__":
-    test_teleport()
-    test_teleport_different_inputs()
+    # test_teleport()
+    test_teleport_cs()

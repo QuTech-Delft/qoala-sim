@@ -10,12 +10,13 @@ from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInstance
 from qoala.runtime.task import ProcessorType, TaskGraph, TaskInfo
 from qoala.runtime.taskbuilder import TaskGraphBuilder, TaskGraphFromBlockBuilder
-from qoala.sim.events import SIGNAL_TASK_COMPLETED
+from qoala.sim.events import SIGNAL_CPU_NODE_SCH_MSG, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import Netstack
 from qoala.sim.qnos import Qnos
 from qoala.sim.scheduling.nodesched import NodeScheduler
+from qoala.sim.scheduling.schedmsg import TaskFinishedMsg
 
 
 class OnlineNodeScheduler(NodeScheduler):
@@ -55,9 +56,9 @@ class OnlineNodeScheduler(NodeScheduler):
         # executed or which one is to be executed next (if the prev block just finished)
         self._curr_blk_idx: Dict[int, int] = {}  # program ID -> block index
         self._task_from_block_builder = TaskGraphFromBlockBuilder()
-        self._prog_instance_dependency: Dict[
-            int, int
-        ] = {}  # program ID -> dependent program ID
+        self._prog_instance_dependency: Dict[int, int] = (
+            {}
+        )  # program ID -> dependent program ID
 
     def create_processes_for_batches(
         self,
@@ -77,9 +78,9 @@ class OnlineNodeScheduler(NodeScheduler):
                 self.initialize_process(process)
                 self._curr_blk_idx[prog_instance.pid] = 0
                 if linear:
-                    self._prog_instance_dependency[
-                        prog_instance.pid
-                    ] = prev_prog_instance_id
+                    self._prog_instance_dependency[prog_instance.pid] = (
+                        prev_prog_instance_id
+                    )
                     prev_prog_instance_id = prog_instance.pid
                 else:
                     self._prog_instance_dependency[prog_instance.pid] = -1
@@ -116,40 +117,43 @@ class OnlineNodeScheduler(NodeScheduler):
         while True:
             self._logger.debug("main node scheduler loop")
 
-            cpu_signal = self.await_signal(self._cpu_scheduler, SIGNAL_TASK_COMPLETED)
-            qpu_signal = self.await_signal(self._qpu_scheduler, SIGNAL_TASK_COMPLETED)
-            yield cpu_signal | qpu_signal
-            self._logger.debug("got a TASK COMPLETED signal")
+            # Wait for a message from either the CPU or QPU (or both)
+            yield from self._interface.wait_for_any_msg()
 
-            now = ns.sim_time()
+            # Read their contents: they are messages about tasks being finished.
+            cpu_msgs_raw = self._interface.pop_available_messages("cpu")
+            qpu_msgs_raw = self._interface.pop_available_messages("qpu")
+            cpu_msgs: List[TaskFinishedMsg] = [msg.content for msg in cpu_msgs_raw]
+            qpu_msgs: List[TaskFinishedMsg] = [msg.content for msg in qpu_msgs_raw]
 
-            # Gets the pid of the most recently finished task.
-            last_cpu_task_pid = self.cpu_scheduler.get_last_finished_task_pid_at(now)
-            last_qpu_task_pid = self.qpu_scheduler.get_last_finished_task_pid_at(now)
+            # There should be at least one message (otherwise we couldn't have yielded)
+            assert len(cpu_msgs) + len(qpu_msgs) >= 1
 
-            # One of the ProcSchedulers must have just finished a task.
-            # (It could happen, although rare, that both CPU and QPU schedulers just
-            # finished a task at the same time. However, in that case, the 2nd task
-            # fired its own TASK COMPLETED signal which will be handled in the next
-            # iteration of this main loop.)
-            assert last_cpu_task_pid != -1 or last_qpu_task_pid != -1
+            # Find the PIDs for which tasks have completed.
+            # These are the program instances for which to find new tasks to add.
+            cpu_pids = [msg.pid for msg in cpu_msgs]
+            qpu_pids = [msg.pid for msg in qpu_msgs]
+            pids = set(cpu_pids + qpu_pids)
 
-            # Get the PID of the last recent task.
-            pid = last_cpu_task_pid if last_cpu_task_pid != -1 else last_qpu_task_pid
+            self._task_logger.info(f"CPU messages: {cpu_msgs}")
+            self._task_logger.info(f"QPU messages: {qpu_msgs}")
+            self._task_logger.info(f"PIDs: {pids}")
 
-            is_const = self.is_from_const_batch(pid)
-            is_finished = self.is_prog_inst_finished(pid)
+            for pid in pids:
+                is_const = self.is_from_const_batch(pid)
+                is_finished = self.is_prog_inst_finished(pid)
 
-            if not is_const:
-                # Find new tasks for this program instance to add to the CPU and QPU
-                # schedulers (there may be none).
-                self.schedule_next_for(pid)
+                if not is_const:
+                    # Find new tasks for this program instance to add to the CPU and QPU
+                    # schedulers (there may be none).
+                    self._task_logger.info(f"finding new tasks for {pid}...")
+                    self.schedule_next_for(pid)
 
-            # TODO is this const business still needed??
-            if is_const or is_finished:
-                # Find new tasks for all program instances to add to the CPU and QPU
-                # schedulers (there may be none).
-                self.schedule_all()
+                # TODO is this const business still needed??
+                if is_const or is_finished:
+                    # Find new tasks for all program instances to add to the CPU and QPU
+                    # schedulers (there may be none).
+                    self.schedule_all()
 
     def schedule_next_for(self, pid: int) -> None:
         """
@@ -166,13 +170,13 @@ class OnlineNodeScheduler(NodeScheduler):
         # If there are new tasks, send a message to schedulers
         # Note that find_new_tasks_for() returns None if there are no new tasks for that processor
         if new_cpu_tasks:
-            self._logger.debug(
+            self._task_logger.info(
                 f"schedule_next_for: adding new cpu tasks: {new_cpu_tasks}"
             )
             self._cpu_scheduler.add_tasks(new_cpu_tasks)
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
         if new_qpu_tasks:
-            self._logger.debug(
+            self._task_logger.info(
                 f"schedule_next_for: adding new qpu tasks: {new_qpu_tasks}"
             )
             self._qpu_scheduler.add_tasks(new_qpu_tasks)
@@ -214,6 +218,9 @@ class OnlineNodeScheduler(NodeScheduler):
 
             # Note that find_new_tasks_for() returns None if there are no new tasks for that processor
             new_cpu_tasks, new_qpu_tasks = self.find_new_tasks_for(pid)
+            self._task_logger.warning(
+                f"adding new tasks:\nCPU tasks: {new_cpu_tasks},\nQPU tasks: {new_qpu_tasks}"
+            )
             if new_cpu_tasks:
                 all_new_cpu_tasks.update(new_cpu_tasks)
             if new_qpu_tasks:
