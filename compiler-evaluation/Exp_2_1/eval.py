@@ -232,7 +232,8 @@ def run_eval_programs(
     random_client_inputs: bool = False,
     client_input_func: List[function] = [],
     random_server_inputs: bool = False,
-    server_input_func: List[function] = [] 
+    server_input_func: List[function] = [],
+    seed = 0,
 ):
     """
 
@@ -267,9 +268,8 @@ def run_eval_programs(
     """
     ns.sim_reset()
     ns.set_qstate_formalism(ns.QFormalism.DM)
-    # seed = random.randint(0, 1000)
-    ns.set_random_state(seed=1)
-    random.seed(1)
+    ns.set_random_state(seed=seed)
+    random.seed(seed)
 
     # Configure server node
     server_config = get_node_config(
@@ -510,7 +510,8 @@ def run_eval_exp(
     random_client_inputs: bool = False,
     client_input_func: List[function] = [],
     random_server_inputs: bool = False,
-    server_input_func: List[function] = []
+    server_input_func: List[function] = [],
+    seed = 0
 ):
     exp_results = run_eval_programs(
         client_progs=client_progs,
@@ -543,7 +544,8 @@ def run_eval_exp(
         random_client_inputs=random_client_inputs,
         client_input_func=client_input_func,
         random_server_inputs= random_server_inputs,
-        server_input_func = server_input_func
+        server_input_func = server_input_func,
+        seed=seed
     )
 
     makespan = exp_results.total_duration
@@ -608,6 +610,7 @@ class DataPoint:
     opt_makespan: float
     naive_succ_prob: float
     opt_succ_prob: float
+    prog_size: int
     param_name: str  # Name of param being varied
     param_value: float  # Value of the varied param
 
@@ -641,6 +644,7 @@ class DataMeta:
     param_name: str  # The parameter being varied
     link_duration: int
     link_fid: float
+    seed: int
 
 @dataclass
 class Data:
@@ -846,6 +850,7 @@ if __name__ == "__main__":
         "use_netschedule": False,
         "bin_length": 0,
         "link_duration": 0,
+        "link_fid": 1
     }
 
     parser = ArgumentParser()
@@ -856,6 +861,7 @@ if __name__ == "__main__":
     parser.add_argument("--param_values", type=float, nargs="+", required=False)
     parser.add_argument("--param_sweep_list", type=str, nargs="+", required=False)
     parser.add_argument("--save", action="store_true")
+    parser.add_argument("--seed", type=int, required=False)
 
     # Parse arguments
     args = parser.parse_args()
@@ -866,6 +872,7 @@ if __name__ == "__main__":
     param_vals = args.param_values
     param_sweep_list = args.param_sweep_list
     save = args.save
+    seed = args.seed
 
     if config is not None:
         # Load param values from .json file
@@ -879,7 +886,7 @@ if __name__ == "__main__":
     params["client_num_iterations"] = num_iterations
     params["server_num_iterations"] = num_iterations
 
-    # Load the configuration
+    # Load the configuration file
     if param_name is None:
         if param_sweep_list is not None:
             param_name = param_sweep_list[0]
@@ -888,7 +895,16 @@ if __name__ == "__main__":
             param_name = "cc"
             param_vals = [params["cc"]]
 
-    # Finish the setup
+    # Load the seed
+    seed_value = 0
+    if seed is not None:
+        # Load seed file
+        seed_file = open("configs/qrng_seeds.json")
+        seed_obj = json.load(seed_file)
+        seed_str = seed_obj["seeds"][seed]
+        seed_value = int(seed_str, 16)
+
+    # Setup program and hardware specific configuration details
     program_sizes = []
     if params["prog_name"] == "vbqc":
         program_sizes = [3,5,10]
@@ -922,12 +938,14 @@ if __name__ == "__main__":
     else:
         print("Please enter a valid program name. Either 'vbqc' OR 'rotation'")
     
-    # We now want to change all other fidelity parameters to be perfect
-    if param_name == "gate_fid":
+    # When sweeping the single_gate_fidelity we consider all other noise related parameters to be perfect
+    if param_name == "single_gate_fid":
         params["t1"] = 0
         params["t2"] = 0
         params["link_fid"] = 1
-        
+        params["all_gate_fid"] = 1
+        params["two_gate_fid"] = 1
+        params["single_gate_fid"] = 1 
 
     datapoints: List[DataPoint] = []
 
@@ -946,9 +964,13 @@ if __name__ == "__main__":
             if hardware == "TI":
                 link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
                 params["link_duration"] = link_duration
-                params["link_fid"] = link_fid
+                if param_name=="single_gate_fid":
+                    params["link_fid"] = 1 
             elif hardware == "NV":
-                pass
+                link_duration, link_fid = ent_rate.nv_epr(params["distance"], optimism=params["qia_sga"])
+                params["link_duration"] = link_duration
+                if param_name=="single_gate_fid":
+                    params["link_fid"] = 1 
 
             # Run naive version
             naive_succ_probs, naive_makespan = run_eval_exp(
@@ -980,7 +1002,8 @@ if __name__ == "__main__":
                 random_client_inputs=params["random_client_inputs"],
                 client_input_func=[params["client_input_func"][prog_size_index]],
                 random_server_inputs=params["random_server_inputs"],
-                server_input_func=[params["server_input_func"][prog_size_index]]
+                server_input_func=[params["server_input_func"][prog_size_index]],
+                seed=seed_value,
             )
             naive_succ_prob = naive_succ_probs[(1,1)]
             print(f"Naive Results\tMakespan: {naive_makespan}\tSuccess Prob: {naive_succ_prob}")
@@ -1015,7 +1038,8 @@ if __name__ == "__main__":
                 random_client_inputs=params["random_client_inputs"],
                 client_input_func=[params["client_input_func"][prog_size_index]],
                 random_server_inputs=params["random_server_inputs"],
-                server_input_func=[params["server_input_func"][prog_size_index]]
+                server_input_func=[params["server_input_func"][prog_size_index]],
+                seed = seed_value,
             )
             opt_succ_prob = opt_succ_probs[(1,1)]
             print(f"Opt Results\tMakespan: {opt_makespan}\tSuccess Prob: {opt_succ_prob}")
@@ -1025,6 +1049,7 @@ if __name__ == "__main__":
                 opt_makespan=opt_makespan,
                 naive_succ_prob=naive_succ_prob,
                 opt_succ_prob=opt_succ_prob,
+                prog_size=program_sizes[prog_size_index],
                 param_name=param_name,
                 param_value=param_val
             ))
@@ -1037,7 +1062,7 @@ if __name__ == "__main__":
     abs_dir = relative_to_cwd(f"data")
     Path(abs_dir).mkdir(parents=True, exist_ok=True)
     last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_{params['prog_name']}_{params['hardware']}_seed{seed_value}.json")
 
     metadata = DataMeta(
         timestamp=timestamp,
@@ -1061,9 +1086,12 @@ if __name__ == "__main__":
         qnos_instr_proc_time=params["qnos_instr_proc_time"],
         host_instr_time=params["host_instr_time"],
         host_peer_latency=params["host_peer_latency"],
+        link_duration=params["link_duration"],
+        link_fid=params["link_fid"],
         client_num_qubits=params["client_num_qubits"],
         server_num_qubits=num_qubits,
         param_name=param_name,
+        seed = seed_value
     )
 
     # Format the metadata and datapoints into a json object

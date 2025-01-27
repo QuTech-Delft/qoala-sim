@@ -1,7 +1,7 @@
 { 
     "prog_name": "rotation",
     "hardware": "NV",
-    "qia_sga": 2,
+    "qia_sga": 1,
     "distance": 0,
     "num_clients": 1,
     "linear": true,
