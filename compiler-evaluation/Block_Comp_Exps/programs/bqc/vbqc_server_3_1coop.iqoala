@@ -1,0 +1,470 @@
+META_START
+    name: server
+    parameters: client_id
+    csockets: 0 -> client
+    epr_sockets: 0 -> client
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+    one = assign_cval() : 1
+    pi = assign_cval() : 16
+
+// The first qubit teleported is the initial state so we also need X and Z corrections
+^b1 {type = QC}:
+    run_request() : req0
+
+^b2 {type = QC}:
+    run_request() : req1
+
+^b3 {type = QC}:
+    run_request() : req2
+
+^b4 {type = CC}:
+    x_correction = recv_cmsg(csocket)
+
+^b5 {type = CC}:
+    z_correction = recv_cmsg(csocket)
+
+^b6 {type = QL}: 
+    run_subroutine(tuple<x_correction) : x_corrections0
+
+^b7 {type = QL}: 
+    run_subroutine(tuple<z_correction) : z_corrections0
+
+// Teleportation Z corrections
+^b8 {type = CC}:
+    p1 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b9 {type = CC}:
+    p2 = recv_cmsg(csocket)
+
+^b56 {type = QL}:
+    run_subroutine() : local_cphases
+
+^b57 {type = CC}:
+    delta0 = recv_cmsg(csocket)
+
+^b58 {type = QL}:
+    tuple<m0> = run_subroutine(tuple<delta0>) : meas_qubit_0
+
+^b59 {type = CL}:
+    send_cmsg(csocket, m0)
+
+^b60 {type = CC}:
+    delta1 = recv_cmsg(csocket)
+
+^b61 {type = CL}:
+   // If p1 is 1 we add pi to delta1 
+   not_p1 = bcond_mult_const(one,p1): 0
+   // If p1 is 1 then delta1_correction = pi
+   delta1_correction = bcond_mult_const(pi,not_p1): 0
+
+   delta1 = add_cval_c(delta1, delta1_correction)
+
+^b62 {type = QL}:
+    tuple<m1> = run_subroutine(tuple<delta1>) : meas_qubit_1
+
+^b63 {type = CL}:
+    send_cmsg(csocket, m1)
+
+^b64 {type = CC}:
+    delta2 = recv_cmsg(csocket)
+
+^b65 {type = CL}:
+   // If p2 is 1 we add pi to delta2 
+   not_p2 = bcond_mult_const(one,p2): 0
+   // If p2 is 1 then delta2_correction = pi
+   delta2_correction = bcond_mult_const(pi,not_p2): 0
+
+   delta2 = add_cval_c(delta2, delta2_correction)
+
+^b66 {type = QL}:
+    //tuple<m2> = run_subroutine(tuple<m1>) : zmeas_qubit_2
+    tuple<m2> = run_subroutine(tuple<delta2>) : meas_qubit_2
+
+^b67 {type = CL}:
+    send_cmsg(csocket, m2)
+
+SUBROUTINE teleport_corrections0
+    params: x_correction, y_correction 
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    load C1 @input[1]
+    set Q0 0 
+
+    // If x_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    x Q0
+
+    // If z_correction = 1 we do a Z gate
+    bne C1 1 2
+    z Q0
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_0
+    params: p 
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q0 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_1
+    params: p 
+    returns: 
+    uses: 1 
+    keeps: 1
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q1 1 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q1 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_2
+    params: p 
+    returns: 
+    uses: 2 
+    keeps: 2 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q2 2 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q2 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE local_cphases
+    params: 
+    returns: 
+    uses: 0, 1, 2
+    keeps: 0, 1, 2
+    request: 
+  NETQASM_START
+    set Q0 0 
+    set Q1 1 
+    set Q2 2
+    cphase Q0 Q1
+    cphase Q1 Q2
+  NETQASM_END
+
+SUBROUTINE zmeas_qubit_2
+    params: correction 
+    returns: m
+    uses: 2 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q2 2 
+    bne C0 1 2
+    x Q2
+    meas Q2 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_0
+    params: delta1
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    rot_z Q0 C0 4
+    h Q0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_1
+    params: delta
+    returns: m
+    uses: 1
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q1 1
+    rot_z Q1 C0 4
+    h Q1
+    meas Q1 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_2
+    params: delta
+    returns: m
+    uses: 2 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q2 2
+    rot_z Q2 C0 4
+    h Q2
+    meas Q2 M0
+    store M0 @output[0]
+  NETQASM_END
+
+
+SUBROUTINE meas_qubit_3
+    params: delta
+    returns: m
+    uses: 3 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q3 3
+    rot_z Q3 C0 4
+    h Q3
+    meas Q3 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_4
+    params: delta
+    returns: m
+    uses: 4 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q4 4
+    rot_z Q4 C0 4
+    h Q4
+    meas Q4 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE x_corrections0
+  params: x_correction
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0 
+
+    // If x_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    x Q0
+  NETQASM_END
+
+SUBROUTINE z_corrections0
+  params: z_correction
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0 
+
+    // If z_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    z Q0
+  NETQASM_END
+
+SUBROUTINE local_cphases01
+    params: 
+    returns: 
+    uses: 0, 1
+    keeps: 0, 1
+    request: 
+  NETQASM_START
+    set Q0 0 
+    set Q1 1 
+    cphase Q0 Q1
+  NETQASM_END
+
+SUBROUTINE local_cphases12
+    params: 
+    returns: 
+    uses: 1, 2
+    keeps: 1, 2
+    request: 
+  NETQASM_START
+    set Q1 1 
+    set Q2 2
+    cphase Q1 Q2
+  NETQASM_END
+
+SUBROUTINE rot_qubit_0
+    params: delta1
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    rot_z Q0 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_0
+    params: 
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    h Q0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_1
+    params: delta1
+    returns: 
+    uses: 1
+    keeps: 1
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q1 1 
+    rot_z Q1 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_1
+    params: 
+    returns: m
+    uses: 1
+    keeps:
+    request: 
+  NETQASM_START
+    set Q1 1 
+    h Q1
+    meas Q1 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_2
+    params: delta1
+    returns: 
+    uses: 2
+    keeps: 2
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q2 2 
+    rot_z Q2 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_2
+    params: 
+    returns: m
+    uses: 2
+    keeps:
+    request: 
+  NETQASM_START
+    set Q2 2 
+    h Q2
+    meas Q2 M0
+    store M0 @output[0]
+  NETQASM_END
+
+REQUEST req0
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req1
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req2
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 2
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req3
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 3
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req4
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 4
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive

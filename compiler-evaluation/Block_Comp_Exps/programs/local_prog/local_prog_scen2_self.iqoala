@@ -1,0 +1,42 @@
+META_START
+    name: local
+    parameters: iterations
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b1 {type = QL}:
+    tuple<outcome> = run_subroutine(tuple<iterations>) : prepare_and_measure
+
+^b2 {type = CL}:
+    return_result(outcome)
+
+SUBROUTINE prepare_and_measure
+    params: iterations
+    returns: o
+    uses: 0
+    keeps: 
+    request: 
+  NETQASM_START
+    set Q0 0
+    init Q0
+    
+    set C0 0 //constant 0
+    set C1 1 //constant 1
+    load C3 @input[0] //quantum measurement loop counter
+
+    // Begin loop 
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+
+    sub C3 C3 C1 //subtract 1
+    bne C0 C3 -7 //loop C3 times to make C3 total measurements
+    // End loop
+
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END

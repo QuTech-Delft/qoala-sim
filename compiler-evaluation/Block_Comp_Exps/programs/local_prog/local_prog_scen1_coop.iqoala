@@ -1,0 +1,43 @@
+META_START
+    name: local
+    parameters: iterations
+    csockets: 
+    epr_sockets: 
+META_END
+
+^b0 {type = CL}:
+    outcome = assign_cval() : 0
+    neg_one = assign_cval() : -1
+    zero = assign_cval() : 0
+
+^b1 {type = QL}:
+    tuple<res> = run_subroutine() : prepare_and_measure
+
+^b2 {type = CL}:
+    outcome = add_cval_c(outcome, res)
+    iterations = add_cval_c(iterations, neg_one)
+    bne(iterations,zero) : b1
+
+^b3 {type = CL}:
+    return_result(outcome)
+
+SUBROUTINE prepare_and_measure
+    params:
+    returns: o
+    uses: 0
+    keeps: 
+    request: 
+  NETQASM_START
+    set Q0 0
+
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+
+    store M0 @output[0]
+  NETQASM_END
