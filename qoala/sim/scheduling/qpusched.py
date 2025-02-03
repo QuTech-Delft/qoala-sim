@@ -275,8 +275,8 @@ class QpuScheduler(ProcessorScheduler):
                 # First, check if the current bin allows this EPR task.
                 bin = self.timebin_for_task(e)
                 curr_bin = self._network_schedule.current_bin(now)
-                self._task_logger.warning(f"bin for task: {bin}")
-                self._task_logger.warning(f"current bin: {curr_bin}")
+                self._task_logger.debug(f"bin for task: {bin}")
+                self._task_logger.debug(f"current bin: {curr_bin}")
                 delta = self._network_schedule.next_specific_bin(now, bin)
                 if curr_bin and curr_bin.bin == bin and curr_bin.end - 1 != now:
                     # The current bin allows this task.

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-import random
 from dataclasses import dataclass
-from typing import List
 
 import netsquid as ns
 
@@ -124,5 +122,5 @@ def test_teleport_cs():
 
 
 if __name__ == "__main__":
-    # test_teleport()
-    test_teleport_cs()
+    test_teleport()
+    # test_teleport_cs()

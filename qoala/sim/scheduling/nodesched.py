@@ -3,14 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Dict, Generator, List, Optional, Tuple
 
-from netsquid.components.cchannel import ClassicalChannel
-from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.runtime.memory import ProgramMemory
-from qoala.runtime.message import Message
 from qoala.runtime.program import (
     BatchInfo,
     BatchResult,
@@ -317,8 +314,8 @@ class NodeScheduler(Protocol):
         self._interface.start()
 
     def stop(self) -> None:
-        super().stop()
         self._interface.stop()
+        super().stop()
 
     def upload_task_graph(self, graph: TaskGraph) -> None:
         """

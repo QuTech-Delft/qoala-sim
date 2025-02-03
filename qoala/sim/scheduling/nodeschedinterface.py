@@ -1,18 +1,16 @@
 from __future__ import annotations
-from typing import Generator, List, Optional, Tuple
+
+from typing import Generator, List, Optional
 
 from pydynaa import EventExpression
 from qoala.runtime.message import Message
 from qoala.sim.componentprot import ComponentProtocol, PortListener
-from qoala.sim.events import (
-    SIGNAL_CPU_NODE_SCH_MSG,
-    SIGNAL_QPU_NODE_SCH_MSG,
-)
+from qoala.sim.events import SIGNAL_CPU_NODE_SCH_MSG, SIGNAL_QPU_NODE_SCH_MSG
 from qoala.sim.scheduling.nodeschedcomp import NodeSchedulerComponent
 
 
 class NodeSchedulerInterface(ComponentProtocol):
-    """NetSquid protocol representing a QNodeOS processor."""
+    """Interface for handling messages to and from the Node Scheduler."""
 
     def __init__(self, comp: NodeSchedulerComponent) -> None:
         super().__init__(name=f"{comp.name}_protocol", comp=comp)

@@ -7,10 +7,10 @@ from typing import Any, Dict, Generator, Optional, Type
 
 import netsquid as ns
 from netsquid.components import QuantumProcessor
+from netsquid.protocols import Protocol
 from netsquid.qubits import ketstates, qubitapi
 
 from pydynaa import EventExpression
-from netsquid.protocols import Protocol
 from qoala.lang.ehi import EhiNetworkInfo, UnitModule
 from qoala.lang.hostlang import RunSubroutineOp
 from qoala.lang.parse import QoalaParser

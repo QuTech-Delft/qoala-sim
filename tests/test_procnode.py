@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Type
-from netsquid.protocols import Protocol
 
 import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
 from netsquid.components import QuantumProcessor
+from netsquid.protocols import Protocol
 from netsquid.qubits import ketstates
 
 from pydynaa import EventExpression

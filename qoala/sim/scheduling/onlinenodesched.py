@@ -2,15 +2,12 @@ from __future__ import annotations
 
 from typing import Dict, Generator, List, Optional, Tuple
 
-import netsquid as ns
-
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkInfo, EhiNodeInfo
 from qoala.runtime.message import Message
 from qoala.runtime.program import ProgramInstance
 from qoala.runtime.task import ProcessorType, TaskGraph, TaskInfo
 from qoala.runtime.taskbuilder import TaskGraphBuilder, TaskGraphFromBlockBuilder
-from qoala.sim.events import SIGNAL_CPU_NODE_SCH_MSG, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.host import Host
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.netstack import Netstack
@@ -56,9 +53,9 @@ class OnlineNodeScheduler(NodeScheduler):
         # executed or which one is to be executed next (if the prev block just finished)
         self._curr_blk_idx: Dict[int, int] = {}  # program ID -> block index
         self._task_from_block_builder = TaskGraphFromBlockBuilder()
-        self._prog_instance_dependency: Dict[int, int] = (
-            {}
-        )  # program ID -> dependent program ID
+        self._prog_instance_dependency: Dict[
+            int, int
+        ] = {}  # program ID -> dependent program ID
 
     def create_processes_for_batches(
         self,
@@ -78,9 +75,9 @@ class OnlineNodeScheduler(NodeScheduler):
                 self.initialize_process(process)
                 self._curr_blk_idx[prog_instance.pid] = 0
                 if linear:
-                    self._prog_instance_dependency[prog_instance.pid] = (
-                        prev_prog_instance_id
-                    )
+                    self._prog_instance_dependency[
+                        prog_instance.pid
+                    ] = prev_prog_instance_id
                     prev_prog_instance_id = prog_instance.pid
                 else:
                     self._prog_instance_dependency[prog_instance.pid] = -1
@@ -135,9 +132,9 @@ class OnlineNodeScheduler(NodeScheduler):
             qpu_pids = [msg.pid for msg in qpu_msgs]
             pids = set(cpu_pids + qpu_pids)
 
-            self._task_logger.info(f"CPU messages: {cpu_msgs}")
-            self._task_logger.info(f"QPU messages: {qpu_msgs}")
-            self._task_logger.info(f"PIDs: {pids}")
+            self._task_logger.debug(f"CPU messages: {cpu_msgs}")
+            self._task_logger.debug(f"QPU messages: {qpu_msgs}")
+            self._task_logger.debug(f"PIDs: {pids}")
 
             for pid in pids:
                 is_const = self.is_from_const_batch(pid)
@@ -218,7 +215,7 @@ class OnlineNodeScheduler(NodeScheduler):
 
             # Note that find_new_tasks_for() returns None if there are no new tasks for that processor
             new_cpu_tasks, new_qpu_tasks = self.find_new_tasks_for(pid)
-            self._task_logger.warning(
+            self._task_logger.info(
                 f"adding new tasks:\nCPU tasks: {new_cpu_tasks},\nQPU tasks: {new_qpu_tasks}"
             )
             if new_cpu_tasks:

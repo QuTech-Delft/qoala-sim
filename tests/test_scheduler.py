@@ -1055,7 +1055,9 @@ def test_internal_sched_latency():
     ns.sim_run()
 
     total_host_instr_time = 4 * 1000
-    total_internal_sched_latency = 2 * 500  # 2 CL blocks => 2 * 500
+    total_internal_sched_latency = (
+        4 * 500
+    )  # 2 CL blocks => 2x back and forth => 4 * 500
     total_time = total_host_instr_time + total_internal_sched_latency
     assert ns.sim_time() == total_time
 

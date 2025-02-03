@@ -10,9 +10,9 @@ from netsquid.components.component import Component, Port
 from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
+from qoala.runtime.message import Message
 from qoala.runtime.task import QoalaTask, TaskGraph, TaskInfo
 from qoala.sim.driver import Driver
-from qoala.runtime.message import Message
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.scheduling.schedmsg import TaskFinishedMsg
@@ -61,7 +61,6 @@ class ActiveCriticalSection:
 
 
 class ProcessorScheduler(Protocol):
-
     def __init__(
         self,
         name: str,
@@ -213,8 +212,6 @@ class ProcessorScheduler(Protocol):
         tinfo = self._task_graph.get_tinfo(task_id)
         task = tinfo.task
 
-        # TODO: do something with critical sections
-        # task.critical_section
         if task.critical_section is not None:
             self._critical_section = ActiveCriticalSection(
                 task.pid, task.critical_section
