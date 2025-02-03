@@ -64,7 +64,10 @@ def run_teleport(num_iterations: int, cs: bool = False) -> TeleportResult:
     network_cfg.cconns = [cconn]
     pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
     network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1.1e6, first_bin=0, bin_pattern=pattern, repeat_period=1.2e6
+        bin_length=1.1e6,
+        first_bin=0,
+        bin_pattern=pattern,
+        repeat_period=(1.2e6 * num_iterations),
     )
 
     alice_program = load_program("teleport_alice.iqoala")
@@ -91,36 +94,66 @@ def run_teleport(num_iterations: int, cs: bool = False) -> TeleportResult:
     return TeleportResult(alice_result, bob_result)
 
 
-def test_teleport():
+def run_teleport_no_cs() -> int:
     LogManager.set_log_level("DEBUG")
     LogManager.set_task_log_level("INFO")
     LogManager.log_to_file("teleport.log")
     LogManager.log_tasks_to_file("teleport_tasks.log")
     num_iterations = 2
 
+    ns.sim_reset()
+
+    start = ns.sim_time()
+    print(f"start: {start}")
     result = run_teleport(num_iterations=num_iterations)
+    end = ns.sim_time()
+    print(f"end: {end}")
 
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
     print(outcomes)
     assert all(outcome == 1 for outcome in outcomes)
 
+    makespan = end - start
+    return makespan
 
-def test_teleport_cs():
+
+def run_teleport_cs() -> int:
     LogManager.set_log_level("DEBUG")
     LogManager.set_task_log_level("INFO")
     LogManager.log_to_file("teleport_cs.log")
     LogManager.log_tasks_to_file("teleport_cs_tasks.log")
     num_iterations = 2
 
+    ns.sim_reset()
+
+    start = ns.sim_time()
+    print(f"start: {start}")
     result = run_teleport(num_iterations=num_iterations, cs=True)
+    end = ns.sim_time()
+    print(f"end: {end}")
 
     program_results = result.bob_results.results
     outcomes = [result.values["outcome"] for result in program_results]
     print(outcomes)
     assert all(outcome == 1 for outcome in outcomes)
 
+    makespan = end - start
+    return makespan
+
+
+def test_compare_cs_vs_no_cs():
+    makespan1 = run_teleport_no_cs()
+    makespan2 = run_teleport_cs()
+
+    print(makespan1)
+    print(makespan2)
+
+    # Because the CS does not allow interleaving, we expect a larger makespan
+    # in this case. Note that in general this is highly dependent on the exact
+    # program, CS, and network schedule though!
+    assert makespan2 > makespan1
+
 
 if __name__ == "__main__":
-    test_teleport()
-    # test_teleport_cs()
+    test_compare_cs_vs_no_cs()

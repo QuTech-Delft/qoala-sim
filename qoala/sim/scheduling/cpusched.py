@@ -85,7 +85,7 @@ class CpuScheduler(ProcessorScheduler):
                 and (tinfo.task.pid == cs.pid)
             ]
             if len(cs_tasks) == 0:
-                self._task_logger.info(
+                self._task_logger.debug(
                     "setting critical_section to False since no more tasks in graph"
                 )
                 self._critical_section = None
@@ -122,7 +122,7 @@ class CpuScheduler(ProcessorScheduler):
         event_blocked_on_message = [
             tid for tid in event_no_predecessors if not self.is_message_available(tid)
         ]
-        self._task_logger.info(f"event_blocked_on_message: {event_blocked_on_message}")
+        self._task_logger.debug(f"event_blocked_on_message: {event_blocked_on_message}")
 
         now = ns.sim_time()
         with_future_start: Dict[int, float] = {
@@ -137,7 +137,7 @@ class CpuScheduler(ProcessorScheduler):
                 with_future_start.items(), key=lambda item: item[1]
             )
             wait_for_start = sorted_by_start[0]
-        self._task_logger.info(f"wait_for_start: {wait_for_start}")
+        self._task_logger.debug(f"wait_for_start: {wait_for_start}")
 
         ready = [
             tid
@@ -145,7 +145,7 @@ class CpuScheduler(ProcessorScheduler):
             if tid not in event_blocked_on_message and tid not in with_future_start
         ]
         ready_task_dict = {tid: str(tg.get_tinfo(tid).task) for tid in ready}
-        self._task_logger.info(f"ready tasks: {ready}\n{ready_task_dict}")
+        self._task_logger.debug(f"ready tasks: {ready}\n{ready_task_dict}")
 
         if len(ready) > 0:
             # self._task_logger.warning(f"ready tasks: {ready}")

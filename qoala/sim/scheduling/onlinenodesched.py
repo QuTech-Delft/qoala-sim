@@ -143,7 +143,7 @@ class OnlineNodeScheduler(NodeScheduler):
                 if not is_const:
                     # Find new tasks for this program instance to add to the CPU and QPU
                     # schedulers (there may be none).
-                    self._task_logger.info(f"finding new tasks for {pid}...")
+                    self._task_logger.debug(f"finding new tasks for {pid}...")
                     self.schedule_next_for(pid)
 
                 # TODO is this const business still needed??
@@ -167,13 +167,13 @@ class OnlineNodeScheduler(NodeScheduler):
         # If there are new tasks, send a message to schedulers
         # Note that find_new_tasks_for() returns None if there are no new tasks for that processor
         if new_cpu_tasks:
-            self._task_logger.info(
+            self._task_logger.debug(
                 f"schedule_next_for: adding new cpu tasks: {new_cpu_tasks}"
             )
             self._cpu_scheduler.add_tasks(new_cpu_tasks)
             self._comp.send_cpu_scheduler_message(Message(-1, -1, "New Task"))
         if new_qpu_tasks:
-            self._task_logger.info(
+            self._task_logger.debug(
                 f"schedule_next_for: adding new qpu tasks: {new_qpu_tasks}"
             )
             self._qpu_scheduler.add_tasks(new_qpu_tasks)
@@ -215,7 +215,7 @@ class OnlineNodeScheduler(NodeScheduler):
 
             # Note that find_new_tasks_for() returns None if there are no new tasks for that processor
             new_cpu_tasks, new_qpu_tasks = self.find_new_tasks_for(pid)
-            self._task_logger.info(
+            self._task_logger.debug(
                 f"adding new tasks:\nCPU tasks: {new_cpu_tasks},\nQPU tasks: {new_qpu_tasks}"
             )
             if new_cpu_tasks:
@@ -297,7 +297,7 @@ class OnlineNodeScheduler(NodeScheduler):
             cs_block_idxs = []
             for i in range(current_block_index, len(blocks)):
                 if blocks[i].critical_section == cs:
-                    self._logger.warning(f"block {i} is in CS {cs}")
+                    self._logger.info(f"block {i} is in CS {cs}")
                     cs_block_idxs.append(i)
                 else:
                     # We found the end of the consecutive blocks that are part of

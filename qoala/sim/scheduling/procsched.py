@@ -216,7 +216,7 @@ class ProcessorScheduler(Protocol):
             self._critical_section = ActiveCriticalSection(
                 task.pid, task.critical_section
             )
-            self._task_logger.info(
+            self._task_logger.debug(
                 f"setting critical_section to {self._critical_section} because starting task {task}"
             )
 

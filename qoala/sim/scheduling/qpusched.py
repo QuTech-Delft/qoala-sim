@@ -169,7 +169,7 @@ class QpuScheduler(ProcessorScheduler):
     def update_status(self) -> None:
         tg = self._task_graph
 
-        self._task_logger.info(
+        self._task_logger.debug(
             f"update_status(): critical_section = {self._critical_section}"
         )
         if tg is None or len(tg.get_tasks()) == 0:
@@ -190,7 +190,7 @@ class QpuScheduler(ProcessorScheduler):
                 and (tinfo.task.pid == cs.pid)
             ]
             if len(cs_tasks) == 0:
-                self._task_logger.info(
+                self._task_logger.debug(
                     "setting critical_section to False since no more tasks in graph"
                 )
                 self._critical_section = None
@@ -285,10 +285,10 @@ class QpuScheduler(ProcessorScheduler):
                     epr_ready.append(e)
                 else:
                     # Find the time until the next netschedule timebin that allows this EPR task.
-                    self._task_logger.info(f"EPR ready: task {e}, bin: {bin}")
+                    self._task_logger.debug(f"EPR ready: task {e}, bin: {bin}")
                     delta = self._network_schedule.next_specific_bin(now, bin)
                     time_until_bin[e] = delta
-                    self._task_logger.info(f"EPR ready: task {e}, delta: {delta}")
+                    self._task_logger.debug(f"EPR ready: task {e}, delta: {delta}")
                     if delta == 0:
                         epr_ready.append(e)
             else:
@@ -298,7 +298,7 @@ class QpuScheduler(ProcessorScheduler):
         epr_non_zero_delta = {
             tid: delta for tid, delta in time_until_bin.items() if delta > 0
         }
-        self._task_logger.info(f"epr_non_zero_delta: {epr_non_zero_delta}")
+        self._task_logger.debug(f"epr_non_zero_delta: {epr_non_zero_delta}")
         if len(epr_non_zero_delta) > 0:
             sorted_by_delta = sorted(
                 epr_non_zero_delta.items(), key=lambda item: item[1]
@@ -306,10 +306,10 @@ class QpuScheduler(ProcessorScheduler):
             earliest, delta = sorted_by_delta[0]
             epr_wait_for_bin = (earliest, delta)
 
-        self._task_logger.info(f"epr_wait_for_bin: {epr_wait_for_bin}")
+        self._task_logger.debug(f"epr_wait_for_bin: {epr_wait_for_bin}")
 
         if len(epr_ready) > 0:
-            self._task_logger.info(f"epr_ready: {epr_ready}")
+            self._task_logger.debug(f"epr_ready: {epr_ready}")
             self._status = SchedulerStatus(
                 status={Status.EPR_GEN}, params={"task_id": epr_ready[0]}
             )
