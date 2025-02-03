@@ -27,7 +27,7 @@ class DataMeta:
     qia_sga: int
     prog_name: str 
     prog_sizes: List[int]
-    num_iterations: int
+    num_iterations: List[int]
     num_clients: int
     linear: bool
     cc: float 
@@ -89,6 +89,44 @@ def get_vals(data: Data):
 
     return x_val_size_dp_map, naive_makespan_size_dp_map, naive_succprob_size_dp_map, opt_makespan_size_dp_map, opt_succprob_size_dp_map
 
+# Scans all .json files in a folder and finds the 'worst' results in terms of makespan and success probability
+def find_worst(path:str, param:str, hardware:str, program:str):
+    # Get all .json files for the correct parameter and hardware
+    files = [f for f in os.listdir(relative_to_cwd(path)) if f[-5:] == ".json" and param in f and hardware in f and program in f]
+
+    # Load all of the data objects
+    datas = [load_data(path+"/"+f) for f in files]
+    
+    worst_makespan = 0
+    worst_makespan_file = ""
+    worst_succprob = 0
+    worst_succprob_file = ""
+    # For each data object
+    for i in range(0, len(datas)):
+        data = datas[i]
+
+        avg_makespan_diff = 0
+        avg_succprob_diff = 0
+        # Compute the average difference for makespan and success probability
+        for dp in data.data_points:
+            avg_makespan_diff += dp.naive_makespan-dp.opt_makespan
+            avg_succprob_diff += dp.opt_succ_prob-dp.naive_succ_prob
+        avg_makespan_diff = avg_makespan_diff / len(data.data_points) 
+        avg_succprob_diff = avg_succprob_diff / len(data.data_points)
+
+        if avg_makespan_diff > worst_makespan:
+            worst_makespan = avg_makespan_diff
+            worst_makespan_file = files[i]
+
+        if avg_succprob_diff > worst_succprob:
+            worst_succprob = avg_succprob_diff
+            worst_succprob_file = files[i]
+    
+    print(worst_makespan, worst_makespan_file)
+    print(worst_succprob,worst_succprob_file)
+    create_plots(None,load_data(path+"/"+worst_makespan_file))
+    create_plots(None,load_data(path+"/"+worst_succprob_file))
+
 def load_data(path: str) -> Data:
     with open(relative_to_cwd(path), "r") as f:
         all_data = json.load(f)
@@ -99,16 +137,17 @@ def create_plots(timestamp, data: Data, save=True):
     meta = data.meta
     prog_sizes = meta.prog_sizes
     x_val_map, naive_makespan_map, naive_succprob_map, opt_makespan_map, opt_succprob_map = get_vals(data)
+    label_fontsize = 14
 
     for key in x_val_map.keys():
         plt.plot(
-            x_val_map[key], naive_makespan_map[key], label=f"Subopt n={key}", marker="o"
+            x_val_map[key], [val / len(x_val_map[key]) for val in naive_makespan_map[key]] , label=f"Subopt n={key}", marker="o"
         )
-        plt.plot(x_val_map[key], opt_makespan_map[key], label=f"Opt n={key}", marker="s")
+        plt.plot(x_val_map[key], [val / len(x_val_map[key]) for val in opt_makespan_map[key]], label=f"Opt n={key}", marker="s")
 
     plt.legend(loc="upper left", fontsize=11)
-    plt.ylabel("Makespan (ns)")
-    plt.xlabel(meta.param_name)
+    plt.ylabel("Avg Makespan (ns)", fontsize=label_fontsize)
+    plt.xlabel(meta.param_name, fontsize=label_fontsize)
     plt.show()
 
     # create_png("LAST_" + x_axis + "_makespan_n" + str(prog_size))
@@ -123,8 +162,8 @@ def create_plots(timestamp, data: Data, save=True):
         plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt n={key}", marker="s")
 
     plt.legend(loc="lower right", fontsize=11)
-    plt.ylabel("Success Probability")
-    plt.xlabel(meta.param_name)   
+    plt.ylabel("Success Probability",fontsize=label_fontsize)
+    plt.xlabel(meta.param_name,fontsize=label_fontsize)   
     plt.show()
 
 
@@ -135,21 +174,21 @@ def create_plots(timestamp, data: Data, save=True):
         plt.plot(x_val_map[key],  [opt_succprob_map[key][i] / opt_makespan_map[key][i] for i in range(0,len(x_val_map[key]))], label=f"Opt n={key}", marker="s")
 
     plt.legend(loc="upper right", fontsize=11)
-    plt.ylabel("Successes / ns")
-    plt.xlabel(meta.param_name)   
+    plt.ylabel("Successes / ns", fontsize=label_fontsize)
+    plt.xlabel(meta.param_name, fontsize=label_fontsize)   
     plt.show()
     pass
 
 if __name__ == "__main__":
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    parser = ArgumentParser()
-    parser.add_argument("--filenames", "-f", type=str, nargs="+", required=True)
-    parser.add_argument("--save", "-s", action="store_true", default=False)
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # parser = ArgumentParser()
+    # parser.add_argument("--filenames", "-f", type=str, nargs="+", required=True)
+    # parser.add_argument("--save", "-s", action="store_true", default=False)
 
-    args = parser.parse_args()
-    filenames = args.filenames
-    saveFile = args.save
-    for filename in filenames:
-        data = load_data(filename)
-        create_plots(timestamp, data, saveFile)
-
+    # args = parser.parse_args()
+    # filenames = args.filenames
+    # saveFile = args.save
+    # for filename in filenames:
+    #     data = load_data(filename)
+    #     create_plots(timestamp, data, saveFile)
+    find_worst("data","distance", "NV", "vbqc")

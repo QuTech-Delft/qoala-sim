@@ -6,8 +6,8 @@
     "num_clients": 1,
     "linear": true,
     "cc": 1e5,
-    "t1": 1e9,
-    "t2": 5e8,
+    "t1": 0,
+    "t2": 7.5e9,
     "single_gate_dur": 20e3,
     "two_gate_dur": 500e3,
     "all_gate_dur": 500e3,
@@ -17,6 +17,7 @@
     "qnos_instr_proc_time": 50e3,
     "host_instr_time": 15,
     "host_peer_latency": 150,
+    "internal_sched_latency": 60,
     "client_num_qubits": 2,
     "use_netschedule": false,
     "bin_length": 0

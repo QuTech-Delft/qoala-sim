@@ -51,6 +51,7 @@ def get_node_config(
     qnos_instr_proc_time: int = 50e3,
     host_instr_time: int = 0,
     host_peer_latency: int = 0,
+    internal_sched_latency: int = 0,
 ) -> ProcNodeConfig:
     return ProcNodeConfig(
         node_name=name,
@@ -68,6 +69,7 @@ def get_node_config(
             host_instr_time=host_instr_time,
             host_peer_latency=host_peer_latency,
             qnos_instr_time=qnos_instr_proc_time,
+            internal_sched_latency=internal_sched_latency
         ),
         ntf=NtfConfig.from_cls_name("GenericNtf"),
     )
@@ -222,6 +224,7 @@ def run_eval_programs(
     qnos_instr_proc_time: int = 50e3,
     host_instr_time: int = 0,
     host_peer_latency: int = 0,
+    internal_sched_latency=0,
     server_num_qubits: int = 2,
     client_num_qubits: int = 20,
     use_netschedule: bool = False,
@@ -287,6 +290,7 @@ def run_eval_programs(
         qnos_instr_proc_time=qnos_instr_proc_time,
         host_instr_time=host_instr_time,
         host_peer_latency=host_peer_latency,
+        internal_sched_latency=internal_sched_latency
     )
     # Configure client nodes
     client_configs = [
@@ -305,6 +309,7 @@ def run_eval_programs(
             qnos_instr_proc_time=qnos_instr_proc_time,
             host_instr_time=host_instr_time,
             host_peer_latency=host_peer_latency,
+            internal_sched_latency=internal_sched_latency
         )
         for i in range(1, num_clients + 1)
     ]
@@ -499,6 +504,7 @@ def run_eval_exp(
     qnos_instr_proc_time: int = 50e3,
     host_instr_time: int = 0,
     host_peer_latency: int = 0,
+    internal_sched_latency: int = 0,
     server_num_qubits: int = 2,
     client_num_qubits: int = 20,
     use_netschedule: bool = False,
@@ -534,6 +540,7 @@ def run_eval_exp(
         qnos_instr_proc_time=qnos_instr_proc_time,
         host_instr_time=host_instr_time,
         host_peer_latency=host_peer_latency,
+        internal_sched_latency=internal_sched_latency,
         server_num_qubits=server_num_qubits,
         client_num_qubits=client_num_qubits,
         use_netschedule=use_netschedule,
@@ -637,6 +644,7 @@ class DataMeta:
     qnos_instr_proc_time: int
     host_instr_time: int
     host_peer_latency: int
+    internal_sched_latency: int
     client_num_qubits: int
     server_num_qubits: int
     # use_netschedule: bool
@@ -846,6 +854,7 @@ if __name__ == "__main__":
         "qnos_instr_proc_time": 0,
         "host_instr_time": 100,
         "host_peer_latency": 0,
+        "internal_sched_latency": 0,
         "client_num_qubits": 20,
         "use_netschedule": False,
         "bin_length": 0,
@@ -992,6 +1001,7 @@ if __name__ == "__main__":
                 host_instr_time=params["host_instr_time"],
                 host_peer_latency=params["host_peer_latency"],
                 qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                internal_sched_latency=params["internal_sched_latency"],
                 single_gate_dur=params["single_gate_dur"],
                 two_gate_dur=params["two_gate_dur"],
                 single_gate_fid=params["single_gate_fid"],
@@ -1028,6 +1038,7 @@ if __name__ == "__main__":
                 host_instr_time=params["host_instr_time"],
                 host_peer_latency=params["host_peer_latency"],
                 qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                internal_sched_latency=params["internal_sched_latency"],
                 single_gate_dur=params["single_gate_dur"],
                 two_gate_dur=params["two_gate_dur"],
                 single_gate_fid=params["single_gate_fid"],
@@ -1062,11 +1073,11 @@ if __name__ == "__main__":
     abs_dir = relative_to_cwd(f"data")
     Path(abs_dir).mkdir(parents=True, exist_ok=True)
     last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_{params['prog_name']}_{params['hardware']}_seed{seed_value}.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_{params['prog_name']}_{params['hardware']}_seed{seed}.json")
 
     metadata = DataMeta(
         timestamp=timestamp,
-        sim_duration=(start-end),
+        sim_duration=duration,
         prog_name=params["prog_name"],
         hardware=params["hardware"],
         qia_sga=params["qia_sga"],
@@ -1086,6 +1097,7 @@ if __name__ == "__main__":
         qnos_instr_proc_time=params["qnos_instr_proc_time"],
         host_instr_time=params["host_instr_time"],
         host_peer_latency=params["host_peer_latency"],
+        internal_sched_latency=params["internal_sched_latency"],
         link_duration=params["link_duration"],
         link_fid=params["link_fid"],
         client_num_qubits=params["client_num_qubits"],
