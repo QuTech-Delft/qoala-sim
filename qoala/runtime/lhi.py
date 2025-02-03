@@ -14,6 +14,7 @@ from netsquid.components.instructions import (
     INSTR_MEASURE,
     INSTR_ROT_X,
     INSTR_ROT_Y,
+    INSTR_MS,
     INSTR_ROT_Z,
     INSTR_X,
     INSTR_Y,
@@ -425,6 +426,33 @@ class LhiTopologyBuilder:
             single_duration=5e3,
             two_instructions=[],
             two_duration=0,
+            all_qubit_instructions=[
+                INSTR_INIT,
+                INSTR_MEASURE_ALL,
+                INSTR_ROT_X_ALL,
+                INSTR_ROT_Y_ALL,
+                INSTR_ROT_Z_ALL,
+                INSTR_BICHROMATIC,
+            ],
+            all_qubit_duration=5e3,
+        )
+    
+    @classmethod
+    def trapped_ionq_default_perfect_gates(cls, num_qubits: int) -> LhiTopology:
+        # TODO check default values
+        return cls.perfect_uniform(
+            num_qubits=num_qubits,
+            single_instructions=[
+                INSTR_INIT,
+                INSTR_ROT_Z,
+                INSTR_ROT_X,
+                INSTR_ROT_Y,
+                INSTR_MEASURE,
+                INSTR_MEASURE_INSTANT,
+            ],
+            single_duration=5e3,
+            two_instructions=[INSTR_MS],
+            two_duration=5e3,
             all_qubit_instructions=[
                 INSTR_INIT,
                 INSTR_MEASURE_ALL,

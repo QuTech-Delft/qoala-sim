@@ -923,6 +923,6 @@ class IonTrapProcessor(QnosProcessor):
         elif isinstance(instr, trapped_ion.AllQubitsRotZInstruction):
             yield from self._interpret_all_qubit_rotation(instr, INSTR_ROT_Z_ALL)
         elif isinstance(instr,trapped_ion_ionq.MSInstruction):
-            yield from self._interpret_ms_instr(instr)
+            yield from self._interpret_ms_instr(pid, instr)
         else:
             raise UnsupportedNetqasmInstructionError

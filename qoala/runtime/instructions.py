@@ -163,7 +163,7 @@ class IMSGate(Instruction):
     @property
     def name(self) -> str:
         """instruction name."""
-        return "ms"
+        return "ms_gate"
 
     @property
     def num_positions(self) -> int:
