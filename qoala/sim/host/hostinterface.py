@@ -95,13 +95,15 @@ class HostInterface(ComponentProtocol):
     def get_evexpr_for_any_msg(self) -> Optional[EventExpression]:
         return self._get_evexpr_for_any_msg(self._listener_names, self._signal_names)
 
-    def get_evexpr_for_msg_from(self, peers: List[str]):
+    def get_evexpr_for_msg_from(self, peers: List[str]) -> Optional[EventExpression]:
         specific_listener_names = []
         specific_signal_names = []
         for peer in peers:
             specific_listener_names.append(f"peer_{peer}")
             specific_signal_names.append(f"{SIGNAL_HOST_HOST_MSG}_{peer}")
-        return self._get_evexpr_for_any_msg(specific_listener_names, specific_signal_names)
+        return self._get_evexpr_for_any_msg(
+            specific_listener_names, specific_signal_names
+        )
 
     def handle_msg_evexpr(
         self, evexpr: EventExpression, peers: Optional[List[str]] = None

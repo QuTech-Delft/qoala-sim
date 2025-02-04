@@ -41,7 +41,7 @@ lint-flake8:
 lint: lint-isort lint-black lint-flake8
 
 mypy:
-	@$(PYTHON3) -m mypy ${SOURCEDIR}
+	@$(PYTHON3) -m mypy --check-untyped-defs ${SOURCEDIR}
 
 all-tests:
 	coverage run -m pytest tests -n auto

@@ -17,9 +17,15 @@ from netsquid.util import simlog
 from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
-from qoala.runtime.config import ProcNodeConfig, TopologyConfig, LatenciesConfig, NtfConfig, \
-    ClassicalConnectionConfig, ProcNodeNetworkConfig
-from qoala.runtime.program import BatchResult, ProgramInput, BatchInfo
+from qoala.runtime.config import (
+    ClassicalConnectionConfig,
+    LatenciesConfig,
+    NtfConfig,
+    ProcNodeConfig,
+    ProcNodeNetworkConfig,
+    TopologyConfig,
+)
+from qoala.runtime.program import BatchInfo, BatchResult, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import TaskGraph, TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
@@ -31,6 +37,7 @@ class AppResult:
     batch_results: Dict[int, Dict[str, BatchResult]]
     statistics: Dict[str, SchedulerStatistics]
     total_duration: float
+
 
 # IMPORTANT: In all the programs here; timing is REALLY important
 # These programs (including the network latency configuration)
@@ -52,7 +59,7 @@ class AppResult:
 
 
 def get_client_alice_program() -> QoalaProgram:
-    program_text="""
+    program_text = """
 META_START
     name: alice
     parameters: server_id
@@ -111,7 +118,7 @@ NETQASM_END
 
 
 def get_client_bob_program() -> QoalaProgram:
-    program_text="""
+    program_text = """
 META_START
     name: bob
     parameters: server_id
@@ -127,11 +134,11 @@ META_END
     send_cmsg(csock, msg)
     return_result(ret)
 SUBROUTINE delay_subroutine
-params: 
-returns: 
+params:
+returns:
 uses: 1
 keeps:
-request: 
+request:
 NETQASM_START
 set Q0 1
 init Q0
@@ -145,7 +152,7 @@ NETQASM_END
 
 
 def get_server_program() -> QoalaProgram:
-    program_text="""
+    program_text = """
 META_START
     name: server
     parameters: alice_id, bob_id
@@ -192,11 +199,11 @@ META_END
     ret = assign_cval() : 3
     return_result(ret)
 SUBROUTINE delay_start
-params: 
-returns: 
+params:
+returns:
 uses: 1
 keeps:
-request: 
+request:
 NETQASM_START
 set Q0 1
 init Q0
@@ -259,7 +266,11 @@ def run_n_clients(
         unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
         for _ in range(num_batches):
             batch_info = BatchInfo(
-                node_programs[name], unit_module, node_inputs[name], num_iterations, deadline=1e8
+                node_programs[name],
+                unit_module,
+                node_inputs[name],
+                num_iterations,
+                deadline=1e8,
             )
             batch = procnode.submit_batch(batch_info)
             remotes[name].append(batch)
@@ -269,14 +280,9 @@ def run_n_clients(
         for i in range(num_batches):
             pids = []
             for remote in interactions[name]:
-                pids.append(
-                    remotes[remote][i].instances[0].pid
-                )
+                pids.append(remotes[remote][i].instances[0].pid)
             remote_pids[remotes[name][i].batch_id] = pids
-        network.nodes[name].initialize_processes(
-            remote_pids=remote_pids,
-            linear=linear
-        )
+        network.nodes[name].initialize_processes(remote_pids=remote_pids, linear=linear)
 
     if manual_sched:
         # If manual scheduling is enabled, we need to create the task graph for each node
@@ -285,9 +291,12 @@ def run_n_clients(
         for node in node_names:
             for i, batch in enumerate(remotes[node]):
                 tasks = TaskGraphBuilder.from_program(
-                    node_programs[node], batch.instances[0].pid, network.nodes[node].local_ehi,
-                    network.nodes[node].network_ehi, first_task_id=nodes_counter[node],
-                    prog_input=node_inputs[node][0].values
+                    node_programs[node],
+                    batch.instances[0].pid,
+                    network.nodes[node].local_ehi,
+                    network.nodes[node].network_ehi,
+                    first_task_id=nodes_counter[node],
+                    prog_input=node_inputs[node][0].values,
                 )
                 nodes_task[node].append(tasks)
                 nodes_counter[node] += len(tasks.get_tasks())
@@ -313,28 +322,30 @@ def run_n_clients(
 
 
 def configure_network(
-        hw_num_qubits: int,
-        nodes_spec: Dict[int, str],
-        manual_sched: bool
+    hw_num_qubits: int, nodes_spec: Dict[int, str], manual_sched: bool
 ) -> ProcNodeNetworkConfig:
     node_configs = []
     for node_id, name in nodes_spec.items():
-        node_configs.append(ProcNodeConfig(
-            node_name=name,
-            node_id=node_id,
-            topology=TopologyConfig.perfect_config_uniform_default_params(hw_num_qubits),
-            latencies=LatenciesConfig(qnos_instr_time=1e4),
-            ntf=NtfConfig.from_cls_name("GenericNtf"),
-            determ_sched=True,
-            is_predictable=manual_sched,
-        ))
+        node_configs.append(
+            ProcNodeConfig(
+                node_name=name,
+                node_id=node_id,
+                topology=TopologyConfig.perfect_config_uniform_default_params(
+                    hw_num_qubits
+                ),
+                latencies=LatenciesConfig(qnos_instr_time=1e4),
+                ntf=NtfConfig.from_cls_name("GenericNtf"),
+                determ_sched=True,
+                is_predictable=manual_sched,
+            )
+        )
     # Communication links alice <-> server, bob <-> server
     connections = [
         # Since timing is important, the latencies are pretty important
         # If these values are are changed, the programs for Alice, Bob and the server
         # NEED to be adjusted to recreate the timing issue.
         ClassicalConnectionConfig.from_nodes(0, 2, 1e4),
-        ClassicalConnectionConfig.from_nodes(1, 2, 1e4)
+        ClassicalConnectionConfig.from_nodes(1, 2, 1e4),
     ]
 
     network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
@@ -355,18 +366,18 @@ def test_automatic_scheduling():
     nodes_programs = {
         "alice": get_client_alice_program(),
         "bob": get_client_bob_program(),
-        "server": get_server_program()
+        "server": get_server_program(),
     }
     nodes_interactions = {
         "alice": ["server"],
         "bob": ["server"],
-        "server": ["alice", "bob"]
+        "server": ["alice", "bob"],
     }
 
     nodes_inputs = {
         "alice": [ProgramInput({"server_id": 2})],
         "bob": [ProgramInput({"server_id": 2})],
-        "server": [ProgramInput({"alice_id": 0, "bob_id": 1})]
+        "server": [ProgramInput({"alice_id": 0, "bob_id": 1})],
     }
 
     network_cfg = configure_network(hw_num_qubits, nodes_spec, manual_sched=False)
@@ -376,14 +387,14 @@ def test_automatic_scheduling():
         node_programs=nodes_programs,
         node_inputs=nodes_inputs,
         network_cfg=network_cfg,
-        interactions=nodes_interactions
+        interactions=nodes_interactions,
     )
 
     print(app_result)
     assert app_result.batch_results is not None
-    assert app_result.batch_results[0]["alice"].results[0].values['ret'] == 0
-    assert app_result.batch_results[0]["bob"].results[0].values['ret'] == 0
-    assert app_result.batch_results[0]["server"].results[0].values['ret'] == 3
+    assert app_result.batch_results[0]["alice"].results[0].values["ret"] == 0
+    assert app_result.batch_results[0]["bob"].results[0].values["ret"] == 0
+    assert app_result.batch_results[0]["server"].results[0].values["ret"] == 3
 
 
 def test_manual_scheduling():
@@ -396,18 +407,18 @@ def test_manual_scheduling():
     nodes_programs = {
         "alice": get_client_alice_program(),
         "bob": get_client_bob_program(),
-        "server": get_server_program()
+        "server": get_server_program(),
     }
     nodes_interactions = {
         "alice": ["server"],
         "bob": ["server"],
-        "server": ["alice", "bob"]
+        "server": ["alice", "bob"],
     }
 
     nodes_inputs = {
         "alice": [ProgramInput({"server_id": 2})],
         "bob": [ProgramInput({"server_id": 2})],
-        "server": [ProgramInput({"alice_id": 0, "bob_id": 1})]
+        "server": [ProgramInput({"alice_id": 0, "bob_id": 1})],
     }
 
     network_cfg = configure_network(hw_num_qubits, nodes_spec, manual_sched=True)
@@ -418,11 +429,11 @@ def test_manual_scheduling():
         node_inputs=nodes_inputs,
         network_cfg=network_cfg,
         interactions=nodes_interactions,
-        manual_sched=True
+        manual_sched=True,
     )
 
     print(app_result)
     assert app_result.batch_results is not None
-    assert app_result.batch_results[0]["alice"].results[0].values['ret'] == 0
-    assert app_result.batch_results[0]["bob"].results[0].values['ret'] == 0
-    assert app_result.batch_results[0]["server"].results[0].values['ret'] == 3
+    assert app_result.batch_results[0]["alice"].results[0].values["ret"] == 0
+    assert app_result.batch_results[0]["bob"].results[0].values["ret"] == 0
+    assert app_result.batch_results[0]["server"].results[0].values["ret"] == 3

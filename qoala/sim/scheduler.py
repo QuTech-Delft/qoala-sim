@@ -932,7 +932,7 @@ class CpuScheduler(ProcessorScheduler):
         remote_pid = csck.remote_pid
         self._task_logger.debug(f"checking if msg from {remote_name} is available")
         messages = self._host_interface.get_available_messages(remote_name)
-        if (remote_pid, task.pid) in messages:
+        if task is not None and (remote_pid, task.pid) in messages:
             self._task_logger.debug(f"task {tid} NOT blocked on message")
             return True
         else:
@@ -1084,18 +1084,15 @@ class CpuScheduler(ProcessorScheduler):
                         waiting_msg_from_peer
                     )
 
-                    ev_expr = ev_msg_arrived | ev_expr
-                    self._task_logger.debug(f"AAAA sleeping on: {waiting_msg_from_peer}")
+                    ev_expr = ev_expr | ev_msg_arrived
                     yield ev_expr
                     if len(ev_expr.first_term.triggered_events) > 0:
-                        self._task_logger.debug(f"AAAA waking up on first term: {waiting_msg_from_peer}")
                         # It was "ev_msg_arrived" that triggered.
                         # Need to process this event (flushing potential other messages)
                         # WARNING: We should yield _on messages from peers that we are waiting
                         # messages from_ otherwise the simulation might stall
                         yield from self._host_interface.handle_msg_evexpr(
-                            ev_expr.first_term,
-                            peers=waiting_msg_from_peer
+                            ev_expr.first_term, peers=waiting_msg_from_peer
                         )
                 else:
                     yield ev_expr
