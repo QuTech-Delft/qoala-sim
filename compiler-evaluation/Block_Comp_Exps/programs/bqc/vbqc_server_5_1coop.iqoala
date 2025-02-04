@@ -20,39 +20,60 @@ META_END
 ^b3 {type = QC}:
     run_request() : req2
 
-^b4 {type = CC}:
+^b4 {type = QC}:
+    run_request() : req3
+
+^b5 {type = QC}:
+    run_request() : req4
+
+// Corrections after teleportation
+^b6 {type = CC}:
     x_correction = recv_cmsg(csocket)
 
-^b5 {type = CC}:
+^b7 {type = CC}:
     z_correction = recv_cmsg(csocket)
 
-^b6 {type = QL}: 
-    run_subroutine(tuple<x_correction>) : x_corrections0
+^b8 {type = QL}: 
+    run_subroutine(tuple<x_correction>) : x_corrections0 
 
-^b7 {type = QL}: 
+^b9 {type = QL}: 
     run_subroutine(tuple<z_correction>) : z_corrections0
 
 // Teleportation Z corrections
-^b8 {type = CC}:
+^b10 {type = CC}:
     p1 = recv_cmsg(csocket)
 
 // Teleportation Z corrections
-^b9 {type = CC}:
+^b11 {type = CC}:
     p2 = recv_cmsg(csocket)
 
-^b55 {type = QL}:
+// Teleportation Z corrections
+^b13 {type = CC}:
+    p3 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b15 {type = CC}:
+    p4 = recv_cmsg(csocket)
+
+^b17 {type = QL}:
     run_subroutine() : local_cphases01
 
-^b56 {type = QL}:
+^b18 {type = QL}:
     run_subroutine() : local_cphases12
 
-^b57 {type = CC}:
+^b19 {type = QL}:
+    run_subroutine() : local_cphases23
+
+^b20 {type = QL}:
+    run_subroutine() : local_cphases34
+
+^b21 {type = CC}:
     delta0 = recv_cmsg(csocket)
 
-^b58 {type = QL}:
+^b22 {type = QL}:
     run_subroutine(tuple<delta0>) : rot_qubit_0
 
-^b59 {type = QL}:
+^b23 {type = QL}:
     tuple<m0> = run_subroutine() : h_meas_qubit_0
 
 ^b60 {type = CL}:
@@ -83,7 +104,7 @@ META_END
 
 ^b67 {type = CL}:
    // If p2 is 1 we add pi to delta2 
-   not_p2 = bcond_mult_const(one,p2): 0
+   not_p2 = bcond_mult_const(one,p2): 0 
    // If p2 is 1 then delta2_correction = pi
    delta2_correction = bcond_mult_const(pi,not_p2): 0
 
@@ -95,8 +116,50 @@ META_END
 ^b69 {type = QL}:
     tuple<m2> = run_subroutine() : h_meas_qubit_2
 
+
 ^b70 {type = CL}:
     send_cmsg(csocket, m2)
+
+^b71 {type = CC}:
+    delta3 = recv_cmsg(csocket)
+
+^b72 {type = CL}:
+   // If p3 is 1 we add pi to delta3 
+   not_p3 = bcond_mult_const(one,p3): 0 
+   // If p3 is 1 then delta3_correction = pi
+   delta3_correction = bcond_mult_const(pi,not_p3): 0
+
+   delta3 = add_cval_c(delta3, delta3_correction)
+
+^b73 {type = QL}:
+    run_subroutine(tuple<delta3>) : rot_qubit_3
+
+^b74 {type = QL}:
+    tuple<m3> = run_subroutine() : h_meas_qubit_3
+
+
+^b75 {type = CL}:
+    send_cmsg(csocket, m3)
+
+^b76 {type = CC}:
+    delta4 = recv_cmsg(csocket)
+
+^b77 {type = CL}:
+   // If p4 is 1 we add pi to delta4 
+   not_p4 = bcond_mult_const(one,p4): 0 
+   // If p4 is 1 then delta4_correction = pi
+   delta4_correction = bcond_mult_const(pi,not_p4): 0
+
+   delta4 = add_cval_c(delta4, delta4_correction)
+
+^b78 {type = QL}:
+    run_subroutine(tuple<delta4>) : rot_qubit_4
+
+^b79 {type = QL}:
+    tuple<m4> = run_subroutine() : h_meas_qubit_4
+
+^b80 {type = CL}:
+    send_cmsg(csocket, m4)
 
 SUBROUTINE teleport_corrections0
     params: x_correction, y_correction 
@@ -179,32 +242,74 @@ SUBROUTINE zcorrect_qubit_2
     jmp 1 
   NETQASM_END
 
+SUBROUTINE zcorrect_qubit_3
+    params: p 
+    returns: 
+    uses: 3 
+    keeps: 3 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q3 3 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q3 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_4
+    params: p 
+    returns: 
+    uses: 4 
+    keeps: 4 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q4 4 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q4 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
 SUBROUTINE local_cphases
     params: 
     returns: 
-    uses: 0, 1, 2
-    keeps: 0, 1, 2
+    uses: 0, 1, 2, 3, 4
+    keeps: 0, 1, 2, 3, 4
     request: 
   NETQASM_START
     set Q0 0 
     set Q1 1 
     set Q2 2
+    set Q3 3 
+    set Q4 4
     cphase Q0 Q1
     cphase Q1 Q2
+    cphase Q2 Q3
+    cphase Q3 Q4
   NETQASM_END
 
-SUBROUTINE zmeas_qubit_2
+SUBROUTINE zmeas_qubit_4
     params: correction 
     returns: m
-    uses: 2 
+    uses: 4 
     keeps:
     request: 
   NETQASM_START
     load C0 @input[0]
-    set Q2 2 
+    set Q4 4 
     bne C0 1 2
-    x Q2
-    meas Q2 M0
+    x Q4
+    meas Q4 M0
     store M0 @output[0]
   NETQASM_END
 
@@ -252,7 +357,6 @@ SUBROUTINE meas_qubit_2
     meas Q2 M0
     store M0 @output[0]
   NETQASM_END
-
 
 SUBROUTINE meas_qubit_3
     params: delta
@@ -340,6 +444,30 @@ SUBROUTINE local_cphases12
     cphase Q1 Q2
   NETQASM_END
 
+SUBROUTINE local_cphases23
+    params: 
+    returns: 
+    uses: 2, 3
+    keeps: 2, 3
+    request: 
+  NETQASM_START
+    set Q2 2 
+    set Q3 3 
+    cphase Q2 Q3
+  NETQASM_END
+  
+SUBROUTINE local_cphases34
+    params: 
+    returns: 
+    uses: 3,4 
+    keeps: 3,4 
+    request: 
+  NETQASM_START
+    set Q3 3 
+    set Q4 4 
+    cphase Q3 Q4
+  NETQASM_END
+
 SUBROUTINE rot_qubit_0
     params: delta1
     returns: 
@@ -412,6 +540,81 @@ SUBROUTINE h_meas_qubit_2
     set Q2 2 
     h Q2
     meas Q2 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_3
+    params: delta1
+    returns: 
+    uses: 3 
+    keeps: 3
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q3 3
+    rot_z Q3 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_3
+    params: 
+    returns: m
+    uses: 3
+    keeps:
+    request: 
+  NETQASM_START
+    set Q3 3 
+    h Q3
+    meas Q3 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_4
+    params: delta1
+    returns: 
+    uses: 4
+    keeps: 4
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q4 4 
+    rot_z Q4 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_4
+    params: 
+    returns: m
+    uses: 4
+    keeps:
+    request: 
+  NETQASM_START
+    set Q4 4 
+    h Q4
+    meas Q4 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_5
+    params: delta1
+    returns: 
+    uses: 5
+    keeps: 5
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q5 5 
+    rot_z Q5 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_5
+    params: 
+    returns: m
+    uses: 5 
+    keeps:
+    request: 
+  NETQASM_START
+    set Q5 5 
+    h Q5
+    meas Q5 M0
     store M0 @output[0]
   NETQASM_END
 

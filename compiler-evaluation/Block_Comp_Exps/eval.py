@@ -567,7 +567,7 @@ def run_eval_exp(
     )
 
     total_makespan = exp_results.total_duration
-
+    
     # Need to compute success probabilities
     server_results = exp_results.server_results
     client_results = exp_results.client_results
@@ -636,16 +636,21 @@ def run_eval_exp(
                 raw_makespans = [ts[1]-ts[0] for ts in server_prog_timestamps]
                 makespans[(-1, prog_index+1)] = sum(raw_makespans) / len(raw_makespans)
 
-    return succ_probs, makespans
+    return total_makespan, succ_probs, makespans
 
 
 @dataclass
 class DataPoint:
-    naive_makespan: float
-    opt_makespan: float
-    naive_succ_prob: float
-    opt_succ_prob: float
+    selfish_bqc_makespan: float
+    selfish_local_makespan: float
+    cooperative_bqc_makespan: float
+    cooperative_local_makespan: float
+    selfish_bqc_succ_prob: float
+    selfish_local_succ_prob: float
+    cooperative_bqc_succ_prob: float
+    cooperative_local_succ_prob: float   
     prog_size: int
+    num_clients: int
     param_name: str  # Name of param being varied
     param_value: float  # Value of the varied param
 
@@ -655,10 +660,11 @@ class DataMeta:
     sim_duration: float
     hardware: str
     qia_sga: int
-    prog_name: str 
+    scenario: int
     prog_sizes: List[int]
-    num_iterations: int
-    num_clients: int
+    num_iterations: List[int]
+    num_trials: int
+    max_num_clients: int
     linear: bool
     cc: int
     t1: int
@@ -675,8 +681,8 @@ class DataMeta:
     internal_sched_latency: int
     client_num_qubits: int
     server_num_qubits: int
-    # use_netschedule: bool
-    # bin_length: int
+    use_netschedule: bool
+    bin_length: int
     param_name: str  # The parameter being varied
     link_duration: int
     link_fid: float
@@ -843,9 +849,16 @@ def bqc_inputs_10(server_id):
     }
     return ProgramInput(inputs)
 
-def local_compute_succ_prob(server_prog_results):
-    successes = [(1-result.values["outcome"]/100) for result in server_prog_results]
-    return sum(successes) / len(successes)
+def local_compute_succ_prob_generator(scenario):
+    def local_compute_succ_prob(server_prog_results):
+        if scenario == 1: 
+            successes = [(1-result.values["outcome"]/100) for result in server_prog_results]
+            return sum(successes) / len(successes)
+        else: 
+            successes = [1 if (result.values["outcome"] == 0) else 0 for result in server_prog_results]
+            return sum(successes) / len(successes)
+    return local_compute_succ_prob
+
 if __name__ == "__main__":
     # LogManager.set_log_level("DEBUG")
     # LogManager.log_to_file("eval_debug.log")
@@ -897,6 +910,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", type=str, required=False)
     parser.add_argument("--param_sweep_list", type=str, nargs="+", required=False)
+    parser.add_argument("--num_trials", type=int, required=False, default=1)
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--seed", type=int, required=False)
 
@@ -906,6 +920,7 @@ if __name__ == "__main__":
     param_sweep_list = args.param_sweep_list
     save = args.save
     seed = args.seed
+    num_trials = args.num_trials
 
     if config is not None:
         # Load param values from .json file
@@ -921,17 +936,23 @@ if __name__ == "__main__":
     if param_sweep_list is not None:
         param_name = param_sweep_list[0]
         param_vals = [float(val) for val in param_sweep_list[1:]]
- 
+    
     # Load the seed
     seed_value = 0
+    if seed is not None:
+        # Load seed file
+        seed_file = open("configs/qrng_seeds.json")
+        seed_obj = json.load(seed_file)
+        seed_str = seed_obj["seeds"][seed]
+        seed_value = int(seed_str, 16)
 
     program_sizes = [3,5,10]
     # Load program inputs and other values based on the scenario
-    if params["scenario"] == 1:
+    if params["scenario"] == 1 or params["scenario"] == 2:
         params["client_progs"] = [[f"programs/bqc/vbqc_client_{i}.iqoala"] for i in program_sizes]
         
-        params["server_progs_self"] = [[f"programs/bqc/vbqc_server_{i}.iqoala","programs/local_prog/local_prog_scen1_self.iqoala"] for i in program_sizes]
-        params["server_progs_coop"] = [[f"programs/bqc/vbqc_server_{i}.iqoala","programs/local_prog/local_prog_scen1_coop.iqoala"] for i in program_sizes]
+        params["server_progs_self"] = [[f"programs/bqc/vbqc_server_{i}.iqoala",f"programs/local_prog/local_prog_scen{params['scenario']}_self.iqoala"] for i in program_sizes]
+        params["server_progs_coop"] = [[f"programs/bqc/vbqc_server_{i}.iqoala",f"programs/local_prog/local_prog_scen{params['scenario']}_coop.iqoala"] for i in program_sizes]
         
         params["random_client_inputs"] = True
         params["client_input_func"] = [[client_input_func[f"bqc_inputs_{i}"]] for i in program_sizes]
@@ -939,109 +960,171 @@ if __name__ == "__main__":
 
         params["random_server_inputs"] = False
         params["server_input_func"] = [[] for i in program_sizes]
-        params["server_prog_args"] = [[{},{"iterations":100}] for i in program_sizes]
+        params["server_prog_args"] = [[{},{"iterations":25}] for i in program_sizes]
 
-        params["compute_succ_probs"] = [[succ_prob_func[f"bqc_compute_succ_prob_{i}"], local_compute_succ_prob] for i in program_sizes]
-    elif params["scenario"] == 2:
-        pass
+        params["compute_succ_probs"] = [[succ_prob_func[f"bqc_compute_succ_prob_{i}"], local_compute_succ_prob_generator(params['scenario'])] for i in program_sizes]
     elif params["scenario"] == 3:
-        pass
+        params["client_progs"] = [[f"programs/bqc/vbqc_client_{i}.iqoala"] for i in program_sizes]
+        
+        params["server_progs_self"] = [[f"programs/bqc/vbqc_server_{i}_selfish.iqoala"] for i in program_sizes]
+        params["server_progs_coop"] = [[f"programs/bqc/vbqc_server_{i}_1coop.iqoala"] for i in program_sizes]
+        
+        params["random_client_inputs"] = True
+        params["client_input_func"] = [[client_input_func[f"bqc_inputs_{i}"]] for i in program_sizes]
+        params["client_prog_args"] = [[{}] for i in program_sizes]
+
+        params["random_server_inputs"] = False
+        params["server_input_func"] = [[] for i in program_sizes]
+        params["server_prog_args"] = [[{}] for i in program_sizes]
+
+        params["compute_succ_probs"] = [[succ_prob_func[f"bqc_compute_succ_prob_{i}"]] for i in program_sizes]
 
     datapoints: List[DataPoint] = []
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     start = time.time()
-    num_qubits = 100
     for prog_size_index in range(len(program_sizes)):
         print(f"Program size: {program_sizes[prog_size_index]}")
-        for param_val in param_vals:
-            params[param_name] = param_val
+        for num_clients in range(2,params["num_clients"]+1):
+            print(f"Num Clients: {num_clients}")
+            num_qubits = num_clients*program_sizes[prog_size_index] + 1
+            for param_val in param_vals:
+                print(f"Results for {param_name} : {params[param_name]}")
+                params[param_name] = param_val 
+                hardware = params["hardware"]
+                params["cc"] = ent_rate.cc_time(distance=params["distance"])
+                
+                if hardware == "TI":
+                    link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
+                    params["link_duration"] = link_duration
+                    if param_name=="single_gate_fid":
+                        params["link_fid"] = 1 
+                elif hardware == "NV":
+                    link_duration, link_fid = ent_rate.nv_epr(params["distance"], optimism=params["qia_sga"])
+                    params["link_duration"] = link_duration
+                    if param_name=="single_gate_fid":
+                        params["link_fid"] = 1
 
-            hardware = params["hardware"]
-            params["cc"] = ent_rate.cc_time(distance=params["distance"])
-            if hardware == "TI":
-                link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
-                params["link_duration"] = link_duration
-                if param_name=="single_gate_fid":
-                    params["link_fid"] = 1 
-            elif hardware == "NV":
-                link_duration, link_fid = ent_rate.nv_epr(params["distance"], optimism=params["qia_sga"])
-                params["link_duration"] = link_duration
-                if param_name=="single_gate_fid":
-                    params["link_fid"] = 1 
-            print(params["link_duration"])
+                # Need to keep track of success probability and makespan for BQC and local prog 
+                avg_self_bqc_makespan = 0
+                avg_self_local_makespan = 0
+                avg_self_bqc_succ_prob = 0
+                avg_self_local_succ_prob = 0
+                avg_coop_bqc_makespan = 0
+                avg_coop_local_makespan = 0
+                avg_coop_bqc_succ_prob = 0
+                avg_coop_local_succ_prob = 0
+                for trial in range(num_trials):
+                    # Run selfish version
+                    selfish_total_makespan, selfish_succ_probs, selfish_makespans = run_eval_exp(
+                        client_progs=params["client_progs"][prog_size_index],
+                        server_progs=params["server_progs_self"][prog_size_index],
+                        client_prog_args=params["client_prog_args"][prog_size_index],
+                        server_prog_args=params["server_prog_args"][prog_size_index],
+                        client_num_iterations=params["client_num_iterations"],
+                        server_num_iterations=params["server_num_iterations"],
+                        num_clients=num_clients,
+                        server_num_qubits=num_qubits,
+                        client_num_qubits=params["client_num_qubits"],
+                        linear=params["linear"],
+                        use_netschedule=params["use_netschedule"],
+                        bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
+                        cc=params["cc"],
+                        t1=params["t1"],
+                        t2=params["t2"],
+                        host_instr_time=params["host_instr_time"],
+                        host_peer_latency=params["host_peer_latency"],
+                        qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                        internal_sched_latency=params["internal_sched_latency"],
+                        single_gate_dur=params["single_gate_dur"],
+                        two_gate_dur=params["two_gate_dur"],
+                        single_gate_fid=params["single_gate_fid"],
+                        two_gate_fid=params["two_gate_fid"],
+                        link_duration=params["link_duration"],
+                        link_fid=params["link_fid"],
+                        seed = seed_value+trial,
+                        client_input_func=params["client_input_func"][prog_size_index],
+                        random_client_inputs=True,
+                        compute_succ_probs=params["compute_succ_probs"][prog_size_index],
+                    )
+                    print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
 
-            print(f"Results for {param_name} : {params[param_name]}")
-            # Run selfish version
-            selfish_succ_probs, selfish_makespans = run_eval_exp(
-                client_progs=params["client_progs"][prog_size_index],
-                server_progs=params["server_progs_self"][prog_size_index],
-                client_prog_args=params["client_prog_args"][prog_size_index],
-                server_prog_args=params["server_prog_args"][prog_size_index],
-                client_num_iterations=params["client_num_iterations"],
-                server_num_iterations=params["server_num_iterations"],
-                num_clients=params["num_clients"],
-                server_num_qubits=num_qubits,
-                client_num_qubits=params["client_num_qubits"],
-                linear=params["linear"],
-                use_netschedule=params["use_netschedule"],
-                bin_length=params["bin_length"]*params["link_duration"]+1,
-                cc=params["cc"],
-                t1=params["t1"],
-                t2=params["t2"],
-                host_instr_time=params["host_instr_time"],
-                host_peer_latency=params["host_peer_latency"],
-                qnos_instr_proc_time=params["qnos_instr_proc_time"],
-                internal_sched_latency=params["internal_sched_latency"],
-                single_gate_dur=params["single_gate_dur"],
-                two_gate_dur=params["two_gate_dur"],
-                single_gate_fid=params["single_gate_fid"],
-                two_gate_fid=params["two_gate_fid"],
-                link_duration=params["link_duration"],
-                link_fid=params["link_fid"],
-                seed = seed_value,
-                client_input_func=params["client_input_func"][prog_size_index],
-                random_client_inputs=True,
-                compute_succ_probs=params["compute_succ_probs"][prog_size_index],
-            )
-            print(f"Selfish Results\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
-            
-            # Run coop version
-            coop_succ_probs, coop_makespans = run_eval_exp(
-                client_progs=params["client_progs"][prog_size_index],
-                server_progs=params["server_progs_coop"][prog_size_index],
-                client_prog_args=params["client_prog_args"][prog_size_index],
-                server_prog_args=params["server_prog_args"][prog_size_index],
-                client_num_iterations=params["client_num_iterations"],
-                server_num_iterations=params["server_num_iterations"],
-                num_clients=params["num_clients"],
-                server_num_qubits=num_qubits,
-                client_num_qubits=params["client_num_qubits"],
-                linear=params["linear"],
-                use_netschedule=params["use_netschedule"],
-                bin_length=params["bin_length"]*params["link_duration"]+1,
-                cc=params["cc"],
-                t1=params["t1"],
-                t2=params["t2"],
-                host_instr_time=params["host_instr_time"],
-                host_peer_latency=params["host_peer_latency"],
-                qnos_instr_proc_time=params["qnos_instr_proc_time"],
-                internal_sched_latency=params["internal_sched_latency"],
-                single_gate_dur=params["single_gate_dur"],
-                two_gate_dur=params["two_gate_dur"],
-                single_gate_fid=params["single_gate_fid"],
-                two_gate_fid=params["two_gate_fid"],
-                link_duration=params["link_duration"],
-                link_fid=params["link_fid"],
-                seed = seed_value,
-                client_input_func=params["client_input_func"][prog_size_index],
-                random_client_inputs=True,
-                compute_succ_probs=params["compute_succ_probs"][prog_size_index],
-            )
-            print(f"Cooperative Results\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
+                    # Run coop version
+                    coop_total_makespan, coop_succ_probs, coop_makespans = run_eval_exp(
+                        client_progs=params["client_progs"][prog_size_index],
+                        server_progs=params["server_progs_coop"][prog_size_index],
+                        client_prog_args=params["client_prog_args"][prog_size_index],
+                        server_prog_args=params["server_prog_args"][prog_size_index],
+                        client_num_iterations=params["client_num_iterations"],
+                        server_num_iterations=params["server_num_iterations"],
+                        num_clients=num_clients,
+                        server_num_qubits=num_qubits,
+                        client_num_qubits=params["client_num_qubits"],
+                        linear=params["linear"],
+                        use_netschedule=params["use_netschedule"],
+                        bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
+                        cc=params["cc"],
+                        t1=params["t1"],
+                        t2=params["t2"],
+                        host_instr_time=params["host_instr_time"],
+                        host_peer_latency=params["host_peer_latency"],
+                        qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                        internal_sched_latency=params["internal_sched_latency"],
+                        single_gate_dur=params["single_gate_dur"],
+                        two_gate_dur=params["two_gate_dur"],
+                        single_gate_fid=params["single_gate_fid"],
+                        two_gate_fid=params["two_gate_fid"],
+                        link_duration=params["link_duration"],
+                        link_fid=params["link_fid"],
+                        seed = seed_value+trial,
+                        client_input_func=params["client_input_func"][prog_size_index],
+                        random_client_inputs=True,
+                        compute_succ_probs=params["compute_succ_probs"][prog_size_index],
+                    )
+                    print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
 
+                    # Compute the average success probability and makespan for local and bqc programs
 
+                    for key in selfish_makespans.keys():
+                        # This is the local program results
+                        if key[0] == -1:
+                            avg_self_local_makespan += selfish_makespans[key]
+                            avg_coop_local_makespan += coop_makespans[key]
+                            avg_self_local_succ_prob += selfish_succ_probs[key]
+                            avg_coop_local_succ_prob += coop_succ_probs[key]
+                        # This is one of the bqc program results
+                        else:
+                            avg_self_bqc_makespan += selfish_makespans[key]
+                            avg_coop_bqc_makespan += coop_makespans[key]
+                            avg_self_bqc_succ_prob += selfish_succ_probs[key]
+                            avg_coop_bqc_succ_prob += coop_succ_probs[key]
+
+                avg_self_bqc_makespan /= (num_trials*num_clients) 
+                avg_self_local_makespan /= num_trials 
+                avg_self_bqc_succ_prob /= (num_trials*num_clients)
+                avg_self_local_succ_prob /= num_trials
+                avg_coop_bqc_makespan /= (num_trials*num_clients)
+                avg_coop_local_makespan /= num_trials
+                avg_coop_bqc_succ_prob /= (num_trials*num_clients)
+                avg_coop_local_succ_prob /= num_trials
+                datapoints.append(DataPoint(
+                    selfish_bqc_makespan=avg_self_bqc_makespan,
+                    selfish_local_makespan=avg_self_local_makespan,
+                    cooperative_bqc_makespan=avg_coop_bqc_makespan,
+                    cooperative_local_makespan=avg_coop_local_makespan,
+                    selfish_bqc_succ_prob=avg_self_bqc_succ_prob,
+                    selfish_local_succ_prob=avg_self_local_succ_prob,
+                    cooperative_bqc_succ_prob=avg_coop_bqc_succ_prob,
+                    cooperative_local_succ_prob=avg_coop_local_succ_prob,
+                    prog_size=program_sizes[prog_size_index],
+                    num_clients=num_clients,
+                    param_name=param_name,
+                    param_value=param_val
+                ))
+                print(datapoints[-1])
+
+    
     # Finish computing how long the experiment took to run
     end = time.time()
     duration = round(end - start, 2)
@@ -1054,13 +1137,14 @@ if __name__ == "__main__":
 
     metadata = DataMeta(
         timestamp=timestamp,
-        sim_duration=(start-end),
-        prog_name=params["prog_name"],
+        sim_duration=duration,
+        scenario=params["scenario"],
         hardware=params["hardware"],
         qia_sga=params["qia_sga"],
         prog_sizes=program_sizes,
-        num_iterations=num_iterations,
-        num_clients=num_clients,
+        num_iterations=params["server_num_iterations"],
+        num_trials=num_trials,
+        max_num_clients=params["num_clients"],
         linear=params["linear"],
         cc=params["cc"],
         t1=params["t1"],
@@ -1080,7 +1164,9 @@ if __name__ == "__main__":
         client_num_qubits=params["client_num_qubits"],
         server_num_qubits=num_qubits,
         param_name=param_name,
-        seed = seed_value
+        seed = seed_value,
+        use_netschedule=params["use_netschedule"],
+        bin_length=params["bin_length"]
     )
 
     # Format the metadata and datapoints into a json object
