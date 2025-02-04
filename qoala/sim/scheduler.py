@@ -1084,7 +1084,7 @@ class CpuScheduler(ProcessorScheduler):
                         waiting_msg_from_peer
                     )
 
-                    ev_expr = ev_expr | ev_msg_arrived
+                    ev_expr = ev_msg_arrived | ev_expr
                     yield ev_expr
                     if len(ev_expr.first_term.triggered_events) > 0:
                         # It was "ev_msg_arrived" that triggered.
