@@ -1,0 +1,523 @@
+META_START
+    name: client
+    parameters: server_id, input0, x0, input5, x5, angle0, angle1, angle2, angle3, angle4, angle5, angle6, angle7, angle8, angle9, theta0, theta1, theta2, theta3, theta4, theta5, theta6, theta7, theta8, theta9, dummy0, dummy1, dummy2, dummy3, dummy4, dummy5, dummy6, dummy7, dummy8, dummy9
+    csockets: 0 -> server
+    epr_sockets: 0 -> server
+META_END
+
+
+// Step 1. Prep input state
+// Step 2. Send states to server
+// Step 3. Start measuring
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+    const_1 = assign_cval() : 1
+
+    epr_rot_y = assign_cval() : 24
+    epr_rot_z = assign_cval() : 16 
+    
+    // What happens if we have a dummy qubit?
+    // When there are dummy qubits we initialize them to be in the |0> or |1> state
+    
+    // checks if qubit0 is a dummy 
+    // since 'if' statements don't exist we need to get a little creative (although technically two blocks could be inserted)
+    one = assign_cval() : 1
+    four = assign_cval() : 4
+    neg_input0 = mult_const(input0) : -1
+    diff = add_cval_c(neg_input0, four)
+    // If dummy0 is 1 we add the diff, otherwise we don't
+    not_dummy0 = bcond_mult_const(one, dummy0) : 0 
+    diff = bcond_mult_const(diff, not_dummy0) : 0
+    // This ultimately results in input0 being |0> (4) if dummy0 is 1
+    // Otherwise the input remains untouched
+    input0 = add_cval_c(input0, diff) 
+    
+
+    // checks if qubit1 is a dummy
+    epr1_rot_y = bcond_mult_const(epr_rot_y, dummy1) : 0
+    epr1_rot_z = bcond_mult_const(epr_rot_z, dummy1) : 0
+
+    // checks if qubit2 is a dummy
+    epr2_rot_y = bcond_mult_const(epr_rot_y, dummy2) : 0
+    epr2_rot_z = bcond_mult_const(epr_rot_z, dummy2) : 0
+
+    // checks if qubit3 is a dummy
+    epr3_rot_y = bcond_mult_const(epr_rot_y, dummy3) : 0
+    epr3_rot_z = bcond_mult_const(epr_rot_z, dummy3) : 0
+
+    // checks if qubit3 is a dummy
+    epr4_rot_y = bcond_mult_const(epr_rot_y, dummy4) : 0
+    epr4_rot_z = bcond_mult_const(epr_rot_z, dummy4) : 0
+
+    // checks if qubit5 is a dummy 
+    // since 'if' statements don't exist we need to get a little creative (although technically two blocks could be inserted)
+    neg_input5 = mult_const(input5) : -1
+    diff = add_cval_c(neg_input5, four)
+    // If dummy5 is 1 we add the diff, otherwise we don't
+    not_dummy5 = bcond_mult_const(one, dummy5) : 0 
+    diff = bcond_mult_const(diff, not_dummy5) : 0
+    // This ultimately results in input5 being |0> (4) if dummy5 is 1
+    // Otherwise the input remains untouched
+    input5 = add_cval_c(input5, diff) 
+
+    // checks if qubit6 is a dummy
+    epr6_rot_y = bcond_mult_const(epr_rot_y, dummy6) : 0
+    epr6_rot_z = bcond_mult_const(epr_rot_z, dummy6) : 0
+
+    // checks if qubit7 is a dummy
+    epr7_rot_y = bcond_mult_const(epr_rot_y, dummy7) : 0
+    epr7_rot_z = bcond_mult_const(epr_rot_z, dummy7) : 0
+
+    // checks if qubit8 is a dummy
+    epr8_rot_y = bcond_mult_const(epr_rot_y, dummy8) : 0
+    epr8_rot_z = bcond_mult_const(epr_rot_z, dummy8) : 0
+
+    // checks if qubit9 is a dummy
+    epr9_rot_y = bcond_mult_const(epr_rot_y, dummy9) : 0
+    epr9_rot_z = bcond_mult_const(epr_rot_z, dummy9) : 0
+
+
+// We should send the input states in the order that they are measured 
+// 0,5,1,6,2,7,3,8,4,9
+// Now we send the qubit to the server via teleportation
+^b10 {type = QC}:
+   run_request() : req 
+
+// Prepare the qubit to the input state
+^b11 {type = QL}:
+   run_subroutine(tuple<input0; x0; theta0>) : prepare_qubit 
+
+// Measure
+^b12 {type = QL}:
+    tuple<x_correction0; z_correction0> = run_subroutine() : teleport
+
+// Now we send the qubit to the server via teleportation
+^b13 {type = QC}:
+   run_request() : req 
+
+// Prepare the qubit to other input state
+^b14 {type = QL}:
+   run_subroutine(tuple<input5; x5; theta5>) : prepare_qubit 
+
+// Measure
+^b15 {type = QL}:
+    tuple<x_correction5; z_correction5> = run_subroutine() : teleport
+
+// Teleport the remaining |+> (possibly rotated by theta) states to form the cluster state
+^b16 {type = QC}:
+   run_request() : req
+
+^b17 {type=QL}:
+  tuple<p1> = run_subroutine(tuple<theta1; epr1_rot_y; epr1_rot_z>) : post_epr
+
+^b18 {type = QC}:
+   run_request() : req
+
+^b19 {type=QL}:
+  tuple<p6> = run_subroutine(tuple<theta6; epr6_rot_y; epr6_rot_z>) : post_epr
+
+^b20 {type = QC}:
+  run_request() : req
+
+^b21 {type=QL}:
+  tuple<p2> = run_subroutine(tuple<theta2; epr2_rot_y; epr2_rot_z>) : post_epr
+
+^b22 {type = QC}:
+  run_request() : req
+
+^b23 {type=QL}:
+  tuple<p7> = run_subroutine(tuple<theta7; epr7_rot_y; epr7_rot_z>) : post_epr
+
+^b24 {type = QC}:
+  run_request() : req
+
+^b25 {type=QL}:
+  tuple<p3> = run_subroutine(tuple<theta3; epr3_rot_y; epr3_rot_z>) : post_epr
+
+^b26 {type = QC}:
+  run_request() : req
+
+^b27 {type=QL}:
+  tuple<p8> = run_subroutine(tuple<theta8; epr8_rot_y; epr8_rot_z>) : post_epr
+
+^b28 {type = QC}:
+  run_request() : req
+
+^b29 {type=QL}:
+  tuple<p4> = run_subroutine(tuple<theta4; epr4_rot_y; epr4_rot_z>) : post_epr
+
+^b30 {type = QC}:
+  run_request() : req
+
+^b31 {type=QL}:
+  tuple<p9> = run_subroutine(tuple<theta9; epr9_rot_y; epr9_rot_z>) : post_epr
+
+// Send corrections
+^b40 {type = CL}:
+  send_cmsg(csocket, x_correction0)
+  send_cmsg(csocket, z_correction0)
+
+  send_cmsg(csocket, x_correction5)
+  send_cmsg(csocket, z_correction5)
+
+  send_cmsg(csocket, p1)
+  send_cmsg(csocket, p6)
+  send_cmsg(csocket, p2)
+  send_cmsg(csocket, p7)
+  send_cmsg(csocket, p3)
+  send_cmsg(csocket, p8)
+  send_cmsg(csocket, p4)
+  send_cmsg(csocket, p9)
+
+// This is 10 requests so the cluster state will be a brickwork state
+// 0-1-2-3-4
+//     |   |
+// 5-6-7-8-9
+// The measurement order will be 0, 5, 1, 6, 2, 7, 3, 8, 4, 9
+
+^b50 {type = CL}:
+    one = assign_cval() : 1
+    neg_one = assign_cval() : -1
+    // No correction initally so just send angle0 with the theta0 offset
+    neg_theta0 = mult_const(theta0) : -1
+    delta0 = add_cval_c(angle0, neg_theta0)
+    send_cmsg(csocket, delta0)
+
+^b51 {type = CC}:
+    m0 = recv_cmsg(csocket)
+
+^b52 {type = CL}:
+    // No correction initally so just send angle5 with the theta5 offset
+    neg_theta5 = mult_const(theta5) : -1
+    delta5 = add_cval_c(angle5, neg_theta5)
+    send_cmsg(csocket, delta5)
+
+^b53 {type = CC}:
+    m5 = recv_cmsg(csocket)
+
+^b54 {type = CL}:
+    // Based on m0 we may need to correct 
+
+    // Summation term in the UVBQC protocol
+    // It is only negative theta since there is no node j that satisfies  [ j : i \in N_G(f(j)) ]
+    correction = mult_const(theta1) : -1 
+
+    // Phi term in the UVBQC protocol
+    // Correct for X flip
+    angle1 = bcond_mult_const(angle1, m0) : -1
+
+    delta1 = add_cval_c(correction, angle1)
+
+    send_cmsg(csocket, delta1)
+
+^b55 {type = CC}:
+    m1 = recv_cmsg(csocket)
+
+^b56 {type = CL}:
+    // Based on m5 we may need to correct 
+
+    // Summation term in the UVBQC protocol
+    // It is only negative theta since there is no node j that satisfies  [ j : i \in N_G(f(j)) ]
+    correction = mult_const(theta6) : -1 
+
+    // Phi term in the UVBQC protocol
+    // Correct for X flip
+    angle6 = bcond_mult_const(angle6, m5) : -1
+
+    delta6 = add_cval_c(correction, angle6)
+
+    send_cmsg(csocket, delta6)
+
+^b57 {type = CC}:
+    m6 = recv_cmsg(csocket)
+
+^b59 {type = CL}:
+    // if m0 is 1 we want to add 16 (Z rotation) OTHERWISE add 0
+    correction = bcond_mult_const(one, m0): 17
+    correction = add_cval_c(correction, neg_one)
+    neg_theta2 = mult_const(theta2) : -1
+     
+    // This extra correction is due to the j=6 also satisfying [ j : i \in N_G(f(j)) ]
+    correction2 = bcond_mult_const(one, m6): 17
+    correction2 = add_cval_c(correction2, neg_one)
+    
+    correction = add_cval_c(neg_theta2, correction)
+    correction = add_cval_c(correction, correction2)
+
+    // Correct for X flip
+    angle2 = bcond_mult_const(angle2, m1) : -1
+    
+    delta2 = add_cval_c(correction, angle2)
+
+    send_cmsg(csocket, delta2)
+
+^b60 {type = CC}:
+    m2 = recv_cmsg(csocket)
+
+^b61 {type = CL}:
+    // if m5 is 1 we want to add 16 (Z rotation) OTHERWISE add 0
+    correction = bcond_mult_const(one, m5): 17
+    correction = add_cval_c(correction, neg_one)
+    neg_theta7 = mult_const(theta7) : -1
+    
+    correction2 = bcond_mult_const(one, m1): 17
+    correction2 = add_cval_c(correction2, neg_one)
+   
+    correction = add_cval_c(neg_theta7, correction)
+    correction = add_cval_c(correction, correction2)
+
+    // Correct for X flip
+    angle7 = bcond_mult_const(angle7, m6) : -1
+    
+    delta7 = add_cval_c(correction, angle7)
+
+    send_cmsg(csocket, delta7)
+
+^b62 {type = CC}:
+    m7 = recv_cmsg(csocket)
+
+^b63 {type = CL}:
+    // if m1 is 1 we want to add 16 (Z rotation) OTHERWISE add 0
+    correction = bcond_mult_const(one, m1): 17
+    correction = add_cval_c(correction, neg_one)
+    
+    neg_theta3 = mult_const(theta3) : -1
+    correction = add_cval_c(neg_theta3, correction)
+    
+    // Correct for X flip
+    angle3 = bcond_mult_const(angle3, m2) : -1
+    
+    delta3 = add_cval_c(correction, angle3)
+
+    send_cmsg(csocket, delta3)
+
+^b64 {type = CC}:
+    m3 = recv_cmsg(csocket)
+
+^b65 {type = CL}:
+    // if m6 is 1 we want to add 16 (Z rotation) OTHERWISE add 0
+    correction = bcond_mult_const(one, m6): 17
+    correction = add_cval_c(correction, neg_one)
+
+    neg_theta8 = mult_const(theta8) : -1
+    correction = add_cval_c(neg_theta8, correction)
+
+    // Correct for X flip
+    angle8 = bcond_mult_const(angle8, m7) : -1
+    
+    delta8 = add_cval_c(correction, angle8)
+
+    send_cmsg(csocket, delta8)
+
+^b66 {type = CC}:
+    m8 = recv_cmsg(csocket)
+
+^b67 {type = CL}:
+    // if m2 is 1 we want to add 16 (Z rotation) OTHERWISE add 0
+    correction = bcond_mult_const(one, m2): 17
+    correction = add_cval_c(correction, neg_one)
+    neg_theta4 = mult_const(theta4) : -1
+    
+    correction2 = bcond_mult_const(one, m8): 17
+    correction2 = add_cval_c(correction2, neg_one)
+    
+    correction = add_cval_c(neg_theta4, correction)
+    correction = add_cval_c(correction, correction2)
+
+    // Correct for X flip
+    angle4 = bcond_mult_const(angle4, m3) : -1
+    
+    delta4 = add_cval_c(correction, angle4)
+
+    send_cmsg(csocket, delta4)
+
+^b68 {type = CC}:
+    m4 = recv_cmsg(csocket)
+
+^b69 {type = CL}:
+    // if m7 is 1 we want to add 16 (Z rotation) OTHERWISE add 0
+    correction = bcond_mult_const(one, m7): 17
+    correction = add_cval_c(correction, neg_one)
+    neg_theta9 = mult_const(theta9) : -1
+
+    correction2 = bcond_mult_const(one, m3): 17
+    correction2 = add_cval_c(correction2, neg_one)
+
+    correction = add_cval_c(neg_theta9, correction)
+    correction = add_cval_c(correction, correction2)
+
+    // Correct for X flip
+    angle9 = bcond_mult_const(angle9, m8) : -1
+    
+    delta9 = add_cval_c(correction, angle9)
+
+    send_cmsg(csocket, delta9)
+
+^b70 {type = CC}:
+    m9 = recv_cmsg(csocket)
+
+^b71 {type = CL}:
+  // |00> + |11>
+  // Ry(24/16) = Ry(1.5pi) = iH -> |+0> + |-1> = |00> + |10> + |01> - |11>
+  // Rz(16/16) = Rz(pi) = iZ -> |00> - |10> + |01> + |11>
+  // Measure -> Out: 0 -> |0> + |1> = |+>
+  // Measure -> Out: 1 -> -|0> + |1> = -|->
+  // Then when computing angle, 16 is added to delta for the Z rotation
+  // Then an H gate is applied
+  // SO if our angle (theta) is 0 we want to just perform a measurement in the X basis (+/-)
+  // If our outcome was 0 we can just do an H gate then otherwise we need to do a correction 1st
+  // ALSO
+  // In MBQC, the resulting state after one measurement is X^s H |state>
+
+    //return_result(p0)
+    return_result(p1)
+    return_result(p2)
+    return_result(p3)
+    return_result(p4)
+    //return_result(p5)
+    return_result(p6)
+    return_result(p7)
+    return_result(p8)
+    return_result(p9)
+    return_result(m0)
+    return_result(m1)
+    return_result(m2)
+    return_result(m3)
+    return_result(m4)
+    return_result(m5)
+    return_result(m6)
+    return_result(m7)
+    return_result(m8)
+    return_result(m9)
+    return_result(delta0)
+    return_result(delta1)
+    return_result(delta2)
+    return_result(delta3)
+    return_result(delta4)
+    return_result(delta5)
+    return_result(delta6)
+    return_result(delta7)
+    return_result(delta8)
+    return_result(delta9)
+
+SUBROUTINE teleport
+    params: 
+    returns: x_correction, z_correction
+    uses: 0, 1 
+    keeps:  
+    request: 
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    // Q0 is the bell pair qubit
+    // Q1 is the state to teleport
+    cnot Q1 Q0
+    h Q1
+
+    // X correction
+    meas Q0 M0
+    
+    // Z correction
+    meas Q1 M1
+    
+    store M0 @output[0]
+    store M1 @output[1] 
+  NETQASM_END
+
+SUBROUTINE prepare_qubit
+    params: state, xmask, theta
+    returns: 
+    uses: 1 
+    keeps: 1
+    request: 
+  NETQASM_START
+    // get state
+    // 0: |+>, 1: |->
+    // 2: |+i>, 3: |-i>
+    // 4: |0>, 5: |1>
+    load C0 @input[0]
+    load C1 @input[1]
+    load C2 @input[2]
+
+    set Q1 1
+    init Q1
+
+    //set C1 0
+    bne C0 0 3  // check state == 0
+    // rotate to |+>
+    rot_y Q1 8 4
+    jmp 19
+
+    //set C1 1
+    bne C0 1 3  // check state == 1
+    // rotate to |->
+    rot_y Q1 24 4
+    jmp 15
+
+    //set C1 2
+    bne C0 2 3  // check state == 2
+    // rotate to |+i>
+    rot_x Q1 24 4
+    jmp 11
+
+    //set C1 3
+    bne C0 3 3  // check state == 3
+    // rotate to |-i>
+    rot_x Q1 8 4
+    jmp 7
+
+    //set C1 4
+    bne C0 4 2  // check state == 4
+    // rotate to |0>, i.e. no rotation
+    jmp 4
+
+    //set C1 5
+    bne C0 5 2  // check state == 5
+    // rotate to |1>
+    rot_x Q1 16 4
+
+
+    // Now we need to mask the input state with a Z rotation
+    rot_z Q1 C2 4
+
+    // X mask
+    bne C1 1 2
+    x Q1
+
+    // No op so that expression above can jump somewhere
+    jmp 1
+  NETQASM_END
+
+
+SUBROUTINE post_epr
+    params: theta, epr_rot_y, epr_rot_z
+    returns: p
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    load C0 @input[0]
+    load C1 @input[1]
+    load C2 @input[2]
+    set Q0 0
+    rot_z Q0 C0 4
+    rot_y Q0 C1 4
+    rot_z Q0 C2 4
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+
+REQUEST req
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {server_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create

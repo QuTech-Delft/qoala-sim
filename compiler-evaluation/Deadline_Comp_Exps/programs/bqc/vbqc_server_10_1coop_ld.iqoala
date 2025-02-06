@@ -1,0 +1,1343 @@
+META_START
+    name: server
+    parameters: client_id
+    csockets: 0 -> client
+    epr_sockets: 0 -> client
+META_END
+
+^b0 {type = CL}:
+    csocket = assign_cval() : 0
+    pi = assign_cval() : 16
+    one = assign_cval() : 1
+
+// We should teleport the input states in the order that they are measured 
+// 0,5,1,6,2,7,3,8,4,9
+// The first qubit teleported is the initial state so we also need X and Z corrections
+^b1 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req0
+
+// This qubit teleported is the other initial state so we also need X and Z corrections
+^b10 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req5
+
+^b14 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req1
+
+^b17 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req6
+
+^b20 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req2
+
+^b23 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req7
+
+^b26 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req3
+
+^b29 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req8
+
+^b32 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req4
+
+^b35 {type = QC, deadlines = [b0: 100]}:
+    run_request() : req9
+
+// Receive and correct qubits
+^b36 {type = CC, deadlines = [b0: 100]}:
+    x_correction0 = recv_cmsg(csocket)
+
+^b37 {type = CC, deadlines = [b0: 100]}:
+    z_correction0 = recv_cmsg(csocket)
+
+^b38 {type = QL, deadlines = [b0: 100]}: 
+    run_subroutine(tuple<x_correction0>) : x_corrections0 
+
+^b39 {type = QL, deadlines = [b0: 100]}: 
+    run_subroutine(tuple<z_correction0>) : z_corrections0
+
+^b40 {type = CC, deadlines = [b0: 100]}:
+    x_correction5 = recv_cmsg(csocket)
+
+^b41 {type = CC, deadlines = [b0: 100]}:
+    z_correction5 = recv_cmsg(csocket)
+    
+^b42 {type = QL, deadlines = [b0: 100]}: 
+    run_subroutine(tuple<x_correction5>) : x_corrections5 
+
+^b43 {type = QL, deadlines = [b0: 100]}: 
+    run_subroutine(tuple<z_correction5>) : z_corrections5
+
+// Teleportation Z corrections
+^b44 {type = CC, deadlines = [b0: 100]}:
+    p1 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b45 {type = CC, deadlines = [b0: 100]}:
+    p6 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b46 {type = CC, deadlines = [b0: 100]}:
+    p2 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b48 {type = CC, deadlines = [b0: 100]}:
+    p7 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b50 {type = CC, deadlines = [b0: 100]}:
+    p3 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b52 {type = CC, deadlines = [b0: 100]}:
+    p8 = recv_cmsg(csocket)
+
+// Teleportation Z corrections
+^b54 {type = CC, deadlines = [b0: 100]}:
+    p4 = recv_cmsg(csocket)
+
+^b55 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<p4>) : zcorrect_qubit_4
+
+// Teleportation Z corrections
+^b56 {type = CC, deadlines = [b0: 100]}:
+    p9 = recv_cmsg(csocket)
+
+^b57 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<p9>) : zcorrect_qubit_9
+
+// Construct a brickwork cluster state of the form
+// 0-1-2-3-4
+//     |   |
+// 5-6-7-8-9
+
+^b62 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases01
+
+^b63 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases12
+
+^b64 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases23
+
+^b65 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases34
+
+^b66 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases56
+
+^b67 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases67
+
+^b68 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases78
+
+^b69 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases89
+
+^b70 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases27
+
+^b71 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine() : local_cphases49
+
+// The measurement order will be 0,5,1,6,2,7,3,8,4,9
+^b72 {type = CC, deadlines = [b0: 100]}:
+    delta0 = recv_cmsg(csocket)
+
+^b73 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta0>) : rot_qubit_0
+
+^b74 {type = QL, deadlines = [b0: 100]}:
+    tuple<m0> = run_subroutine() : h_meas_qubit_0
+
+^b75 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m0)
+
+^b76 {type = CC, deadlines = [b0: 100]}:
+    delta5 = recv_cmsg(csocket)
+
+^b77 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta5>) : rot_qubit_5
+
+^b78 {type = QL, deadlines = [b0: 100]}:
+    tuple<m5> = run_subroutine() : h_meas_qubit_5
+
+^b79 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m5)
+
+^b80 {type = CC, deadlines = [b0: 100]}:
+    delta1 = recv_cmsg(csocket)
+
+^b81 {type = CL, deadlines = [b0: 100]}:
+   // If p1 is 1 we add pi to delta1 
+   not_p1 = bcond_mult_const(one,p1): 0
+   // If p1 is 1 then delta1_correction = pi
+   delta1_correction = bcond_mult_const(pi,not_p1): 0
+
+   delta1 = add_cval_c(delta1, delta1_correction)
+
+
+^b82 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta1>) : rot_qubit_1
+
+^b83 {type = QL, deadlines = [b0: 100]}:
+    tuple<m1> = run_subroutine() : h_meas_qubit_1
+
+
+^b84 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m1)
+
+^b85 {type = CC, deadlines = [b0: 100]}:
+    delta6 = recv_cmsg(csocket)
+
+^b86 {type = CL, deadlines = [b0: 100]}:
+   // If p6 is 1 we add pi to delta6 
+   not_p6 = bcond_mult_const(one,p6): 0
+   // If p6 is 1 then delta1_correction = pi
+   delta6_correction = bcond_mult_const(pi,not_p6): 0
+
+   delta6 = add_cval_c(delta6, delta6_correction)
+
+
+^b87 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta6>) : rot_qubit_6
+
+^b88 {type = QL, deadlines = [b0: 100]}:
+    tuple<m6> = run_subroutine() : h_meas_qubit_6
+
+
+^b89 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m6)
+
+^b90 {type = CC, deadlines = [b0: 100]}:
+    delta2 = recv_cmsg(csocket)
+
+^b91 {type = CL, deadlines = [b0: 100]}:
+   // If p2 is 1 we add pi to delta2 
+   not_p2 = bcond_mult_const(one,p2): 0
+   // If p2 is 1 then delta1_correction = pi
+   delta2_correction = bcond_mult_const(pi,not_p2): 0
+
+   delta2 = add_cval_c(delta2, delta2_correction)
+
+
+^b92 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta2>) : rot_qubit_2
+
+^b93 {type = QL, deadlines = [b0: 100]}:
+    tuple<m2> = run_subroutine() : h_meas_qubit_2
+
+
+^b94 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m2)
+
+^b95 {type = CC, deadlines = [b0: 100]}:
+    delta7 = recv_cmsg(csocket)
+
+^b96 {type = CL, deadlines = [b0: 100]}:
+   // If p7 is 1 we add pi to delta7
+   not_p7 = bcond_mult_const(one,p7): 0
+   // If p7 is 1 then delta1_correction = pi
+   delta7_correction = bcond_mult_const(pi,not_p7): 0
+
+   delta7 = add_cval_c(delta7, delta7_correction)
+
+
+^b97 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta7>) : rot_qubit_7
+
+^b98 {type = QL, deadlines = [b0: 100]}:
+    tuple<m7> = run_subroutine() : h_meas_qubit_7
+
+
+^b99 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m7)
+
+^b100 {type = CC, deadlines = [b0: 100]}:
+    delta3 = recv_cmsg(csocket)
+
+^b101 {type = CL, deadlines = [b0: 100]}:
+   // If p3 is 1 we add pi to delta3 
+   not_p3 = bcond_mult_const(one,p3): 0
+   // If p3 is 1 then delta1_correction = pi
+   delta3_correction = bcond_mult_const(pi,not_p3): 0
+
+   delta3 = add_cval_c(delta3, delta3_correction)
+
+
+^b102 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta3>) : rot_qubit_3
+
+^b103 {type = QL, deadlines = [b0: 100]}:
+    tuple<m3> = run_subroutine() : h_meas_qubit_3
+
+
+^b104 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m3)
+
+^b105 {type = CC, deadlines = [b0: 100]}:
+    delta8 = recv_cmsg(csocket)
+
+^b106 {type = CL, deadlines = [b0: 100]}:
+   // If p8 is 1 we add pi to delta8 
+   not_p8 = bcond_mult_const(one,p8): 0
+   // If p8 is 1 then delta1_correction = pi
+   delta8_correction = bcond_mult_const(pi,not_p8): 0
+
+   delta8 = add_cval_c(delta8, delta8_correction)
+
+
+^b107 {type = QL, deadlines = [b0: 100]}:
+    run_subroutine(tuple<delta8>) : rot_qubit_8
+
+^b108 {type = QL, deadlines = [b0: 100]}:
+    tuple<m8> = run_subroutine() : h_meas_qubit_8
+
+
+^b109 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m8)
+
+^b110 {type = CC, deadlines = [b0: 100]}:
+    delta4 = recv_cmsg(csocket)
+
+^b111 {type = QL, deadlines = [b0: 100]}:
+    tuple<m4> = run_subroutine(tuple<m3>) : zmeas_qubit_4
+    //tuple<m4> = run_subroutine(tuple<delta4>) : meas_qubit_4
+
+^b112 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m4)
+
+^b113 {type = CC, deadlines = [b0: 100]}:
+    delta9 = recv_cmsg(csocket)
+
+^b114 {type = QL, deadlines = [b0: 100]}:
+    tuple<m9> = run_subroutine(tuple<m8>) : zmeas_qubit_9
+    //tuple<m9> = run_subroutine(tuple<delta9>) : meas_qubit_9
+
+^b115 {type = CL, deadlines = [b0: 100]}:
+    send_cmsg(csocket, m9)
+
+SUBROUTINE teleport_corrections0
+    params: x_correction, y_correction 
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    load C1 @input[1]
+    set Q0 0 
+
+    // If x_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    x Q0
+
+    // If z_correction = 1 we do a Z gate
+    bne C1 1 2
+    z Q0
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE teleport_corrections5
+    params: x_correction, y_correction 
+    returns: 
+    uses: 5
+    keeps: 5
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    load C1 @input[1]
+    set Q5 5 
+
+    // If x_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    x Q5
+
+    // If z_correction = 1 we do a Z gate
+    bne C1 1 2
+    z Q5
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_0
+    params: p 
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q0 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_1
+    params: p 
+    returns: 
+    uses: 1 
+    keeps: 1
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q1 1 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q1 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_2
+    params: p 
+    returns: 
+    uses: 2 
+    keeps: 2 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q2 2 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q2 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_3
+    params: p 
+    returns: 
+    uses: 3 
+    keeps: 3 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q3 3 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q3 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_4
+    params: p 
+    returns: 
+    uses: 4 
+    keeps: 4 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q4 4 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q4 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_5
+    params: p 
+    returns: 
+    uses: 5
+    keeps: 5
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q5 5
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q5 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_6
+    params: p 
+    returns: 
+    uses: 6 
+    keeps: 6
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q6 6 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q6 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_7
+    params: p 
+    returns: 
+    uses: 7 
+    keeps: 7 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q7 7 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q7 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_8
+    params: p 
+    returns: 
+    uses: 8 
+    keeps: 8 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q8 8 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q8 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE zcorrect_qubit_9
+    params: p 
+    returns: 
+    uses: 9 
+    keeps: 9 
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q9 9 
+
+    // If p = 1 we Zcorrect the qubit by doing a rotation
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    rot_z Q9 16 4
+    
+    // No op
+    jmp 1 
+  NETQASM_END
+
+SUBROUTINE local_cphases
+    params: 
+    returns: 
+    uses: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    keeps: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    request: 
+  NETQASM_START
+    // Setup our brickwork state in the form
+    // 0-1-2-3-4
+    //     |   |
+    // 5-6-7-8-9
+    set Q0 0 
+    set Q1 1 
+    set Q2 2
+    set Q3 3 
+    set Q4 4
+    set Q5 5 
+    set Q6 6 
+    set Q7 7 
+    set Q8 8
+    set Q9 9
+    
+    cphase Q0 Q1
+    cphase Q1 Q2
+    cphase Q2 Q3
+    cphase Q3 Q4
+
+    cphase Q5 Q6
+    cphase Q6 Q7
+    cphase Q7 Q8
+    cphase Q8 Q9
+
+    cphase Q2 Q7
+    cphase Q4 Q9 
+  NETQASM_END
+
+SUBROUTINE zmeas_qubit_4
+    params: correction 
+    returns: m
+    uses: 4 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q4 4 
+    bne C0 1 2
+    x Q4
+    meas Q4 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE zmeas_qubit_9
+    params: correction 
+    returns: m
+    uses: 9 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q9 9 
+    bne C0 1 2
+    x Q9
+    meas Q9 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_0
+    params: delta
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    rot_z Q0 C0 4
+    h Q0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_1
+    params: delta
+    returns: m
+    uses: 1
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q1 1
+    rot_z Q1 C0 4
+    h Q1
+    meas Q1 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_2
+    params: delta
+    returns: m
+    uses: 2 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q2 2
+    rot_z Q2 C0 4
+    h Q2
+    meas Q2 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_3
+    params: delta
+    returns: m
+    uses: 3 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q3 3
+    rot_z Q3 C0 4
+    h Q3
+    meas Q3 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_4
+    params: delta
+    returns: m
+    uses: 4 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q4 4
+    rot_z Q4 C0 4
+    h Q4
+    meas Q4 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_5
+    params: delta
+    returns: m
+    uses: 5 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q5 5
+    rot_z Q5 C0 4
+    h Q5
+    meas Q5 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_6
+    params: delta
+    returns: m
+    uses: 6
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q6 6
+    rot_z Q6 C0 4
+    h Q6
+    meas Q6 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_7
+    params: delta
+    returns: m
+    uses: 7 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q7 7
+    rot_z Q7 C0 4
+    h Q7
+    meas Q7 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_8
+    params: delta
+    returns: m
+    uses: 8
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q8 8
+    rot_z Q8 C0 4
+    h Q8
+    meas Q8 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE meas_qubit_9
+    params: delta
+    returns: m
+    uses: 9 
+    keeps:
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q9 9 
+    rot_z Q9 C0 4
+    h Q9
+    meas Q9 M0
+    store M0 @output[0]
+  NETQASM_END
+
+
+
+
+SUBROUTINE x_corrections0
+  params: x_correction
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0 
+
+    // If x_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    x Q0
+  NETQASM_END
+
+SUBROUTINE z_corrections0
+  params: z_correction
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0 
+
+    // If z_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    z Q0
+  NETQASM_END
+
+SUBROUTINE x_corrections5
+  params: x_correction
+    returns: 
+    uses: 5
+    keeps: 5
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q5 5 
+
+    // If x_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    x Q5
+  NETQASM_END
+
+SUBROUTINE z_corrections5
+  params: z_correction
+    returns: 
+    uses: 5
+    keeps: 5
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q5 5 
+
+    // If z_correction = 1 we do an X gate
+    // OTHERWISE we do nothing
+    bne C0 1 2
+    z Q5
+  NETQASM_END
+
+SUBROUTINE local_cphases01
+    params: 
+    returns: 
+    uses: 0, 1
+    keeps: 0, 1
+    request: 
+  NETQASM_START
+    set Q0 0 
+    set Q1 1 
+    cphase Q0 Q1
+  NETQASM_END
+
+SUBROUTINE local_cphases12
+    params: 
+    returns: 
+    uses: 1, 2
+    keeps: 1, 2
+    request: 
+  NETQASM_START
+    set Q1 1 
+    set Q2 2
+    cphase Q1 Q2
+  NETQASM_END
+
+SUBROUTINE local_cphases23
+    params: 
+    returns: 
+    uses: 2, 3
+    keeps: 2, 3
+    request: 
+  NETQASM_START
+    set Q2 2 
+    set Q3 3 
+    cphase Q2 Q3
+  NETQASM_END
+  
+SUBROUTINE local_cphases34
+    params: 
+    returns: 
+    uses: 3,4 
+    keeps: 3,4 
+    request: 
+  NETQASM_START
+    set Q3 3 
+    set Q4 4 
+    cphase Q3 Q4
+  NETQASM_END
+
+SUBROUTINE local_cphases56
+    params: 
+    returns: 
+    uses: 5,6 
+    keeps: 5,6 
+    request: 
+  NETQASM_START
+    set Q5 5 
+    set Q6 6 
+    cphase Q5 Q6
+  NETQASM_END
+
+SUBROUTINE local_cphases67
+    params: 
+    returns: 
+    uses: 6,7 
+    keeps: 6,7 
+    request: 
+  NETQASM_START
+    set Q6 6 
+    set Q7 7 
+    cphase Q6 Q7
+  NETQASM_END
+
+SUBROUTINE local_cphases78
+    params: 
+    returns: 
+    uses: 7,8 
+    keeps: 7,8 
+    request: 
+  NETQASM_START
+    set Q7 7 
+    set Q8 8 
+    cphase Q7 Q8
+  NETQASM_END
+
+SUBROUTINE local_cphases89
+    params: 
+    returns: 
+    uses: 8,9 
+    keeps: 8,9 
+    request: 
+  NETQASM_START
+    set Q8 8 
+    set Q9 9 
+    cphase Q8 Q9
+  NETQASM_END
+
+SUBROUTINE local_cphases27
+    params: 
+    returns: 
+    uses: 2,7
+    keeps: 2,7
+    request: 
+  NETQASM_START
+    set Q2 2 
+    set Q7 7 
+    cphase Q2 Q7
+  NETQASM_END
+
+  SUBROUTINE local_cphases49
+    params: 
+    returns: 
+    uses: 4,9
+    keeps: 4,9 
+    request: 
+  NETQASM_START
+    set Q4 4 
+    set Q9 9 
+    cphase Q4 Q9
+  NETQASM_END
+
+SUBROUTINE rot_qubit_0
+    params: delta1
+    returns: 
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q0 0
+    rot_z Q0 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_0
+    params: 
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    h Q0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_1
+    params: delta1
+    returns: 
+    uses: 1
+    keeps: 1
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q1 1 
+    rot_z Q1 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_1
+    params: 
+    returns: m
+    uses: 1
+    keeps:
+    request: 
+  NETQASM_START
+    set Q1 1 
+    h Q1
+    meas Q1 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_2
+    params: delta1
+    returns: 
+    uses: 2
+    keeps: 2
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q2 2 
+    rot_z Q2 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_2
+    params: 
+    returns: m
+    uses: 2
+    keeps:
+    request: 
+  NETQASM_START
+    set Q2 2 
+    h Q2
+    meas Q2 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_3
+    params: delta1
+    returns: 
+    uses: 3 
+    keeps: 3
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q3 3
+    rot_z Q3 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_3
+    params: 
+    returns: m
+    uses: 3
+    keeps:
+    request: 
+  NETQASM_START
+    set Q3 3 
+    h Q3
+    meas Q3 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_4
+    params: delta1
+    returns: 
+    uses: 4
+    keeps: 4
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q4 4 
+    rot_z Q4 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_4
+    params: 
+    returns: m
+    uses: 4
+    keeps:
+    request: 
+  NETQASM_START
+    set Q4 4 
+    h Q4
+    meas Q4 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_5
+    params: delta1
+    returns: 
+    uses: 5
+    keeps: 5
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q5 5 
+    rot_z Q5 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_5
+    params: 
+    returns: m
+    uses: 5 
+    keeps:
+    request: 
+  NETQASM_START
+    set Q5 5 
+    h Q5
+    meas Q5 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_6
+    params: delta1
+    returns: 
+    uses: 6
+    keeps: 6
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q6 6 
+    rot_z Q6 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_6
+    params: 
+    returns: m
+    uses: 6
+    keeps:
+    request: 
+  NETQASM_START
+    set Q6 6
+    h Q6
+    meas Q6 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_7
+    params: delta1
+    returns: 
+    uses: 7
+    keeps: 7
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q7 7
+    rot_z Q7 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_7
+    params: 
+    returns: m
+    uses: 7
+    keeps:
+    request: 
+  NETQASM_START
+    set Q7 7
+    h Q7
+    meas Q7 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_8
+    params: delta1
+    returns: 
+    uses: 8
+    keeps: 8
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q8 8 
+    rot_z Q8 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_8
+    params: 
+    returns: m
+    uses: 8
+    keeps:
+    request: 
+  NETQASM_START
+    set Q8 8 
+    h Q8
+    meas Q8 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE rot_qubit_9
+    params: delta1
+    returns: 
+    uses: 9
+    keeps: 9
+    request: 
+  NETQASM_START
+    load C0 @input[0]
+    set Q9 9
+    rot_z Q9 C0 4
+  NETQASM_END
+
+SUBROUTINE h_meas_qubit_9
+    params: 
+    returns: m
+    uses: 9 
+    keeps:
+    request: 
+  NETQASM_START
+    set Q9 9 
+    h Q9
+    meas Q9 M0
+    store M0 @output[0]
+  NETQASM_END
+
+
+
+REQUEST req0
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 0
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req1
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 1
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req2
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 2
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req3
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 3
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req4
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 4
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req5
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 5 
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req6
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 6 
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req7
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 7
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req8
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 8
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
+
+REQUEST req9
+  callback_type:
+  callback: 
+  return_vars:
+  remote_id: {client_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 9
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: receive
