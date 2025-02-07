@@ -8,14 +8,20 @@ from argparse import ArgumentParser
 import dacite
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import math
 
 @dataclass
 class DataPoint:
-    naive_makespan: float
-    opt_makespan: float
-    naive_succ_prob: float
-    opt_succ_prob: float
-    prog_size: int
+    selfish_bqc_makespan: float
+    selfish_local_makespan: float
+    cooperative_bqc_makespan: float
+    cooperative_local_makespan: float
+    selfish_bqc_succ_prob: float
+    selfish_local_succ_prob: float
+    cooperative_bqc_succ_prob: float
+    cooperative_local_succ_prob: float   
+    prog_size: float
+    num_clients: float
     param_name: str  # Name of param being varied
     param_value: float  # Value of the varied param
 
@@ -24,17 +30,18 @@ class DataMeta:
     timestamp: str
     sim_duration: float
     hardware: str
-    qia_sga: int
-    prog_name: str 
+    qia_sga: float
+    scenario: float
     prog_sizes: List[int]
     num_iterations: List[int]
-    num_clients: int
+    num_trials: float
+    max_num_clients: float
     linear: bool
-    cc: float 
-    t1: float 
-    t2: float 
-    single_gate_dur: float 
-    two_gate_dur: float 
+    cc: float
+    t1: float
+    t2: float
+    single_gate_dur: float
+    two_gate_dur: float
     all_gate_dur: float
     single_gate_fid: float
     two_gate_fid: float
@@ -42,13 +49,15 @@ class DataMeta:
     qnos_instr_proc_time: float
     host_instr_time: float
     host_peer_latency: float
+    internal_sched_latency: float
     client_num_qubits: float
     server_num_qubits: float
-    # use_netschedule: bool
-    # bin_length: int
+    use_netschedule: bool
+    bin_length: float
     param_name: str  # The parameter being varied
-    link_duration: int
+    link_duration: float
     link_fid: float
+    seed: float
 
 @dataclass
 class Data:
@@ -67,10 +76,10 @@ def create_png(filename: str):
 
 # Returns 5 dictionaries that map program size to a list of values
 def get_vals(data: Data):
-    naive_makespan_size_dp_map = dict()
-    naive_succprob_size_dp_map = dict()
-    opt_makespan_size_dp_map = dict()
-    opt_succprob_size_dp_map = dict()
+    selfish_makespan_size_dp_map = dict()
+    selfish_succprob_size_dp_map = dict()
+    cooperative_makespan_size_dp_map = dict()
+    cooperative_succprob_size_dp_map = dict()
     x_val_size_dp_map = dict()
 
     meta = data.meta
@@ -79,27 +88,27 @@ def get_vals(data: Data):
     sizes = meta.prog_sizes
     for size in sizes:
         dps = [dp for dp in datapoints if dp.prog_size == size]
-        naive_makespan_size_dp_map[size] = [dp.naive_makespan for dp in dps]
-        naive_succprob_size_dp_map[size] = [dp.naive_succ_prob for dp in dps]
+        selfish_makespan_size_dp_map[size] = ([dp.selfish_bqc_makespan for dp in dps] ,[dp.selfish_local_makespan for dp in dps])
+        selfish_succprob_size_dp_map[size] = ([dp.selfish_bqc_succ_prob for dp in dps],[dp.selfish_local_succ_prob for dp in dps])
 
-        opt_makespan_size_dp_map[size] = [dp.opt_makespan for dp in dps]
-        opt_succprob_size_dp_map[size] = [dp.opt_succ_prob for dp in dps]
+        cooperative_makespan_size_dp_map[size] = ([dp.cooperative_bqc_makespan for dp in dps] , [dp.cooperative_local_makespan for dp in dps])
+        cooperative_succprob_size_dp_map[size] = ([dp.cooperative_bqc_succ_prob for dp in dps], [dp.cooperative_local_succ_prob for dp in dps])
         
         x_val_size_dp_map[size] = [dp.param_value for dp in dps]
 
-    return x_val_size_dp_map, naive_makespan_size_dp_map, naive_succprob_size_dp_map, opt_makespan_size_dp_map, opt_succprob_size_dp_map
+    return x_val_size_dp_map, selfish_makespan_size_dp_map, selfish_succprob_size_dp_map, cooperative_makespan_size_dp_map, cooperative_succprob_size_dp_map
 
 # Scans all .json files in a folder and finds the 'worst' results in terms of makespan and success probability
-def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=False, timestamp=None):
+def find_worst(path:str, param:str, hardware:str, scenario:str, savefile:bool=False, timestamp=None):
     # Get all .json files for the correct parameter and hardware
-    files = [f for f in os.listdir(relative_to_cwd(path)) if f[-5:] == ".json" and param in f and hardware in f and program in f]
+    files = [f for f in os.listdir(relative_to_cwd(path)) if f[-5:] == ".json" and param in f and hardware in f and scenario in f]
 
     # Load all of the data objects
     datas = [load_data(path+"/"+f) for f in files]
     
-    worst_makespan = 0
+    worst_makespan = -math.inf 
     worst_makespan_file = ""
-    worst_succprob = 0
+    worst_succprob = -math.inf 
     worst_succprob_file = ""
     # For each data object
     for i in range(0, len(datas)):
@@ -109,8 +118,8 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
         avg_succprob_diff = 0
         # Compute the average difference for makespan and success probability
         for dp in data.data_points:
-            avg_makespan_diff += dp.naive_makespan-dp.opt_makespan
-            avg_succprob_diff += dp.opt_succ_prob-dp.naive_succ_prob
+            avg_makespan_diff += dp.selfish_bqc_makespan-dp.cooperative_bqc_makespan
+            avg_succprob_diff += dp.cooperative_bqc_succ_prob-dp.selfish_bqc_succ_prob
         avg_makespan_diff = avg_makespan_diff / len(data.data_points) 
         avg_succprob_diff = avg_succprob_diff / len(data.data_points)
 
@@ -130,23 +139,24 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
 def load_data(path: str) -> Data:
     with open(relative_to_cwd(path), "r") as f:
         all_data = json.load(f)
-
+    
     return dacite.from_dict(Data, all_data)
 
 def create_plots(timestamp, data: Data, plottype:str, save=True):
     meta = data.meta
     prog_sizes = meta.prog_sizes
-    x_val_map, naive_makespan_map, naive_succprob_map, opt_makespan_map, opt_succprob_map = get_vals(data)
+    x_val_map, selfish_makespan_map, selfish_succprob_map, cooperative_makespan_map, cooperative_succprob_map = get_vals(data)
     label_fontsize = 14
 
     if plottype=="makespan" or plottype=="":
         for key in x_val_map.keys():
-            plt.plot(
-                x_val_map[key], [val / len(x_val_map[key]) for val in naive_makespan_map[key]] , label=f"Subopt n={key}", marker="o"
-            )
-            plt.plot(x_val_map[key], [val / len(x_val_map[key]) for val in opt_makespan_map[key]], label=f"Opt n={key}", marker="s")
+            for i in range(0,2):
+                plt.plot(
+                    x_val_map[key], [val for val in selfish_makespan_map[key][i]] , label=f"Self {'bqc' if i == 0 else 'local'}, n={key}", marker="o"
+                )
+                plt.plot(x_val_map[key], [val for val in cooperative_makespan_map[key][i]], label=f"Coop {'bqc' if i == 0 else 'local'}, n={key}", marker="s")
 
-        plt.legend(loc="upper left", fontsize=11)
+        plt.legend(loc="upper right", fontsize=11)
         plt.ylabel("Avg Makespan (ns)", fontsize=label_fontsize)
         plt.xlabel(meta.param_name, fontsize=label_fontsize)
         
@@ -158,10 +168,12 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
 
     if plottype=="succprob" or plottype=="":
         for key in x_val_map.keys():
-            plt.plot(
-                x_val_map[key], naive_succprob_map[key], label=f"Subopt n={key}", marker="o"
-            )
-            plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt n={key}", marker="s")
+            for i in range(0,2):
+                plt.plot(
+                    x_val_map[key], [val for val in selfish_succprob_map[key][i]] , label=f"Self {'bqc' if i == 0 else 'local'}, n={key}", marker="o"
+                )
+                plt.plot(x_val_map[key], [val for val in cooperative_succprob_map[key][i]], label=f"Coop {'bqc' if i == 0 else 'local'}, n={key}", marker="s")
+
 
         plt.legend(loc="lower right", fontsize=11)
         plt.ylabel("Success Probability",fontsize=label_fontsize)
@@ -176,10 +188,11 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
 
     if plottype=="succsec" or plottype=="": 
         for key in x_val_map.keys():
-            plt.plot(
-                x_val_map[key], [naive_succprob_map[key][i] / naive_makespan_map[key][i] for i in range(0,len(x_val_map[key]))], label=f"Subopt n={key}", marker="o"
-            )
-            plt.plot(x_val_map[key],  [opt_succprob_map[key][i] / opt_makespan_map[key][i] for i in range(0,len(x_val_map[key]))], label=f"Opt n={key}", marker="s")
+            for j in range(0,2):
+                plt.plot(
+                    x_val_map[key], [selfish_succprob_map[key][j][i] / selfish_makespan_map[key][j][i] for i in range(0,len(x_val_map[key]))], label=f"Self {'bqc' if j==0 else 'local'} n={key}", marker="o"
+                )
+                plt.plot(x_val_map[key],  [cooperative_succprob_map[key][j][i] / cooperative_makespan_map[key][j][i] for i in range(0,len(x_val_map[key]))], label=f"Coop {'bqc' if j==0 else 'local'} n={key}", marker="s")
 
         plt.legend(loc="upper right", fontsize=11)
         plt.ylabel("Successes / ns", fontsize=label_fontsize)
@@ -197,18 +210,18 @@ if __name__ == "__main__":
     parser.add_argument("--save", "-s", action="store_true", default=False)
     parser.add_argument("--params", type=str, nargs="+", required=True)
     parser.add_argument("--hardware", type=str, nargs="+", required=True)
-    parser.add_argument("--programs", type=str, nargs="+",required=True)
-
+    parser.add_argument("--scenario", type=str, nargs="+", required=True)
+    
     args = parser.parse_args()
     folder = args.folder
     saveFile = args.save
     params = args.params
     hardware = args.hardware
-    programs = args.programs
+    scenarios = args.scenario
     
     for param in params:
         for hw in hardware:
-            for program in programs:
-                find_worst(folder, param, hw, program, saveFile, timestamp)
+            for scenario in scenarios:
+                find_worst(folder, param, hw, scenario, saveFile, timestamp)
 
         

@@ -946,7 +946,7 @@ if __name__ == "__main__":
         seed_str = seed_obj["seeds"][seed]
         seed_value = int(seed_str, 16)
 
-    program_sizes = [3,5,10]
+    program_sizes = [3,5]#,10]
     # Load program inputs and other values based on the scenario
     if params["scenario"] == 1 or params["scenario"] == 2:
         params["client_progs"] = [[f"programs/bqc/vbqc_client_{i}.iqoala"] for i in program_sizes]
@@ -987,7 +987,7 @@ if __name__ == "__main__":
     for prog_size_index in range(len(program_sizes)):
         print(f"Program size: {program_sizes[prog_size_index]}")
         for num_clients in range(2,params["num_clients"]+1):
-            print(f"Num Clients: {num_clients}")
+            # print(f"Num Clients: {num_clients}")
             num_qubits = num_clients*program_sizes[prog_size_index] + 1
             for param_val in param_vals:
                 print(f"Results for {param_name} : {params[param_name]}")
@@ -1048,7 +1048,7 @@ if __name__ == "__main__":
                         random_client_inputs=True,
                         compute_succ_probs=params["compute_succ_probs"][prog_size_index],
                     )
-                    print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
+                    # print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
 
                     # Run coop version
                     coop_total_makespan, coop_succ_probs, coop_makespans = run_eval_exp(
@@ -1082,7 +1082,7 @@ if __name__ == "__main__":
                         random_client_inputs=True,
                         compute_succ_probs=params["compute_succ_probs"][prog_size_index],
                     )
-                    print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
+                    # print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
 
                     # Compute the average success probability and makespan for local and bqc programs
 
@@ -1122,7 +1122,7 @@ if __name__ == "__main__":
                     param_name=param_name,
                     param_value=param_val
                 ))
-                print(datapoints[-1])
+                # print(datapoints[-1])
 
     
     # Finish computing how long the experiment took to run

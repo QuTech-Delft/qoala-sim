@@ -5,7 +5,7 @@
     "distance": 0, 
     "client_num_iterations": [1],
     "server_num_iterations": [1],
-    "num_clients": 5, 
+    "num_clients": 2, 
     "linear": false,
     "cc": 1e5,
     "t1": 0,

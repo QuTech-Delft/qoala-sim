@@ -1,11 +1,11 @@
 {
-    "scenario": 1,
+    "scenario": 2,
     "hardware": "TI",
     "qia_sga": 2,
     "distance": 0, 
     "client_num_iterations": [1],
     "server_num_iterations": [1,1],
-    "num_clients": 5, 
+    "num_clients": 2, 
     "linear": false,
     "cc": 1e5,
     "t1": 0,
