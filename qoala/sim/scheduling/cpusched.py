@@ -9,9 +9,10 @@ import netsquid as ns
 from pydynaa import EventExpression
 from qoala.lang import hostlang
 from qoala.lang.hostlang import ReceiveCMsgOp
-from qoala.runtime.task import HostEventTask
+from qoala.runtime.task import HostEventTask, QoalaTask
 from qoala.sim.driver import CpuDriver
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
+from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.scheduling.procsched import ProcessorScheduler, SchedulerStatus, Status
@@ -39,8 +40,28 @@ class CpuScheduler(ProcessorScheduler):
         self._host_interface = host_interface
 
     def is_message_available(self, tid: int) -> bool:
+        csck = self._get_csocket_for_tid(tid)
+        task = self._get_task_for_tid(tid)
+        remote_name = csck.remote_name
+        remote_pid = csck.remote_pid
+        self._task_logger.debug(f"checking if msg from {remote_name} is available")
+        messages = self._host_interface.get_available_messages(remote_name)
+        if task is not None and (remote_pid, task.pid) in messages:
+            self._task_logger.debug(f"task {tid} NOT blocked on message")
+            return True
+        else:
+            self._task_logger.debug(f"task {tid} blocked on message")
+            return False
+
+    def _get_peer_name_for_tid(self, tid: int) -> str:
+        return self._get_csocket_for_tid(tid).remote_name
+
+    def _get_task_for_tid(self, tid: int) -> Optional[QoalaTask]:
+        return self._task_graph.get_tinfo(tid).task
+
+    def _get_csocket_for_tid(self, tid: int) -> ClassicalSocket:
         assert self._task_graph is not None
-        task = self._task_graph.get_tinfo(tid).task
+        task = self._get_task_for_tid(tid)
         assert isinstance(task, HostEventTask)
         process = self._memmgr.get_process(task.pid)
         block = process.program.get_block(task.block_name)
@@ -48,21 +69,32 @@ class CpuScheduler(ProcessorScheduler):
         assert isinstance(instr, ReceiveCMsgOp)
         assert isinstance(instr.arguments[0], hostlang.IqoalaSingleton)
         csck_id = process.host_mem.read(instr.arguments[0].name)
-        csck = process.csockets[csck_id]
-        remote_name = csck.remote_name
-        remote_pid = csck.remote_pid
-        self._task_logger.debug(f"checking if msg from {remote_name} is available")
-        messages = self._host_interface.get_available_messages(remote_name)
-        if (remote_pid, task.pid) in messages:
-            self._task_logger.debug(f"task {tid} NOT blocked on message")
-            return True
-        else:
-            self._task_logger.debug(f"task {tid} blocked on message")
-            return False
+        return process.csockets[csck_id]
 
     @abstractmethod
     def choose_next_task(self, ready_tasks: List[int]) -> None:
         raise NotImplementedError
+
+    def _get_peer_names_waiting_message_from(self) -> List[str]:
+        # Very similar to the first lines of update_status:
+        # We simply need to compute the peer names from which we are waiting
+        # for a message, but there is NOT a message already on the queue
+        tg = self._task_graph
+        no_predecessors = tg.get_roots()
+
+        event_no_predecessors = [
+            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
+        ]
+
+        # In scenarios of a batch with multiple iterations, we could be waiting for
+        # messages from the same peer; include them only once in the list (so we use
+        # a dictionary for storing peer names)
+        peer_names = {
+            self._get_peer_name_for_tid(tid)
+            for tid in event_no_predecessors
+            if not self.is_message_available(tid)
+        }
+        return list(peer_names)
 
     def update_status(self) -> None:
         tg = self._task_graph
@@ -196,15 +228,22 @@ class CpuScheduler(ProcessorScheduler):
                     ev_expr = ev_expr | ev_start_time
 
                 if Status.WAITING_MSG in self.status.status:
-                    ev_msg_arrived = self._host_interface.get_evexpr_for_any_msg()
+                    # We should NOT wait for any message, but rather wait for the message
+                    # on which the blocked tasks depend on
+                    waiting_msg_from_peer = self._get_peer_names_waiting_message_from()
+                    ev_msg_arrived = self._host_interface.get_evexpr_for_msg_from(
+                        waiting_msg_from_peer
+                    )
 
                     ev_expr = ev_msg_arrived | ev_expr
                     yield ev_expr
                     if len(ev_expr.first_term.triggered_events) > 0:
                         # It was "ev_msg_arrived" that triggered.
                         # Need to process this event (flushing potential other messages)
+                        # WARNING: We should yield _on messages from peers that we are waiting
+                        # messages from_ otherwise the simulation might stall
                         yield from self._host_interface.handle_msg_evexpr(
-                            ev_expr.first_term
+                            ev_expr.first_term, peers=waiting_msg_from_peer
                         )
                 else:
                     yield ev_expr
