@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 import dacite
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import math
 
 @dataclass
 class DataPoint:
@@ -95,11 +96,11 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
     files = [f for f in os.listdir(relative_to_cwd(path)) if f[-5:] == ".json" and param in f and hardware in f and program in f]
 
     # Load all of the data objects
-    datas = [load_data(path+"/"+f) for f in files]
-    
-    worst_makespan = 0
+    datas = [load_data(path+"/"+f) for f in files] 
+
+    worst_makespan = math.inf
     worst_makespan_file = ""
-    worst_succprob = 0
+    worst_succprob = math.inf 
     worst_succprob_file = ""
     # For each data object
     for i in range(0, len(datas)):
@@ -114,18 +115,19 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
         avg_makespan_diff = avg_makespan_diff / len(data.data_points) 
         avg_succprob_diff = avg_succprob_diff / len(data.data_points)
 
-        if avg_makespan_diff > worst_makespan:
+        if avg_makespan_diff < worst_makespan:
             worst_makespan = avg_makespan_diff
             worst_makespan_file = files[i]
 
-        if avg_succprob_diff > worst_succprob:
+        if avg_succprob_diff < worst_succprob:
             worst_succprob = avg_succprob_diff
             worst_succprob_file = files[i]
     
-    print(worst_makespan, worst_makespan_file)
-    print(worst_succprob,worst_succprob_file)
+    print("Avg Makespan diff: ", worst_makespan, worst_makespan_file)
+    print("Avg Succprob diff: ", worst_succprob,worst_succprob_file)
     create_plots(timestamp,load_data(path+"/"+worst_makespan_file),"makespan",saveFile)
     create_plots(timestamp,load_data(path+"/"+worst_succprob_file),"succprob",saveFile)
+    create_plots(timestamp,load_data(path+"/"+worst_succprob_file),"succsec",saveFile)
 
 def load_data(path: str) -> Data:
     with open(relative_to_cwd(path), "r") as f:
@@ -138,37 +140,58 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
     prog_sizes = meta.prog_sizes
     x_val_map, naive_makespan_map, naive_succprob_map, opt_makespan_map, opt_succprob_map = get_vals(data)
     label_fontsize = 14
+    opt_markersize=10
 
+    # plt.xscale('log')
     if plottype=="makespan" or plottype=="":
         for key in x_val_map.keys():
             plt.plot(
-                x_val_map[key], [val / len(x_val_map[key]) for val in naive_makespan_map[key]] , label=f"Subopt n={key}", marker="o"
+                x_val_map[key], [(val / len(x_val_map[key])) / 1e9 for val in naive_makespan_map[key]] , label=f"Subopt $n$={key}", marker="o"
             )
-            plt.plot(x_val_map[key], [val / len(x_val_map[key]) for val in opt_makespan_map[key]], label=f"Opt n={key}", marker="s")
+            if meta.prog_name == "rotation":
+                if key == 10:
+                    plt.plot(x_val_map[key], [(val / len(x_val_map[key])) / 1e9 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize, color="red")
+            else:
+                plt.plot(x_val_map[key], [(val / len(x_val_map[key])) / 1e9 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
 
         plt.legend(loc="upper left", fontsize=11)
-        plt.ylabel("Avg Makespan (ns)", fontsize=label_fontsize)
-        plt.xlabel(meta.param_name, fontsize=label_fontsize)
+        if meta.param_name == "single_gate_fid":
+            plt.xlabel("Single qubit gate fidelity",fontsize=label_fontsize)   
+        elif meta.param_name == "distance":
+            plt.xlabel("Distance (km)",fontsize=label_fontsize)   
+        else:
+            plt.xlabel(meta.param_name,fontsize=label_fontsize)   
+        plt.ylabel("Avg Makespan (s)", fontsize=label_fontsize)
         
         if save:
-            create_png(timestamp + "_" + meta.param_name + "_makespan_n")
+            create_png(timestamp + "_" + meta.param_name + "_makespan_n_"+ meta.hardware)
         else:
             plt.show()
         plt.cla()
 
     if plottype=="succprob" or plottype=="":
+        plt.ylim(0.55, 1.01)
         for key in x_val_map.keys():
             plt.plot(
-                x_val_map[key], naive_succprob_map[key], label=f"Subopt n={key}", marker="o"
+                x_val_map[key], naive_succprob_map[key], label=f"Subopt $n$={key}", marker="o"
             )
-            plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt n={key}", marker="s")
+            if meta.prog_name == "rotation":
+                if key == 10:
+                    plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize, color="red")
+            else:
+                plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
 
         plt.legend(loc="lower right", fontsize=11)
         plt.ylabel("Success Probability",fontsize=label_fontsize)
-        plt.xlabel(meta.param_name,fontsize=label_fontsize)   
+        if meta.param_name == "single_gate_fid":
+            plt.xlabel("Single qubit gate fidelity",fontsize=label_fontsize)   
+        elif meta.param_name == "distance":
+            plt.xlabel("Distance (km)",fontsize=label_fontsize)   
+        else:
+            plt.xlabel(meta.param_name,fontsize=label_fontsize)   
         
         if save:
-            create_png(timestamp + "_" + meta.param_name + "_succprob_n")
+            create_png(timestamp + "_" + meta.param_name + "_succprob_n_" + meta.hardware)
         else:
             plt.show()
         plt.cla()
@@ -177,15 +200,21 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
     if plottype=="succsec" or plottype=="": 
         for key in x_val_map.keys():
             plt.plot(
-                x_val_map[key], [naive_succprob_map[key][i] / naive_makespan_map[key][i] for i in range(0,len(x_val_map[key]))], label=f"Subopt n={key}", marker="o"
+                x_val_map[key], [naive_succprob_map[key][i] / naive_makespan_map[key][i] * 1e9 for i in range(0,len(x_val_map[key]))], label=f"Subopt $n$={key}", marker="o"
             )
-            plt.plot(x_val_map[key],  [opt_succprob_map[key][i] / opt_makespan_map[key][i] for i in range(0,len(x_val_map[key]))], label=f"Opt n={key}", marker="s")
+            plt.plot(x_val_map[key],  [opt_succprob_map[key][i] / opt_makespan_map[key][i] *1e9 for i in range(0,len(x_val_map[key]))], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
 
         plt.legend(loc="upper right", fontsize=11)
-        plt.ylabel("Successes / ns", fontsize=label_fontsize)
-        plt.xlabel(meta.param_name, fontsize=label_fontsize)   
+        plt.ylabel("Successes / s", fontsize=label_fontsize)
+        if meta.param_name == "single_gate_fid":
+            plt.xlabel("Single qubit gate fidelity",fontsize=label_fontsize)   
+        elif meta.param_name == "distance":
+            plt.xlabel("Distance (km)",fontsize=label_fontsize)   
+        else:
+            plt.xlabel(meta.param_name,fontsize=label_fontsize)
+
         if save:
-            create_png(timestamp + "_" + meta.param_name + "_succsec_n")
+            create_png(timestamp + "_" + meta.param_name + "_succsec_n_"+ meta.hardware)
         else:
             plt.show()
         plt.cla()
