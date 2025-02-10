@@ -3,7 +3,7 @@ META_START
     parameters: 
     csockets: 
     epr_sockets: 
-    critical_sections: 0 -> AE
+    critical_sections: 0 -> E
 META_END
 
 ^b0 {type = QL, critical_section = 0}:

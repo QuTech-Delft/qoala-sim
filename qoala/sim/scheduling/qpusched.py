@@ -198,7 +198,7 @@ class QpuScheduler(ProcessorScheduler):
         # All tasks that have no predecessors, internal nor external.
         no_predecessors = tg.get_roots()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
-        if self._critical_section:
+        if self._critical_section is not None:
             cs = self._critical_section  # to make following lines more compact
             no_predecessors = [
                 t
@@ -213,7 +213,7 @@ class QpuScheduler(ProcessorScheduler):
         # All tasks that have only external predecessors.
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
-        if self._critical_section:
+        if self._critical_section is not None:
             cs = self._critical_section  # to make following lines more compact
             blocked_on_other_core = [
                 t
