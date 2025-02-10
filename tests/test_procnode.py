@@ -6,6 +6,7 @@ from typing import Any, Dict, Generator, List, Optional, Type
 import netsquid as ns
 from netqasm.lang.parsing import parse_text_subroutine
 from netsquid.components import QuantumProcessor
+from netsquid.protocols import Protocol
 from netsquid.qubits import ketstates
 
 from pydynaa import EventExpression
@@ -47,7 +48,7 @@ from qoala.sim.netstack import NetstackInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
 from qoala.sim.qdevice import QDevice, QDeviceCommand
-from qoala.sim.scheduler import NodeScheduler
+from qoala.sim.scheduling.nodesched import NodeScheduler
 from qoala.util.math import has_multi_state
 from qoala.util.tests import netsquid_run
 
@@ -218,6 +219,7 @@ class MockScheduler(NodeScheduler):
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
         self._is_predictable = True
+        self._interface = Protocol()
         pass
 
     def schedule_next_for(self, pid: int) -> None:
@@ -441,6 +443,7 @@ def test_classical_comm():
         parameters=["csocket_id", "message"],
         csockets={0: "bob"},
         epr_sockets={},
+        critical_sections={},
     )
     alice_program = create_program(instrs=alice_instrs, meta=alice_meta)
     alice_process = create_process(
@@ -457,7 +460,11 @@ def test_classical_comm():
         ReceiveCMsgOp(IqoalaSingleton("csocket_id"), IqoalaSingleton("result"))
     ]
     bob_meta = ProgramMeta(
-        name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
+        name="bob",
+        parameters=["csocket_id"],
+        csockets={0: "alice"},
+        epr_sockets={},
+        critical_sections={},
     )
     bob_program = create_program(instrs=bob_instrs, meta=bob_meta)
     bob_process = create_process(
@@ -553,6 +560,7 @@ def test_classical_comm_three_nodes():
         parameters=["csocket_id", "message"],
         csockets={0: "charlie"},
         epr_sockets={},
+        critical_sections={},
     )
     alice_program = create_program(instrs=alice_instrs, meta=alice_meta)
     alice_process = create_process(
@@ -571,6 +579,7 @@ def test_classical_comm_three_nodes():
         parameters=["csocket_id", "message"],
         csockets={0: "charlie"},
         epr_sockets={},
+        critical_sections={},
     )
     bob_program = create_program(instrs=bob_instrs, meta=bob_meta)
     bob_process = create_process(
@@ -594,6 +603,7 @@ def test_classical_comm_three_nodes():
         parameters=["csocket_id_alice", "csocket_id_bob"],
         csockets={0: "alice", 1: "bob"},
         epr_sockets={},
+        critical_sections={},
     )
     charlie_program = create_program(instrs=charlie_instrs, meta=charlie_meta)
     charlie_process = create_process(
@@ -714,6 +724,7 @@ def test_epr():
         parameters=["csocket_id", "message"],
         csockets={0: "bob"},
         epr_sockets={},
+        critical_sections={},
     )
     alice_program = create_program(
         instrs=alice_instrs,
@@ -732,7 +743,11 @@ def test_epr():
 
     bob_instrs = [ReceiveCMsgOp("csocket_id", "result")]
     bob_meta = ProgramMeta(
-        name="bob", parameters=["csocket_id"], csockets={0: "alice"}, epr_sockets={}
+        name="bob",
+        parameters=["csocket_id"],
+        csockets={0: "alice"},
+        epr_sockets={},
+        critical_sections={},
     )
     bob_program = create_program(
         instrs=bob_instrs, req_routines={"req1": bob_request_routine}, meta=bob_meta

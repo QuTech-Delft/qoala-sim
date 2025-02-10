@@ -12,8 +12,8 @@ from qoala.runtime.task import (
     ProcessorType,
     QoalaTask,
     TaskGraph,
-    TaskGraphBuilder,
 )
+from qoala.runtime.taskbuilder import TaskGraphBuilder
 
 
 class SimpleTask(QoalaTask):

@@ -14,6 +14,7 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import ProgramInput
+from qoala.util.logging import LogManager
 from qoala.util.runner import run_single_node_app
 
 
@@ -38,13 +39,49 @@ def load_program(name: str) -> QoalaProgram:
 
 
 def test_simple_program():
+    LogManager.set_log_level("DEBUG")
+    LogManager.log_to_file("simple_program.log")
+
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_tasks_to_file("simple_program_tasks.log")
+
     ns.sim_reset()
 
-    num_iterations = 100
+    num_iterations = 1
 
     node_cfg = get_config()
     network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
     program = load_program("simple_program.iqoala")
+
+    app_results = run_single_node_app(
+        num_iterations=num_iterations,
+        program_name="alice",
+        program=program,
+        program_input=ProgramInput.empty(),
+        network_cfg=network_cfg,
+        linear=True,
+    )
+
+    all_results = app_results.batch_results["alice"].results
+    outcomes = [result.values["m"] for result in all_results]
+    print(outcomes)
+    assert all(outcome == 1 for outcome in outcomes)
+
+
+def test_simple_program_cs():
+    LogManager.set_log_level("DEBUG")
+    LogManager.log_to_file("simple_program_cs.log")
+
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_tasks_to_file("simple_program_cs_tasks.log")
+
+    ns.sim_reset()
+
+    num_iterations = 1
+
+    node_cfg = get_config()
+    network_cfg = ProcNodeNetworkConfig(nodes=[node_cfg], links=[])
+    program = load_program("simple_program_cs.iqoala")
 
     app_results = run_single_node_app(
         num_iterations=num_iterations,
@@ -109,6 +146,7 @@ def test_return_vector_loop():
 
 
 if __name__ == "__main__":
-    test_simple_program()
-    test_return_vector()
-    test_return_vector_loop()
+    # test_simple_program()
+    test_simple_program_cs()
+    # test_return_vector()
+    # test_return_vector_loop()

@@ -19,8 +19,10 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.task import TaskGraph, TaskGraphBuilder
+from qoala.runtime.task import TaskGraph
+from qoala.runtime.taskbuilder import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
+from qoala.util.logging import LogManager
 from qoala.util.runner import create_batch
 
 
@@ -160,10 +162,10 @@ def run_teleport(num_iterations: int) -> TeleportResult:
 
 
 def test_teleport():
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_to_file("teleport.log")
-    # LogManager.log_tasks_to_file("teleport_tasks.log")
+    LogManager.set_log_level("DEBUG")
+    LogManager.set_task_log_level("DEBUG")
+    LogManager.log_to_file("teleport_custom_graph.log")
+    LogManager.log_tasks_to_file("teleport_custom_graph_tasks.log")
     num_iterations = 3
 
     result = run_teleport(num_iterations=num_iterations)

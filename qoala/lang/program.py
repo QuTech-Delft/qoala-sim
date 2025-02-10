@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Dict, List, Optional
 
 from qoala.lang.hostlang import (
@@ -18,6 +19,12 @@ from qoala.lang.request import RequestRoutine
 from qoala.lang.routine import LocalRoutine
 
 
+class CriticalSectionType(Enum):
+    A = auto()  # atomic allocation
+    E = auto()  # atomic execution
+    AE = auto()  # atomic allocation and execution
+
+
 @dataclass
 class ProgramMeta:
     """
@@ -33,13 +40,16 @@ class ProgramMeta:
     parameters: List[str]  # list of parameter names (all have type int)
     csockets: Dict[int, str]  # socket ID -> remote node name
     epr_sockets: Dict[int, str]  # socket ID -> remote node name
+    critical_sections: Dict[int, CriticalSectionType]  # critical section ID -> type
 
     @classmethod
     def empty(cls, name: str) -> ProgramMeta:
         """
         Convenience method for creating an empty ProgramMeta.
         """
-        return ProgramMeta(name=name, parameters=[], csockets={}, epr_sockets={})
+        return ProgramMeta(
+            name=name, parameters=[], csockets={}, epr_sockets={}, critical_sections={}
+        )
 
     def serialize(self) -> str:
         s = "META_START"
@@ -47,6 +57,8 @@ class ProgramMeta:
         s += f"\nparameters: {', '.join(self.parameters)}"
         s += f"\ncsockets: {', '.join(f'{k} -> {v}' for k,v in self.csockets.items())}"
         s += f"\nepr_sockets: {', '.join(f'{k} -> {v}' for k,v in self.epr_sockets.items())}"
+        if len(self.critical_sections) > 0:
+            s += f"\ncritical_sections: {', '.join(f'{k} -> {v.name}' for k,v in self.critical_sections.items())}"
         s += "\nMETA_END"
         return s
 

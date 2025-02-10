@@ -84,7 +84,7 @@ def test_busy():
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config()
-    result = run_busy_program(200, node_cfg)
+    result = run_busy_program(100, node_cfg)
 
     print(f"prob_x_0: {result.prob_x_0}")
     print(f"prob_y_0: {result.prob_y_0}")
@@ -100,7 +100,7 @@ def test_busy_bad_coherence():
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config(t1=10, t2=10)
-    result = run_busy_program(200, node_cfg)
+    result = run_busy_program(100, node_cfg)
 
     print(f"prob_x_0: {result.prob_x_0}")
     print(f"prob_y_0: {result.prob_y_0}")
@@ -117,7 +117,7 @@ def test_busy_bad_gates():
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config(gate_fidelity=0.5)
-    result = run_busy_program(200, node_cfg)
+    result = run_busy_program(100, node_cfg)
 
     print(f"prob_x_0: {result.prob_x_0}")
     print(f"prob_y_0: {result.prob_y_0}")

@@ -19,7 +19,9 @@ from qoala.sim.process import QoalaProcess
 from qoala.sim.procnodecomp import ProcNodeComponent
 from qoala.sim.qdevice import QDevice
 from qoala.sim.qnos import Qnos, QnosComponent, QnosLatencies
-from qoala.sim.scheduler import NodeScheduler
+from qoala.sim.scheduling.nodesched import NodeScheduler
+from qoala.sim.scheduling.onlinenodesched import OnlineNodeScheduler
+from qoala.sim.scheduling.staticnodesched import StaticNodeScheduler
 
 
 class ProcNode(Protocol):
@@ -109,20 +111,34 @@ class ProcNode(Protocol):
         )
 
         if scheduler is None:
-            self._scheduler = NodeScheduler(
-                node_name=self._node.name,
-                host=self._host,
-                qnos=self._qnos,
-                netstack=self._netstack,
-                memmgr=self._memmgr,
-                local_ehi=self._local_ehi,
-                network_ehi=self._network_ehi,
-                deterministic=deterministic_scheduler,
-                use_deadlines=use_deadlines,
-                fcfs=fcfs,
-                prio_epr=prio_epr,
-                is_predictable=is_predictable,
-            )
+            if is_predictable:
+                self._scheduler = StaticNodeScheduler(
+                    node_name=self._node.name,
+                    host=self._host,
+                    qnos=self._qnos,
+                    netstack=self._netstack,
+                    memmgr=self._memmgr,
+                    local_ehi=self._local_ehi,
+                    network_ehi=self._network_ehi,
+                    deterministic=deterministic_scheduler,
+                    use_deadlines=use_deadlines,
+                    fcfs=fcfs,
+                    prio_epr=prio_epr,
+                )
+            else:
+                self._scheduler = OnlineNodeScheduler(
+                    node_name=self._node.name,
+                    host=self._host,
+                    qnos=self._qnos,
+                    netstack=self._netstack,
+                    memmgr=self._memmgr,
+                    local_ehi=self._local_ehi,
+                    network_ehi=self._network_ehi,
+                    deterministic=deterministic_scheduler,
+                    use_deadlines=use_deadlines,
+                    fcfs=fcfs,
+                    prio_epr=prio_epr,
+                )
         else:
             self._scheduler = scheduler
 
