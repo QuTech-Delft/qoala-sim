@@ -16,7 +16,12 @@ from qoala.lang.hostlang import (
     RunSubroutineOp,
     SendCMsgOp,
 )
-from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
+from qoala.lang.program import (
+    CriticalSectionType,
+    LocalRoutine,
+    ProgramMeta,
+    QoalaProgram,
+)
 from qoala.lang.request import (
     CallbackType,
     EprRole,
@@ -39,7 +44,13 @@ epr_sockets:
 META_END
     """
 
-    meta = ProgramMeta(name="alice", parameters=[], csockets={0: "bob"}, epr_sockets={})
+    meta = ProgramMeta(
+        name="alice",
+        parameters=[],
+        csockets={0: "bob"},
+        epr_sockets={},
+        critical_sections={},
+    )
     assert text_equal(meta.serialize(), expected)
 
 
@@ -50,6 +61,7 @@ name: alice
 parameters: theta1, theta2
 csockets: 0 -> bob, 1 -> charlie
 epr_sockets: 1 -> charlie
+critical_sections: 0 -> E, 1 -> A
 META_END
     """
 
@@ -58,6 +70,7 @@ META_END
         parameters=["theta1", "theta2"],
         csockets={0: "bob", 1: "charlie"},
         epr_sockets={1: "charlie"},
+        critical_sections={0: CriticalSectionType.E, 1: CriticalSectionType.A},
     )
     assert text_equal(meta.serialize(), expected)
 
@@ -307,7 +320,13 @@ REQUEST req1
     role: CREATE
     """
 
-    meta = ProgramMeta(name="alice", parameters=[], csockets={0: "bob"}, epr_sockets={})
+    meta = ProgramMeta(
+        name="alice",
+        parameters=[],
+        csockets={0: "bob"},
+        epr_sockets={},
+        critical_sections={},
+    )
     b0_instructions = [
         AssignCValueOp("my_value", 1),
         AssignCValueOp("remote_id", 0),

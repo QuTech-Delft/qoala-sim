@@ -19,7 +19,8 @@ from qoala.runtime.config import (
     TopologyConfig,
 )
 from qoala.runtime.program import BatchResult, ProgramBatch, ProgramInput
-from qoala.runtime.task import TaskGraph, TaskGraphBuilder
+from qoala.runtime.task import TaskGraph
+from qoala.runtime.taskbuilder import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 from qoala.util.runner import create_batch
 
@@ -68,7 +69,7 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     network_cfg.cconns = [cconn]
     pattern = [(alice_id, i, bob_id, i) for i in range(num_iterations)]
     network_cfg.netschedule = NetworkScheduleConfig(
-        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=20_000
+        bin_length=1_500, first_bin=0, bin_pattern=pattern, repeat_period=2e7
     )
 
     alice_program = load_program("teleport_alice.iqoala")

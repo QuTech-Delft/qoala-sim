@@ -18,10 +18,9 @@ from qoala.runtime.task import (
     PreCallTask,
     SinglePairCallbackTask,
     SinglePairTask,
-    TaskDurationEstimator,
     TaskGraph,
-    TaskGraphBuilder,
 )
+from qoala.runtime.taskbuilder import TaskDurationEstimator, TaskGraphBuilder
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.network import ProcNodeNetwork
 

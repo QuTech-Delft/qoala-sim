@@ -7,6 +7,7 @@ from typing import Any, Dict, Generator, Optional, Type
 
 import netsquid as ns
 from netsquid.components import QuantumProcessor
+from netsquid.protocols import Protocol
 from netsquid.qubits import ketstates, qubitapi
 
 from pydynaa import EventExpression
@@ -28,7 +29,7 @@ from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.process import QoalaProcess
 from qoala.sim.procnode import ProcNode
-from qoala.sim.scheduler import NodeScheduler
+from qoala.sim.scheduling.nodesched import NodeScheduler
 from qoala.util.math import has_state
 
 
@@ -40,6 +41,7 @@ class MockScheduler(NodeScheduler):
         self._last_cpu_task_pid = -1
         self._last_qpu_task_pid = -1
         self._is_predictable = True
+        self._interface = Protocol()
         pass
 
     def schedule_next_for(self, pid: int) -> None:

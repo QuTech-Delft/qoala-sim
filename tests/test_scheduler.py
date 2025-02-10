@@ -23,13 +23,14 @@ from qoala.runtime.task import (
     LocalRoutineTask,
     PostCallTask,
     PreCallTask,
-    TaskGraphBuilder,
     TaskInfo,
 )
+from qoala.runtime.taskbuilder import TaskGraphBuilder
 from qoala.sim.build import build_network_from_lhi
 from qoala.sim.driver import CpuDriver, QpuDriver, SharedSchedulerMemory
 from qoala.sim.network import ProcNodeNetwork
-from qoala.sim.scheduler import CpuEdfScheduler, QpuScheduler
+from qoala.sim.scheduling.cpusched import CpuEdfScheduler
+from qoala.sim.scheduling.qpusched import QpuScheduler
 from qoala.util.builder import ObjectBuilder
 from qoala.util.logging import LogManager
 
@@ -1054,7 +1055,9 @@ def test_internal_sched_latency():
     ns.sim_run()
 
     total_host_instr_time = 4 * 1000
-    total_internal_sched_latency = 2 * 500  # 2 CL blocks => 2 * 500
+    total_internal_sched_latency = (
+        4 * 500
+    )  # 2 CL blocks => 2x back and forth => 4 * 500
     total_time = total_host_instr_time + total_internal_sched_latency
     assert ns.sim_time() == total_time
 
