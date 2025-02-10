@@ -3,7 +3,7 @@
 num_trials=100
 distances="distance 0 2.2 16.8 19.8 26.3 30.6 33.1 40.2 47.9 55.2"
 fidelities="single_gate_fid 0.95 0.96 0.97 0.98 0.99 0.995 0.999"
-bin_length="bin_length 1 3 5 7 10 20"
+bin_length="bin_length 1 2 3 4 5 6 7 8 9 10"
 param_list=("$bin_length")
 # "./configs/rotation_eval_NV.json" "./configs/rotation_eval_TI.json"
 configs=("./configs/scen1/NV_1.json" "./configs/scen1/TI_2.json")
