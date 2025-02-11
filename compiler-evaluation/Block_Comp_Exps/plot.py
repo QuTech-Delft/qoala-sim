@@ -106,9 +106,9 @@ def find_worst(path:str, param:str, hardware:str, scenario:str, savefile:bool=Fa
     # Load all of the data objects
     datas = [load_data(path+"/"+f) for f in files]
     
-    worst_makespan = -math.inf 
+    worst_makespan = math.inf 
     worst_makespan_file = ""
-    worst_succprob = -math.inf 
+    worst_succprob = math.inf 
     worst_succprob_file = ""
     # For each data object
     for i in range(0, len(datas)):
@@ -123,11 +123,11 @@ def find_worst(path:str, param:str, hardware:str, scenario:str, savefile:bool=Fa
         avg_makespan_diff = avg_makespan_diff / len(data.data_points) 
         avg_succprob_diff = avg_succprob_diff / len(data.data_points)
 
-        if avg_makespan_diff > worst_makespan:
+        if avg_makespan_diff < worst_makespan:
             worst_makespan = avg_makespan_diff
             worst_makespan_file = files[i]
 
-        if avg_succprob_diff > worst_succprob:
+        if avg_succprob_diff < worst_succprob:
             worst_succprob = avg_succprob_diff
             worst_succprob_file = files[i]
     
@@ -150,11 +150,11 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
 
     if plottype=="makespan" or plottype=="":
         for key in x_val_map.keys():
-            for i in range(0,2):
+            for i in range(0,1):
                 plt.plot(
                     x_val_map[key], [val for val in selfish_makespan_map[key][i]] , label=f"Self {'bqc' if i == 0 else 'local'}, n={key}", marker="o"
                 )
-                plt.plot(x_val_map[key], [val for val in cooperative_makespan_map[key][i]], label=f"Coop {'bqc' if i == 0 else 'local'}, n={key}", marker="s")
+                plt.plot(x_val_map[key], [val for val in cooperative_makespan_map[key][i]], label=f"Coop {'bqc' if i == 0 else 'local'}, n={key}", marker="*")
 
         plt.legend(loc="upper right", fontsize=11)
         plt.ylabel("Avg Makespan (ns)", fontsize=label_fontsize)
@@ -168,11 +168,11 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
 
     if plottype=="succprob" or plottype=="":
         for key in x_val_map.keys():
-            for i in range(0,2):
+            for i in range(0,1):
                 plt.plot(
                     x_val_map[key], [val for val in selfish_succprob_map[key][i]] , label=f"Self {'bqc' if i == 0 else 'local'}, n={key}", marker="o"
                 )
-                plt.plot(x_val_map[key], [val for val in cooperative_succprob_map[key][i]], label=f"Coop {'bqc' if i == 0 else 'local'}, n={key}", marker="s")
+                plt.plot(x_val_map[key], [val for val in cooperative_succprob_map[key][i]], label=f"Coop {'bqc' if i == 0 else 'local'}, n={key}", marker="*")
 
 
         plt.legend(loc="lower right", fontsize=11)
@@ -192,7 +192,7 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
                 plt.plot(
                     x_val_map[key], [selfish_succprob_map[key][j][i] / selfish_makespan_map[key][j][i] for i in range(0,len(x_val_map[key]))], label=f"Self {'bqc' if j==0 else 'local'} n={key}", marker="o"
                 )
-                plt.plot(x_val_map[key],  [cooperative_succprob_map[key][j][i] / cooperative_makespan_map[key][j][i] for i in range(0,len(x_val_map[key]))], label=f"Coop {'bqc' if j==0 else 'local'} n={key}", marker="s")
+                plt.plot(x_val_map[key],  [cooperative_succprob_map[key][j][i] / cooperative_makespan_map[key][j][i] for i in range(0,len(x_val_map[key]))], label=f"Coop {'bqc' if j==0 else 'local'} n={key}", marker="*")
 
         plt.legend(loc="upper right", fontsize=11)
         plt.ylabel("Successes / ns", fontsize=label_fontsize)

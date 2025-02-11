@@ -56,6 +56,10 @@ class Data:
     meta: DataMeta
     data_points: List[DataPoint]
 
+    def filter_data_points(self, value):
+        # Remove data points with param_value > value 
+        self.data_points = [dp for dp in self.data_points if dp.param_value <= value]
+
 def relative_to_cwd(file: str) -> str:
     return os.path.join(os.path.dirname(__file__), file)
 
@@ -98,6 +102,11 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
     # Load all of the data objects
     datas = [load_data(path+"/"+f) for f in files] 
 
+    # Extra filtering necessary
+    if param == "cc":
+        _data = [data.filter_data_points(1e7) for data in datas]
+
+
     worst_makespan = math.inf
     worst_makespan_file = ""
     worst_succprob = math.inf 
@@ -125,9 +134,16 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
     
     print("Avg Makespan diff: ", worst_makespan, worst_makespan_file)
     print("Avg Succprob diff: ", worst_succprob,worst_succprob_file)
-    create_plots(timestamp,load_data(path+"/"+worst_makespan_file),"makespan",saveFile)
-    create_plots(timestamp,load_data(path+"/"+worst_succprob_file),"succprob",saveFile)
-    create_plots(timestamp,load_data(path+"/"+worst_succprob_file),"succsec",saveFile)
+    worst_makespan_data = load_data(path+"/"+worst_makespan_file)
+    worst_succprob_data = load_data(path+"/"+worst_makespan_file)
+    # Extra filtering necessary
+    if param == "cc":
+        worst_makespan_data.filter_data_points(1e7)
+        worst_succprob_data.filter_data_points(1e7)
+
+    create_plots(timestamp,worst_makespan_data,"makespan",saveFile)
+    create_plots(timestamp,worst_succprob_data,"succprob",saveFile)
+    create_plots(timestamp,worst_succprob_data,"succsec",saveFile)
 
 def load_data(path: str) -> Data:
     with open(relative_to_cwd(path), "r") as f:
@@ -142,7 +158,7 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
     label_fontsize = 14
     opt_markersize=10
 
-    # plt.xscale('log')
+    plt.xscale('log')
     if plottype=="makespan" or plottype=="":
         for key in x_val_map.keys():
             plt.plot(
@@ -164,7 +180,7 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
         plt.ylabel("Avg Makespan (s)", fontsize=label_fontsize)
         
         if save:
-            create_png(timestamp + "_" + meta.param_name + "_makespan_n_"+ meta.hardware)
+            create_png(timestamp + "_" + meta.prog_name + "_"+ meta.param_name + "_makespan_n_"+ meta.hardware)
         else:
             plt.show()
         plt.cla()
@@ -191,7 +207,7 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
             plt.xlabel(meta.param_name,fontsize=label_fontsize)   
         
         if save:
-            create_png(timestamp + "_" + meta.param_name + "_succprob_n_" + meta.hardware)
+            create_png(timestamp + "_" + meta.prog_name + "_"+ meta.param_name + "_succprob_n_" + meta.hardware)
         else:
             plt.show()
         plt.cla()
@@ -214,7 +230,7 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
             plt.xlabel(meta.param_name,fontsize=label_fontsize)
 
         if save:
-            create_png(timestamp + "_" + meta.param_name + "_succsec_n_"+ meta.hardware)
+            create_png(timestamp + "_" + meta.prog_name + "_" + meta.param_name + "_succsec_n_"+ meta.hardware)
         else:
             plt.show()
         plt.cla()
