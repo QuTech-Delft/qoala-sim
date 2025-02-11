@@ -13,7 +13,8 @@ from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.runtime.statistics import SchedulerStatistics
-from qoala.runtime.task import TaskGraph, TaskGraphBuilder
+from qoala.runtime.task import TaskGraph
+from qoala.runtime.taskbuilder import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
 
 

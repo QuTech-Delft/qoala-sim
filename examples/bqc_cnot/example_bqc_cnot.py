@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import datetime
 import json
-import math
 import os
-import random
-import time
 from argparse import ArgumentParser
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Dict, List
 
 import netsquid as ns
 
@@ -28,7 +23,6 @@ from qoala.runtime.config import (
 from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
 from qoala.sim.build import build_network_from_config
 from qoala.sim.network import ProcNodeNetwork
-from qoala.util.logging import LogManager
 
 
 def relative_to_cwd(file: str) -> str:
@@ -93,7 +87,8 @@ def create_network(
     # Above we have the netschedule divided into blocks of
     # [client 1 pid 1, client 1 pid 2, ..., client 1 pid n, ..., client c pid 1, client c pid 2, ..., client c pid n]
     # When we create the programs we do
-    # Server Proc Prog 1 Client 1, Server Proc Prog 1 Client 2, ..., Server Proc Prog p Client 1, Server Proc Prog p Client 2,...
+    # Server Proc Prog 1 Client 1, Server Proc Prog 1 Client 2, ...,
+    # Server Proc Prog p Client 1, Server Proc Prog p Client 2,...
     pattern = []
     server_pid_index = 0
     client_pid_index = 0
@@ -222,10 +217,14 @@ def run_eval_programs(
 
     :param client_progs: List of programs for the client to run
     :param server_progs: List of programs for the server to run
-    :param client_prog_args: List of dictionaries containing the client program arguments. client_prog_args[i] are the arguments for client_progs[i]
-    :param server_prog_args: List of dictionaries containing the server program arguments. server_prog_args[i] are the arguments for server_progs[i]
-    :param server_num_iterations: List of number of iterations for each program. server_num_iterations[i] is the number of iterations for server_progs[i].
-    :param client_num_iterations: List of number of iterations for each program. client_num_iterations[i] is the number of iterations for client_progs[i].
+    :param client_prog_args: List of dictionaries containing the client program arguments.
+                                client_prog_args[i] are the arguments for client_progs[i]
+    :param server_prog_args: List of dictionaries containing the server program arguments.
+                                server_prog_args[i] are the arguments for server_progs[i]
+    :param server_num_iterations: List of number of iterations for each program. server_num_iterations[i]
+                                    is the number of iterations for server_progs[i].
+    :param client_num_iterations: List of number of iterations for each program. client_num_iterations[i]
+                                    is the number of iterations for client_progs[i].
     :param num_clients: defaults to 1
     :param linear: defaults to True
     :param cc: _description_, defaults to 0
@@ -324,7 +323,10 @@ def run_eval_programs(
             for client_id in range(1, num_clients + 1):
                 server_inputs = [
                     ProgramInput(
-                        {"client_id": client_id} | server_prog_args[prog_index]
+                        dict(
+                            {"client_id": client_id}.items()
+                            | server_prog_args[prog_index].items()
+                        )
                     )
                     for _ in range(server_num_iterations[prog_index])
                 ]
@@ -371,7 +373,11 @@ def run_eval_programs(
         for client_id in range(1, num_clients + 1):
 
             client_inputs = [
-                ProgramInput({"server_id": 0} | client_prog_args[prog_index])
+                ProgramInput(
+                    dict(
+                        {"server_id": 0}.items() | client_prog_args[prog_index].items()
+                    )
+                )
                 for _ in range(client_num_iterations[prog_index])
             ]
 
@@ -474,7 +480,7 @@ def run_eval_exp(
     bin_length: int = 0,
     link_duration: int = 1000,
     scheduling_alg: str = "",
-    compute_succ_probs: List[function] = [],
+    compute_succ_probs=[],
 ):
     exp_results = run_eval_programs(
         client_progs=client_progs,

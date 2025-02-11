@@ -14,6 +14,8 @@ SIGNAL_QNOS_NSTK_MSG = "EvQnosNstkMsg"
 SIGNAL_NSTK_HOST_MSG = "EvNstkHostMsg"
 SIGNAL_NSTK_QNOS_MSG = "EvNstkQnosMsg"
 SIGNAL_NSTK_NSTK_MSG = "EvNstkNstkMsg"
+SIGNAL_CPU_NODE_SCH_MSG = "EvCpuNodeSchMsg"
+SIGNAL_QPU_NODE_SCH_MSG = "EvQpuNodeSchMsg"
 
 # Signals between a node and the EntDist
 SIGNAL_NSTK_ENTD_MSG = "EvNstkEntdMsg"

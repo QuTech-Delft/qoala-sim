@@ -8,7 +8,12 @@ from netqasm.lang.parsing.text import parse_text_subroutine
 
 from qoala.lang import hostlang as hl
 from qoala.lang.hostlang import IqoalaSingleton, IqoalaValue, IqoalaVar, IqoalaVector
-from qoala.lang.program import LocalRoutine, ProgramMeta, QoalaProgram
+from qoala.lang.program import (
+    CriticalSectionType,
+    LocalRoutine,
+    ProgramMeta,
+    QoalaProgram,
+)
 from qoala.lang.request import (
     CallbackType,
     EprRole,
@@ -214,13 +219,37 @@ class IqoalaMetaParser:
                         f"Value {node_name} in Qoala Program Meta is not a valid remote node name."
                     )
 
-            end_line = self._read_line()
+            # Critical sections line is optional.
+            next_line = self._read_line()
+            end_line: str
+            critical_sections: Dict[int, CriticalSectionType]
+            try:
+                critical_sections_map = self._parse_meta_line(
+                    "critical_sections", next_line
+                )
+                critical_sections_str = self._parse_meta_mapping(critical_sections_map)
+                for val in critical_sections_str.values():
+                    if val not in ["A", "E", "AE"]:
+                        raise QoalaParseError(
+                            f"Value {val} in Qoala Program Meta is not a valid critical section type."
+                        )
+                # Convert string to CriticalSectionType
+                critical_sections = {
+                    k: CriticalSectionType[v] for k, v in critical_sections_str.items()
+                }
+                # There was a critical sections line; the next line is the META_END line.
+                end_line = self._read_line()
+            except QoalaParseError:
+                # No criticial sections line; the line we already read is the META_END line.
+                end_line = next_line
+                critical_sections = {}
+
             if end_line != "META_END":
-                raise QoalaParseError("Qoala Program Meta must start with META_END.")
+                raise QoalaParseError("Qoala Program Meta must end with META_END.")
         except EndOfTextException:
             raise QoalaParseError("Qoala Program Meta finished unexpectedly.")
 
-        return ProgramMeta(name, parameters, csockets, epr_sockets)
+        return ProgramMeta(name, parameters, csockets, epr_sockets, critical_sections)
 
 
 class IqoalaInstrParser:
@@ -527,7 +556,7 @@ class HostCodeParser:
 
     def _parse_block_annotations(
         self, annotations: str
-    ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]]]:
+    ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]], Optional[int]]:
         """
         Parses the annotations of a block which are the block type and deadlines. The annotations format is given
         in the class description.
@@ -551,16 +580,21 @@ class HostCodeParser:
                 "Invalid block type. Block type must be one of the "
                 "following: 'CL', 'CC', 'QL', 'QC' (case insensitive)."
             )
-        if len(annotations_parts) == 1:  # no deadline
-            deadlines = None
-        else:
-            deadlines_str = annotations_parts[1].strip()
-            deadlines = self._parse_deadlines(deadlines_str[12:])
-        return typ, deadlines
+
+        deadlines: Optional[Dict[str, int]] = None
+        critical_section: Optional[int] = None
+        if len(annotations_parts) >= 2:
+            for ann_part in annotations_parts[1:]:
+                k, v = [p.strip() for p in ann_part.strip().split("=")]
+                if k == "deadlines":
+                    deadlines = self._parse_deadlines(v)
+                elif k == "critical_section":
+                    critical_section = int(v)
+        return typ, deadlines, critical_section
 
     def _parse_block_header(
         self, line: str
-    ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]]]:
+    ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]], Optional[int]]:
         """
         Parses the header of a block. Header contains the block name, block type, and block deadlines. The header
         format is given in the class description.
@@ -594,8 +628,8 @@ class HostCodeParser:
         annotations_str = header_parts[1][:close_brace]
         if header_parts[1][close_brace + 1 :] != ":":
             raise QoalaParseError("Block header must end with ':'.")
-        typ, deadline = self._parse_block_annotations(annotations_str)
-        return name, typ, deadline
+        typ, deadline, critical_section = self._parse_block_annotations(annotations_str)
+        return name, typ, deadline, critical_section
 
     def parse_block(self, text: str) -> hl.BasicBlock:
         """
@@ -606,13 +640,13 @@ class HostCodeParser:
         """
         lines = [line.strip() for line in text.split("\n")]
         lines = [line for line in lines if len(line) > 0]
-        name, typ, deadline = self._parse_block_header(lines[0])
+        name, typ, deadline, critical_section = self._parse_block_header(lines[0])
         instr_lines = lines[1:]
         instrs = IqoalaInstrParser(
             "\n".join(instr_lines), self._defined_vectors
         ).parse()
 
-        return hl.BasicBlock(name, typ, instrs, deadline)
+        return hl.BasicBlock(name, typ, instrs, deadline, critical_section)
 
     def parse(self) -> List[hl.BasicBlock]:
         """
