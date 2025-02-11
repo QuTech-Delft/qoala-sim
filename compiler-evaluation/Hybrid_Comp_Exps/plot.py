@@ -158,17 +158,17 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
     label_fontsize = 14
     opt_markersize=10
 
-    plt.xscale('log')
+    # plt.xscale('log')
     if plottype=="makespan" or plottype=="":
         for key in x_val_map.keys():
             plt.plot(
-                x_val_map[key], [(val / len(x_val_map[key])) / 1e9 for val in naive_makespan_map[key]] , label=f"Subopt $n$={key}", marker="o"
+                x_val_map[key], [(val / meta.num_iterations[0]) / 1e6 for val in naive_makespan_map[key]] , label=f"Subopt $n$={key}", marker="o"
             )
             if meta.prog_name == "rotation":
                 if key == 10:
-                    plt.plot(x_val_map[key], [(val / len(x_val_map[key])) / 1e9 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize, color="red")
+                    plt.plot(x_val_map[key], [(val / meta.num_iterations[0]) / 1e6 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize, color="red")
             else:
-                plt.plot(x_val_map[key], [(val / len(x_val_map[key])) / 1e9 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
+                plt.plot(x_val_map[key], [(val / meta.num_iterations[0]) / 1e6 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
 
         plt.legend(loc="upper left", fontsize=11)
         if meta.param_name == "single_gate_fid":
@@ -177,7 +177,7 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
             plt.xlabel("Distance (km)",fontsize=label_fontsize)   
         else:
             plt.xlabel(meta.param_name,fontsize=label_fontsize)   
-        plt.ylabel("Avg Makespan (s)", fontsize=label_fontsize)
+        plt.ylabel("Avg Makespan (ms)", fontsize=label_fontsize)
         
         if save:
             create_png(timestamp + "_" + meta.prog_name + "_"+ meta.param_name + "_makespan_n_"+ meta.hardware)
