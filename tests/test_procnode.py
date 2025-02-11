@@ -844,7 +844,7 @@ REQUEST req1
             self.netstack.processor.instantiate_routine(process, rrcall, global_args)
             yield from self.netstack.processor.handle_single_pair(
                 process, "req1", 0
-            )  # not s  ure about the 0
+            )  # not sure about the 0 # Actually runs the req_routine
 
     server_procnode = create_procnode(
         "server",

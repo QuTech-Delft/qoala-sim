@@ -64,13 +64,18 @@ class MemoryManager(Protocol):
         for phys_id in self._qdevice.get_comm_qubit_ids():
             if self._physical_mapping[phys_id] is None:
                 return phys_id  # type: ignore
-        raise AllocError
+        raise AllocError(
+            f"Out of physical qubits on node '{self._node_name}' to "
+            f"perform the communication allocate request"
+        )
 
     def _get_free_mem_phys_id(self) -> int:
         for phys_id in self._qdevice.get_non_comm_qubit_ids():
             if self._physical_mapping[phys_id] is None:
                 return phys_id  # type: ignore
-        raise AllocError
+        raise AllocError(
+            "Out of physical qubits to perform the communication allocate request"
+        )
 
     def get_ehi(self) -> EhiNodeInfo:
         assert self._ehi is not None  # TODO: already enforce this in constructor?
