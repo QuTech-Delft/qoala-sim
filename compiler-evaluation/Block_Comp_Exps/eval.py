@@ -664,7 +664,6 @@ class DataMeta:
     prog_sizes: List[int]
     num_iterations: List[int]
     num_trials: int
-    max_num_clients: int
     linear: bool
     cc: int
     t1: int
@@ -913,6 +912,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_trials", type=int, required=False, default=1)
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--seed", type=int, required=False)
+    parser.add_argument("--num_clients", "-c", required=True, type=int)
 
     # Parse arguments
     args = parser.parse_args()
@@ -921,6 +921,7 @@ if __name__ == "__main__":
     save = args.save
     seed = args.seed
     num_trials = args.num_trials
+    num_clients = args.num_clients
 
     if config is not None:
         # Load param values from .json file
@@ -986,143 +987,143 @@ if __name__ == "__main__":
     start = time.time()
     for prog_size_index in range(len(program_sizes)):
         print(f"Program size: {program_sizes[prog_size_index]}")
-        for num_clients in range(2,params["num_clients"]+1):
+        # for num_clients in range(2,params["num_clients"]+1):
             # print(f"Num Clients: {num_clients}")
-            num_qubits = num_clients*program_sizes[prog_size_index] + 1
-            for param_val in param_vals:
-                print(f"Results for {param_name} : {params[param_name]}")
-                params[param_name] = param_val 
-                hardware = params["hardware"]
-                params["cc"] = ent_rate.cc_time(distance=params["distance"])
-                
-                if hardware == "TI":
-                    link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
-                    params["link_duration"] = link_duration
-                    if param_name=="single_gate_fid":
-                        params["link_fid"] = 1 
-                elif hardware == "NV":
-                    link_duration, link_fid = ent_rate.nv_epr(params["distance"], optimism=params["qia_sga"])
-                    params["link_duration"] = link_duration
-                    if param_name=="single_gate_fid":
-                        params["link_fid"] = 1
+        num_qubits = num_clients*program_sizes[prog_size_index] + 1
+        for param_val in param_vals:
+            print(f"Results for {param_name} : {params[param_name]}")
+            params[param_name] = param_val 
+            hardware = params["hardware"]
+            params["cc"] = ent_rate.cc_time(distance=params["distance"])
+            
+            if hardware == "TI":
+                link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
+                params["link_duration"] = link_duration
+                if param_name=="single_gate_fid":
+                    params["link_fid"] = 1 
+            elif hardware == "NV":
+                link_duration, link_fid = ent_rate.nv_epr(params["distance"], optimism=params["qia_sga"])
+                params["link_duration"] = link_duration
+                if param_name=="single_gate_fid":
+                    params["link_fid"] = 1
 
-                # Need to keep track of success probability and makespan for BQC and local prog 
-                avg_self_bqc_makespan = 0
-                avg_self_local_makespan = 0
-                avg_self_bqc_succ_prob = 0
-                avg_self_local_succ_prob = 0
-                avg_coop_bqc_makespan = 0
-                avg_coop_local_makespan = 0
-                avg_coop_bqc_succ_prob = 0
-                avg_coop_local_succ_prob = 0
-                for trial in range(num_trials):
-                    # Run selfish version
-                    selfish_total_makespan, selfish_succ_probs, selfish_makespans = run_eval_exp(
-                        client_progs=params["client_progs"][prog_size_index],
-                        server_progs=params["server_progs_self"][prog_size_index],
-                        client_prog_args=params["client_prog_args"][prog_size_index],
-                        server_prog_args=params["server_prog_args"][prog_size_index],
-                        client_num_iterations=params["client_num_iterations"],
-                        server_num_iterations=params["server_num_iterations"],
-                        num_clients=num_clients,
-                        server_num_qubits=num_qubits,
-                        client_num_qubits=params["client_num_qubits"],
-                        linear=params["linear"],
-                        use_netschedule=params["use_netschedule"],
-                        bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
-                        cc=params["cc"],
-                        t1=params["t1"],
-                        t2=params["t2"],
-                        host_instr_time=params["host_instr_time"],
-                        host_peer_latency=params["host_peer_latency"],
-                        qnos_instr_proc_time=params["qnos_instr_proc_time"],
-                        internal_sched_latency=params["internal_sched_latency"],
-                        single_gate_dur=params["single_gate_dur"],
-                        two_gate_dur=params["two_gate_dur"],
-                        single_gate_fid=params["single_gate_fid"],
-                        two_gate_fid=params["two_gate_fid"],
-                        link_duration=params["link_duration"],
-                        link_fid=params["link_fid"],
-                        seed = seed_value+trial,
-                        client_input_func=params["client_input_func"][prog_size_index],
-                        random_client_inputs=True,
-                        compute_succ_probs=params["compute_succ_probs"][prog_size_index],
-                    )
-                    # print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
-
-                    # Run coop version
-                    coop_total_makespan, coop_succ_probs, coop_makespans = run_eval_exp(
-                        client_progs=params["client_progs"][prog_size_index],
-                        server_progs=params["server_progs_coop"][prog_size_index],
-                        client_prog_args=params["client_prog_args"][prog_size_index],
-                        server_prog_args=params["server_prog_args"][prog_size_index],
-                        client_num_iterations=params["client_num_iterations"],
-                        server_num_iterations=params["server_num_iterations"],
-                        num_clients=num_clients,
-                        server_num_qubits=num_qubits,
-                        client_num_qubits=params["client_num_qubits"],
-                        linear=params["linear"],
-                        use_netschedule=params["use_netschedule"],
-                        bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
-                        cc=params["cc"],
-                        t1=params["t1"],
-                        t2=params["t2"],
-                        host_instr_time=params["host_instr_time"],
-                        host_peer_latency=params["host_peer_latency"],
-                        qnos_instr_proc_time=params["qnos_instr_proc_time"],
-                        internal_sched_latency=params["internal_sched_latency"],
-                        single_gate_dur=params["single_gate_dur"],
-                        two_gate_dur=params["two_gate_dur"],
-                        single_gate_fid=params["single_gate_fid"],
-                        two_gate_fid=params["two_gate_fid"],
-                        link_duration=params["link_duration"],
-                        link_fid=params["link_fid"],
-                        seed = seed_value+trial,
-                        client_input_func=params["client_input_func"][prog_size_index],
-                        random_client_inputs=True,
-                        compute_succ_probs=params["compute_succ_probs"][prog_size_index],
-                    )
-                    # print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
-
-                    # Compute the average success probability and makespan for local and bqc programs
-
-                    for key in selfish_makespans.keys():
-                        # This is the local program results
-                        if key[0] == -1:
-                            avg_self_local_makespan += selfish_makespans[key]
-                            avg_coop_local_makespan += coop_makespans[key]
-                            avg_self_local_succ_prob += selfish_succ_probs[key]
-                            avg_coop_local_succ_prob += coop_succ_probs[key]
-                        # This is one of the bqc program results
-                        else:
-                            avg_self_bqc_makespan += selfish_makespans[key]
-                            avg_coop_bqc_makespan += coop_makespans[key]
-                            avg_self_bqc_succ_prob += selfish_succ_probs[key]
-                            avg_coop_bqc_succ_prob += coop_succ_probs[key]
-
-                avg_self_bqc_makespan /= (num_trials*num_clients) 
-                avg_self_local_makespan /= num_trials 
-                avg_self_bqc_succ_prob /= (num_trials*num_clients)
-                avg_self_local_succ_prob /= num_trials
-                avg_coop_bqc_makespan /= (num_trials*num_clients)
-                avg_coop_local_makespan /= num_trials
-                avg_coop_bqc_succ_prob /= (num_trials*num_clients)
-                avg_coop_local_succ_prob /= num_trials
-                datapoints.append(DataPoint(
-                    selfish_bqc_makespan=avg_self_bqc_makespan,
-                    selfish_local_makespan=avg_self_local_makespan,
-                    cooperative_bqc_makespan=avg_coop_bqc_makespan,
-                    cooperative_local_makespan=avg_coop_local_makespan,
-                    selfish_bqc_succ_prob=avg_self_bqc_succ_prob,
-                    selfish_local_succ_prob=avg_self_local_succ_prob,
-                    cooperative_bqc_succ_prob=avg_coop_bqc_succ_prob,
-                    cooperative_local_succ_prob=avg_coop_local_succ_prob,
-                    prog_size=program_sizes[prog_size_index],
+            # Need to keep track of success probability and makespan for BQC and local prog 
+            avg_self_bqc_makespan = 0
+            avg_self_local_makespan = 0
+            avg_self_bqc_succ_prob = 0
+            avg_self_local_succ_prob = 0
+            avg_coop_bqc_makespan = 0
+            avg_coop_local_makespan = 0
+            avg_coop_bqc_succ_prob = 0
+            avg_coop_local_succ_prob = 0
+            for trial in range(num_trials):
+                # Run selfish version
+                selfish_total_makespan, selfish_succ_probs, selfish_makespans = run_eval_exp(
+                    client_progs=params["client_progs"][prog_size_index],
+                    server_progs=params["server_progs_self"][prog_size_index],
+                    client_prog_args=params["client_prog_args"][prog_size_index],
+                    server_prog_args=params["server_prog_args"][prog_size_index],
+                    client_num_iterations=params["client_num_iterations"],
+                    server_num_iterations=params["server_num_iterations"],
                     num_clients=num_clients,
-                    param_name=param_name,
-                    param_value=param_val
-                ))
-                # print(datapoints[-1])
+                    server_num_qubits=num_qubits,
+                    client_num_qubits=params["client_num_qubits"],
+                    linear=params["linear"],
+                    use_netschedule=params["use_netschedule"],
+                    bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
+                    cc=params["cc"],
+                    t1=params["t1"],
+                    t2=params["t2"],
+                    host_instr_time=params["host_instr_time"],
+                    host_peer_latency=params["host_peer_latency"],
+                    qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                    internal_sched_latency=params["internal_sched_latency"],
+                    single_gate_dur=params["single_gate_dur"],
+                    two_gate_dur=params["two_gate_dur"],
+                    single_gate_fid=params["single_gate_fid"],
+                    two_gate_fid=params["two_gate_fid"],
+                    link_duration=params["link_duration"],
+                    link_fid=params["link_fid"],
+                    seed = seed_value+trial,
+                    client_input_func=params["client_input_func"][prog_size_index],
+                    random_client_inputs=True,
+                    compute_succ_probs=params["compute_succ_probs"][prog_size_index],
+                )
+                # print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
+
+                # Run coop version
+                coop_total_makespan, coop_succ_probs, coop_makespans = run_eval_exp(
+                    client_progs=params["client_progs"][prog_size_index],
+                    server_progs=params["server_progs_coop"][prog_size_index],
+                    client_prog_args=params["client_prog_args"][prog_size_index],
+                    server_prog_args=params["server_prog_args"][prog_size_index],
+                    client_num_iterations=params["client_num_iterations"],
+                    server_num_iterations=params["server_num_iterations"],
+                    num_clients=num_clients,
+                    server_num_qubits=num_qubits,
+                    client_num_qubits=params["client_num_qubits"],
+                    linear=params["linear"],
+                    use_netschedule=params["use_netschedule"],
+                    bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
+                    cc=params["cc"],
+                    t1=params["t1"],
+                    t2=params["t2"],
+                    host_instr_time=params["host_instr_time"],
+                    host_peer_latency=params["host_peer_latency"],
+                    qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                    internal_sched_latency=params["internal_sched_latency"],
+                    single_gate_dur=params["single_gate_dur"],
+                    two_gate_dur=params["two_gate_dur"],
+                    single_gate_fid=params["single_gate_fid"],
+                    two_gate_fid=params["two_gate_fid"],
+                    link_duration=params["link_duration"],
+                    link_fid=params["link_fid"],
+                    seed = seed_value+trial,
+                    client_input_func=params["client_input_func"][prog_size_index],
+                    random_client_inputs=True,
+                    compute_succ_probs=params["compute_succ_probs"][prog_size_index],
+                )
+                # print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
+
+                # Compute the average success probability and makespan for local and bqc programs
+
+                for key in selfish_makespans.keys():
+                    # This is the local program results
+                    if key[0] == -1:
+                        avg_self_local_makespan += selfish_makespans[key]
+                        avg_coop_local_makespan += coop_makespans[key]
+                        avg_self_local_succ_prob += selfish_succ_probs[key]
+                        avg_coop_local_succ_prob += coop_succ_probs[key]
+                    # This is one of the bqc program results
+                    else:
+                        avg_self_bqc_makespan += selfish_makespans[key]
+                        avg_coop_bqc_makespan += coop_makespans[key]
+                        avg_self_bqc_succ_prob += selfish_succ_probs[key]
+                        avg_coop_bqc_succ_prob += coop_succ_probs[key]
+
+            avg_self_bqc_makespan /= (num_trials*num_clients) 
+            avg_self_local_makespan /= num_trials 
+            avg_self_bqc_succ_prob /= (num_trials*num_clients)
+            avg_self_local_succ_prob /= num_trials
+            avg_coop_bqc_makespan /= (num_trials*num_clients)
+            avg_coop_local_makespan /= num_trials
+            avg_coop_bqc_succ_prob /= (num_trials*num_clients)
+            avg_coop_local_succ_prob /= num_trials
+            datapoints.append(DataPoint(
+                selfish_bqc_makespan=avg_self_bqc_makespan,
+                selfish_local_makespan=avg_self_local_makespan,
+                cooperative_bqc_makespan=avg_coop_bqc_makespan,
+                cooperative_local_makespan=avg_coop_local_makespan,
+                selfish_bqc_succ_prob=avg_self_bqc_succ_prob,
+                selfish_local_succ_prob=avg_self_local_succ_prob,
+                cooperative_bqc_succ_prob=avg_coop_bqc_succ_prob,
+                cooperative_local_succ_prob=avg_coop_local_succ_prob,
+                prog_size=program_sizes[prog_size_index],
+                num_clients=num_clients,
+                param_name=param_name,
+                param_value=param_val
+            ))
+            # print(datapoints[-1])
 
     
     # Finish computing how long the experiment took to run
@@ -1133,7 +1134,7 @@ if __name__ == "__main__":
     abs_dir = relative_to_cwd(f"data")
     Path(abs_dir).mkdir(parents=True, exist_ok=True)
     last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_scen{params['scenario']}_{params['hardware']}_seed{seed}.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_scen{params['scenario']}_{params['hardware']}_numclients{num_clients}_seed{seed}.json")
 
     metadata = DataMeta(
         timestamp=timestamp,
@@ -1144,7 +1145,6 @@ if __name__ == "__main__":
         prog_sizes=program_sizes,
         num_iterations=params["server_num_iterations"],
         num_trials=num_trials,
-        max_num_clients=params["num_clients"],
         linear=params["linear"],
         cc=params["cc"],
         t1=params["t1"],

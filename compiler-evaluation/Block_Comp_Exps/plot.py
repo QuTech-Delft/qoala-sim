@@ -35,7 +35,6 @@ class DataMeta:
     prog_sizes: List[int]
     num_iterations: List[int]
     num_trials: float
-    max_num_clients: float
     linear: bool
     cc: float
     t1: float
