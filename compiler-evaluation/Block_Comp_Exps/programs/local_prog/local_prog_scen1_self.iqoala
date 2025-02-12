@@ -68,248 +68,1997 @@ SUBROUTINE prepare_and_measure_long
     meas Q0 M0
     add R1 R1 M0 // Outcome counter
    
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
+     
+    init Q0
+    h Q0
+    z Q0
+    x Q0
+    z Q0
+    x Q0
+    h Q0 
+    meas Q0 M0
+    add R1 R1 M0 // Outcome counter
     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
-     
-    init Q0
-    h Q0
-    z Q0
-    x Q0
-    z Q0
-    x Q0
-    h Q0 
-    meas Q0 M0
-    add R1 R1 M0 // Outcome counter
- 
-
+    
 
     store R1 @output[0]
   NETQASM_END

@@ -961,7 +961,7 @@ if __name__ == "__main__":
 
         params["random_server_inputs"] = False
         params["server_input_func"] = [[] for i in program_sizes]
-        params["server_prog_args"] = [[{},{"iterations":25}] for i in program_sizes]
+        params["server_prog_args"] = [[{},{"iterations":200}] for i in program_sizes]
 
         params["compute_succ_probs"] = [[succ_prob_func[f"bqc_compute_succ_prob_{i}"], local_compute_succ_prob_generator(params['scenario'])] for i in program_sizes]
     elif params["scenario"] == 3:
@@ -1049,7 +1049,7 @@ if __name__ == "__main__":
                     random_client_inputs=True,
                     compute_succ_probs=params["compute_succ_probs"][prog_size_index],
                 )
-                # print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
+                print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
 
                 # Run coop version
                 coop_total_makespan, coop_succ_probs, coop_makespans = run_eval_exp(
@@ -1083,7 +1083,7 @@ if __name__ == "__main__":
                     random_client_inputs=True,
                     compute_succ_probs=params["compute_succ_probs"][prog_size_index],
                 )
-                # print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
+                print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
 
                 # Compute the average success probability and makespan for local and bqc programs
 
@@ -1123,7 +1123,7 @@ if __name__ == "__main__":
                 param_name=param_name,
                 param_value=param_val
             ))
-            # print(datapoints[-1])
+            print(datapoints[-1])
 
     
     # Finish computing how long the experiment took to run
