@@ -1,0 +1,123 @@
+META_START
+    name: node0
+    parameters: node1_id
+    csockets: 0 -> node1
+    epr_sockets: 0 -> node1
+META_END
+
+
+^b0 {type = QL}:
+    run_subroutine() : prepare_qubit
+
+^b1 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b2 {type = QC}:
+    run_request() : epr_gen_1
+
+^b3 {type = QL}:
+    tuple<m1> = run_subroutine() : server_bsm
+
+^b4 {type = CL}:
+    send_cmsg(csocket, m1)
+
+^b5 {type = CC}:
+    p1 = recv_cmsg(csocket)
+
+^b6 {type = QL}:
+    run_subroutine(tuple<p1>) : bsm_corrections
+
+^b7 {type = CC}:
+    ok = recv_cmsg(csocket)
+
+^b8 {type = QL}:
+    tuple<p1> = run_subroutine() : measure_1
+
+^b9 {type = QL}:
+    tuple<p2> = run_subroutine() : measure_2
+
+^b10 {type = CL}:
+    return_result(p1)
+    return_result(p2)
+
+SUBROUTINE measure_1
+    params:
+    returns: p1
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE measure_2
+    params:
+    returns: p1
+    uses: 1
+    keeps:
+    request:
+  NETQASM_START
+    set Q0 1
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE prepare_qubit
+    params:
+    returns:
+    uses: 0, 1
+    keeps: 0, 1
+    request:
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    init Q0
+    init Q1
+    h Q0
+    cnot Q0 Q1
+  NETQASM_END
+
+SUBROUTINE server_bsm
+    params:
+    returns: m1
+    uses: 1, 2
+    keeps: 1
+    request:
+  NETQASM_START
+    set Q0 1
+    set Q1 2
+    cnot Q0 Q1
+    meas Q1 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE bsm_corrections
+    params: p1
+    returns:
+    uses: 1
+    keeps: 1
+    request:
+  NETQASM_START
+    set C15 0
+    load C0 @input[C15]
+    set Q0 1
+    set R0 0
+    beq C0 R0 2
+    z Q0
+    set R15 0
+  NETQASM_END
+
+REQUEST epr_gen_1
+  callback_type:
+  callback:
+  return_vars:
+  remote_id: {node1_id}
+  epr_socket_id: 0
+  num_pairs: 1
+  virt_ids: all 2
+  timeout: 1000
+  fidelity: 1.0
+  typ: create_keep
+  role: create

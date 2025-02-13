@@ -1,0 +1,23 @@
+META_START
+name: node1
+parameters: node0_id, node2_id, node3_id
+csockets: 0 -> node0, 1 -> node2, 2 -> node3
+epr_sockets: 0 -> node0, 1 -> node2, 2 -> node3
+META_END
+^b0 {type = QL}:
+    tuple<> = run_subroutine() : prepare_routine0
+
+SUBROUTINE prepare_routine0
+params: 
+returns: 
+uses: 1, 3, 5
+keeps: 1, 3, 5
+request:
+NETQASM_START
+set Q0 1
+init Q0
+set Q1 3
+init Q1
+set Q2 5
+init Q2
+NETQASM_END

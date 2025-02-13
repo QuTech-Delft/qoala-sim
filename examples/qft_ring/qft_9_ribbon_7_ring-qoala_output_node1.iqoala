@@ -1,0 +1,1636 @@
+META_START
+name: node1
+parameters: node0_id, node2_id, node3_id
+csockets: 0 -> node0, 1 -> node2, 2 -> node3
+epr_sockets: 0 -> node0, 1 -> node2
+META_END
+^b0 {type = QL}:
+    tuple<> = run_subroutine() : prepare_routine0
+
+^b1 {type = QC}:
+    tuple<> = run_request() : req_create1
+
+^b2 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b3 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b4 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine4
+
+^b5 {type = QC}:
+    tuple<> = run_request() : req_create5
+
+^b6 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b7 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b8 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine8
+
+^b9 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine9
+
+^b10 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine10
+
+^b11 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b12 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b13 {type = QC}:
+    tuple<> = run_request() : req_create13
+
+^b14 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b15 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b16 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine16
+
+^b17 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine17
+
+^b18 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b19 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b20 {type = QC}:
+    tuple<> = run_request() : req_create20
+
+^b21 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b22 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b23 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine23
+
+^b24 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine24
+
+^b25 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine25
+
+^b26 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b27 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b28 {type = QC}:
+    tuple<> = run_request() : req_create28
+
+^b29 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b30 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b31 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine31
+
+^b32 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine32
+
+^b33 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b34 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b35 {type = QC}:
+    tuple<> = run_request() : req_create35
+
+^b36 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b37 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b38 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine38
+
+^b39 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine39
+
+^b40 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine40
+
+^b41 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b42 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b43 {type = QC}:
+    tuple<> = run_request() : req_create43
+
+^b44 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b45 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b46 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine46
+
+^b47 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine47
+
+^b48 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b49 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b50 {type = QC}:
+    tuple<> = run_request() : req_create50
+
+^b51 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b52 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b53 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine53
+
+^b54 {type = QC}:
+    tuple<> = run_request() : req_create54
+
+^b55 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b56 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b57 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine57
+
+^b58 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine58
+
+^b59 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine59
+
+^b60 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b61 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b62 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine62
+
+^b63 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b64 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b65 {type = QC}:
+    tuple<> = run_request() : req_create65
+
+^b66 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b67 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b68 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine68
+
+^b69 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine69
+
+^b70 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine70
+
+^b71 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b72 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b73 {type = QC}:
+    tuple<> = run_request() : req_create73
+
+^b74 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b75 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b76 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine76
+
+^b77 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine77
+
+^b78 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b79 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b80 {type = QC}:
+    tuple<> = run_request() : req_create80
+
+^b81 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b82 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b83 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine83
+
+^b84 {type = QC}:
+    tuple<> = run_request() : req_create84
+
+^b85 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b86 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b87 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine87
+
+^b88 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine88
+
+^b89 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine89
+
+^b90 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b91 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b92 {type = QC}:
+    tuple<> = run_request() : req_create92
+
+^b93 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b94 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b95 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine95
+
+^b96 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine96
+
+^b97 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine97
+
+^b98 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b99 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b100 {type = QC}:
+    tuple<> = run_request() : req_create100
+
+^b101 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b102 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b103 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine103
+
+^b104 {type = QC}:
+    tuple<> = run_request() : req_create104
+
+^b105 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b106 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b107 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine107
+
+^b108 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine108
+
+^b109 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b110 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b111 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine111
+
+^b112 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b113 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b114 {type = QC}:
+    tuple<> = run_request() : req_create114
+
+^b115 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b116 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b117 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine117
+
+^b118 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine118
+
+^b119 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine119
+
+^b120 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b121 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b122 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine122
+
+^b123 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b124 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b125 {type = QC}:
+    tuple<> = run_request() : req_create125
+
+^b126 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b127 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b128 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine128
+
+^b129 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine129
+
+^b130 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine130
+
+^b131 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b132 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b133 {type = QC}:
+    tuple<> = run_request() : req_create133
+
+^b134 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b135 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b136 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine136
+
+^b137 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine137
+
+^b138 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b139 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b140 {type = QC}:
+    tuple<> = run_request() : req_create140
+
+^b141 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b142 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b143 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine143
+
+^b144 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine144
+
+^b145 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine145
+
+^b146 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b147 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b148 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine148
+
+^b149 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine149
+
+^b150 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine150
+
+^b151 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b152 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b153 {type = QC}:
+    tuple<> = run_request() : req_create153
+
+^b154 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b155 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b156 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine156
+
+^b157 {type = QC}:
+    tuple<> = run_request() : req_create157
+
+^b158 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b159 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b160 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine160
+
+^b161 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine161
+
+^b162 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine162
+
+^b163 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b164 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b165 {type = QC}:
+    tuple<> = run_request() : req_create165
+
+^b166 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b167 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b168 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine168
+
+^b169 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine169
+
+^b170 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b171 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b172 {type = QC}:
+    tuple<> = run_request() : req_create172
+
+^b173 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b174 {type = CC}:
+    p0 = recv_cmsg(csocket)
+
+^b175 {type = QL}:
+    tuple<p0> = run_subroutine() : catent_receiver_routine175
+
+^b176 {type = QL}:
+    tuple<> = run_subroutine() : cz_routine176
+
+^b177 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine177
+
+^b178 {type = CL}:
+    csocket = assign_cval() : 0
+
+^b179 {type = CC}:
+    send_cmsg(csocket, m0)
+
+^b180 {type = QL}:
+    tuple<> = run_subroutine(tuple<m0>) : catdisent_sender_routine180
+
+^b181 {type = CL}:
+    csocket = assign_cval() : 1
+
+^b182 {type = CC}:
+    send_cmsg(csocket, m0)
+
+SUBROUTINE prepare_routine0
+params: 
+returns: 
+uses: 1, 3, 5
+keeps: 1, 3, 5
+request:
+NETQASM_START
+set Q0 0
+init Q0
+set Q1 1
+init Q1
+set Q2 2
+init Q2
+NETQASM_END
+SUBROUTINE catent_receiver_routine4
+params: p0
+returns: 
+uses: 2
+keeps: 2
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 2
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catent_receiver_routine8
+params: p0
+returns: 
+uses: 0
+keeps: 0
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 0
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine9
+params: 
+returns: 
+uses: 0, 2
+keeps: 0, 2
+request:
+NETQASM_START
+set Q0 0
+set Q1 2
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine10
+params: 
+returns: m0
+uses: 0
+keeps: 
+request:
+NETQASM_START
+set Q0 0
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine16
+params: p0
+returns: 
+uses: 4
+keeps: 4
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 4
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catdisent_sender_routine17
+params: 
+returns: m0
+uses: 2
+keeps: 
+request:
+NETQASM_START
+set Q0 2
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine23
+params: p0
+returns: 
+uses: 6
+keeps: 6
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 6
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine24
+params: 
+returns: 
+uses: 4, 6
+keeps: 4, 6
+request:
+NETQASM_START
+set Q0 4
+set Q1 6
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine25
+params: 
+returns: m0
+uses: 4
+keeps: 
+request:
+NETQASM_START
+set Q0 4
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine31
+params: p0
+returns: 
+uses: 2
+keeps: 2
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 2
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catdisent_sender_routine32
+params: 
+returns: m0
+uses: 6
+keeps: 
+request:
+NETQASM_START
+set Q0 6
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine38
+params: p0
+returns: 
+uses: 0
+keeps: 0
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 0
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine39
+params: 
+returns: 
+uses: 0, 2
+keeps: 0, 2
+request:
+NETQASM_START
+set Q0 0
+set Q1 2
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine40
+params: 
+returns: m0
+uses: 0
+keeps: 
+request:
+NETQASM_START
+set Q0 0
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine46
+params: p0
+returns: 
+uses: 4
+keeps: 4
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 4
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catdisent_sender_routine47
+params: 
+returns: m0
+uses: 2
+keeps: 
+request:
+NETQASM_START
+set Q0 2
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine53
+params: p0
+returns: 
+uses: 2
+keeps: 2
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 2
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catent_receiver_routine57
+params: p0
+returns: 
+uses: 6
+keeps: 6
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 6
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine58
+params: 
+returns: 
+uses: 4, 6
+keeps: 4, 6
+request:
+NETQASM_START
+set Q0 4
+set Q1 6
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine59
+params: 
+returns: m0
+uses: 4
+keeps: 
+request:
+NETQASM_START
+set Q0 4
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catdisent_sender_routine62
+params: 
+returns: m0
+uses: 6
+keeps: 
+request:
+NETQASM_START
+set Q0 6
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine68
+params: p0
+returns: 
+uses: 0
+keeps: 0
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 0
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine69
+params: 
+returns: 
+uses: 0, 2
+keeps: 0, 2
+request:
+NETQASM_START
+set Q0 0
+set Q1 2
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine70
+params: 
+returns: m0
+uses: 0
+keeps: 
+request:
+NETQASM_START
+set Q0 0
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine76
+params: p0
+returns: 
+uses: 4
+keeps: 4
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 4
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catdisent_sender_routine77
+params: 
+returns: m0
+uses: 2
+keeps: 
+request:
+NETQASM_START
+set Q0 2
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine83
+params: p0
+returns: 
+uses: 2
+keeps: 2
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 2
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catent_receiver_routine87
+params: p0
+returns: 
+uses: 6
+keeps: 6
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 6
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine88
+params: 
+returns: 
+uses: 4, 6
+keeps: 4, 6
+request:
+NETQASM_START
+set Q0 4
+set Q1 6
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine89
+params: 
+returns: m0
+uses: 4
+keeps: 
+request:
+NETQASM_START
+set Q0 4
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine95
+params: p0
+returns: 
+uses: 0
+keeps: 0
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 0
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine96
+params: 
+returns: 
+uses: 0, 2
+keeps: 0, 2
+request:
+NETQASM_START
+set Q0 0
+set Q1 2
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine97
+params: 
+returns: m0
+uses: 0
+keeps: 
+request:
+NETQASM_START
+set Q0 0
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine103
+params: p0
+returns: 
+uses: 0
+keeps: 0
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 0
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catent_receiver_routine107
+params: p0
+returns: 
+uses: 4
+keeps: 4
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 4
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catdisent_sender_routine108
+params: 
+returns: m0
+uses: 2
+keeps: 
+request:
+NETQASM_START
+set Q0 2
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catdisent_sender_routine111
+params: 
+returns: m0
+uses: 6
+keeps: 
+request:
+NETQASM_START
+set Q0 6
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine117
+params: p0
+returns: 
+uses: 6
+keeps: 6
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 6
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine118
+params: 
+returns: 
+uses: 4, 6
+keeps: 4, 6
+request:
+NETQASM_START
+set Q0 4
+set Q1 6
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine119
+params: 
+returns: m0
+uses: 4
+keeps: 
+request:
+NETQASM_START
+set Q0 4
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catdisent_sender_routine122
+params: 
+returns: m0
+uses: 6
+keeps: 
+request:
+NETQASM_START
+set Q0 6
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine128
+params: p0
+returns: 
+uses: 2
+keeps: 2
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 2
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine129
+params: 
+returns: 
+uses: 0, 2
+keeps: 0, 2
+request:
+NETQASM_START
+set Q0 0
+set Q1 2
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine130
+params: 
+returns: m0
+uses: 0
+keeps: 
+request:
+NETQASM_START
+set Q0 0
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine136
+params: p0
+returns: 
+uses: 0
+keeps: 0
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 0
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catdisent_sender_routine137
+params: 
+returns: m0
+uses: 2
+keeps: 
+request:
+NETQASM_START
+set Q0 2
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine143
+params: p0
+returns: 
+uses: 2
+keeps: 2
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 2
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine144
+params: 
+returns: 
+uses: 0, 2
+keeps: 0, 2
+request:
+NETQASM_START
+set Q0 0
+set Q1 2
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine145
+params: 
+returns: m0
+uses: 0
+keeps: 
+request:
+NETQASM_START
+set Q0 0
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE cz_routine148
+params: 
+returns: 
+uses: 3, 5
+keeps: 3, 5
+request:
+NETQASM_START
+set Q0 3
+set Q1 5
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE cz_routine149
+params: 
+returns: 
+uses: 3, 5
+keeps: 3, 5
+request:
+NETQASM_START
+set Q0 3
+set Q1 5
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine150
+params: 
+returns: m0
+uses: 2
+keeps: 
+request:
+NETQASM_START
+set Q0 2
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine156
+params: p0
+returns: 
+uses: 6
+keeps: 6
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 6
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catent_receiver_routine160
+params: p0
+returns: 
+uses: 2
+keeps: 2
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 2
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine161
+params: 
+returns: 
+uses: 2, 6
+keeps: 2, 6
+request:
+NETQASM_START
+set Q0 2
+set Q1 6
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine162
+params: 
+returns: m0
+uses: 2
+keeps: 
+request:
+NETQASM_START
+set Q0 2
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine168
+params: p0
+returns: 
+uses: 4
+keeps: 4
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 4
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE catdisent_sender_routine169
+params: 
+returns: m0
+uses: 6
+keeps: 
+request:
+NETQASM_START
+set Q0 6
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catent_receiver_routine175
+params: p0
+returns: 
+uses: 0
+keeps: 0
+request:
+NETQASM_START
+set C15 0
+load C0 @input[C15]
+set Q0 0
+bez C0 2
+x Q0
+set R15 0
+NETQASM_END
+SUBROUTINE cz_routine176
+params: 
+returns: 
+uses: 4, 0
+keeps: 4, 0
+request:
+NETQASM_START
+set Q0 4
+set Q1 0
+cphase Q0 Q1
+NETQASM_END
+SUBROUTINE catdisent_sender_routine177
+params: 
+returns: m0
+uses: 0
+keeps: 
+request:
+NETQASM_START
+set Q0 0
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+SUBROUTINE catdisent_sender_routine180
+params: 
+returns: m0
+uses: 4
+keeps: 
+request:
+NETQASM_START
+set Q0 4
+h Q0
+meas Q0 M0
+store M0 @output[0]
+NETQASM_END
+
+REQUEST req_create1
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 4
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create5
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 4
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create13
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 6
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create20
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 6
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create28
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create35
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create43
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 2
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create50
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 4
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create54
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 2
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create65
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 4
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create73
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create80
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create84
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 6
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create92
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 6
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create100
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 2
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create104
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 4
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create114
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 4
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create125
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 2
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create133
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create140
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create153
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create157
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 2
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create165
+callback_type:
+callback:
+return_vars:
+remote_id: {node2_id}
+epr_socket_id: 1
+num_pairs: 1
+virt_ids: all 2
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
+REQUEST req_create172
+callback_type:
+callback:
+return_vars:
+remote_id: {node0_id}
+epr_socket_id: 0
+num_pairs: 1
+virt_ids: all 0
+timeout: 1000
+fidelity: 1.0
+typ: CREATE_KEEP
+role: CREATE
