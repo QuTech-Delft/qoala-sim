@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple, Union
+from netqasm.sdk.transpile import NVSubroutineTranspiler, ITSubroutineTranspiler
 
 from netqasm.lang.instr.flavour import Flavour, VanillaFlavour
 from netqasm.lang.operand import Template
@@ -646,14 +647,15 @@ class LocalRoutineParser:
     :param flavour: Flavour of the Qoala program. It is used to parse the NetQasm code.
     """
 
-    def __init__(self, text: str, flavour: Optional[Flavour] = None) -> None:
+    def __init__(self, text: str, flavour: Optional[Flavour] = None, transpiler: Optional[bool] = False) -> None:
         self._text = text
         lines = [line.strip() for line in text.split("\n")]
         self._lines = [line for line in lines if len(line) > 0]
         self._lineno: int = 0
         if flavour is None:
             flavour = VanillaFlavour()
-        self._flavour = flavour
+        self._flavour: Flavour = flavour
+        self._transpiler = transpiler
 
     def _next_line(self) -> None:
         self._lineno += 1
@@ -838,8 +840,13 @@ class LocalRoutineParser:
             subrt_lines.append(line)
         subrt_text = "\n".join(subrt_lines)
 
-        subrt = parse_text_subroutine(subrt_text, flavour=self._flavour)
-
+        if not self._transpiler:
+            subrt = parse_text_subroutine(subrt_text, flavour=self._flavour)
+        else:
+            subrt1 = parse_text_subroutine(subrt_text, flavour=VanillaFlavour())
+            subrtTmp = NVSubroutineTranspiler(subrt1) if self._flavour.__class__.__name__ == "NVFlavour" else ITSubroutineTranspiler(subrt1)
+            subrt = subrtTmp.transpile()
+        
         # Check that all templates are declared as params to the subroutine
         if any(arg not in params_line for arg in subrt.arguments):
             raise QoalaParseError(
@@ -1281,6 +1288,7 @@ class QoalaParser:
         subrt_text: Optional[str] = None,
         req_text: Optional[str] = None,
         flavour: Optional[Flavour] = None,
+        transpiler: Optional[bool] = False
     ) -> None:
         if text is not None:
             if any(t is not None for t in (meta_text, host_text, subrt_text, req_text)):
@@ -1307,7 +1315,7 @@ class QoalaParser:
         self._req_text = req_text
         self._meta_parser = IqoalaMetaParser(meta_text)
         self._host_parser = HostCodeParser(host_text)
-        self._subrt_parser = LocalRoutineParser(subrt_text, flavour)
+        self._subrt_parser = LocalRoutineParser(subrt_text, flavour, transpiler)
         self._req_parser = RequestRoutineParser(req_text)
 
     def _split_text(self, text: str) -> Tuple[str, str, str, str]:
