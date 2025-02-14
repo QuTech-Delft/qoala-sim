@@ -971,6 +971,9 @@ if __name__ == "__main__":
             hardware = params["hardware"]
             if param_name != "cc":
                 params["cc"] = ent_rate.cc_time(distance=params["distance"])
+            else:
+                # When varying the cc time vary it as a fraction of t2 time
+                params["cc"] = param_val * params["t2"]
             if hardware == "TI":
                 link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
                 params["link_duration"] = link_duration
