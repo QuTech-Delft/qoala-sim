@@ -89,7 +89,7 @@ def get_vals(data: Data):
 
         opt_makespan_size_dp_map[size] = [dp.opt_makespan for dp in dps]
         opt_succprob_size_dp_map[size] = [dp.opt_succ_prob for dp in dps]
-        
+
         x_val_size_dp_map[size] = [dp.param_value for dp in dps]
 
     return x_val_size_dp_map, naive_makespan_size_dp_map, naive_succprob_size_dp_map, opt_makespan_size_dp_map, opt_succprob_size_dp_map
@@ -102,15 +102,12 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
     # Load all of the data objects
     datas = [load_data(path+"/"+f) for f in files] 
 
-    # Extra filtering necessary
-    if param == "cc":
-        _data = [data.filter_data_points(1e7) for data in datas]
-
-
     worst_makespan = math.inf
     worst_makespan_file = ""
     worst_succprob = math.inf 
     worst_succprob_file = ""
+    succprob_diff = 0
+    succsec_diff = 0
     # For each data object
     for i in range(0, len(datas)):
         data = datas[i]
@@ -131,15 +128,19 @@ def find_worst(path:str, param:str, hardware:str, program:str, savefile:bool=Fal
         if avg_succprob_diff < worst_succprob:
             worst_succprob = avg_succprob_diff
             worst_succprob_file = files[i]
+            
+            succprob_diff = [[sum([dp.opt_succ_prob  for dp in data.data_points if (dp.prog_size == n)])/(len(data.data_points)/len(data.meta.prog_sizes)),sum([dp.naive_succ_prob for dp in data.data_points if (dp.prog_size==n)])/(len(data.data_points)/len(data.meta.prog_sizes))] for n in data.meta.prog_sizes]
     
+            succsec_diff = [[sum([dp.opt_succ_prob /dp.opt_makespan  for dp in data.data_points if (dp.prog_size == n)])/(len(data.data_points)/len(data.meta.prog_sizes)),sum([dp.naive_succ_prob / dp.naive_makespan for dp in data.data_points if (dp.prog_size==n)])/((len(data.data_points)/len(data.meta.prog_sizes)))] for n in data.meta.prog_sizes]
     print("Avg Makespan diff: ", worst_makespan, worst_makespan_file)
     print("Avg Succprob diff: ", worst_succprob,worst_succprob_file)
+    print(succprob_diff)
+    print(succsec_diff)
+    print("Succprob, ", [(ld[0] - ld[1])/ld[0]*100 for ld in succprob_diff])
+
+    print("\n\nSuccsec",[(ld[0] - ld[1])/ld[0]*100 for ld in succsec_diff])
     worst_makespan_data = load_data(path+"/"+worst_makespan_file)
-    worst_succprob_data = load_data(path+"/"+worst_makespan_file)
-    # Extra filtering necessary
-    if param == "cc":
-        worst_makespan_data.filter_data_points(1e7)
-        worst_succprob_data.filter_data_points(1e7)
+    worst_succprob_data = load_data(path+"/"+worst_succprob_file)
 
     create_plots(timestamp,worst_makespan_data,"makespan",saveFile)
     create_plots(timestamp,worst_succprob_data,"succprob",saveFile)
@@ -166,7 +167,7 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
             )
             if meta.prog_name == "rotation":
                 if key == 10:
-                    plt.plot(x_val_map[key], [(val / meta.num_iterations[0]) / 1e6 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize, color="red")
+                    plt.plot(x_val_map[key], [(val / meta.num_iterations[0]) / 1e6 for val in opt_makespan_map[key]], label=f"Opt", marker="*", markersize=opt_markersize, color="red")
             else:
                 plt.plot(x_val_map[key], [(val / meta.num_iterations[0]) / 1e6 for val in opt_makespan_map[key]], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
 
@@ -175,9 +176,11 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
             plt.xlabel("Single qubit gate fidelity",fontsize=label_fontsize)   
         elif meta.param_name == "distance":
             plt.xlabel("Distance (km)",fontsize=label_fontsize)   
+        elif meta.param_name == "cc":
+            plt.xlabel("Classical Communication Latency as a fraction of T2 time",fontsize=label_fontsize)   
         else:
             plt.xlabel(meta.param_name,fontsize=label_fontsize)   
-        plt.ylabel("Avg Makespan (ms)", fontsize=label_fontsize)
+        plt.ylabel("Makespan (ms)", fontsize=label_fontsize)
         
         if save:
             create_png(timestamp + "_" + meta.prog_name + "_"+ meta.param_name + "_makespan_n_"+ meta.hardware)
@@ -186,14 +189,14 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
         plt.cla()
 
     if plottype=="succprob" or plottype=="":
-        plt.ylim(0.55, 1.01)
+        plt.ylim(0.4, 1.01)
         for key in x_val_map.keys():
             plt.plot(
                 x_val_map[key], naive_succprob_map[key], label=f"Subopt $n$={key}", marker="o"
             )
             if meta.prog_name == "rotation":
                 if key == 10:
-                    plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize, color="red")
+                    plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt", marker="*", markersize=opt_markersize, color="red")
             else:
                 plt.plot(x_val_map[key], opt_succprob_map[key], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
 
@@ -203,6 +206,8 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
             plt.xlabel("Single qubit gate fidelity",fontsize=label_fontsize)   
         elif meta.param_name == "distance":
             plt.xlabel("Distance (km)",fontsize=label_fontsize)   
+        elif meta.param_name == "cc":
+            plt.xlabel("Classical Communication Latency as a fraction of T2 time",fontsize=label_fontsize)
         else:
             plt.xlabel(meta.param_name,fontsize=label_fontsize)   
         
@@ -218,14 +223,19 @@ def create_plots(timestamp, data: Data, plottype:str, save=True):
             plt.plot(
                 x_val_map[key], [naive_succprob_map[key][i] / naive_makespan_map[key][i] * 1e9 for i in range(0,len(x_val_map[key]))], label=f"Subopt $n$={key}", marker="o"
             )
-            plt.plot(x_val_map[key],  [opt_succprob_map[key][i] / opt_makespan_map[key][i] *1e9 for i in range(0,len(x_val_map[key]))], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
-
+            if meta.prog_name == "rotation":
+                if key == 10:
+                    plt.plot(x_val_map[key],  [opt_succprob_map[key][i] / opt_makespan_map[key][i] *1e9 for i in range(0,len(x_val_map[key]))], label=f"Opt", marker="*", markersize=opt_markersize)
+            else:
+                plt.plot(x_val_map[key],  [opt_succprob_map[key][i] / opt_makespan_map[key][i] *1e9 for i in range(0,len(x_val_map[key]))], label=f"Opt $n$={key}", marker="*", markersize=opt_markersize)
         plt.legend(loc="upper right", fontsize=11)
         plt.ylabel("Successes / s", fontsize=label_fontsize)
         if meta.param_name == "single_gate_fid":
             plt.xlabel("Single qubit gate fidelity",fontsize=label_fontsize)   
         elif meta.param_name == "distance":
             plt.xlabel("Distance (km)",fontsize=label_fontsize)   
+        elif meta.param_name == "cc":
+            plt.xlabel("Classical Communication Latency as a fraction of T2 time",fontsize=label_fontsize)
         else:
             plt.xlabel(meta.param_name,fontsize=label_fontsize)
 

@@ -119,13 +119,16 @@ def create_network(
                 server_pid_index += 1
 
         client_pid_index += client_num_iterations[client_prog]
-
+    
+    # Randomize the order of the network schedule for robustness of the experiment    
+    first_bin = random.randint(0,len(pattern)-1)
+    random.shuffle(pattern)
     # print(pattern)
 
     if use_netschedule:
         network_cfg.netschedule = NetworkScheduleConfig(
             bin_length=bin_length,
-            first_bin=0,
+            first_bin=first_bin,
             bin_pattern=pattern,
             repeat_period=bin_length
             * num_clients
@@ -364,31 +367,58 @@ def run_eval_programs(
                 server_unit_module = UnitModule.from_full_ehi(
                     server_procnode.memmgr.get_ehi()
                 )
+                
+                if True:
+                    # This is modified so that the first c-1 clients run prog_index 0 
+                    # and the last client runs prog_index 1
+                    # This is a hacky modification for this specific experiment
+                    # So if there are N clients, we want C1, C2, C3, ... CN-1 to run prog 0 
+                    # and CN to run prog 1
 
-                # This needs to be modified so that the first c/2 clients run prog_index 0 
-                # and the last c/2 clients run prog_index 1
-                # This is a hacky modification for this specific experiment
-                # So if there are N clients, we want C1, C2, C3, ... CN/2 to run prog 0 
-                # and CN/2+1, CN/2+2,..., CN to run prog 1
+                    # Prog 0
+                    if client_id <= num_clients-1:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
+                    # Prog 1
+                    else:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index+1], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
 
-                # Prog 0
-                if client_id <= num_clients/2:
-                    server_batch_info = create_server_batch(
-                        client_id=client_id,
-                        inputs=server_inputs,
-                        program_name=server_progs[prog_index], 
-                        unit_module=server_unit_module,
-                        num_iterations=server_num_iterations[prog_index],
-                    )
-                # Prog 1
-                else:
-                    server_batch_info = create_server_batch(
-                        client_id=client_id,
-                        inputs=server_inputs,
-                        program_name=server_progs[prog_index+1], 
-                        unit_module=server_unit_module,
-                        num_iterations=server_num_iterations[prog_index],
-                    )
+                if False:
+                    # This needs to be modified so that the first c/2 clients run prog_index 0 
+                    # and the last c/2 clients run prog_index 1
+                    # This is a hacky modification for this specific experiment
+                    # So if there are N clients, we want C1, C2, C3, ... CN/2 to run prog 0 
+                    # and CN/2+1, CN/2+2,..., CN to run prog 1
+
+                    # Prog 0
+                    if client_id <= num_clients/2:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
+                    # Prog 1
+                    else:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index+1], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
 
                 # Creates a batch of program instances, so each program now has a pid
                 server_batches[client_id] += [
@@ -668,7 +698,6 @@ class DataPoint:
     prog1_dd_succ_prob: float
     prog2_dd_succ_prob: float 
     prog_size: int
-    num_clients: int
     param_name: str  # Name of param being varied
     param_value: float  # Value of the varied param
 
@@ -681,7 +710,7 @@ class DataMeta:
     prog_sizes: List[int]
     num_iterations: List[int]
     num_trials: int
-    max_num_clients: int
+    num_clients: int
     linear: bool
     cc: int
     t1: int
@@ -928,6 +957,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=False)
     parser.add_argument("--param_sweep_list", type=str, nargs="+", required=False)
     parser.add_argument("--num_trials", type=int, required=False, default=1)
+    parser.add_argument("--num_clients", "-c", type=int, required=False, default=2)
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--seed", type=int, required=False)
 
@@ -938,6 +968,7 @@ if __name__ == "__main__":
     save = args.save
     seed = args.seed
     num_trials = args.num_trials
+    num_clients=args.num_clients
 
     if config is not None:
         # Load param values from .json file
@@ -954,6 +985,8 @@ if __name__ == "__main__":
         param_name = param_sweep_list[0]
         param_vals = [float(val) for val in param_sweep_list[1:]]
     
+    params["num_clients"] = num_clients
+
     # Load the seed
     seed_value = 0
     if seed is not None:
@@ -964,11 +997,11 @@ if __name__ == "__main__":
         seed_value = int(seed_str, 16)
 
     # Load program inputs and such
-    program_sizes = [3,5,10]
+    program_sizes = [3,5]#,10]
     params["client_progs"] = [[f"programs/bqc/vbqc_client_{i}.iqoala"] for i in program_sizes]
         
     params["server_progs_identicaldeadlines"] = [[f"programs/bqc/vbqc_server_{i}_1coop_id.iqoala", f"programs/bqc/vbqc_server_{i}_1coop_id.iqoala"] for i in program_sizes]
-    params["server_progs_diffdeadlines"] = [[f"programs/bqc/vbqc_server_{i}_1coop_sd.iqoala", f"programs/bqc/vbqc_server_{i}_1coop_ld.iqoala"] for i in program_sizes]
+    params["server_progs_diffdeadlines"] = [[f"programs/bqc/vbqc_server_{i}_1coop_ld.iqoala", f"programs/bqc/vbqc_server_{i}_1coop_sd.iqoala"] for i in program_sizes]
         
     params["random_client_inputs"] = True
     params["client_input_func"] = [[client_input_func[f"bqc_inputs_{i}"]] for i in program_sizes]
@@ -987,141 +1020,140 @@ if __name__ == "__main__":
     start = time.time()
     for prog_size_index in range(len(program_sizes)):
         print(f"Program size: {program_sizes[prog_size_index]}")
-        for num_clients in range(2, params["num_clients"]+1, 2):
-            num_qubits = num_clients*program_sizes[prog_size_index]*params["server_num_iterations"][0]
-            for param_val in param_vals:
-                print(f"Results for {param_name} : {params[param_name]}")
-                params[param_name] = param_val 
-                hardware = params["hardware"]
-                params["cc"] = ent_rate.cc_time(distance=params["distance"])
+        #for num_clients in range(2, params["num_clients"]+1, 2):
+        num_qubits = num_clients*program_sizes[prog_size_index]*params["server_num_iterations"][0]
+        for param_val in param_vals:
+            print(f"Results for {param_name} : {params[param_name]}")
+            params[param_name] = param_val 
+            hardware = params["hardware"]
+            params["cc"] = ent_rate.cc_time(distance=params["distance"])
 
-                if hardware == "TI":
-                    link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
-                    params["link_duration"] = link_duration
-                    if param_name=="single_gate_fid":
-                        params["link_fid"] = 1 
-                elif hardware == "NV":
-                    link_duration, link_fid = ent_rate.nv_epr(params["distance"], optimism=params["qia_sga"])
-                    params["link_duration"] = link_duration
-                    if param_name=="single_gate_fid":
-                        params["link_fid"] = 1
+            if hardware == "TI":
+                link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
+                params["link_duration"] = link_duration
+                if param_name=="single_gate_fid":
+                    params["link_fid"] = 1 
+            elif hardware == "NV":
+                link_duration, link_fid = ent_rate.nv_epr(params["distance"], optimism=params["qia_sga"])
+                params["link_duration"] = link_duration
+                if param_name=="single_gate_fid":
+                    params["link_fid"] = 1
 
-                # Need to keep track of success probability and makespan for prog1 and prog2
-                avg_prog1_id_makespan = 0
-                avg_prog2_id_makespan = 0
-                avg_prog1_id_succ_prob = 0
-                avg_prog2_id_succ_prob = 0
-                avg_prog1_dd_makespan = 0
-                avg_prog2_dd_makespan = 0
-                avg_prog1_dd_succ_prob = 0
-                avg_prog2_dd_succ_prob = 0
-                for trial in range(num_trials):
-                    # Run selfish version
-                    identical_deadlines_total_makespan, identical_deadlines_succ_probs, identical_deadlines_makespans = run_eval_exp(
-                        client_progs=params["client_progs"][prog_size_index],
-                        server_progs=params["server_progs_identicaldeadlines"][prog_size_index],
-                        client_prog_args=params["client_prog_args"][prog_size_index],
-                        server_prog_args=params["server_prog_args"][prog_size_index],
-                        client_num_iterations=params["client_num_iterations"],
-                        server_num_iterations=params["server_num_iterations"],
-                        num_clients=num_clients,
-                        server_num_qubits=num_qubits,
-                        client_num_qubits=params["client_num_qubits"],
-                        linear=params["linear"],
-                        use_netschedule=params["use_netschedule"],
-                        bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
-                        cc=params["cc"],
-                        t1=params["t1"],
-                        t2=params["t2"],
-                        host_instr_time=params["host_instr_time"],
-                        host_peer_latency=params["host_peer_latency"],
-                        qnos_instr_proc_time=params["qnos_instr_proc_time"],
-                        internal_sched_latency=params["internal_sched_latency"],
-                        single_gate_dur=params["single_gate_dur"],
-                        two_gate_dur=params["two_gate_dur"],
-                        single_gate_fid=params["single_gate_fid"],
-                        two_gate_fid=params["two_gate_fid"],
-                        link_duration=params["link_duration"],
-                        link_fid=params["link_fid"],
-                        seed = seed_value+trial,
-                        client_input_func=params["client_input_func"][prog_size_index],
-                        random_client_inputs=True,
-                        compute_succ_probs=params["compute_succ_probs"][prog_size_index],
-                    )
-                    # print(f"identical deadlines Results\t Total Makespan:{identical_deadlines_total_makespan}\tMakespan: {identical_deadlines_makespans}\tSuccess Prob: {identical_deadlines_succ_probs}")
+            # Need to keep track of success probability and makespan for prog1 and prog2
+            avg_prog1_id_makespan = 0
+            avg_prog2_id_makespan = 0
+            avg_prog1_id_succ_prob = 0
+            avg_prog2_id_succ_prob = 0
+            avg_prog1_dd_makespan = 0
+            avg_prog2_dd_makespan = 0
+            avg_prog1_dd_succ_prob = 0
+            avg_prog2_dd_succ_prob = 0
+            for trial in range(num_trials):
+                # Run selfish version
+                identical_deadlines_total_makespan, identical_deadlines_succ_probs, identical_deadlines_makespans = run_eval_exp(
+                    client_progs=params["client_progs"][prog_size_index],
+                    server_progs=params["server_progs_identicaldeadlines"][prog_size_index],
+                    client_prog_args=params["client_prog_args"][prog_size_index],
+                    server_prog_args=params["server_prog_args"][prog_size_index],
+                    client_num_iterations=params["client_num_iterations"],
+                    server_num_iterations=params["server_num_iterations"],
+                    num_clients=num_clients,
+                    server_num_qubits=num_qubits,
+                    client_num_qubits=params["client_num_qubits"],
+                    linear=params["linear"],
+                    use_netschedule=params["use_netschedule"],
+                    bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
+                    cc=params["cc"],
+                    t1=params["t1"],
+                    t2=params["t2"],
+                    host_instr_time=params["host_instr_time"],
+                    host_peer_latency=params["host_peer_latency"],
+                    qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                    internal_sched_latency=params["internal_sched_latency"],
+                    single_gate_dur=params["single_gate_dur"],
+                    two_gate_dur=params["two_gate_dur"],
+                    single_gate_fid=params["single_gate_fid"],
+                    two_gate_fid=params["two_gate_fid"],
+                    link_duration=params["link_duration"],
+                    link_fid=params["link_fid"],
+                    seed = seed_value+trial,
+                    client_input_func=params["client_input_func"][prog_size_index],
+                    random_client_inputs=True,
+                    compute_succ_probs=params["compute_succ_probs"][prog_size_index],
+                )
+                print(f"identical deadlines Results\t Total Makespan:{identical_deadlines_total_makespan}\tMakespan: {identical_deadlines_makespans}\tSuccess Prob: {identical_deadlines_succ_probs}")
 
-                    # Run coop version
-                    diff_deadlines_total_makespan, diff_deadlines_succ_probs, diff_deadlines_makespans = run_eval_exp(
-                        client_progs=params["client_progs"][prog_size_index],
-                        server_progs=params["server_progs_diffdeadlines"][prog_size_index],
-                        client_prog_args=params["client_prog_args"][prog_size_index],
-                        server_prog_args=params["server_prog_args"][prog_size_index],
-                        client_num_iterations=params["client_num_iterations"],
-                        server_num_iterations=params["server_num_iterations"],
-                        num_clients=num_clients,
-                        server_num_qubits=num_qubits,
-                        client_num_qubits=params["client_num_qubits"],
-                        linear=params["linear"],
-                        use_netschedule=params["use_netschedule"],
-                        bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
-                        cc=params["cc"],
-                        t1=params["t1"],
-                        t2=params["t2"],
-                        host_instr_time=params["host_instr_time"],
-                        host_peer_latency=params["host_peer_latency"],
-                        qnos_instr_proc_time=params["qnos_instr_proc_time"],
-                        internal_sched_latency=params["internal_sched_latency"],
-                        single_gate_dur=params["single_gate_dur"],
-                        two_gate_dur=params["two_gate_dur"],
-                        single_gate_fid=params["single_gate_fid"],
-                        two_gate_fid=params["two_gate_fid"],
-                        link_duration=params["link_duration"],
-                        link_fid=params["link_fid"],
-                        seed = seed_value+trial,
-                        client_input_func=params["client_input_func"][prog_size_index],
-                        random_client_inputs=True,
-                        compute_succ_probs=params["compute_succ_probs"][prog_size_index],
-                    )
-                    # print(f"diff deadlines Results\tTotal Makespan: {diff_deadlines_total_makespan}\tMakespan: {diff_deadlines_makespans}\tSuccess Prob: {diff_deadlines_succ_probs}")
+                # Run coop version
+                diff_deadlines_total_makespan, diff_deadlines_succ_probs, diff_deadlines_makespans = run_eval_exp(
+                    client_progs=params["client_progs"][prog_size_index],
+                    server_progs=params["server_progs_diffdeadlines"][prog_size_index],
+                    client_prog_args=params["client_prog_args"][prog_size_index],
+                    server_prog_args=params["server_prog_args"][prog_size_index],
+                    client_num_iterations=params["client_num_iterations"],
+                    server_num_iterations=params["server_num_iterations"],
+                    num_clients=num_clients,
+                    server_num_qubits=num_qubits,
+                    client_num_qubits=params["client_num_qubits"],
+                    linear=params["linear"],
+                    use_netschedule=params["use_netschedule"],
+                    bin_length=params["bin_length"]*params["link_duration"]+params["bin_length"],
+                    cc=params["cc"],
+                    t1=params["t1"],
+                    t2=params["t2"],
+                    host_instr_time=params["host_instr_time"],
+                    host_peer_latency=params["host_peer_latency"],
+                    qnos_instr_proc_time=params["qnos_instr_proc_time"],
+                    internal_sched_latency=params["internal_sched_latency"],
+                    single_gate_dur=params["single_gate_dur"],
+                    two_gate_dur=params["two_gate_dur"],
+                    single_gate_fid=params["single_gate_fid"],
+                    two_gate_fid=params["two_gate_fid"],
+                    link_duration=params["link_duration"],
+                    link_fid=params["link_fid"],
+                    seed = seed_value+trial,
+                    client_input_func=params["client_input_func"][prog_size_index],
+                    random_client_inputs=True,
+                    compute_succ_probs=params["compute_succ_probs"][prog_size_index],
+                )
+                print(f"diff deadlines Results\tTotal Makespan: {diff_deadlines_total_makespan}\tMakespan: {diff_deadlines_makespans}\tSuccess Prob: {diff_deadlines_succ_probs}")
 
-                    # Compute the average success probability and makespan for prog1 and prog2 
-                    for key in diff_deadlines_makespans.keys():
-                        # Clients 1-n/2 run prog 1
-                        if key[0] <= num_clients / 2:
-                            avg_prog1_id_makespan += identical_deadlines_makespans[key] 
-                            avg_prog1_dd_makespan += diff_deadlines_makespans[key]
-                            avg_prog1_id_succ_prob += identical_deadlines_succ_probs[key] 
-                            avg_prog1_dd_succ_prob += diff_deadlines_succ_probs[key] 
-                        # Prog 2
-                        else:
-                            avg_prog2_id_makespan += identical_deadlines_makespans[key] 
-                            avg_prog2_dd_makespan += diff_deadlines_makespans[key]
-                            avg_prog2_id_succ_prob += identical_deadlines_succ_probs[key]
-                            avg_prog2_dd_succ_prob += diff_deadlines_succ_probs[key]  
+                # Compute the average success probability and makespan for prog1 and prog2 
+                for key in diff_deadlines_makespans.keys():
+                    # Clients 1-n/2 run prog 1
+                    if key[0] <= num_clients-1:
+                        avg_prog1_id_makespan += identical_deadlines_makespans[key] 
+                        avg_prog1_dd_makespan += diff_deadlines_makespans[key]
+                        avg_prog1_id_succ_prob += identical_deadlines_succ_probs[key] 
+                        avg_prog1_dd_succ_prob += diff_deadlines_succ_probs[key] 
+                    # Prog 2
+                    else:
+                        avg_prog2_id_makespan += identical_deadlines_makespans[key] 
+                        avg_prog2_dd_makespan += diff_deadlines_makespans[key]
+                        avg_prog2_id_succ_prob += identical_deadlines_succ_probs[key]
+                        avg_prog2_dd_succ_prob += diff_deadlines_succ_probs[key]  
 
-                avg_prog1_id_makespan /=  (num_clients / 2 * num_trials)
-                avg_prog2_id_makespan /=  (num_clients / 2 * num_trials)
-                avg_prog1_id_succ_prob /= (num_clients / 2 * num_trials)
-                avg_prog2_id_succ_prob /= (num_clients / 2 * num_trials)
-                avg_prog1_dd_makespan /=  (num_clients / 2 * num_trials)
-                avg_prog2_dd_makespan /=  (num_clients / 2 * num_trials)
-                avg_prog1_dd_succ_prob /= (num_clients / 2 * num_trials)
-                avg_prog2_dd_succ_prob /= (num_clients / 2 * num_trials)
-                datapoints.append(DataPoint(
-                    prog1_id_makespan  = avg_prog1_id_makespan ,
-                    prog2_id_makespan  = avg_prog2_id_makespan ,
-                    prog1_id_succ_prob = avg_prog1_id_succ_prob,
-                    prog2_id_succ_prob = avg_prog2_id_succ_prob,
-                    prog1_dd_makespan  = avg_prog1_dd_makespan ,
-                    prog2_dd_makespan  = avg_prog2_dd_makespan ,
-                    prog1_dd_succ_prob = avg_prog1_dd_succ_prob,
-                    prog2_dd_succ_prob = avg_prog2_dd_succ_prob,               
-                    prog_size=program_sizes[prog_size_index],
-                    num_clients = num_clients,
-                    param_name=param_name,
-                    param_value=param_val
-                ))
-                # print(datapoints[-1])
+            avg_prog1_id_makespan /=  ((num_clients-1) * num_trials)
+            avg_prog2_id_makespan /=  (num_trials)
+            avg_prog1_id_succ_prob /= ((num_clients-1) * num_trials)
+            avg_prog2_id_succ_prob /= (num_trials)
+            avg_prog1_dd_makespan /=  ((num_clients-1) * num_trials)
+            avg_prog2_dd_makespan /=  (num_trials)
+            avg_prog1_dd_succ_prob /= ((num_clients-1) * num_trials)
+            avg_prog2_dd_succ_prob /= (num_trials)
+            datapoints.append(DataPoint(
+                prog1_id_makespan  = avg_prog1_id_makespan ,
+                prog2_id_makespan  = avg_prog2_id_makespan ,
+                prog1_id_succ_prob = avg_prog1_id_succ_prob,
+                prog2_id_succ_prob = avg_prog2_id_succ_prob,
+                prog1_dd_makespan  = avg_prog1_dd_makespan ,
+                prog2_dd_makespan  = avg_prog2_dd_makespan ,
+                prog1_dd_succ_prob = avg_prog1_dd_succ_prob,
+                prog2_dd_succ_prob = avg_prog2_dd_succ_prob,               
+                prog_size=program_sizes[prog_size_index],
+                param_name=param_name,
+                param_value=param_val
+            ))
+            print(datapoints[-1])
 
             
     # Finish computing how long the experiment took to run
@@ -1142,7 +1174,7 @@ if __name__ == "__main__":
         prog_sizes=program_sizes,
         num_iterations=params["server_num_iterations"],
         num_trials=num_trials,
-        max_num_clients=params["num_clients"],
+        num_clients=params["num_clients"],
         linear=params["linear"],
         cc=params["cc"],
         t1=params["t1"],

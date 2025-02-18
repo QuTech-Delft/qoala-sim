@@ -119,11 +119,10 @@ def create_network(
                 server_pid_index += 1
 
         client_pid_index += client_num_iterations[client_prog]
-    
+
     # Randomize the order of the network schedule for robustness of the experiment    
     first_bin = random.randint(0,len(pattern)-1)
     random.shuffle(pattern)
-    # print(pattern)
 
     if use_netschedule:
         network_cfg.netschedule = NetworkScheduleConfig(
@@ -348,7 +347,7 @@ def run_eval_programs(
     server_batches[-1] = []
 
     # Create the server program batches
-    for prog_index in range(len(server_progs)):
+    for prog_index in range(len(server_num_iterations)):
         # This is a client<->server application
         if prog_index < len(client_progs):
             for client_id in range(1, num_clients + 1):
@@ -367,13 +366,59 @@ def run_eval_programs(
                 server_unit_module = UnitModule.from_full_ehi(
                     server_procnode.memmgr.get_ehi()
                 )
-                server_batch_info = create_server_batch(
-                    client_id=client_id,
-                    inputs=server_inputs,
-                    program_name=server_progs[prog_index],
-                    unit_module=server_unit_module,
-                    num_iterations=server_num_iterations[prog_index],
-                )
+                
+                if True:
+                    # This is modified so that the first c-1 clients run prog_index 0 
+                    # and the last client runs prog_index 1
+                    # This is a hacky modification for this specific experiment
+                    # So if there are N clients, we want C1, C2, C3, ... CN-1 to run prog 0 
+                    # and CN to run prog 1
+
+                    # Prog 0
+                    if client_id <= num_clients-1:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
+                    # Prog 1
+                    else:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index+1], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
+
+                # Even split between prog index 0 and 1
+                if False:
+                    # This is modified so that the first c/2 clients run prog_index 0 
+                    # and the last c/2 clients run prog_index 1
+                    # This is a hacky modification for this specific experiment
+                    # So if there are N clients, we want C1, C2, C3, ... CN/2 to run prog 0 
+                    # and CN/2+1, CN/2+2,..., CN to run prog 1
+
+                    # Prog 0
+                    if client_id <= num_clients/2:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
+                    # Prog 1
+                    else:
+                        server_batch_info = create_server_batch(
+                            client_id=client_id,
+                            inputs=server_inputs,
+                            program_name=server_progs[prog_index+1], 
+                            unit_module=server_unit_module,
+                            num_iterations=server_num_iterations[prog_index],
+                        )
 
                 # Creates a batch of program instances, so each program now has a pid
                 server_batches[client_id] += [
@@ -467,11 +512,11 @@ def run_eval_programs(
 
     
     # If there are local only server programs we need to give them dummy remote pids
-    num_local_progs = len(server_progs) - len(client_progs)
-    for local_prog_index in range(num_local_progs):
-        batch = server_batches[-1][local_prog_index]
-        batch_id = batch.batch_id 
-        remote_pids[batch_id] = [-1 for inst in batch.instances] 
+    # num_local_progs = len(server_progs) - len(client_progs)
+    # for local_prog_index in range(num_local_progs):
+    #     batch = server_batches[-1][local_prog_index]
+    #     batch_id = batch.batch_id 
+    #     remote_pids[batch_id] = [-1 for inst in batch.instances] 
     
     server_procnode.initialize_processes(remote_pids=remote_pids, linear=linear)
 
@@ -644,16 +689,15 @@ def run_eval_exp(
 
 @dataclass
 class DataPoint:
-    selfish_bqc_makespan: float
-    selfish_local_makespan: float
-    cooperative_bqc_makespan: float
-    cooperative_local_makespan: float
-    selfish_bqc_succ_prob: float
-    selfish_local_succ_prob: float
-    cooperative_bqc_succ_prob: float
-    cooperative_local_succ_prob: float   
+    prog1_nocrit_makespan: float
+    prog2_nocrit_makespan: float
+    prog1_nocrit_succ_prob: float
+    prog2_nocrit_succ_prob: float 
+    prog1_withcrit_makespan: float
+    prog2_withcrit_makespan: float
+    prog1_withcrit_succ_prob: float
+    prog2_withcrit_succ_prob: float 
     prog_size: int
-    num_clients: int
     param_name: str  # Name of param being varied
     param_value: float  # Value of the varied param
 
@@ -663,10 +707,10 @@ class DataMeta:
     sim_duration: float
     hardware: str
     qia_sga: int
-    scenario: int
     prog_sizes: List[int]
     num_iterations: List[int]
     num_trials: int
+    num_clients: int
     linear: bool
     cc: int
     t1: int
@@ -913,9 +957,9 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=False)
     parser.add_argument("--param_sweep_list", type=str, nargs="+", required=False)
     parser.add_argument("--num_trials", type=int, required=False, default=1)
+    parser.add_argument("--num_clients","-c", type=int, required=False, default=2)
     parser.add_argument("--save", action="store_true")
     parser.add_argument("--seed", type=int, required=False)
-    parser.add_argument("--num_clients", "-c", required=True, type=int)
 
     # Parse arguments
     args = parser.parse_args()
@@ -950,39 +994,23 @@ if __name__ == "__main__":
         seed_str = seed_obj["seeds"][seed]
         seed_value = int(seed_str, 16)
 
-    program_sizes = [3,5]#,10]
-    # Load program inputs and other values based on the scenario
-    if params["scenario"] == 1 or params["scenario"] == 2:
-        params["client_progs"] = [[f"programs/bqc/vbqc_client_{i}.iqoala"] for i in program_sizes]
+    # Load program inputs and such
+    program_sizes = [3]#,5,10]
+    params["client_progs"] = [[f"programs/bqc/vbqc_client_{i}.iqoala"] for i in program_sizes]
         
-        params["server_progs_self"] = [[f"programs/bqc/vbqc_server_{i}.iqoala",f"programs/local_prog/local_prog_scen{params['scenario']}_self.iqoala"] for i in program_sizes]
-        params["server_progs_coop"] = [[f"programs/bqc/vbqc_server_{i}.iqoala",f"programs/local_prog/local_prog_scen{params['scenario']}_coop.iqoala"] for i in program_sizes]
+    params["server_progs_nocrit"] = [[f"programs/bqc/vbqc_server_{i}.iqoala", f"programs/bqc/vbqc_server_{i}.iqoala"] for i in program_sizes]
+    params["server_progs_withcrit"] = [[f"programs/bqc/vbqc_server_{i}.iqoala", f"programs/bqc/vbqc_server_{i}_withCrit.iqoala"] for i in program_sizes]
         
-        params["random_client_inputs"] = True
-        params["client_input_func"] = [[client_input_func[f"bqc_inputs_{i}"]] for i in program_sizes]
-        params["client_prog_args"] = [[{}] for i in program_sizes]
+    params["random_client_inputs"] = True
+    params["client_input_func"] = [[client_input_func[f"bqc_inputs_{i}"]] for i in program_sizes]
+    params["client_prog_args"] = [[{}] for i in program_sizes]
 
-        params["random_server_inputs"] = False
-        params["server_input_func"] = [[] for i in program_sizes]
-        params["server_prog_args"] = [[{},{"iterations":200}] for i in program_sizes]
+    params["random_server_inputs"] = False
+    params["server_input_func"] = [[] for i in program_sizes]
+    params["server_prog_args"] = [[{}] for i in program_sizes]
 
-        params["compute_succ_probs"] = [[succ_prob_func[f"bqc_compute_succ_prob_{i}"], local_compute_succ_prob_generator(params['scenario'])] for i in program_sizes]
-    elif params["scenario"] == 3:
-        params["client_progs"] = [[f"programs/bqc/vbqc_client_{i}.iqoala"] for i in program_sizes]
-        
-        params["server_progs_self"] = [[f"programs/bqc/vbqc_server_{i}_selfish.iqoala"] for i in program_sizes]
-        params["server_progs_coop"] = [[f"programs/bqc/vbqc_server_{i}_1coop.iqoala"] for i in program_sizes]
-        
-        params["random_client_inputs"] = True
-        params["client_input_func"] = [[client_input_func[f"bqc_inputs_{i}"]] for i in program_sizes]
-        params["client_prog_args"] = [[{}] for i in program_sizes]
-
-        params["random_server_inputs"] = False
-        params["server_input_func"] = [[] for i in program_sizes]
-        params["server_prog_args"] = [[{}] for i in program_sizes]
-
-        params["compute_succ_probs"] = [[succ_prob_func[f"bqc_compute_succ_prob_{i}"]] for i in program_sizes]
-
+    params["compute_succ_probs"] = [[succ_prob_func[f"bqc_compute_succ_prob_{i}"]] for i in program_sizes]
+    
     datapoints: List[DataPoint] = []
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -990,15 +1018,13 @@ if __name__ == "__main__":
     start = time.time()
     for prog_size_index in range(len(program_sizes)):
         print(f"Program size: {program_sizes[prog_size_index]}")
-        # for num_clients in range(2,params["num_clients"]+1):
-            # print(f"Num Clients: {num_clients}")
-        num_qubits = num_clients*program_sizes[prog_size_index] + 1
+        num_qubits = num_clients*program_sizes[prog_size_index]*params["server_num_iterations"][0]
         for param_val in param_vals:
             print(f"Results for {param_name} : {params[param_name]}")
             params[param_name] = param_val 
             hardware = params["hardware"]
             params["cc"] = ent_rate.cc_time(distance=params["distance"])
-            
+
             if hardware == "TI":
                 link_duration, link_fid = ent_rate.trapped_ion_epr(params["distance"], QIA_SGA=params["qia_sga"])
                 params["link_duration"] = link_duration
@@ -1010,20 +1036,20 @@ if __name__ == "__main__":
                 if param_name=="single_gate_fid":
                     params["link_fid"] = 1
 
-            # Need to keep track of success probability and makespan for BQC and local prog 
-            avg_self_bqc_makespan = 0
-            avg_self_local_makespan = 0
-            avg_self_bqc_succ_prob = 0
-            avg_self_local_succ_prob = 0
-            avg_coop_bqc_makespan = 0
-            avg_coop_local_makespan = 0
-            avg_coop_bqc_succ_prob = 0
-            avg_coop_local_succ_prob = 0
+            # Need to keep track of success probability and makespan for prog1 and prog2
+            avg_prog1_nocrit_makespan = 0
+            avg_prog2_nocrit_makespan = 0
+            avg_prog1_nocrit_succ_prob = 0
+            avg_prog2_nocrit_succ_prob = 0
+            avg_prog1_withcrit_makespan = 0
+            avg_prog2_withcrit_makespan = 0
+            avg_prog1_withcrit_succ_prob = 0
+            avg_prog2_withcrit_succ_prob = 0
             for trial in range(num_trials):
                 # Run selfish version
-                selfish_total_makespan, selfish_succ_probs, selfish_makespans = run_eval_exp(
+                nocrit_total_makespan, nocrit_succ_probs, nocrit_makespans = run_eval_exp(
                     client_progs=params["client_progs"][prog_size_index],
-                    server_progs=params["server_progs_self"][prog_size_index],
+                    server_progs=params["server_progs_nocrit"][prog_size_index],
                     client_prog_args=params["client_prog_args"][prog_size_index],
                     server_prog_args=params["server_prog_args"][prog_size_index],
                     client_num_iterations=params["client_num_iterations"],
@@ -1052,12 +1078,12 @@ if __name__ == "__main__":
                     random_client_inputs=True,
                     compute_succ_probs=params["compute_succ_probs"][prog_size_index],
                 )
-                print(f"Selfish Results\t Total Makespan:{selfish_total_makespan}\tMakespan: {selfish_makespans}\tSuccess Prob: {selfish_succ_probs}")
+                print(f"Without Critical sections Results\t Total Makespan:{nocrit_total_makespan}\tMakespan: {nocrit_makespans}\tSuccess Prob: {nocrit_succ_probs}")
 
                 # Run coop version
-                coop_total_makespan, coop_succ_probs, coop_makespans = run_eval_exp(
+                withcrit_total_makespan, withcrit_succ_probs, withcrit_makespans = run_eval_exp(
                     client_progs=params["client_progs"][prog_size_index],
-                    server_progs=params["server_progs_coop"][prog_size_index],
+                    server_progs=params["server_progs_withcrit"][prog_size_index],
                     client_prog_args=params["client_prog_args"][prog_size_index],
                     server_prog_args=params["server_prog_args"][prog_size_index],
                     client_num_iterations=params["client_num_iterations"],
@@ -1086,49 +1112,47 @@ if __name__ == "__main__":
                     random_client_inputs=True,
                     compute_succ_probs=params["compute_succ_probs"][prog_size_index],
                 )
-                print(f"Cooperative Results\tTotal Makespan: {coop_total_makespan}\tMakespan: {coop_makespans}\tSuccess Prob: {coop_succ_probs}")
+                print(f"With Critical Sections Results\tTotal Makespan: {withcrit_total_makespan}\tMakespan: {withcrit_makespans}\tSuccess Prob: {withcrit_succ_probs}")
 
-                # Compute the average success probability and makespan for local and bqc programs
-
-                for key in selfish_makespans.keys():
-                    # This is the local program results
-                    if key[0] == -1:
-                        avg_self_local_makespan += selfish_makespans[key]
-                        avg_coop_local_makespan += coop_makespans[key]
-                        avg_self_local_succ_prob += selfish_succ_probs[key]
-                        avg_coop_local_succ_prob += coop_succ_probs[key]
-                    # This is one of the bqc program results
+                # Compute the average success probability and makespan for prog1 and prog2 
+                for key in withcrit_makespans.keys():
+                    # Clients 1 through n-1 run prog 1
+                    if key[0] <= num_clients-1:
+                        avg_prog1_nocrit_makespan += nocrit_makespans[key] 
+                        avg_prog1_withcrit_makespan += withcrit_makespans[key]
+                        avg_prog1_nocrit_succ_prob += nocrit_succ_probs[key] 
+                        avg_prog1_withcrit_succ_prob += withcrit_succ_probs[key] 
+                    # Prog 2
                     else:
-                        avg_self_bqc_makespan += selfish_makespans[key]
-                        avg_coop_bqc_makespan += coop_makespans[key]
-                        avg_self_bqc_succ_prob += selfish_succ_probs[key]
-                        avg_coop_bqc_succ_prob += coop_succ_probs[key]
+                        avg_prog2_nocrit_makespan += nocrit_makespans[key] 
+                        avg_prog2_withcrit_makespan += withcrit_makespans[key]
+                        avg_prog2_nocrit_succ_prob += nocrit_succ_probs[key]
+                        avg_prog2_withcrit_succ_prob += withcrit_succ_probs[key]  
 
-            avg_self_bqc_makespan /= (num_trials*num_clients) 
-            avg_self_local_makespan /= num_trials 
-            avg_self_bqc_succ_prob /= (num_trials*num_clients)
-            avg_self_local_succ_prob /= num_trials
-            avg_coop_bqc_makespan /= (num_trials*num_clients)
-            avg_coop_local_makespan /= num_trials
-            avg_coop_bqc_succ_prob /= (num_trials*num_clients)
-            avg_coop_local_succ_prob /= num_trials
+            avg_prog1_nocrit_makespan /=  ((num_clients - 1) * num_trials)
+            avg_prog2_nocrit_makespan /=  (num_trials)
+            avg_prog1_nocrit_succ_prob /= ((num_clients - 1) * num_trials)
+            avg_prog2_nocrit_succ_prob /= (num_trials)
+            avg_prog1_withcrit_makespan /=  ((num_clients - 1) * num_trials)
+            avg_prog2_withcrit_makespan /=  (num_trials)
+            avg_prog1_withcrit_succ_prob /= ((num_clients - 1) * num_trials)
+            avg_prog2_withcrit_succ_prob /= (num_trials)
             datapoints.append(DataPoint(
-                selfish_bqc_makespan=avg_self_bqc_makespan,
-                selfish_local_makespan=avg_self_local_makespan,
-                cooperative_bqc_makespan=avg_coop_bqc_makespan,
-                cooperative_local_makespan=avg_coop_local_makespan,
-                selfish_bqc_succ_prob=avg_self_bqc_succ_prob,
-                selfish_local_succ_prob=avg_self_local_succ_prob,
-                cooperative_bqc_succ_prob=avg_coop_bqc_succ_prob,
-                cooperative_local_succ_prob=avg_coop_local_succ_prob,
+                prog1_nocrit_makespan  = avg_prog1_nocrit_makespan ,
+                prog2_nocrit_makespan  = avg_prog2_nocrit_makespan ,
+                prog1_nocrit_succ_prob = avg_prog1_nocrit_succ_prob,
+                prog2_nocrit_succ_prob = avg_prog2_nocrit_succ_prob,
+                prog1_withcrit_makespan  = avg_prog1_withcrit_makespan ,
+                prog2_withcrit_makespan  = avg_prog2_withcrit_makespan ,
+                prog1_withcrit_succ_prob = avg_prog1_withcrit_succ_prob,
+                prog2_withcrit_succ_prob = avg_prog2_withcrit_succ_prob,               
                 prog_size=program_sizes[prog_size_index],
-                num_clients=num_clients,
                 param_name=param_name,
                 param_value=param_val
             ))
             print(datapoints[-1])
 
-    
+            
     # Finish computing how long the experiment took to run
     end = time.time()
     duration = round(end - start, 2)
@@ -1137,17 +1161,17 @@ if __name__ == "__main__":
     abs_dir = relative_to_cwd(f"data")
     Path(abs_dir).mkdir(parents=True, exist_ok=True)
     last_path = os.path.join(abs_dir, "LAST.json")
-    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_scen{params['scenario']}_{params['hardware']}_numclients{num_clients}_seed{seed}.json")
+    timestamp_path = os.path.join(abs_dir, f"{timestamp}_{param_name}_scen{params['scenario']}_{params['hardware']}_seed{seed}.json")
 
     metadata = DataMeta(
         timestamp=timestamp,
         sim_duration=duration,
-        scenario=params["scenario"],
         hardware=params["hardware"],
         qia_sga=params["qia_sga"],
         prog_sizes=program_sizes,
         num_iterations=params["server_num_iterations"],
         num_trials=num_trials,
+        num_clients=params["num_clients"],
         linear=params["linear"],
         cc=params["cc"],
         t1=params["t1"],
