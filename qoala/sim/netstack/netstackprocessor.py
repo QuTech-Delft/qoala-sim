@@ -62,7 +62,7 @@ class NetstackProcessor:
         pid = process.pid
 
         virt_id = request.virt_ids.get_id(index)
-        memmgr.allocate(pid, virt_id)
+        memmgr.allocate_comm(pid, virt_id)
 
         return virt_id
 
