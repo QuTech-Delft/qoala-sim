@@ -9,16 +9,16 @@ META_END
 ^b0 {type = CL}:
     csocket = assign_cval() : 0
 
-^b1 {type = QC, critical_section = 0}:
+^b1 {type = QC; critical_section = 0}:
     run_request() : epr_gen
 
-^b2 {type = CC, critical_section = 0}:
+^b2 {type = CC; critical_section = 0}:
     m1 = recv_cmsg(csocket)
 
-^b3 {type = CC, critical_section = 0}:
+^b3 {type = CC; critical_section = 0}:
     m2 = recv_cmsg(csocket)
 
-^b4 {type = QL, critical_section = 0}:
+^b4 {type = QL; critical_section = 0}:
     run_subroutine(tuple<m1; m2>) : bsm_corrections
 
 ^b5 {type = QL}:

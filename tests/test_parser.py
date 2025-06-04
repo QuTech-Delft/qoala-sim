@@ -277,7 +277,7 @@ def test_parse_block_header():
 
 
 def test_parse_block_header_with_deadlines():
-    text = "^b0 {type = CL, deadlines = [b1: 1000]}:"
+    text = "^b0 {type = CL; deadlines = [b1: 1000]}:"
 
     name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
@@ -287,7 +287,7 @@ def test_parse_block_header_with_deadlines():
 
 
 def test_parse_block_header_with_critical_section():
-    text = "^b0 {type = CL, critical_section = 7}:"
+    text = "^b0 {type = CL; critical_section = 7}:"
 
     name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
@@ -297,7 +297,7 @@ def test_parse_block_header_with_critical_section():
 
 
 def test_parse_block_header_with_deadline_and_critical_section():
-    text = "^b0 {type = CL, deadlines = [b1: 1000], critical_section = 7}:"
+    text = "^b0 {type = CL; deadlines = [b1: 1000]; critical_section = 7}:"
 
     name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
@@ -343,7 +343,7 @@ def test_parse_multiple_blocks():
     x = assign_cval() : 1
     y = assign_cval() : 17
 
-^b1 {type = QL, deadlines = [b0: 2500]}:
+^b1 {type = QL; deadlines = [b0: 2500]}:
     run_subroutine(tuple<x>) : subrt1
     """
 
