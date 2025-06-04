@@ -566,7 +566,7 @@ class HostCodeParser:
         :raises QoalaParseError: If the annotations are not in the correct format. See the class description for
         the correct format.
         """
-        annotations_parts = annotations.split(",")
+        annotations_parts = annotations.split(";")
         if annotations_parts[0].count("=") != 1:
             raise QoalaParseError("Block type annotation must have exactly one '='.")
         type_annotation_parts = [x.strip() for x in annotations_parts[0].split("=")]
