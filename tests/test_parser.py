@@ -276,13 +276,23 @@ def test_parse_block_header():
     assert critical_section is None
 
 
-def test_parse_block_header_with_deadlines():
+def test_parse_block_header_with_one_deadline():
     text = "^b0 {type = CL; deadlines = [b1: 1000]}:"
 
     name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
     assert deadline == {"b1": 1000}
+    assert critical_section is None
+
+
+def test_parse_block_header_with_two_deadlines():
+    text = "^b0 {type = CL; deadlines = [b1: 1000, b2: 500]}:"
+
+    name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert deadline == {"b1": 1000, "b2": 500}
     assert critical_section is None
 
 
