@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 import random
 from copy import deepcopy
@@ -11,11 +12,13 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput
+from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput, IteratedProgram
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import TaskGraph
 from qoala.runtime.taskbuilder import TaskGraphBuilder
 from qoala.sim.build import build_network_from_config
+from qoala.sim.network import ProcNodeNetwork
+from qoala.util.logging import LogManager
 
 
 class SchedulerType(Enum):
@@ -27,6 +30,12 @@ class SchedulerType(Enum):
 @dataclass
 class AppResult:
     batch_results: Dict[str, BatchResult]
+    statistics: Dict[str, SchedulerStatistics]
+    total_duration: float
+
+@dataclass
+class MultiAppResult:
+    batch_results: Dict[str, list[BatchResult]]
     statistics: Dict[str, SchedulerStatistics]
     total_duration: float
 
@@ -51,6 +60,142 @@ def create_batch(
         num_iterations=num_iterations,
         deadline=0,
     )
+
+
+class BatchRunner:
+    """Unified running interface for different application types.
+    The class creates a batch for each program with a `UnitModule` for each node.
+    The batch can have different `ProgramInput`s for each iteration.
+    Each program instance has one set of `ProgramInput`.
+    Although different batches can, by the type system, have different number of iterations,
+    they should not as the node scheduler expects all programs to have the same number of iterations.
+    See `procnode.ProcNode`.
+    Can be turned into a builder pattern if needed.
+
+    :param network_cfg: Network configuration
+    :param iterations: Number of iterations to run
+    """
+
+    def __init__(self, network_cfg: ProcNodeNetworkConfig, iterations: int):
+        self.network_cfg = network_cfg
+        # Each node has a list of programs with each of their inputs
+        self.node_programs: dict[str, list[IteratedProgram]] = defaultdict(list)
+        self.iterations = iterations
+
+        # Might want to create own logger here instead
+        self._logger = LogManager.get_task_logger("BatchRunner")
+
+    def _is_valid_runner(self) -> bool:
+        """Validate runner before running batches"""
+        return all((
+            self._has_input_for_each_iteration(),
+            self._programs_are_network_compatible()
+        ))
+
+    def _programs_are_network_compatible(self):
+        """True if program structure fits the network configuration."""
+        return True
+
+    def _has_input_for_each_iteration(self):
+        """True if all programs have the same number of inputs equal to `self.iterations`."""
+        for programs in self.node_programs.values():
+            if any(p.iterations != self.iterations for p in programs):
+                return False
+        return True
+
+    def clear_programs(self):
+        self.node_programs = {}
+
+    def register_program(
+        self,
+        node: str,
+        program_with_inputs: IteratedProgram,
+    ):
+        """Register a program with a name and its inputs.
+        NOTE: The order of registration matters. Batch ID follows order 
+        and Applications assume batches are registered with the same ID
+
+        :param node: Name of node program is run on. Enforced to keep track with better logs.
+        :param program: Program to run
+        :param inputs: A list of inputs
+        :raises ValueError: If program to register is invalid"""
+
+        if node in self.node_programs:
+            raise ValueError(f"Program with name {node} is already registered.")
+
+        inputs = program_with_inputs.inputs
+
+        if len(inputs) == 0:
+            inputs = [ProgramInput.empty()]
+
+        if self.iterations != len(inputs):
+            raise ValueError(
+                f"Number of inputs ({len(inputs)}) does not match number of iterations ({self.iterations})."
+            )
+
+        self.node_programs[node].append(program_with_inputs)
+
+    def _create_batches(self, network: ProcNodeNetwork) -> dict[str, list[ProgramBatch]]:
+        self._logger.debug("Creating batches for registered programs.")
+
+        batches: dict[str, list[ProgramBatch]] = defaultdict(list)
+        for node_name, programs in self.node_programs.items():
+            procnode = network.nodes[node_name]
+            unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
+
+            for program in programs:
+                batch = create_batch(program.program, unit_module, program.inputs, self.iterations)
+                program_batch = procnode.submit_batch(batch)
+                batches[node_name].append(program_batch)
+
+        return batches
+
+    def run_batches(self) -> MultiAppResult:
+        if not self._is_valid_runner():
+            raise ValueError("Invalid runner configuration.")
+
+        ns.sim_reset()
+        ns.set_qstate_formalism(ns.QFormalism.DM)  # Check other options here. `DM` used everywhere
+        seed = random.randint(0, 1000)
+        ns.set_random_state(seed=seed)
+
+        network = build_network_from_config(self.network_cfg)
+
+        batches_per_node = self._create_batches(network)
+
+        for node_name in batches_per_node.keys():
+            procnode = network.nodes[node_name]
+
+            # Temporarily, connect to all other PIDs for remote batches with same batch ID
+            remote_pids = {
+                batch.batch_id: [
+                    p.pid
+                    for other_node, batches in batches_per_node.items()
+                    if other_node != node_name  # Not local node
+                    for batch in batches
+                    for p in batch.instances
+                    if batch.batch_id == batch.batch_id  # Applications have batches with same ID
+                ]
+                for batch in batches_per_node[node_name]
+            }
+
+            procnode.initialize_processes(remote_pids)
+
+        network.start()
+        ns.sim_run()
+
+
+        results: Dict[str, list[BatchResult]] = {}
+        statistics: Dict[str, SchedulerStatistics] = {}
+        for name in batches_per_node.keys():
+            procnode = network.nodes[name]
+
+            results[name] = list(procnode.scheduler.get_batch_results().values())
+            statistics[name] = procnode.scheduler.get_statistics()
+
+        total_duration = ns.sim_time()
+
+        return MultiAppResult(results, statistics, total_duration)
 
 
 def run_two_node_app_separate_inputs(
@@ -521,7 +666,6 @@ def run_n_node_app(
     network_cfg: ProcNodeNetworkConfig,
     linear: bool = False,
 ) -> AppResult:
-
     names = list(programs.keys())
     new_inputs = {
         name: [program_inputs[name] for _ in range(num_iterations)] for name in names

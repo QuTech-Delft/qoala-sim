@@ -22,6 +22,34 @@ class ProgramResult:
 
 
 @dataclass
+class IteratedProgram:
+    """A program along with a list of inputs to instantiate with.
+    Each input corresponds to one iteration of the program."""
+
+    program: QoalaProgram
+    inputs: list[ProgramInput]
+
+    @staticmethod
+    def from_input_copies(
+        program: QoalaProgram,
+        input: ProgramInput = ProgramInput.empty(),
+        iterations: int = 1,
+    ):
+        return IteratedProgram(program, [input] * iterations)
+
+    @staticmethod
+    def from_varied_inputs(
+        program: QoalaProgram,
+        *inputs: ProgramInput,
+    ):
+        return IteratedProgram(program, list(inputs))
+
+    @property
+    def iterations(self):
+        return len(self.inputs)
+
+
+@dataclass
 class BatchInfo:
     """Description of a batch of program instances that should be executed."""
 
