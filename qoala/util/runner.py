@@ -12,7 +12,13 @@ from qoala.lang.ehi import UnitModule
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
 from qoala.runtime.config import ProcNodeNetworkConfig  # type: ignore
-from qoala.runtime.program import BatchInfo, BatchResult, ProgramBatch, ProgramInput, IteratedProgram
+from qoala.runtime.program import (
+    BatchInfo,
+    BatchResult,
+    ProgramBatch,
+    ProgramInput,
+    IteratedProgram,
+)
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import TaskGraph
 from qoala.runtime.taskbuilder import TaskGraphBuilder
@@ -33,9 +39,11 @@ class AppResult:
     statistics: Dict[str, SchedulerStatistics]
     total_duration: float
 
+
 @dataclass
 class MultiAppResult:
     """Similar to AppResult, but allows multiple batch results per node."""
+
     batch_results: Dict[str, list[BatchResult]]
     statistics: Dict[str, SchedulerStatistics]
     total_duration: float
@@ -94,40 +102,37 @@ class BatchRunner:
         # Might want to create own logger here instead
         self._logger = LogManager.get_task_logger("BatchRunner")
 
-    def _is_valid_runner(self) -> bool:
-        """Validate runner before running batches"""
-        return all((
-            self._has_input_for_each_iteration(),
-            self._programs_are_network_compatible()
-        ))
+    def _validate_runner(self) -> bool:
+        """Validate runner before running batches.
+        Throws exception if invalid."""
+
+        return all(
+            (
+                self._has_input_for_each_iteration(),
+                self._programs_are_network_compatible(),
+            )
+        )
 
     def _programs_are_network_compatible(self):
-        """True if program structure fits the network configuration."""
-        for procnode in self.network_cfg.nodes:
-            if procnode.node_name not in self.node_programs:
-                self._logger.error(f"No program registered for node {procnode.node_name}.")
-                return False
+        """True if program structure fits the network configuration.
+        1. All programs are running on registered nodes in the network configuration."""
+        network_nodes = set(node.node_name for node in self.network_cfg.nodes)
+        for node_name in self.node_programs.keys():
+            if node_name not in network_nodes:
+                raise Exception(f"Node {node_name} is not part of the network configuration. "
+                                f"Valid nodes are {list(network_nodes)}.")
         return True
 
     def _has_input_for_each_iteration(self):
         """True if all programs have the same number of inputs equal to `self.iterations`."""
-        for programs in self.node_programs.values():
-            if any(p.iterations != self.iterations for p in programs):
-                self._logger.error("Program %s does not have number of program inputs equal to batch iterations.", programs)
-                return False
+        for node_name, programs in self.node_programs.items():
+            for program in programs:
+                if program.iterations != self.iterations:
+                    raise Exception(
+                        f"Program {program.program.meta.name} on node {node_name} does not have number "
+                        f"of inputs equal to batch iterations. {program.iterations} != {self.iterations}."
+                    )
         return True
-
-    def set_linearity(self, linearity: Dict[str, bool] | bool):
-        """Whether linearity is set for a nodes
-        :param linear_for: dict of node to linearity setting or a single bool for all nodes
-        """
-        if isinstance(linearity, bool):
-            self.linear_for = {node: linearity for node in self.node_programs.keys()}
-        else:
-            self.linear_for = linearity
-
-    def clear_programs(self):
-        self.node_programs = {}
 
     def register_program(
         self,
@@ -135,17 +140,13 @@ class BatchRunner:
         program_with_inputs: IteratedProgram,
     ):
         """Register a program with a name and its inputs.
-        NOTE: The order of registration matters. Batch ID follows order 
+        NOTE: The order of registration matters. Batch ID follows order
         and Applications assume batches are registered with the same ID
 
         :param node: Name of node program is run on. Enforced to keep track with better logs.
         :param program: Program to run
         :param inputs: A list of inputs
         :raises ValueError: If program to register is invalid"""
-
-        if node in self.node_programs:
-            raise ValueError(f"Program with name {node} is already registered.")
-
         inputs = program_with_inputs.inputs
 
         if len(inputs) == 0:
@@ -158,7 +159,9 @@ class BatchRunner:
 
         self.node_programs[node].append(program_with_inputs)
 
-    def _create_batches(self, network: ProcNodeNetwork) -> dict[str, list[ProgramBatch]]:
+    def _create_batches(
+        self, network: ProcNodeNetwork
+    ) -> dict[str, list[ProgramBatch]]:
         self._logger.debug("Creating batches for registered programs.")
 
         batches: dict[str, list[ProgramBatch]] = defaultdict(list)
@@ -167,20 +170,33 @@ class BatchRunner:
             unit_module = UnitModule.from_full_ehi(procnode.memmgr.get_ehi())
 
             for program in programs:
-                batch = create_batch(program.program, unit_module, program.inputs, self.iterations)
+                batch = create_batch(
+                    program.program, unit_module, program.inputs, self.iterations
+                )
                 program_batch = procnode.submit_batch(batch)
                 batches[node_name].append(program_batch)
 
         return batches
 
-    def simulate_batches(self, qstate_formalism = ns.QFormalism.DM) -> MultiAppResult:
+    def set_linearity(self, linearity: Dict[str, bool] | bool):
+        """Whether linearity is set for a nodes
+        :param linear_for: dict of node to linearity setting or a single bool for all nodes
+        """
+        if isinstance(linearity, bool):
+            self.linear_for = {node: linearity for node in self.node_programs.keys()}
+        else:
+            self.linear_for = linearity
+
+
+    def simulate_batches(self, qstate_formalism=ns.QFormalism.DM) -> MultiAppResult:
         """Build network, create batches, initial processes, and run the simulation.
         Return a MultiAppResult."""
-        if not self._is_valid_runner():
-            raise ValueError("Invalid runner configuration.")
+        self._validate_runner()
 
         ns.sim_reset()
-        ns.set_qstate_formalism(qstate_formalism)  # Check other options here. Density Matrix used everywhere
+        ns.set_qstate_formalism(
+            qstate_formalism
+        )  # Check other options here. Density Matrix used everywhere
         seed = random.randint(0, 1000)
         ns.set_random_state(seed=seed)
 
@@ -209,7 +225,6 @@ class BatchRunner:
         network.start()
         ns.sim_run()
 
-
         results: Dict[str, list[BatchResult]] = {}
         statistics: Dict[str, SchedulerStatistics] = {}
         for name in batches_per_node.keys():
@@ -221,7 +236,6 @@ class BatchRunner:
         total_duration = ns.sim_time()
 
         return MultiAppResult(results, statistics, total_duration)
-
 
 
 def run_two_node_app_separate_inputs(
