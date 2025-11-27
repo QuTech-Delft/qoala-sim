@@ -54,10 +54,16 @@ class QkdResult:
     bob_result: BatchResult
 
 def simple_deadlock():
-    num_iterations = 2  # > 1 to create deadlock
-    num_qubits = 2  # Program allocates 2 qubits
-    node_name = "alice"
+    """
+    Run a deadlock case where each process tries to allocate 2 qubits, 1 at a time.
+    It is expected that each process is put in such an order that all local routines
+    that acquire one qubit can run before the next qubit is acquired. 
+    """
+    # At the current stage, if these are equal, a deadlock occurs
+    num_iterations = 3  # > 1 to create deadlock
+    num_qubits = 3  # Program allocates 2 qubits
 
+    node_name = "alice"
     alice_file = "2_qubits_local_only.iqoala"
 
     network_cfg = create_network_config(node_name, num_qubits)

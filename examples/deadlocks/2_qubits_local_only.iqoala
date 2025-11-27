@@ -9,7 +9,7 @@ META_END
 ^b0 {type = QL}:
     run_subroutine() : prepare0
 
-// Deadlock if pid1 has acquired another qubit
+// Deadlock if all other processes have prepared 1 qubit each
 ^b1 {type = QL}:
     run_subroutine() : prepare1
 
@@ -18,6 +18,7 @@ META_END
 
 ^b3 {type = CL}:
     return_result(m0)
+    return_result(m1)
 
 SUBROUTINE prepare0
     params:
@@ -52,8 +53,6 @@ SUBROUTINE measure
   NETQASM_START
     set Q0 0
     set Q1 1
-    rot_y Q0 24 4
-    rot_x Q1 16 4
 
     meas Q0 M0
     meas Q1 M1
