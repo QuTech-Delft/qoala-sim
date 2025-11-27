@@ -39,60 +39,39 @@ def load_program(path: str) -> QoalaProgram:
         text = file.read()
     return QoalaParser(text).parse()
 
+def create_network_config(node_name: str, num_qubits: int) -> ProcNodeNetworkConfig:
+    alice_node_cfg = create_procnode_cfg(node_name, 0, num_qubits)
+
+    network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
+        [alice_node_cfg], link_duration=1000
+    )
+    return network_cfg
+
 
 @dataclass
 class QkdResult:
     alice_result: BatchResult
     bob_result: BatchResult
 
+def simple_deadlock():
+    num_iterations = 2  # > 1 to create deadlock
+    num_qubits = 2  # Program allocates 2 qubits
+    node_name = "alice"
 
-def run_deadlock(
-    num_iterations: int,
-    alice1_file: str,
-    alice2_file: str,
-):
-    alice_id = 0
-    num_qubits = 2
+    alice_file = "2_qubits_local_only.iqoala"
 
-    alice_node_cfg = create_procnode_cfg("alice", alice_id, num_qubits)
+    network_cfg = create_network_config(node_name, num_qubits)
 
-    network_cfg = ProcNodeNetworkConfig.from_nodes_perfect_links(
-        [alice_node_cfg], link_duration=1000
+    alice_program_w_inputs = IteratedProgram.from_input_copies(
+        load_program(alice_file), ProgramInput.empty(), num_iterations
     )
 
-    alice1_program = load_program(alice1_file)
-    alice2_program = load_program(alice2_file)
-
-    alice1_input = ProgramInput.empty()
-    alice2_input = ProgramInput.empty()
-
-    # Runner
     runner = BatchRunner(network_cfg, num_iterations)
-    alice1_program_w_inputs = IteratedProgram.from_input_copies(
-        alice1_program, alice1_input, num_iterations
-    )
-    alice2_program_w_inputs = IteratedProgram.from_input_copies(
-        alice2_program, alice2_input, num_iterations
-    )
-    runner.register_program("alice", alice1_program_w_inputs)
-    runner.register_program("alice", alice2_program_w_inputs)
+    runner.register_program(node_name, alice_program_w_inputs)
 
     results = runner.simulate_batches()
-    return results
 
-
-def simple_deadlock():
-    num_iterations = 1
-    alice1_file = "alice1_2_qubits_local_only.iqoala"
-    alice2_file = "alice2_2_qubits_local_only.iqoala"
-
-    results = run_deadlock(
-        num_iterations,
-        alice1_file,
-        alice2_file,
-    )
-
-    print("Deadlock example completed")
+    print("==== Deadlock example completed ====")
     print(results)
 
 
