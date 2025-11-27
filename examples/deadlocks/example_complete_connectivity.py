@@ -16,7 +16,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchResult, IteratedProgram, ProgramInput
+from qoala.runtime.program import BatchResult, ProgramCopies, ProgramInput
 from qoala.util.logging import LogManager
 from qoala.util.runner import BatchRunner
 
@@ -79,16 +79,16 @@ def run_deadlock(
 
     # Runner
     runner = BatchRunner(network_cfg, num_iterations)
-    alice1_program_w_inputs = IteratedProgram.from_input_copies(
+    alice1_program_w_inputs = ProgramCopies.from_input_copies(
         alice1_program, alice1_input, num_iterations
     )
-    alice2_program_w_inputs = IteratedProgram.from_input_copies(
+    alice2_program_w_inputs = ProgramCopies.from_input_copies(
         alice2_program, alice2_input, num_iterations
     )
-    bob1_program_w_inputs = IteratedProgram.from_input_copies(
+    bob1_program_w_inputs = ProgramCopies.from_input_copies(
         bob1_program, bob1_input, num_iterations
     )
-    bob2_program_w_inputs = IteratedProgram.from_input_copies(
+    bob2_program_w_inputs = ProgramCopies.from_input_copies(
         bob2_program, bob2_input, num_iterations
     )
     runner.register_program("alice", alice1_program_w_inputs)

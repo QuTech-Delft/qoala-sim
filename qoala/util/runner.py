@@ -17,7 +17,7 @@ from qoala.runtime.program import (
     BatchResult,
     ProgramBatch,
     ProgramInput,
-    IteratedProgram,
+    ProgramCopies,
 )
 from qoala.runtime.statistics import SchedulerStatistics
 from qoala.runtime.task import TaskGraph
@@ -95,7 +95,7 @@ class BatchRunner:
     def __init__(self, network_cfg: ProcNodeNetworkConfig, iterations: int):
         self.network_cfg = network_cfg
         # Each node has a list of programs with each of their inputs
-        self.node_programs: dict[str, list[IteratedProgram]] = defaultdict(list)
+        self.node_programs: dict[str, list[ProgramCopies]] = defaultdict(list)
         self.iterations = iterations
         self.linear_for: dict[str, bool] = defaultdict(lambda: False)
         self.remote_pids = {}
@@ -140,7 +140,7 @@ class BatchRunner:
     def register_program(
         self,
         node: str,
-        program_with_inputs: IteratedProgram,
+        program_with_inputs: ProgramCopies,
     ):
         """Register a program with a name and its inputs.
         NOTE: The order of registration matters. Batch ID follows order
@@ -267,7 +267,7 @@ def run_two_node_app_separate_inputs(
 ):
     runner = BatchRunner(network_cfg, num_iterations)
     for name in programs.keys():
-        iterated_program = IteratedProgram(
+        iterated_program = ProgramCopies(
             programs[name],
             program_inputs[name],
         )

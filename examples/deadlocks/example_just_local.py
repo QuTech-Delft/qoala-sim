@@ -18,7 +18,7 @@ from qoala.runtime.config import (
     ProcNodeNetworkConfig,
     TopologyConfig,
 )
-from qoala.runtime.program import BatchResult, IteratedProgram, ProgramInput
+from qoala.runtime.program import BatchResult, ProgramCopies, ProgramInput
 from qoala.util.logging import LogManager
 from qoala.util.runner import BatchRunner
 
@@ -68,7 +68,7 @@ def simple_deadlock():
 
     network_cfg = create_network_config(node_name, num_qubits)
 
-    alice_program_w_inputs = IteratedProgram.from_input_copies(
+    alice_program_w_inputs = ProgramCopies.from_input_copies(
         load_program(alice_file), ProgramInput.empty(), num_iterations
     )
 

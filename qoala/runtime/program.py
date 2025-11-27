@@ -22,9 +22,11 @@ class ProgramResult:
 
 
 @dataclass
-class IteratedProgram:
+class ProgramCopies:
     """A program along with a list of inputs to instantiate with.
-    Each input corresponds to one iteration of the program."""
+    Each input is assigned to one program instance.
+    Very similar to `BatchInfo`, but does not depend on `UnitModule`
+    and does not allow for contradiction between number of inputs and iterations."""
 
     program: QoalaProgram
     inputs: list[ProgramInput]
@@ -35,14 +37,14 @@ class IteratedProgram:
         input: ProgramInput = ProgramInput.empty(),
         iterations: int = 1,
     ):
-        return IteratedProgram(program, [input] * iterations)
+        return ProgramCopies(program, [input] * iterations)
 
     @staticmethod
     def from_varied_inputs(
         program: QoalaProgram,
         *inputs: ProgramInput,
     ):
-        return IteratedProgram(program, list(inputs))
+        return ProgramCopies(program, list(inputs))
 
     @property
     def iterations(self):
