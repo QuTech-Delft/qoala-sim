@@ -1,0 +1,91 @@
+META_START
+    name: alice1
+    parameters:
+    csockets:
+    epr_sockets:
+META_END
+
+
+^b0 {type = QL}:
+    run_subroutine() : prepare0
+
+^b1 {type = CL}:
+    busy() : 1_000_000_000
+
+// Deadlock if pid1 has acquired another qubit
+^b2 {type = QL}:
+    run_subroutine() : prepare1
+
+^b3 {type = QL}:
+    tuple<m0; m1> = run_subroutine() : measure_x
+
+^b4 {type = CL}:
+    return_result(m0)
+
+SUBROUTINE prepare0
+    params:
+    returns:
+    uses: 0
+    keeps: 0
+    request: 
+  NETQASM_START
+    set Q0 0
+    init Q0
+    h Q0
+  NETQASM_END
+
+SUBROUTINE prepare1
+    params:
+    returns:
+    uses: 1
+    keeps: 1
+    request: 
+  NETQASM_START
+    set Q1 1
+    init Q1
+    h Q1
+  NETQASM_END
+
+SUBROUTINE measure_x
+    params:
+    returns: m0, m1
+    uses: 0, 1
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    set Q1 1
+    rot_y Q0 24 4
+    rot_x Q1 16 4
+
+    meas Q0 M0
+    meas Q1 M1
+
+    store M0 @output[0]
+    store M1 @output[1]
+  NETQASM_END
+
+SUBROUTINE measure_y
+    params:
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    rot_x Q0 8 4
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END
+
+SUBROUTINE measure_z
+    params:
+    returns: m
+    uses: 0
+    keeps:
+    request: 
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    store M0 @output[0]
+  NETQASM_END

@@ -97,7 +97,8 @@ class BatchRunner:
         # Each node has a list of programs with each of their inputs
         self.node_programs: dict[str, list[IteratedProgram]] = defaultdict(list)
         self.iterations = iterations
-        self.linear_for: Dict[str, bool] = defaultdict(lambda: False)
+        self.linear_for: dict[str, bool] = defaultdict(lambda: False)
+        self.remote_pids = {}
 
         # Might want to create own logger here instead
         self._logger = LogManager.get_task_logger("BatchRunner")
@@ -119,8 +120,10 @@ class BatchRunner:
         network_nodes = set(node.node_name for node in self.network_cfg.nodes)
         for node_name in self.node_programs.keys():
             if node_name not in network_nodes:
-                raise Exception(f"Node {node_name} is not part of the network configuration. "
-                                f"Valid nodes are {list(network_nodes)}.")
+                raise Exception(
+                    f"Node {node_name} is not part of the network configuration. "
+                    f"Valid nodes are {list(network_nodes)}."
+                )
         return True
 
     def _has_input_for_each_iteration(self):
@@ -141,16 +144,13 @@ class BatchRunner:
     ):
         """Register a program with a name and its inputs.
         NOTE: The order of registration matters. Batch ID follows order
-        and Applications assume batches are registered with the same ID
+        and Applications assume batches are registered with the same ID.
+        See `onlinenodesched.py` - `OnlineNodeScheduler.create_processes_for_batches`.
 
         :param node: Name of node program is run on. Enforced to keep track with better logs.
-        :param program: Program to run
-        :param inputs: A list of inputs
-        :raises ValueError: If program to register is invalid"""
+        :param program_with_inputs: Program with inputs for each iteration
+        :raises ValueError: If does not contain enough inputs"""
         inputs = program_with_inputs.inputs
-
-        if len(inputs) == 0:
-            inputs = [ProgramInput.empty()]
 
         if self.iterations != len(inputs):
             raise ValueError(
@@ -178,6 +178,35 @@ class BatchRunner:
 
         return batches
 
+    def set_remote_pids(self, remote_pids: dict[int, list[int]]):
+        self.remote_pids = remote_pids
+
+    def _create_remote_pids(
+        self, node_name: str, batches_per_node: dict[str, list[ProgramBatch]]
+    ):
+        """
+        Set remote PIDs for each instance of remote batches with same batch ID.
+        Online node scheduler sets max one remote PID per program instance.
+        If the batch id exists in the remote pids dict, it is expected it has a list of PIDswith a size equal to the number of instances in the batch.
+        See `onlinenodesched.py` - `OnlineNodeScheduler.create_processes_for_batches`.
+        """
+        if self.remote_pids:
+            self._logger.warning(
+                "Overriding remote PIDs that are already set. Previous remote PIDs: %s",
+                self.remote_pids,
+            )
+
+        remote_pids: dict[int, list[int]] = {}
+        for other_node, batches in batches_per_node.items():
+            if other_node != node_name:
+                for i, batch in enumerate(batches):
+                    # Only need to set the PIDs for batches with same batch ID
+                    remote_pids[batch.batch_id] = [p.pid for p in batches[i].instances]
+        self._logger.debug(
+            f"Automatically created remote PIDs for node {node_name}: {remote_pids}"
+        )
+        self.set_remote_pids(remote_pids)
+
     def set_linearity(self, linearity: Dict[str, bool] | bool):
         """Whether linearity is set for a nodes
         :param linear_for: dict of node to linearity setting or a single bool for all nodes
@@ -186,7 +215,6 @@ class BatchRunner:
             self.linear_for = {node: linearity for node in self.node_programs.keys()}
         else:
             self.linear_for = linearity
-
 
     def simulate_batches(self, qstate_formalism=ns.QFormalism.DM) -> MultiAppResult:
         """Build network, create batches, initial processes, and run the simulation.
@@ -207,20 +235,11 @@ class BatchRunner:
         for node_name in batches_per_node.keys():
             procnode = network.nodes[node_name]
 
-            # Temporarily, connect to all other PIDs for remote batches with same batch ID
-            remote_pids = {
-                batch.batch_id: [
-                    p.pid
-                    for other_node, batches in batches_per_node.items()
-                    if other_node != node_name  # Not local node
-                    for batch in batches
-                    for p in batch.instances
-                    if batch.batch_id == batch.batch_id  # Applications use same batch IDs across nodes
-                ]
-                for batch in batches_per_node[node_name]
-            }
+            if not self.remote_pids:
+                # Connect to all other PIDs for remote batches with same batch ID
+                self._create_remote_pids(node_name, batches_per_node)
 
-            procnode.initialize_processes(remote_pids, self.linear_for[node_name])
+            procnode.initialize_processes(self.remote_pids, self.linear_for[node_name])
 
         network.start()
         ns.sim_run()
