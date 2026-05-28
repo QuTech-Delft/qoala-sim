@@ -5,22 +5,22 @@ META_START
     epr_sockets: 0 -> bob
 META_END
 
-^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
     %0 = assign_cval() : 0
 
-^b1 {type = QL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+^b1 {type = QL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
     run_subroutine(tuple<state>) : prepare_qubit
 
-^b2 {type = QC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+^b2 {type = QC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
     run_request() : epr_gen
 
-^b3 {type = QL; predecessors = []; dependencies = [b1, b2]; prev_comm = ; prev_ent = }:
+^b3 {type = QL; predecessors = []; dependencies = [b1, b2]; prev_comm = ; prev_ent = ; deadlines = [] }:
     tuple<%1; %2> = run_subroutine() : bsm
 
-^b4 {type = CL; predecessors = [b0]; dependencies = [b3]; prev_comm = ; prev_ent = }:
+^b4 {type = CL; predecessors = [b0]; dependencies = [b3]; prev_comm = ; prev_ent = ; deadlines = [] }:
     send_cmsg(%0, %1)
 
-^b5 {type = CL; predecessors = [b0]; dependencies = [b3]; prev_comm = b4; prev_ent = }:
+^b5 {type = CL; predecessors = [b0]; dependencies = [b3]; prev_comm = b4; prev_ent = ; deadlines = [] }:
     send_cmsg(%0, %2)
 
 

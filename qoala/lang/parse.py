@@ -549,21 +549,37 @@ class HostCodeParser:
 
     def _parse_deadlines(self, text: str) -> Dict[str, int]:
         """
-        Parses the deadlines of a block. The deadline format is given in the class description.
-
-        :param text: Text to parse.
-        :return: Dictionary of block names and their corresponding deadlines.
+        Parses the deadlines of a block. Example formats:
+        deadlines=[A: 10, B: 20]
+        deadlines=[]
         """
         open_bracket = text.find("[")
-        assert open_bracket >= 0
-        close_bracket = text.find("]")
-        assert close_bracket >= 0
-        items = text[open_bracket + 1 : close_bracket].split(",")
-        deadlines = {}
-        for item in items:
-            blk, dl = [i.strip() for i in item.split(":")]
-            deadlines[blk] = int(dl)
+        close_bracket = text.rfind("]")
+        if open_bracket < 0 or close_bracket < 0 or close_bracket < open_bracket:
+            raise QoalaParseError("deadlines must be enclosed in '[' and ']'.")
+
+        content = text[open_bracket + 1 : close_bracket].strip()
+        if content == "":
+            return {}
+
+        deadlines: Dict[str, int] = {}
+        for item in content.split(","):
+            item = item.strip()
+            if item == "":
+                continue
+            if item.count(":") != 1:
+                raise QoalaParseError(
+                    "Each deadlines entry must be of the form '<block>: <int>'."
+                )
+            blk, dl = [part.strip() for part in item.split(":")]
+            if not blk:
+                raise QoalaParseError("Deadline entry is missing a block name.")
+            try:
+                deadlines[blk] = int(dl)
+            except ValueError:
+                raise QoalaParseError(f"Deadline for block {blk} must be an integer.")
         return deadlines
+
 
     def _parse_list(self, text: str) -> List[str]:
         """

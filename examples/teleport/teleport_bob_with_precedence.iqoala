@@ -5,25 +5,25 @@ META_START
     epr_sockets: 0 -> alice
 META_END
 
-^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
     %0 = assign_cval() : 0
 
-^b1 {type = QC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+^b1 {type = QC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
     run_request() : epr_gen
 
-^b2 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = ; prev_ent = }:
+^b2 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
     %1 = recv_cmsg(%0)
 
-^b3 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = b2; prev_ent = }:
+^b3 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = b2; prev_ent = ; deadlines = [] }:
     %2 = recv_cmsg(%0)
 
-^b4 {type = QL; predecessors = []; dependencies = [b2, b3]; prev_comm = ; prev_ent = }:
+^b4 {type = QL; predecessors = []; dependencies = [b2, b3]; prev_comm = ; prev_ent = ; deadlines = [] }:
     run_subroutine(tuple<%1; %2>) : bsm_corrections
 
-^b5 {type = QL; predecessors = []; dependencies = [b4]; prev_comm = ; prev_ent = }:
+^b5 {type = QL; predecessors = []; dependencies = [b4]; prev_comm = ; prev_ent = ; deadlines = [] }:
     tuple<%3> = run_subroutine(tuple<state>) : measure
 
-^b6 {type = CL; predecessors = []; dependencies = [b5]; prev_comm = ; prev_ent = }:
+^b6 {type = CL; predecessors = []; dependencies = [b5]; prev_comm = ; prev_ent = ; deadlines = [] }:
     return_result(%3)
 
 

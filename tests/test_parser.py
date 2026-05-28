@@ -288,6 +288,27 @@ def test_parse_block_header():
     assert deadlines is None
     assert critical_section is None
 
+def test_parse_block_header_with_empty_deadline():
+    text = "^b0 {type = CL; deadlines = []}:"
+
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert predecessors is None
+    assert dependencies is None
+    assert prev_comm is None
+    assert prev_ent is None
+    assert deadlines == {}
+    assert critical_section is None
 
 def test_parse_block_header_with_one_deadline():
     text = "^b0 {type = CL; deadlines = [b1: 1000]}:"
@@ -1591,6 +1612,7 @@ if __name__ == "__main__":
     test_parse_vector_2()
     test_parse_vector_with_var()
     test_parse_block_header()
+    test_parse_block_header_with_empty_deadline()
     test_parse_block_header_with_one_deadline()
     test_parse_block_header_with_two_deadlines()
     test_parse_block_header_with_critical_section()
