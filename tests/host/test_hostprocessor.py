@@ -11,6 +11,7 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import EhiBuilder, UnitModule
 from qoala.lang.hostlang import (
     AddCValueOp,
+    MultiplyCValueOp,
     AssignCValueOp,
     BasicBlock,
     BasicBlockType,
@@ -378,6 +379,76 @@ def test_add_cvalue_with_latencies():
     assert process.prog_memory.host_mem.read("sum") == 5
     assert ns.sim_time() == len(program.instructions) * 1200
 
+def test_mul_cvalue():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+    program = create_program(
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("a"), 2),
+            AssignCValueOp(IqoalaSingleton("b"), 3),
+            MultiplyCValueOp(
+                IqoalaSingleton("prod"), IqoalaSingleton("a"), IqoalaSingleton("b")
+            ),
+        ]
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    for i in range(len(program.instructions)):
+        yield_from(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("prod") == 6
+
+
+def test_mul_cvalue_with_inputs():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
+    program = create_program(
+        instrs=[
+            MultiplyCValueOp(
+                IqoalaSingleton("prod"), IqoalaSingleton("a"), IqoalaSingleton("b")
+            ),
+        ]
+    )
+    process = create_process(
+        program,
+        interface,
+        inputs={"a": 2, "b": 3},
+    )
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign_instr_index(process, 0))
+
+    assert process.prog_memory.host_mem.read("prod") == 6
+    assert ns.sim_time() == 500
+
+
+def test_mul_cvalue_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=1200))
+    program = create_program(
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("a"), 2),
+            AssignCValueOp(IqoalaSingleton("b"), 3),
+            MultiplyCValueOp(
+                IqoalaSingleton("prod"), IqoalaSingleton("a"), IqoalaSingleton("b")
+            ),
+        ]
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    for i in range(len(program.instructions)):
+        netsquid_run(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("prod") == 6
+    assert ns.sim_time() == len(program.instructions) * 1200
 
 def test_multiply_const():
     interface = MockHostInterface()
@@ -910,6 +981,9 @@ if __name__ == "__main__":
     test_add_cvalue()
     test_add_cvalue_with_inputs()
     test_add_cvalue_with_latencies()
+    test_mul_cvalue()
+    test_mul_cvalue_with_inputs()
+    test_mul_cvalue_with_latencies()
     test_multiply_const()
     test_multiply_const_with_inputs()
     test_multiply_const_with_latencies()

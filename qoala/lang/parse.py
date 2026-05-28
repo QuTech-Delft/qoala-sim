@@ -31,6 +31,7 @@ LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
         hl.SendCMsgOp,
         hl.ReceiveCMsgOp,
         hl.AddCValueOp,
+        hl.MultiplyCValueOp,
         hl.MultiplyConstantCValueOp,
         hl.BitConditionalMultiplyConstantCValueOp,
         hl.AssignCValueOp,

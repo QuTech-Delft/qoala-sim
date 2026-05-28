@@ -454,6 +454,69 @@ class AddCValueOp(ClassicalIqoalaOp):
         return cls(result, args[0], args[1])
 
 
+class MultiplyCValueOp(ClassicalIqoalaOp):
+    """
+    A Classical Logic operation that multiplies the values of two variables
+    and stores the result in a singleton variable. Argument variables can be
+    singleton or vector element variables. Result must be a singleton variable.
+
+    Iqoala Example:
+    z = mul_cval(x, y)
+
+    This example multiplies the values of variables x and y and stores the
+    result in variable z.
+    """
+
+    OP_NAME = "mult_cval"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+    ) -> None:
+        super().__init__(arguments=[value0, value1], results=result)
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
+        attr: Optional[IqoalaValue],
+    ):
+        if result is None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation must have a result."
+            )
+
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
+
+        if len(args) != 2:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
+            )
+
+        if attr is not None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation cannot have an attribute."
+            )
+
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
+            )
+
+        return cls(result, args[0], args[1])
+
+
 class MultiplyConstantCValueOp(ClassicalIqoalaOp):
     """
     A Classical Logic operation that multiplies the value of a variable with the given constant integer and stores
