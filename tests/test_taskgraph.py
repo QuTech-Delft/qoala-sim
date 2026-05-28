@@ -9,7 +9,6 @@ from qoala.runtime.task import (
     MultiPairCallbackTask,
     MultiPairTask,
     PreCallTask,
-    PostCallTask,
     ProcessorType,
     QoalaTask,
     TaskGraph,

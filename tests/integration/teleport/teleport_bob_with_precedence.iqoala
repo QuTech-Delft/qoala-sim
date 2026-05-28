@@ -6,25 +6,25 @@ META_START
 META_END
 
 ^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
-    csocket = assign_cval() : 0
+    %0 = assign_cval() : 0
 
 ^b1 {type = QC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
     run_request() : epr_gen
 
 ^b2 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = ; prev_ent = }:
-    m1 = recv_cmsg(csocket)
+    %1 = recv_cmsg(%0)
 
 ^b3 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = b2; prev_ent = }:
-    m2 = recv_cmsg(csocket)
+    %2 = recv_cmsg(%0)
 
 ^b4 {type = QL; predecessors = []; dependencies = [b2, b3]; prev_comm = ; prev_ent = }:
-    run_subroutine(tuple<m1; m2>) : bsm_corrections
+    run_subroutine(tuple<%1; %2>) : bsm_corrections
 
 ^b5 {type = QL; predecessors = []; dependencies = [b4]; prev_comm = ; prev_ent = }:
-    tuple<outcome> = run_subroutine(tuple<state>) : measure
+    tuple<%3> = run_subroutine(tuple<state>) : measure
 
 ^b6 {type = CL; predecessors = []; dependencies = [b5]; prev_comm = ; prev_ent = }:
-    return_result(outcome)
+    return_result(%3)
 
 
 SUBROUTINE bsm_corrections

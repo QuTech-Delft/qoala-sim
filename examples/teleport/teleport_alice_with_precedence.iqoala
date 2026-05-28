@@ -6,7 +6,7 @@ META_START
 META_END
 
 ^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
-    csocket = assign_cval() : 0
+    %0 = assign_cval() : 0
 
 ^b1 {type = QL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
     run_subroutine(tuple<state>) : prepare_qubit
@@ -15,13 +15,13 @@ META_END
     run_request() : epr_gen
 
 ^b3 {type = QL; predecessors = []; dependencies = [b1, b2]; prev_comm = ; prev_ent = }:
-    tuple<m1; m2> = run_subroutine() : bsm
+    tuple<%1; %2> = run_subroutine() : bsm
 
 ^b4 {type = CL; predecessors = [b0]; dependencies = [b3]; prev_comm = ; prev_ent = }:
-    send_cmsg(csocket, m1)
+    send_cmsg(%0, %1)
 
 ^b5 {type = CL; predecessors = [b0]; dependencies = [b3]; prev_comm = b4; prev_ent = }:
-    send_cmsg(csocket, m2)
+    send_cmsg(%0, %2)
 
 
 

@@ -591,7 +591,7 @@ class QoalaGraphFromProgramBuilder:
 
         for block in program.blocks:
             precedences = TaskPrecedences()
-            
+
             if use_block_precedences:
                 # Use precedences from block annotations. We assume sanity:
                 # a precedence can exist only if the block is defined before.

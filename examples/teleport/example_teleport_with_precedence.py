@@ -170,6 +170,6 @@ if __name__ == "__main__":
     result = run_teleport(num_iterations=num_iterations)
 
     program_results = result.bob_results.results
-    outcomes = [result.values["outcome"] for result in program_results]
+    outcomes = [result.values["%3"] for result in program_results]
     print(outcomes)
     assert all(outcome == 1 for outcome in outcomes)
