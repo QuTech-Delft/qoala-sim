@@ -329,6 +329,7 @@ class NodeScheduler(Protocol):
         qpu_graph = graph.partial_graph(ProcessorType.QPU)
         self._cpu_scheduler.upload_task_graph(cpu_graph)
         self._qpu_scheduler.upload_task_graph(qpu_graph)
+        self._qpu_scheduler._full_task_graph = graph
 
     def submit_program_instance(
         self, prog_instance: ProgramInstance, remote_pid: Optional[int] = None

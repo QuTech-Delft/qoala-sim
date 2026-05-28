@@ -191,7 +191,36 @@ def test_deadlines():
     assert task_graph == expected_graph
 
 
+def test_prev_comm_auto_chaining():
+    # When the compiler emits blocks with block-level precedences but omits
+    # prev_comm on consecutive CC blocks, the builder should auto-wire it to
+    # preserve FIFO message ordering on classical sockets.
+    program_text = """
+META_START
+    name: alice
+    parameters:
+    csockets: 0 -> bob
+    epr_sockets:
+META_END
+
+^b_recv1 {type = CC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+    m1 = recv_cmsg(csock)
+
+^b_recv2 {type = CC; predecessors = []; dependencies = [b_recv1]; prev_comm = ; prev_ent = }:
+    m2 = recv_cmsg(csock)
+"""
+    program = QoalaParser(program_text).parse()
+    pid = 0
+    task_graph = TaskGraphBuilder.from_program(program, pid)
+
+    # b_recv1 is task 0: first CC block, no previous comm block → no auto-chain
+    assert task_graph.get_tinfo(0).precedences.prev_comm is None
+    # b_recv2 is task 1: prev_comm was unset by compiler → auto-chained to b_recv1 (task 0)
+    assert task_graph.get_tinfo(1).precedences.prev_comm == 0
+
+
 if __name__ == "__main__":
     test_qoala_tasks_1_pair_callback()
     test_qoala_tasks_2_pairs_callback()
     test_deadlines()
+    test_prev_comm_auto_chaining()

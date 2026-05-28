@@ -312,6 +312,49 @@ def test_merge_linear():
     assert merged.get_tinfo(2).precedences.dependencies == {1}
 
 
+def test_cancel_task():
+    # cancel_task removes a non-root task and rewires successors to inherit
+    # the cancelled task's dependencies so the dependency chain is not broken.
+    tasks = [SimpleTask(i) for i in range(4)]
+    graph = TaskGraph()
+    graph.add_tasks(tasks)
+    graph.add_dependencies([(0, 1), (1, 2), (2, 3)])
+
+    graph.cancel_task(1)
+
+    with pytest.raises(AssertionError):
+        graph.get_tinfo(1)
+
+    # t2 should now depend on t0 (inherited from cancelled t1's dependency on t0)
+    assert 0 in graph.get_tinfo(2).precedences.dependencies
+    assert 1 not in graph.get_tinfo(2).precedences.dependencies
+    # t3's dependency on t2 is unchanged
+    assert graph.get_tinfo(3).precedences.dependencies == {2}
+    assert len(graph.get_tasks()) == 3
+
+    # Cancelling an already-absent task is a no-op
+    graph.cancel_task(1)
+    assert len(graph.get_tasks()) == 3
+
+
+def test_cancel_task_prev_comm():
+    # cancel_task propagates prev_comm: cancelling a task that sits in the
+    # middle of a prev_comm chain connects its successor to its own prev_comm.
+    tasks = [SimpleTask(i) for i in range(3)]
+    graph = TaskGraph()
+    graph.add_tasks(tasks)
+    graph.get_tinfo(1).precedences.prev_comm = 0
+    graph.get_tinfo(2).precedences.prev_comm = 1
+
+    graph.cancel_task(1)
+
+    with pytest.raises(AssertionError):
+        graph.get_tinfo(1)
+
+    # t2 should now point directly to t0 (inherited from cancelled t1)
+    assert graph.get_tinfo(2).precedences.prev_comm == 0
+
+
 if __name__ == "__main__":
     test_linear()
     test_no_precedence()
@@ -321,3 +364,5 @@ if __name__ == "__main__":
     test_linear_tasks_with_timestamps()
     test_merge()
     test_merge_linear()
+    test_cancel_task()
+    test_cancel_task_prev_comm()

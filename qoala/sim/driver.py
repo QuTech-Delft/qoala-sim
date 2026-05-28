@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Dict, Generator
+from typing import Dict, Generator, Optional
 
 from netsquid.protocols import Protocol
 
@@ -181,12 +181,17 @@ class QpuDriver(Driver):
         self._memmgr = memmgr
 
     def allocate_qubits_for_routine(
-        self, process: QoalaProcess, routine_name: str
+        self,
+        process: QoalaProcess,
+        routine_name: str,
+        block_name: Optional[str] = None,
     ) -> None:
         routine = process.get_local_routine(routine_name)
         for virt_id in routine.metadata.qubit_use:
             if self._memmgr.phys_id_for(process.pid, virt_id) is None:
                 self._memmgr.allocate(process.pid, virt_id)
+                if block_name is not None:
+                    self._memmgr.set_allocating_block(process.pid, virt_id, block_name)
 
     def free_qubits_after_routine(
         self, process: QoalaProcess, routine_name: str
@@ -217,7 +222,9 @@ class QpuDriver(Driver):
         lrcall: LrCallTuple = self._memory.read_shared_lrcall(task.shared_ptr)
 
         # Allocate required qubits.
-        self.allocate_qubits_for_routine(process, lrcall.routine_name)
+        self.allocate_qubits_for_routine(
+            process, lrcall.routine_name, block_name=task.block_name
+        )
         # Execute the routine on Qnos.
         yield from self._qnosprocessor.assign_local_routine(
             process, lrcall.routine_name, lrcall.input_addr, lrcall.result_addr
@@ -238,7 +245,7 @@ class QpuDriver(Driver):
         self._netstackprocessor.instantiate_routine(process, rrcall, global_args)
 
         result = yield from self._netstackprocessor.handle_multi_pair(
-            process, rrcall.routine_name
+            process, rrcall.routine_name, block_name=task.block_name
         )
         self._logger.info(f"Driver result: {result}")
         return result
@@ -269,7 +276,10 @@ class QpuDriver(Driver):
         self._netstackprocessor.instantiate_routine(process, rrcall, global_args)
 
         result = yield from self._netstackprocessor.handle_single_pair(
-            process, rrcall.routine_name, task.pair_index
+            process,
+            rrcall.routine_name,
+            task.pair_index,
+            block_name=task.block_name,
         )
         self._logger.info(f"Driver result: {result}")
         return result

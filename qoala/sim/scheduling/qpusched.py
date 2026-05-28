@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Set, Tuple
 
 import netsquid as ns
 from netqasm.lang.operand import Template
@@ -9,7 +9,12 @@ from netqasm.lang.operand import Template
 from pydynaa import EventExpression
 from qoala.lang.ehi import EhiNetworkSchedule, EhiNetworkTimebin
 from qoala.lang.request import VirtIdMappingType
-from qoala.runtime.task import LocalRoutineTask, MultiPairTask, SinglePairTask
+from qoala.runtime.task import (
+    LocalRoutineTask,
+    MultiPairTask,
+    SinglePairTask,
+    TaskGraph,
+)
 from qoala.sim.driver import QpuDriver
 from qoala.sim.events import EVENT_WAIT, SIGNAL_MEMORY_FREED, SIGNAL_TASK_COMPLETED
 from qoala.sim.memmgr import AllocError, MemoryManager
@@ -38,6 +43,7 @@ class QpuScheduler(ProcessorScheduler):
         )
         self._network_schedule = network_schedule
         self._prio_epr = prio_epr
+        self._full_task_graph: Optional[TaskGraph] = None
 
     def timebin_for_task(self, tid: int) -> EhiNetworkTimebin:
         assert self._task_graph is not None
@@ -56,6 +62,34 @@ class QpuScheduler(ProcessorScheduler):
                 epr_sck.remote_id: epr_sck.remote_pid,
             },
         )
+
+    def _get_ancestor_blocks(self, task_id: int) -> Set[str]:
+        """Get block names of all transitive ancestors in the full task graph."""
+        ftg = self._full_task_graph
+        if ftg is None:
+            return set()
+        visited_tids: Set[int] = set()
+        stack = [task_id]
+        block_names: Set[str] = set()
+        while stack:
+            tid = stack.pop()
+            if tid in visited_tids:
+                continue
+            visited_tids.add(tid)
+            try:
+                tinfo = ftg.get_tinfo(tid)
+            except KeyError:
+                continue
+            block_names.add(tinfo.task.block_name)
+            # Walk both internal and external precedences
+            for precs in [tinfo.precedences, tinfo.ext_precedences]:
+                stack.extend(precs.predecessors)
+                stack.extend(precs.dependencies)
+                if precs.prev_comm is not None:
+                    stack.append(precs.prev_comm)
+                if precs.prev_ent is not None:
+                    stack.append(precs.prev_ent)
+        return block_names
 
     def are_resources_available(self, tid: int) -> bool:
         assert self._task_graph is not None
@@ -141,11 +175,11 @@ class QpuScheduler(ProcessorScheduler):
                     for vid in virt_ids
                     if self._memmgr.phys_id_for(task.pid, vid) is None
                 ]
-                # try to allocate them
-                temp_allocated = []
+                # try to allocate new IDs
+                temp_allocated: List[int] = []
                 for virt_id in new_ids:
                     self._memmgr.allocate(task.pid, virt_id)
-                    temp_allocated.append(virt_id)  # successful alloc
+                    temp_allocated.append(virt_id)
                 # Free all temporarily allocated qubits again
                 for virt_id in temp_allocated:
                     self._memmgr.free(task.pid, virt_id, send_signal=False)
@@ -308,14 +342,19 @@ class QpuScheduler(ProcessorScheduler):
 
         self._task_logger.debug(f"epr_wait_for_bin: {epr_wait_for_bin}")
 
-        if len(epr_ready) > 0:
-            self._task_logger.debug(f"epr_ready: {epr_ready}")
+        if len(epr_ready) > 0 and (
+            self._prio_epr or self._network_schedule is not None
+        ):
+            # Always prioritize EPR tasks when a network schedule is active (time
+            # bins must not be missed) or when the prio_epr flag is set.
+            self._task_logger.debug(f"epr_ready (prio): {epr_ready}")
             self._status = SchedulerStatus(
                 status={Status.EPR_GEN}, params={"task_id": epr_ready[0]}
             )
-        elif len(non_epr_ready) > 0:
+        elif len(epr_ready) + len(non_epr_ready) > 0:
+            all_ready = sorted(epr_ready + non_epr_ready)
             with_deadline = [
-                t for t in non_epr_ready if tg.get_tinfo(t).deadline is not None
+                t for t in all_ready if tg.get_tinfo(t).deadline is not None
             ]
 
             if not self._use_deadlines:
@@ -327,20 +366,30 @@ class QpuScheduler(ProcessorScheduler):
                 to_return = sorted_by_deadline[0][0]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
+                status_key = (
+                    Status.EPR_GEN
+                    if tg.get_tinfo(to_return).task.is_epr_task()
+                    else Status.NEXT_TASK
+                )
                 self._status = SchedulerStatus(
-                    status={Status.NEXT_TASK}, params={"task_id": to_return}
+                    status={status_key}, params={"task_id": to_return}
                 )
             else:
                 # No deadlines
                 if self._deterministic:
                     index = 0
                 else:
-                    index = random.randint(0, len(non_epr_ready) - 1)
-                to_return = non_epr_ready[index]
+                    index = random.randint(0, len(all_ready) - 1)
+                to_return = all_ready[index]
                 self._logger.debug(f"Return task {to_return}")
                 self._task_logger.debug(f"Return task {to_return}")
+                status_key = (
+                    Status.EPR_GEN
+                    if tg.get_tinfo(to_return).task.is_epr_task()
+                    else Status.NEXT_TASK
+                )
                 self._status = SchedulerStatus(
-                    status={Status.NEXT_TASK}, params={"task_id": to_return}
+                    status={status_key}, params={"task_id": to_return}
                 )
         else:
             if len(blocked_on_other_core) > 0:

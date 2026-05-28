@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from netsquid.protocols import Protocol
 
@@ -57,6 +57,9 @@ class MemoryManager(Protocol):
         self._physical_mapping: Dict[int, Optional[VirtualLocation]] = {
             i: None for i in qdevice.get_all_qubit_ids()
         }  # phys ID -> virt location
+
+        # Track which block allocated each (pid, virt_id) for ancestry checks
+        self._qubit_allocating_block: Dict[Tuple[int, int], str] = {}
 
         self.add_signal(SIGNAL_MEMORY_FREED)
 
@@ -117,6 +120,12 @@ class MemoryManager(Protocol):
         self._process_mappings[pid].mapping[virt_id] = phys_id
         return phys_id
 
+    def set_allocating_block(self, pid: int, virt_id: int, block_name: str) -> None:
+        self._qubit_allocating_block[(pid, virt_id)] = block_name
+
+    def get_allocating_block(self, pid: int, virt_id: int) -> Optional[str]:
+        return self._qubit_allocating_block.get((pid, virt_id))
+
     def allocate_comm(self, pid: int, virt_id: int) -> int:
         vmap = self._process_mappings[pid]
         # Check that the virt ID is indeed a (virtual) comm qubit.
@@ -142,6 +151,7 @@ class MemoryManager(Protocol):
         # update mappings
         self._physical_mapping[phys_id] = None
         vmap.mapping[virt_id] = None
+        self._qubit_allocating_block.pop((pid, virt_id), None)
 
         # update netsquid memory
         self._qdevice.set_mem_pos_in_use(phys_id, False)

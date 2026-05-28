@@ -1062,6 +1062,58 @@ def test_internal_sched_latency():
     assert ns.sim_time() == total_time
 
 
+def test_cancel_block_tasks():
+    # _cancel_block_tasks removes matching tasks from both the CPU graph and the
+    # QPU scheduler's graph without requiring a running simulation.
+    procnode = ObjectBuilder.simple_procnode("alice", 1)
+    pid = 0
+    program = get_pure_host_program()
+    instance = ObjectBuilder.simple_program_instance(program, pid)
+    procnode.scheduler.submit_program_instance(instance)
+
+    cpu_tasks = [
+        HostLocalTask(0, pid, "b0"),
+        HostLocalTask(1, pid, "b1"),
+    ]
+    cpu_graph = TaskGraphBuilder.linear_tasks(cpu_tasks)
+
+    qpu_tasks = [
+        LocalRoutineTask(2, pid, "b1", 2),
+    ]
+    qpu_graph = TaskGraphBuilder.linear_tasks(qpu_tasks)
+
+    mem = SharedSchedulerMemory()
+    cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
+    cpu_scheduler = CpuEdfScheduler(
+        "alice", 0, cpu_driver, procnode.memmgr, procnode.host.interface
+    )
+    cpu_scheduler.upload_task_graph(cpu_graph)
+
+    qpu_driver = QpuDriver(
+        "alice",
+        mem,
+        procnode.qnos.processor,
+        procnode.netstack.processor,
+        procnode.memmgr,
+    )
+    qpu_scheduler = QpuScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
+    qpu_scheduler.upload_task_graph(qpu_graph)
+
+    cpu_scheduler.set_other_scheduler(qpu_scheduler)
+    qpu_scheduler.set_other_scheduler(cpu_scheduler)
+
+    assert 1 in cpu_scheduler._task_graph.get_tasks()
+    assert 2 in qpu_scheduler._task_graph.get_tasks()
+
+    cpu_scheduler._cancel_block_tasks("b1", pid)
+
+    # Both "b1" tasks must be gone from their respective graphs
+    assert 1 not in cpu_scheduler._task_graph.get_tasks()
+    assert 2 not in qpu_scheduler._task_graph.get_tasks()
+    # "b0" must be unaffected
+    assert 0 in cpu_scheduler._task_graph.get_tasks()
+
+
 if __name__ == "__main__":
     test_cpu_scheduler()
     test_cpu_scheduler_no_time()

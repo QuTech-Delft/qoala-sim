@@ -569,6 +569,58 @@ class TaskGraph:
         roots = self.get_roots(ignore_external)
         return [r for r in roots if self.get_tinfo(r).task.is_event_task()]
 
+    def cancel_task(self, id: int) -> None:
+        """Cancel a task regardless of root status.
+
+        Used to remove tasks for non-taken conditional branches in the
+        static scheduler.  Unlike ``remove_task``, this preserves
+        transitive dependencies: any successor that depended on the
+        cancelled task inherits the cancelled task's own dependencies so
+        that the dependency chain is not broken.
+        """
+        if id not in self._tasks:
+            return
+        cancelled_info = self._tasks.pop(id)
+        cp = cancelled_info.precedences
+        cep = cancelled_info.ext_precedences
+
+        for succ_info in self._tasks.values():
+            p = succ_info.precedences
+            if id in p.dependencies:
+                p.dependencies.remove(id)
+                # Inherit the cancelled task's dependencies (transitive).
+                # Only add IDs that still exist in this graph or that the
+                # successor can resolve via ext_precedences.
+                p.dependencies.update(d for d in cp.dependencies if d in self._tasks)
+                succ_info.ext_precedences.dependencies.update(
+                    d for d in cp.dependencies if d not in self._tasks
+                )
+                succ_info.ext_precedences.dependencies.update(cep.dependencies)
+            if id in p.predecessors:
+                p.predecessors.clear()
+            if p.prev_comm == id:
+                p.prev_comm = cp.prev_comm
+            if p.prev_ent == id:
+                p.prev_ent = cp.prev_ent
+
+            ep = succ_info.ext_precedences
+            if id in ep.dependencies:
+                ep.dependencies.remove(id)
+                ep.dependencies.update(cep.dependencies)
+                # Also inherit internal deps of cancelled task as ext deps
+                ep.dependencies.update(
+                    d for d in cp.dependencies if d not in self._tasks
+                )
+                succ_info.precedences.dependencies.update(
+                    d for d in cp.dependencies if d in self._tasks
+                )
+            if id in ep.predecessors:
+                ep.predecessors.clear()
+            if ep.prev_comm == id:
+                ep.prev_comm = cep.prev_comm
+            if ep.prev_ent == id:
+                ep.prev_ent = cep.prev_ent
+
     def remove_task(self, id: int) -> None:
         assert id in self.get_roots(ignore_external=True)
         _ = self._tasks.pop(id)

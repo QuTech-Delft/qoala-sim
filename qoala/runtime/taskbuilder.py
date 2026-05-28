@@ -13,6 +13,7 @@ from qoala.lang.hostlang import (
     ReceiveCMsgOp,
     RunRequestOp,
     RunSubroutineOp,
+    SendCMsgOp,
 )
 from qoala.lang.program import QoalaProgram
 from qoala.lang.request import CallbackType, RequestRoutine
@@ -589,6 +590,11 @@ class QoalaGraphFromProgramBuilder:
 
         use_block_precedences = program.blocks[0].dependencies is not None
 
+        # Track previous communication block (CC or CL-with-send) to
+        # enforce message ordering when the compiler did not set
+        # prev_comm.
+        prev_comm_task_id: Optional[int] = None
+
         for block in program.blocks:
             precedences = TaskPrecedences()
 
@@ -613,6 +619,20 @@ class QoalaGraphFromProgramBuilder:
                     else None
                 )
 
+                # If the compiler didn't set prev_comm for a
+                # communication block, chain it to the previous
+                # communication block in program order to preserve FIFO
+                # message ordering on classical sockets.
+                is_comm_block = block.typ == BasicBlockType.CC or any(
+                    isinstance(instr, SendCMsgOp) for instr in block.instructions
+                )
+                if (
+                    is_comm_block
+                    and precedences.prev_comm is None
+                    and prev_comm_task_id is not None
+                ):
+                    precedences.prev_comm = prev_comm_task_id
+
             elif prev_task_id is not None:
                 # Fall back to linear execution if no block precedence is provided
                 precedences.dependencies = {prev_task_id}
@@ -632,6 +652,11 @@ class QoalaGraphFromProgramBuilder:
 
             self._block_to_task_map[block.name] = task_id
             prev_task_id = task_id  # Update for linear dependency handling
+
+            if block.typ == BasicBlockType.CC or any(
+                isinstance(instr, SendCMsgOp) for instr in block.instructions
+            ):
+                prev_comm_task_id = task_id
 
         return self._graph
 

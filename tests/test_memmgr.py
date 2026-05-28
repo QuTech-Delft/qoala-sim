@@ -269,6 +269,37 @@ def test_alloc_multiple_processes_same_virt_id():
         mgr.allocate(pid1, 1)
 
 
+def test_set_get_allocating_block():
+    pid, mgr = setup_manager()
+
+    # No block registered initially
+    assert mgr.get_allocating_block(pid, 0) is None
+    assert mgr.get_allocating_block(pid, 1) is None
+
+    mgr.allocate(pid, 0)
+    mgr.set_allocating_block(pid, 0, "blk_epr")
+
+    assert mgr.get_allocating_block(pid, 0) == "blk_epr"
+    # Other qubit is unaffected
+    assert mgr.get_allocating_block(pid, 1) is None
+
+    # Overwriting the block name works
+    mgr.set_allocating_block(pid, 0, "blk_other")
+    assert mgr.get_allocating_block(pid, 0) == "blk_other"
+
+
+def test_allocating_block_cleared_on_free():
+    pid, mgr = setup_manager()
+
+    mgr.allocate(pid, 0)
+    mgr.set_allocating_block(pid, 0, "blk_epr")
+    assert mgr.get_allocating_block(pid, 0) == "blk_epr"
+
+    mgr.free(pid, 0)
+    # After freeing the qubit, the block tag must be cleared
+    assert mgr.get_allocating_block(pid, 0) is None
+
+
 if __name__ == "__main__":
     test_alloc_free_0()
     test_alloc_free_0_1()
@@ -277,4 +308,6 @@ if __name__ == "__main__":
     test_free_alreay_freed()
     test_get_unmapped_qubit()
     test_alloc_multiple_processes()
+    test_set_get_allocating_block()
+    test_allocating_block_cleared_on_free()
     test_alloc_multiple_processes_same_virt_id()

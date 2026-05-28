@@ -56,13 +56,19 @@ class NetstackProcessor:
         return result.content is not None
 
     def _allocate_for_pair(
-        self, process: QoalaProcess, request: QoalaRequest, index: int
+        self,
+        process: QoalaProcess,
+        request: QoalaRequest,
+        index: int,
+        block_name: Optional[str] = None,
     ) -> int:
         memmgr = self._interface.memmgr
         pid = process.pid
 
         virt_id = request.virt_ids.get_id(index)
         memmgr.allocate(pid, virt_id)
+        if block_name is not None:
+            memmgr.set_allocating_block(pid, virt_id, block_name)
 
         return virt_id
 
@@ -99,7 +105,10 @@ class NetstackProcessor:
         return m
 
     def _handle_multi_pair_ck(
-        self, process: QoalaProcess, routine_name: str
+        self,
+        process: QoalaProcess,
+        routine_name: str,
+        block_name: Optional[str] = None,
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -115,7 +124,7 @@ class NetstackProcessor:
 
         virt_ids: List[int] = []
         for i in range(num_pairs):
-            virt_id = self._allocate_for_pair(process, request, i)
+            virt_id = self._allocate_for_pair(process, request, i, block_name)
             virt_ids.append(virt_id)
             self._logger.info(f"trying to create EPR pair {i} (virt ID = {virt_id})")
             entdist_req = self._create_entdist_request(process, request, virt_id)
@@ -162,7 +171,10 @@ class NetstackProcessor:
         return not has_failed
 
     def _handle_multi_pair_md(
-        self, process: QoalaProcess, routine_name: str
+        self,
+        process: QoalaProcess,
+        routine_name: str,
+        block_name: Optional[str] = None,
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
@@ -176,7 +188,7 @@ class NetstackProcessor:
             raise NotImplementedError
         else:
             for i in range(num_pairs):
-                virt_id = self._allocate_for_pair(process, request, i)
+                virt_id = self._allocate_for_pair(process, request, i, block_name)
                 entdist_req = self._create_entdist_request(process, request, virt_id)
                 # Create EPR pair
                 result = yield from self._execute_entdist_request(entdist_req)
@@ -195,16 +207,23 @@ class NetstackProcessor:
         return True
 
     def handle_multi_pair(
-        self, process: QoalaProcess, routine_name: str
+        self,
+        process: QoalaProcess,
+        routine_name: str,
+        block_name: Optional[str] = None,
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
 
         if request.typ == EprType.CREATE_KEEP:
-            result = yield from self._handle_multi_pair_ck(process, routine_name)
+            result = yield from self._handle_multi_pair_ck(
+                process, routine_name, block_name
+            )
         elif request.typ == EprType.MEASURE_DIRECTLY:
-            result = yield from self._handle_multi_pair_md(process, routine_name)
+            result = yield from self._handle_multi_pair_md(
+                process, routine_name, block_name
+            )
         else:
             raise NotImplementedError
         return result
@@ -236,13 +255,17 @@ class NetstackProcessor:
                 self._interface.memmgr.free(process.pid, virt_id)
 
     def handle_single_pair(
-        self, process: QoalaProcess, routine_name: str, index: int
+        self,
+        process: QoalaProcess,
+        routine_name: str,
+        index: int,
+        block_name: Optional[str] = None,
     ) -> Generator[EventExpression, None, bool]:
         running_routine = process.qnos_mem.get_running_request_routine(routine_name)
         routine = running_routine.routine
         request = routine.request
 
-        virt_id = self._allocate_for_pair(process, request, index)
+        virt_id = self._allocate_for_pair(process, request, index, block_name)
         entdist_req = self._create_entdist_request(process, request, virt_id)
         result = yield from self._execute_entdist_request(entdist_req)
         if not result:
