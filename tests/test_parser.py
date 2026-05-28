@@ -269,41 +269,236 @@ my_vec<N> = run_request() : req1
 def test_parse_block_header():
     text = "^b0 {type = CL}:"
 
-    name, typ, duration, critical_section = HostCodeParser("")._parse_block_header(text)
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
-    assert duration is None
+    assert predecessors is None
+    assert dependencies is None
+    assert prev_comm is None
+    assert prev_ent is None
+    assert deadlines is None
     assert critical_section is None
 
 
-def test_parse_block_header_with_deadlines():
-    text = "^b0 {type = CL, deadlines = [b1: 1000]}:"
+def test_parse_block_header_with_one_deadline():
+    text = "^b0 {type = CL; deadlines = [b1: 1000]}:"
 
-    name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
-    assert deadline == {"b1": 1000}
+    assert predecessors is None
+    assert dependencies is None
+    assert prev_comm is None
+    assert prev_ent is None
+    assert deadlines == {"b1": 1000}
+    assert critical_section is None
+
+
+def test_parse_block_header_with_two_deadlines():
+    text = "^b0 {type = CL; deadlines = [b1: 1000, b2: 500]}:"
+
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert predecessors is None
+    assert dependencies is None
+    assert prev_comm is None
+    assert prev_ent is None
+    assert deadlines == {"b1": 1000, "b2": 500}
     assert critical_section is None
 
 
 def test_parse_block_header_with_critical_section():
-    text = "^b0 {type = CL, critical_section = 7}:"
+    text = "^b0 {type = CL; critical_section = 7}:"
 
-    name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
-    assert deadline is None
+    assert predecessors is None
+    assert dependencies is None
+    assert prev_comm is None
+    assert prev_ent is None
+    assert deadlines is None
     assert critical_section == 7
 
 
 def test_parse_block_header_with_deadline_and_critical_section():
-    text = "^b0 {type = CL, deadlines = [b1: 1000], critical_section = 7}:"
+    text = "^b0 {type = CL; deadlines = [b1: 1000]; critical_section = 7}:"
 
-    name, typ, deadline, critical_section = HostCodeParser("")._parse_block_header(text)
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
     assert name == "b0"
     assert typ == BasicBlockType.CL
-    assert deadline == {"b1": 1000}
+    assert predecessors is None
+    assert dependencies is None
+    assert prev_comm is None
+    assert prev_ent is None
+    assert deadlines == {"b1": 1000}
     assert critical_section == 7
+
+
+def test_parse_block_header_with_predecessors():
+    text = "^b0 {type = CL; predecessors = [b1, b2]; dependencies = []; prev_comm = ; prev_ent = }:"
+
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert predecessors == ["b1", "b2"]
+    assert dependencies == []
+    assert prev_comm == ""
+    assert prev_ent == ""
+    assert deadlines is None
+    assert critical_section is None
+
+
+def test_parse_block_header_with_dependencies():
+    text = "^b0 {type = CL; predecessors = []; dependencies = [b1, b2]; prev_comm = ; prev_ent = }:"
+
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert predecessors == []
+    assert dependencies == ["b1", "b2"]
+    assert prev_comm == ""
+    assert prev_ent == ""
+    assert deadlines is None
+    assert critical_section is None
+
+
+def test_parse_block_header_with_prev_comm():
+    text = "^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = b1; prev_ent = }:"
+
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert predecessors == []
+    assert dependencies == []
+    assert prev_comm == "b1"
+    assert prev_ent == ""
+    assert deadlines is None
+    assert critical_section is None
+
+
+def test_parse_block_header_with_prev_ent():
+    text = "^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = b1}:"
+
+    (
+        name,
+        typ,
+        predecessors,
+        dependencies,
+        prev_comm,
+        prev_ent,
+        deadlines,
+        critical_section,
+    ) = HostCodeParser("")._parse_block_header(text)
+    assert name == "b0"
+    assert typ == BasicBlockType.CL
+    assert predecessors == []
+    assert dependencies == []
+    assert prev_comm == ""
+    assert prev_ent == "b1"
+    assert deadlines is None
+    assert critical_section is None
+
+
+def test_parse_block_header_with_incomplete_precedence_annotations1():
+    text = "^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = }:"
+
+    with pytest.raises(QoalaParseError):
+        HostCodeParser("")._parse_block_header(text)
+
+
+def test_parse_block_header_with_incomplete_precedence_annotations2():
+    text = "^b0 {type = CL; predecessors = []; dependencies = []; prev_ent = }:"
+
+    with pytest.raises(QoalaParseError):
+        HostCodeParser("")._parse_block_header(text)
+
+
+def test_parse_block_header_with_incomplete_precedence_annotations3():
+    text = "^b0 {type = CL; predecessors = []; prev_comm = ; prev_ent = }:"
+
+    with pytest.raises(QoalaParseError):
+        HostCodeParser("")._parse_block_header(text)
+
+
+def test_parse_block_header_with_incomplete_precedence_annotations4():
+    text = "^b0 {type = CL; dependencies = []; prev_comm = ; prev_ent = }:"
+
+    with pytest.raises(QoalaParseError):
+        HostCodeParser("")._parse_block_header(text)
 
 
 def test_parse_block():
@@ -343,7 +538,7 @@ def test_parse_multiple_blocks():
     x = assign_cval() : 1
     y = assign_cval() : 17
 
-^b1 {type = QL, deadlines = [b0: 2500]}:
+^b1 {type = QL; deadlines = [b0: 2500]}:
     run_subroutine(tuple<x>) : subrt1
     """
 
@@ -1055,6 +1250,70 @@ SUBROUTINE subrt1
         ).parse()
 
 
+def test_parse_program_invalid_missing_precedence1():
+    meta_text = """
+META_START
+name: alice
+parameters: 
+csockets: 0 -> bob
+epr_sockets: 
+META_END
+    """
+
+    program_text = """
+^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+    my_value = assign_cval() : 1
+^b1 {type = CL}:
+    my_value_second = assign_cval() : 2
+    """
+
+    subrt_text = """
+    """
+
+    req_text = """
+    """
+
+    with pytest.raises(QoalaParseError):
+        QoalaParser(
+            meta_text=meta_text,
+            host_text=program_text,
+            subrt_text=subrt_text,
+            req_text=req_text,
+        ).parse()
+
+
+def test_parse_program_invalid_missing_precedence2():
+    meta_text = """
+META_START
+name: alice
+parameters: 
+csockets: 0 -> bob
+epr_sockets: 
+META_END
+    """
+
+    program_text = """
+^b0 {type = CL}:
+    my_value = assign_cval() : 1
+^b1 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = }:
+    my_value_second = assign_cval() : 2
+    """
+
+    subrt_text = """
+    """
+
+    req_text = """
+    """
+
+    with pytest.raises(QoalaParseError):
+        QoalaParser(
+            meta_text=meta_text,
+            host_text=program_text,
+            subrt_text=subrt_text,
+            req_text=req_text,
+        ).parse()
+
+
 def test_split_text():
     meta_text = """
 META_START
@@ -1332,9 +1591,18 @@ if __name__ == "__main__":
     test_parse_vector_2()
     test_parse_vector_with_var()
     test_parse_block_header()
-    test_parse_block_header_with_deadlines()
+    test_parse_block_header_with_one_deadline()
+    test_parse_block_header_with_two_deadlines()
     test_parse_block_header_with_critical_section()
     test_parse_block_header_with_deadline_and_critical_section()
+    test_parse_block_header_with_predecessors()
+    test_parse_block_header_with_dependencies()
+    test_parse_block_header_with_prev_comm()
+    test_parse_block_header_with_prev_ent()
+    test_parse_block_header_with_incomplete_precedence_annotations1()
+    test_parse_block_header_with_incomplete_precedence_annotations2()
+    test_parse_block_header_with_incomplete_precedence_annotations3()
+    test_parse_block_header_with_incomplete_precedence_annotations4()
     test_parse_block()
     test_get_block_texts()
     test_parse_multiple_blocks()
@@ -1354,6 +1622,8 @@ if __name__ == "__main__":
     test_parse_program_no_subroutines()
     test_parse_program_invalid_subrt_reference()
     test_parse_program_invalid_req_routine_reference()
+    test_parse_program_invalid_missing_precedence1()
+    test_parse_program_invalid_missing_precedence2()
     test_split_text()
     test_split_text_multiple_subroutines()
     test_split_text_no_subroutines()

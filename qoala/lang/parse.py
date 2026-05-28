@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Optional, Tuple, Union
 
 from netqasm.lang.instr.flavour import Flavour, VanillaFlavour
@@ -554,9 +555,34 @@ class HostCodeParser:
             deadlines[blk] = int(dl)
         return deadlines
 
+    def _parse_list(self, text: str) -> List[str]:
+        """
+        Parses the predecessors and dependencies of a block.
+
+        :param text: Text to parse.
+        :return: List of block names.
+        """
+        blocks = []
+        match = re.search(r"\[(.*?)\]", text)
+
+        if match:
+            content = match.group(1).strip()
+            if content:
+                blocks = [item.strip() for item in match.group(1).split(",")]
+
+        return blocks
+
     def _parse_block_annotations(
         self, annotations: str
-    ) -> Tuple[hl.BasicBlockType, Optional[Dict[str, int]], Optional[int]]:
+    ) -> Tuple[
+        hl.BasicBlockType,
+        Optional[List[str]],
+        Optional[List[str]],
+        Optional[str],
+        Optional[str],
+        Optional[Dict[str, int]],
+        Optional[int],
+    ]:
         """
         Parses the annotations of a block which are the block type and deadlines. The annotations format is given
         in the class description.
@@ -566,7 +592,7 @@ class HostCodeParser:
         :raises QoalaParseError: If the annotations are not in the correct format. See the class description for
         the correct format.
         """
-        annotations_parts = annotations.split(",")
+        annotations_parts = annotations.split(";")
         if annotations_parts[0].count("=") != 1:
             raise QoalaParseError("Block type annotation must have exactly one '='.")
         type_annotation_parts = [x.strip() for x in annotations_parts[0].split("=")]
@@ -581,6 +607,10 @@ class HostCodeParser:
                 "following: 'CL', 'CC', 'QL', 'QC' (case insensitive)."
             )
 
+        predecessors: Optional[List[str]] = None
+        dependencies: Optional[List[str]] = None
+        prev_comm: Optional[str] = None
+        prev_ent: Optional[str] = None
         deadlines: Optional[Dict[str, int]] = None
         critical_section: Optional[int] = None
         if len(annotations_parts) >= 2:
@@ -590,11 +620,47 @@ class HostCodeParser:
                     deadlines = self._parse_deadlines(v)
                 elif k == "critical_section":
                     critical_section = int(v)
-        return typ, deadlines, critical_section
+                elif k == "predecessors":
+                    predecessors = self._parse_list(v)
+                elif k == "dependencies":
+                    dependencies = self._parse_list(v)
+                elif k == "prev_comm":
+                    prev_comm = v
+                elif k == "prev_ent":
+                    prev_ent = v
+
+        if not (
+            all(v is None for v in (predecessors, dependencies, prev_comm, prev_ent))
+            or all(
+                v is not None for v in (predecessors, dependencies, prev_comm, prev_ent)
+            )
+        ):
+            raise QoalaParseError(
+                "Invalid block annotations. "
+                "Either predecessors, dependencies, prev_comm and prev_ent should all be defined, or none of them"
+            )
+        return (
+            typ,
+            predecessors,
+            dependencies,
+            prev_comm,
+            prev_ent,
+            deadlines,
+            critical_section,
+        )
 
     def _parse_block_header(
         self, line: str
-    ) -> Tuple[str, hl.BasicBlockType, Optional[Dict[str, int]], Optional[int]]:
+    ) -> Tuple[
+        str,
+        hl.BasicBlockType,
+        Optional[List[str]],
+        Optional[List[str]],
+        Optional[str],
+        Optional[str],
+        Optional[Dict[str, int]],
+        Optional[int],
+    ]:
         """
         Parses the header of a block. Header contains the block name, block type, and block deadlines. The header
         format is given in the class description.
@@ -628,8 +694,25 @@ class HostCodeParser:
         annotations_str = header_parts[1][:close_brace]
         if header_parts[1][close_brace + 1 :] != ":":
             raise QoalaParseError("Block header must end with ':'.")
-        typ, deadline, critical_section = self._parse_block_annotations(annotations_str)
-        return name, typ, deadline, critical_section
+        (
+            typ,
+            predecessors,
+            dependencies,
+            prev_comm,
+            prev_ent,
+            deadlines,
+            critical_section,
+        ) = self._parse_block_annotations(annotations_str)
+        return (
+            name,
+            typ,
+            predecessors,
+            dependencies,
+            prev_comm,
+            prev_ent,
+            deadlines,
+            critical_section,
+        )
 
     def parse_block(self, text: str) -> hl.BasicBlock:
         """
@@ -640,13 +723,32 @@ class HostCodeParser:
         """
         lines = [line.strip() for line in text.split("\n")]
         lines = [line for line in lines if len(line) > 0]
-        name, typ, deadline, critical_section = self._parse_block_header(lines[0])
+        (
+            name,
+            typ,
+            predecessors,
+            dependencies,
+            prev_comm,
+            prev_ent,
+            deadlines,
+            critical_section,
+        ) = self._parse_block_header(lines[0])
         instr_lines = lines[1:]
         instrs = IqoalaInstrParser(
             "\n".join(instr_lines), self._defined_vectors
         ).parse()
 
-        return hl.BasicBlock(name, typ, instrs, deadline, critical_section)
+        return hl.BasicBlock(
+            name,
+            typ,
+            instrs,
+            predecessors,
+            dependencies,
+            prev_comm,
+            prev_ent,
+            deadlines,
+            critical_section,
+        )
 
     def parse(self) -> List[hl.BasicBlock]:
         """
@@ -1425,5 +1527,30 @@ class QoalaParser:
                         raise QoalaParseError(
                             f"Block {block.name} references unknown request routine {req_name}"
                         )
+
+        # Check that if predecessors, dependencies, prev_comm and prev_ent
+        # are defined within a block, its defined for all blocks
+        precedence_is_present = all(
+            v is not None
+            for v in (
+                blocks[0].predecessors,
+                blocks[0].dependencies,
+                blocks[0].prev_comm,
+                blocks[0].prev_ent,
+            )
+        )
+        for block in blocks[1:]:
+            if not precedence_is_present == all(
+                v is not None
+                for v in (
+                    block.predecessors,
+                    block.dependencies,
+                    block.prev_comm,
+                    block.prev_ent,
+                )
+            ):
+                raise QoalaParseError(
+                    "predecessors, dependencies, prev_comm and prev_ent muyst defined for all blocks or not at all."
+                )
 
         return QoalaProgram(meta, blocks, subroutines, requests)

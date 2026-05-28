@@ -195,22 +195,22 @@ class QpuScheduler(ProcessorScheduler):
                 )
                 self._critical_section = None
 
-        # All tasks that have no predecessors, internal nor external.
-        no_predecessors = tg.get_roots()
+        # All tasks that have no precedences, internal nor external.
+        no_precedences = tg.get_roots()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section is not None:
             cs = self._critical_section  # to make following lines more compact
-            no_predecessors = [
+            no_precedences = [
                 t
-                for t in no_predecessors
+                for t in no_precedences
                 if (tg.get_tinfo(t).task.critical_section == cs.cs_id)
                 and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
         self._task_logger.debug(
-            f"no_predecessors: {[str(tg.get_tinfo(t).task) for t in no_predecessors]}"
+            f"no_precedences: {[str(tg.get_tinfo(t).task) for t in no_precedences]}"
         )
 
-        # All tasks that have only external predecessors.
+        # All tasks that have only external precedences.
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section is not None:
@@ -225,18 +225,18 @@ class QpuScheduler(ProcessorScheduler):
             f"blocked_on_other_core : {[str(tg.get_tinfo(t).task) for t in blocked_on_other_core]}"
         )
 
-        # All EPR (SinglePair or MultiPair) tasks that have no predecessors,
+        # All EPR (SinglePair or MultiPair) tasks that have no precedences,
         # internal nor external.
-        epr_no_predecessors = [
-            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_epr_task()
+        epr_no_precedences = [
+            tid for tid in no_precedences if tg.get_tinfo(tid).task.is_epr_task()
         ]
         self._task_logger.debug(
-            f"epr_no_predecessors : {[str(tg.get_tinfo(t).task) for t in epr_no_predecessors]}"
+            f"epr_no_precedences : {[str(tg.get_tinfo(t).task) for t in epr_no_precedences]}"
         )
 
-        # All tasks without predecessors for which not all resources are availables.
+        # All tasks without precedences for which not all resources are availables.
         blocked_on_resources = [
-            tid for tid in no_predecessors if not self.are_resources_available(tid)
+            tid for tid in no_precedences if not self.are_resources_available(tid)
         ]
         self._task_logger.debug(
             f"blocked_on_resources : {[str(tg.get_tinfo(t).task) for t in blocked_on_resources]}"
@@ -245,16 +245,16 @@ class QpuScheduler(ProcessorScheduler):
         # All non-EPR tasks that are ready for execution.
         non_epr_ready = [
             tid
-            for tid in no_predecessors
-            if tid not in epr_no_predecessors and tid not in blocked_on_resources
+            for tid in no_precedences
+            if tid not in epr_no_precedences and tid not in blocked_on_resources
         ]
         self._task_logger.debug(
             f"non_epr_ready : {[str(tg.get_tinfo(t).task) for t in non_epr_ready]}"
         )
 
-        # All EPR tasks that have no predecessors and are not blocked on resources.
+        # All EPR tasks that have no precedences and are not blocked on resources.
         epr_no_preds_not_blocked = [
-            tid for tid in epr_no_predecessors if tid not in blocked_on_resources
+            tid for tid in epr_no_precedences if tid not in blocked_on_resources
         ]
         self._task_logger.debug(
             f"epr_no_preds_not_blocked : {[str(tg.get_tinfo(t).task) for t in epr_no_preds_not_blocked]}"

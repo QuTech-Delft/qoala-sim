@@ -1078,15 +1078,27 @@ class BasicBlock:
     name: str
     typ: BasicBlockType
     instructions: List[ClassicalIqoalaOp]
+    predecessors: Optional[List[str]] = None
+    dependencies: Optional[List[str]] = None
+    prev_comm: Optional[str] = None
+    prev_ent: Optional[str] = None
     deadlines: Optional[Dict[str, int]] = None
     critical_section: Optional[int] = None
 
     def __str__(self) -> str:
         annotations = f"type = {self.typ.name}"
+        if self.predecessors is not None:
+            annotations += f", predecessors= {self.predecessors}"
+        if self.dependencies is not None:
+            annotations += f", dependencies= {self.dependencies}"
+        if self.prev_comm is not None:
+            annotations += f", prev_comm= {self.prev_comm}"
+        if self.prev_ent is not None:
+            annotations += f", prev_ent= {self.prev_ent}"
         if self.deadlines is not None:
-            annotations += f", deadlines: {self.deadlines}"
+            annotations += f", deadlines= {self.deadlines}"
         if self.critical_section is not None:
-            annotations += f", critical_section: {self.critical_section}"
+            annotations += f", critical_section= {self.critical_section}"
         annotations = "{" + annotations + "}"
         s = f"^{self.name} {annotations}:\n"
         return s + "\n".join("    " + str(i) for i in self.instructions)

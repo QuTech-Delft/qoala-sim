@@ -80,10 +80,10 @@ class CpuScheduler(ProcessorScheduler):
         # We simply need to compute the peer names from which we are waiting
         # for a message, but there is NOT a message already on the queue
         tg = self._task_graph
-        no_predecessors = tg.get_roots()
+        no_precedences = tg.get_roots()
 
-        event_no_predecessors = [
-            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
+        event_no_precedences = [
+            tid for tid in no_precedences if tg.get_tinfo(tid).task.is_event_task()
         ]
 
         # In scenarios of a batch with multiple iterations, we could be waiting for
@@ -91,7 +91,7 @@ class CpuScheduler(ProcessorScheduler):
         # a dictionary for storing peer names)
         peer_names = {
             self._get_peer_name_for_tid(tid)
-            for tid in event_no_predecessors
+            for tid in event_no_precedences
             if not self.is_message_available(tid)
         }
         return list(peer_names)
@@ -122,19 +122,19 @@ class CpuScheduler(ProcessorScheduler):
                 )
                 self._critical_section = None
 
-        # All tasks that have no predecessors, internal nor external.
-        no_predecessors = tg.get_roots()
+        # All tasks that have no precedences, internal nor external.
+        no_precedences = tg.get_roots()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
             cs = self._critical_section  # to make following lines more compact
-            no_predecessors = [
+            no_precedences = [
                 t
-                for t in no_predecessors
+                for t in no_precedences
                 if (tg.get_tinfo(t).task.critical_section == cs.cs_id)
                 and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
 
-        # All tasks that have only external predecessors.
+        # All tasks that have only external precedences.
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
@@ -146,20 +146,20 @@ class CpuScheduler(ProcessorScheduler):
                 and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
 
-        # All "receive message" tasks without predecessors (internal nor external).
-        event_no_predecessors = [
-            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
+        # All "receive message" tasks without precedences (internal nor external).
+        event_no_precedences = [
+            tid for tid in no_precedences if tg.get_tinfo(tid).task.is_event_task()
         ]
 
         event_blocked_on_message = [
-            tid for tid in event_no_predecessors if not self.is_message_available(tid)
+            tid for tid in event_no_precedences if not self.is_message_available(tid)
         ]
         self._task_logger.debug(f"event_blocked_on_message: {event_blocked_on_message}")
 
         now = ns.sim_time()
         with_future_start: Dict[int, float] = {
             tid: tg.get_tinfo(tid).start_time  # type: ignore
-            for tid in no_predecessors
+            for tid in no_precedences
             if tg.get_tinfo(tid).start_time is not None
             and tg.get_tinfo(tid).start_time > now
         }
@@ -173,7 +173,7 @@ class CpuScheduler(ProcessorScheduler):
 
         ready = [
             tid
-            for tid in no_predecessors
+            for tid in no_precedences
             if tid not in event_blocked_on_message and tid not in with_future_start
         ]
         ready_task_dict = {tid: str(tg.get_tinfo(tid).task) for tid in ready}

@@ -299,8 +299,8 @@ def test_qpu_scheduler():
     qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(
         qpu_tasks_with_start_times
     )
-    qpu_graph.get_tinfo(3).ext_predecessors.add(1)
-    cpu_graph.get_tinfo(2).ext_predecessors.add(3)
+    qpu_graph.get_tinfo(3).ext_precedences.dependencies.add(1)
+    cpu_graph.get_tinfo(2).ext_precedences.dependencies.add(3)
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)
@@ -365,10 +365,10 @@ def test_qpu_scheduler_2_processes():
     ]
     qpu_graph = TaskGraphBuilder.linear_tasks_with_start_times(qpu_tasks)
 
-    cpu_graph.get_tinfo(4).ext_predecessors.add(6)
-    cpu_graph.get_tinfo(5).ext_predecessors.add(7)
-    qpu_graph.get_tinfo(6).ext_predecessors.add(2)
-    qpu_graph.get_tinfo(7).ext_predecessors.add(3)
+    cpu_graph.get_tinfo(4).ext_precedences.dependencies.add(6)
+    cpu_graph.get_tinfo(5).ext_precedences.dependencies.add(7)
+    qpu_graph.get_tinfo(6).ext_precedences.dependencies.add(2)
+    qpu_graph.get_tinfo(7).ext_precedences.dependencies.add(3)
 
     mem = SharedSchedulerMemory()
     cpu_driver = CpuDriver("alice", mem, procnode.host.processor, procnode.memmgr)

@@ -9,6 +9,7 @@ from qoala.runtime.task import (
     MultiPairCallbackTask,
     MultiPairTask,
     PreCallTask,
+    PostCallTask,
     ProcessorType,
     QoalaTask,
     TaskGraph,
@@ -18,7 +19,7 @@ from qoala.runtime.taskbuilder import TaskGraphBuilder
 
 class SimpleTask(QoalaTask):
     def __init__(self, task_id: int) -> None:
-        super().__init__(task_id, ProcessorType.CPU, 0)
+        super().__init__(task_id, ProcessorType.CPU, "0", 0)
 
 
 def test_linear():
@@ -27,14 +28,15 @@ def test_linear():
     rel_deadlines = [((i - 1, i), 100) for i in range(1, 5)]
     graph = TaskGraph()
     graph.add_tasks(tasks)
-    graph.add_precedences(precedences)
+    graph.add_dependencies(precedences)
     graph.add_rel_deadlines(rel_deadlines)
 
     assert graph.get_roots() == [0]
-    assert graph.get_tinfo(0).predecessors == set()
-    assert graph.get_tinfo(4).successors == set()
-    assert all(graph.get_tinfo(i).predecessors == {i - 1} for i in range(1, 5))
-    assert all(graph.get_tinfo(i).successors == {i + 1} for i in range(0, 4))
+    assert graph.get_leaves() == [4]
+    assert graph.get_tinfo(0).precedences.dependencies == set()
+    assert all(
+        graph.get_tinfo(i).precedences.dependencies == {i - 1} for i in range(1, 5)
+    )
     assert all(graph.get_tinfo(i).deadline is None for i in range(5))
     assert graph.get_tinfo(0).rel_deadlines == {}
     assert all(graph.get_tinfo(i).rel_deadlines == {i - 1: 100} for i in range(1, 5))
@@ -46,10 +48,11 @@ def test_linear():
         graph.get_tinfo(0)
 
     assert graph.get_roots() == [1]
-    assert graph.get_tinfo(1).predecessors == set()
-    assert graph.get_tinfo(4).successors == set()
-    assert all(graph.get_tinfo(i).predecessors == {i - 1} for i in range(2, 5))
-    assert all(graph.get_tinfo(i).successors == {i + 1} for i in range(1, 4))
+    assert graph.get_leaves() == [4]
+    assert graph.get_tinfo(1).precedences.dependencies == set()
+    assert all(
+        graph.get_tinfo(i).precedences.dependencies == {i - 1} for i in range(2, 5)
+    )
     assert graph.get_tinfo(1).deadline == 100
     assert all(graph.get_tinfo(i).deadline is None for i in range(2, 5))
     assert graph.get_tinfo(1).rel_deadlines == {}
@@ -69,8 +72,8 @@ def test_no_precedence():
     graph.add_rel_deadlines(rel_deadlines)
 
     assert graph.get_roots() == [i for i in range(5)]
-    assert all(graph.get_tinfo(i).predecessors == set() for i in range(5))
-    assert all(graph.get_tinfo(i).successors == set() for i in range(5))
+    assert graph.get_leaves() == [i for i in range(5)]
+    assert all(graph.get_tinfo(i).precedences.dependencies == set() for i in range(5))
     assert all(graph.get_tinfo(i).deadline is None for i in range(5))
     assert graph.get_tinfo(0).rel_deadlines == {}
     assert all(graph.get_tinfo(i).rel_deadlines == {i - 1: 100} for i in range(1, 5))
@@ -81,8 +84,10 @@ def test_no_precedence():
         graph.get_tinfo(0)
 
     assert graph.get_roots() == [i for i in range(1, 5)]
-    assert all(graph.get_tinfo(i).predecessors == set() for i in range(1, 5))
-    assert all(graph.get_tinfo(i).successors == set() for i in range(1, 5))
+    assert graph.get_leaves() == [i for i in range(1, 5)]
+    assert all(
+        graph.get_tinfo(i).precedences.dependencies == set() for i in range(1, 5)
+    )
     assert graph.get_tinfo(1).deadline == 100
     assert all(graph.get_tinfo(i).deadline is None for i in range(2, 5))
     assert graph.get_tinfo(1).rel_deadlines == {}
@@ -94,7 +99,10 @@ def test_no_precedence():
         graph.get_tinfo(4)
 
     assert graph.get_roots() == [1, 2, 3]
-    assert all(graph.get_tinfo(i).predecessors == set() for i in range(1, 4))
+    assert graph.get_leaves() == [1, 2, 3]
+    assert all(
+        graph.get_tinfo(i).precedences.dependencies == set() for i in range(1, 4)
+    )
     assert all(graph.get_tinfo(i).rel_deadlines == {i - 1: 100} for i in range(2, 4))
 
 
@@ -111,11 +119,11 @@ def test_get_partial_graph():
     prc2 = PreCallTask(5, pid, "prc2", lr_ptr)
     poc1 = PreCallTask(6, pid, "poc1", mp_ptr)
     poc2 = PreCallTask(7, pid, "poc2", lr_ptr)
-    mp1 = MultiPairTask(8, pid, mp_ptr)
-    mpc1 = MultiPairCallbackTask(9, pid, "mpc1", mp_ptr)
+    mp1 = MultiPairTask(8, pid, mp_ptr, "mp1")
+    mpc1 = MultiPairCallbackTask(9, pid, "mpc1", mp_ptr, "mpc1")
     lr1 = LocalRoutineTask(10, pid, "lr1", lr_ptr)
 
-    precedences = [
+    dependencies = [
         (hl1.task_id, hl2.task_id),
         (hl1.task_id, he1.task_id),
         (hl2.task_id, prc1.task_id),
@@ -132,38 +140,48 @@ def test_get_partial_graph():
     ]
     graph = TaskGraph()
     graph.add_tasks([hl1, hl2, hl3, he1, prc1, prc2, poc1, poc2, mp1, mpc1, lr1])
-    graph.add_precedences(precedences)
+    graph.add_dependencies(dependencies)
 
-    # Test immediate cross-predecessors
+    # Test immediate cross-dependencies
     for task in [hl1, hl2, he1, prc1, prc2, mpc1, hl3]:
-        assert graph.cross_predecessors(task.task_id) == set()
-    assert graph.cross_predecessors(mp1.task_id) == {prc1.task_id}
-    assert graph.cross_predecessors(poc1.task_id) == {mpc1.task_id}
-    assert graph.cross_predecessors(lr1.task_id) == {prc2.task_id}
-    assert graph.cross_predecessors(poc2.task_id) == {lr1.task_id}
+        assert graph.cross_precedences(task.task_id) == {}
+    assert set(graph.cross_precedences(mp1.task_id).keys()) == {prc1.task_id}
+    assert set(graph.cross_precedences(poc1.task_id).keys()) == {mpc1.task_id}
+    assert set(graph.cross_precedences(lr1.task_id).keys()) == {prc2.task_id}
+    assert set(graph.cross_precedences(poc2.task_id).keys()) == {lr1.task_id}
 
-    # Test indirect cross-predecessors
+    # Test indirect cross-dependencies
     for task in [hl1, hl2, he1, prc1, prc2]:
-        assert graph.cross_predecessors(task.task_id, immediate=False) == set()
-    assert graph.cross_predecessors(mp1.task_id, immediate=False) == {prc1.task_id}
-    assert graph.cross_predecessors(mpc1.task_id, immediate=False) == {prc1.task_id}
-    assert graph.cross_predecessors(poc1.task_id, immediate=False) == {mpc1.task_id}
-    assert graph.cross_predecessors(lr1.task_id, immediate=False) == {
+        assert graph.cross_precedences(task.task_id, immediate=False) == {}
+    assert set(graph.cross_precedences(mp1.task_id, immediate=False).keys()) == {
+        prc1.task_id
+    }
+    assert set(graph.cross_precedences(mpc1.task_id, immediate=False).keys()) == {
+        prc1.task_id
+    }
+    assert set(graph.cross_precedences(poc1.task_id, immediate=False).keys()) == {
+        mpc1.task_id
+    }
+    assert set(graph.cross_precedences(lr1.task_id, immediate=False).keys()) == {
         prc1.task_id,
         prc2.task_id,
     }
-    assert graph.cross_predecessors(poc2.task_id, immediate=False) == {lr1.task_id}
-    assert graph.cross_predecessors(hl3.task_id, immediate=False) == {
+    assert set(graph.cross_precedences(poc2.task_id, immediate=False).keys()) == {
+        lr1.task_id
+    }
+    assert set(graph.cross_precedences(hl3.task_id, immediate=False).keys()) == {
         mpc1.task_id,
         lr1.task_id,
     }
 
-    assert all(
-        graph.double_cross_predecessors(t.task_id) == set()
-        for t in [hl1, hl2, hl3, he1, prc1, prc2, mp1, mpc1, lr1]
-    )
-    assert graph.double_cross_predecessors(poc1.task_id) == {prc1.task_id}
-    assert graph.double_cross_predecessors(poc2.task_id) == {prc1.task_id, prc2.task_id}
+    for t in [hl1, hl2, hl3, he1, prc1, prc2, mp1, mpc1, lr1]:
+        assert graph.double_cross_precedences(t.task_id) == {}
+
+    assert set(graph.double_cross_precedences(poc1.task_id).keys()) == {prc1.task_id}
+    assert set(graph.double_cross_precedences(poc2.task_id).keys()) == {
+        prc1.task_id,
+        prc2.task_id,
+    }
 
     # Check CPU graph
     expected_cpu_precedences = [
@@ -184,8 +202,8 @@ def test_get_partial_graph():
     ]
     expected_cpu_graph = TaskGraph()
     expected_cpu_graph.add_tasks([hl1, hl2, hl3, he1, prc1, prc2, poc1, poc2])
-    expected_cpu_graph.add_precedences(expected_cpu_precedences)
-    expected_cpu_graph.add_ext_precedences(expected_external_cpu_precedences)
+    expected_cpu_graph.add_dependencies(expected_cpu_precedences)
+    expected_cpu_graph.add_ext_dependencies(expected_external_cpu_precedences)
     cpu_graph = graph.get_cpu_graph()
     assert cpu_graph == expected_cpu_graph
 
@@ -201,8 +219,8 @@ def test_get_partial_graph():
     qpu_graph = graph.get_qpu_graph()
     expected_qpu_graph = TaskGraph()
     expected_qpu_graph.add_tasks([mp1, mpc1, lr1])
-    expected_qpu_graph.add_precedences(expected_qpu_precedences)
-    expected_qpu_graph.add_ext_precedences(expected_external_qpu_precedences)
+    expected_qpu_graph.add_dependencies(expected_qpu_precedences)
+    expected_qpu_graph.add_ext_dependencies(expected_external_qpu_precedences)
     assert qpu_graph == expected_qpu_graph
 
 
@@ -228,14 +246,11 @@ def test_linear_tasks():
 
     graph = TaskGraphBuilder.linear_tasks(tasks)
     assert graph.get_tinfo(0).task == tasks[0]
-    assert graph.get_tinfo(0).predecessors == set()
-    assert graph.get_tinfo(len(tasks) - 1).successors == set()
+    assert graph.get_tinfo(0).precedences.dependencies == set()
     for i in range(len(tasks)):
         assert graph.get_tinfo(i).task == tasks[i]
         if i > 0:
-            assert graph.get_tinfo(i).predecessors == {i - 1}
-        if i < len(tasks) - 1:
-            assert graph.get_tinfo(i).successors == {i + 1}
+            assert graph.get_tinfo(i).precedences.dependencies == {i - 1}
 
 
 def test_linear_tasks_with_timestamps():
@@ -251,14 +266,11 @@ def test_linear_tasks_with_timestamps():
 
     graph = TaskGraphBuilder.linear_tasks_with_start_times(start_times)
     assert graph.get_tinfo(0).task == tasks[0]
-    assert graph.get_tinfo(0).predecessors == set()
-    assert graph.get_tinfo(len(tasks) - 1).successors == set()
+    assert graph.get_tinfo(0).precedences.dependencies == set()
     for i in range(len(tasks)):
         assert graph.get_tinfo(i).task == tasks[i]
         if i > 0:
-            assert graph.get_tinfo(i).predecessors == {i - 1}
-        if i < len(tasks) - 1:
-            assert graph.get_tinfo(i).successors == {i + 1}
+            assert graph.get_tinfo(i).precedences.dependencies == {i - 1}
 
     for task, start_time in start_times:
         assert graph.get_tinfo(task.task_id).start_time == start_time
@@ -267,74 +279,38 @@ def test_linear_tasks_with_timestamps():
 def test_merge():
     graph1 = TaskGraph()
     graph1.add_tasks([SimpleTask(0), SimpleTask(1)])
-    graph1.add_precedences([(0, 1)])
+    graph1.add_dependencies([(0, 1)])
 
     graph2 = TaskGraph()
     graph2.add_tasks([SimpleTask(2), SimpleTask(3)])
-    graph2.add_precedences([(2, 3)])
+    graph2.add_dependencies([(2, 3)])
 
     merged = TaskGraphBuilder.merge([graph1, graph2])
     for i in range(4):
         assert merged.get_tinfo(i).task == SimpleTask(i)
 
-    assert merged.get_tinfo(1).predecessors == {0}
-    assert merged.get_tinfo(0).successors == {1}
-    assert merged.get_tinfo(3).predecessors == {2}
-    assert merged.get_tinfo(2).successors == {3}
+    assert merged.get_tinfo(1).precedences.dependencies == {0}
+    assert merged.get_tinfo(3).precedences.dependencies == {2}
 
 
 def test_merge_linear():
     graph1 = TaskGraph()
     graph1.add_tasks([SimpleTask(0), SimpleTask(1)])
-    graph1.add_precedences([(0, 1)])
+    graph1.add_dependencies([(0, 1)])
 
     graph2 = TaskGraph()
     graph2.add_tasks([SimpleTask(2), SimpleTask(3)])
-    graph2.add_precedences([(2, 3)])
+    graph2.add_dependencies([(2, 3)])
 
     merged = TaskGraphBuilder.merge_linear([graph1, graph2])
     for i in range(4):
         assert merged.get_tinfo(i).task == SimpleTask(i)
 
-    assert merged.get_tinfo(1).predecessors == {0}
-    assert merged.get_tinfo(0).successors == {1}
-    assert merged.get_tinfo(3).predecessors == {2}
-    assert merged.get_tinfo(2).successors == {3}
+    assert merged.get_tinfo(1).precedences.dependencies == {0}
+    assert merged.get_tinfo(3).precedences.dependencies == {2}
 
     # Check that there is precedence between two original graphs
-    assert merged.get_tinfo(2).predecessors == {1}
-    assert merged.get_tinfo(1).successors == {2}
-
-
-def test_linearize_1():
-    graph = TaskGraph()
-    graph.add_tasks([SimpleTask(0), SimpleTask(1)])
-    with pytest.raises(RuntimeError):
-        graph.linearize()
-
-
-def test_linearize_2():
-    graph = TaskGraph()
-    graph.add_tasks([SimpleTask(0), SimpleTask(1)])
-    graph.add_precedences([(0, 1)])
-    assert graph.linearize() == [0, 1]
-
-
-def test_linearize_3():
-    graph = TaskGraph()
-    graph.add_tasks([SimpleTask(0), SimpleTask(1), SimpleTask(2)])
-    graph.add_precedences([(0, 1)])
-    graph.add_precedences([(0, 2)])
-    with pytest.raises(RuntimeError):
-        graph.linearize()
-
-
-def test_linearize_4():
-    graph = TaskGraph()
-    graph.add_tasks([SimpleTask(0), SimpleTask(1), SimpleTask(2)])
-    graph.add_precedences([(1, 2)])
-    graph.add_precedences([(2, 0)])
-    assert graph.linearize() == [1, 2, 0]
+    assert merged.get_tinfo(2).precedences.dependencies == {1}
 
 
 if __name__ == "__main__":
@@ -346,7 +322,3 @@ if __name__ == "__main__":
     test_linear_tasks_with_timestamps()
     test_merge()
     test_merge_linear()
-    test_linearize_1()
-    test_linearize_2()
-    test_linearize_3()
-    test_linearize_4()

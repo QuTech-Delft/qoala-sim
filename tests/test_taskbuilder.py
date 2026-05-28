@@ -76,13 +76,15 @@ def test_qoala_tasks_1_pair_callback():
         # blk_1_pair_wait_all
         PreCallTask(0, pid, "blk_1_pair_wait_all", 0, cpu_time),
         PostCallTask(1, pid, "blk_1_pair_wait_all", 0, cpu_time),
-        MultiPairTask(2, pid, 0, pair_time),
-        MultiPairCallbackTask(3, pid, "meas_1_pair", 0, cb_time),
+        MultiPairTask(2, pid, 0, "blk_1_pair_wait_all", pair_time),
+        MultiPairCallbackTask(3, pid, "meas_1_pair", 0, "blk_1_pair_wait_all", cb_time),
         # blk_1_pair_sequential
         PreCallTask(4, pid, "blk_1_pair_sequential", 4, cpu_time),
         PostCallTask(5, pid, "blk_1_pair_sequential", 4, cpu_time),
-        SinglePairTask(6, pid, 0, 4, pair_time),
-        SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb_time),
+        SinglePairTask(6, pid, 0, 4, "blk_1_pair_sequential", pair_time),
+        SinglePairCallbackTask(
+            7, pid, "meas_1_pair", 0, 4, "blk_1_pair_sequential", cb_time
+        ),
     ]
 
     expected_precedences = [
@@ -97,7 +99,7 @@ def test_qoala_tasks_1_pair_callback():
 
     expected_graph = TaskGraph()
     expected_graph.add_tasks(expected_tasks)
-    expected_graph.add_precedences(expected_precedences)
+    expected_graph.add_dependencies(expected_precedences)
 
     assert task_graph == expected_graph
 
@@ -128,15 +130,21 @@ def test_qoala_tasks_2_pairs_callback():
         # blk_2_pairs_wait_all
         PreCallTask(0, pid, "blk_2_pairs_wait_all", 0, cpu_time),
         PostCallTask(1, pid, "blk_2_pairs_wait_all", 0, cpu_time),
-        MultiPairTask(2, pid, 0, 2 * pair_time),
-        MultiPairCallbackTask(3, pid, "meas_2_pairs", 0, cb2_time),
+        MultiPairTask(2, pid, 0, "blk_2_pairs_wait_all", 2 * pair_time),
+        MultiPairCallbackTask(
+            3, pid, "meas_2_pairs", 0, "blk_2_pairs_wait_all", cb2_time
+        ),
         # blk_2_pairs_sequential
         PreCallTask(4, pid, "blk_2_pairs_sequential", 4, cpu_time),
         PostCallTask(5, pid, "blk_2_pairs_sequential", 4, cpu_time),
-        SinglePairTask(6, pid, 0, 4, pair_time),
-        SinglePairCallbackTask(7, pid, "meas_1_pair", 0, 4, cb1_time),
-        SinglePairTask(8, pid, 1, 4, pair_time),
-        SinglePairCallbackTask(9, pid, "meas_1_pair", 1, 4, cb1_time),
+        SinglePairTask(6, pid, 0, 4, "blk_2_pairs_sequential", pair_time),
+        SinglePairCallbackTask(
+            7, pid, "meas_1_pair", 0, 4, "blk_2_pairs_sequential", cb1_time
+        ),
+        SinglePairTask(8, pid, 1, 4, "blk_2_pairs_sequential", pair_time),
+        SinglePairCallbackTask(
+            9, pid, "meas_1_pair", 1, 4, "blk_2_pairs_sequential", cb1_time
+        ),
     ]
 
     expected_precedences = [
@@ -154,7 +162,7 @@ def test_qoala_tasks_2_pairs_callback():
 
     expected_graph = TaskGraph()
     expected_graph.add_tasks(expected_tasks)
-    expected_graph.add_precedences(expected_precedences)
+    expected_graph.add_dependencies(expected_precedences)
 
     assert task_graph == expected_graph
 
@@ -177,7 +185,7 @@ def test_deadlines():
 
     expected_graph = TaskGraph()
     expected_graph.add_tasks(expected_tasks)
-    expected_graph.add_precedences(expected_precedences)
+    expected_graph.add_dependencies(expected_precedences)
     expected_graph.add_rel_deadlines(expected_deadlines)
 
     assert task_graph == expected_graph
