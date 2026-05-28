@@ -288,6 +288,7 @@ def test_parse_block_header():
     assert deadlines is None
     assert critical_section is None
 
+
 def test_parse_block_header_with_empty_deadline():
     text = "^b0 {type = CL; deadlines = []}:"
 
@@ -309,6 +310,7 @@ def test_parse_block_header_with_empty_deadline():
     assert prev_ent is None
     assert deadlines == {}
     assert critical_section is None
+
 
 def test_parse_block_header_with_one_deadline():
     text = "^b0 {type = CL; deadlines = [b1: 1000]}:"

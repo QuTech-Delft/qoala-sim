@@ -32,6 +32,7 @@ LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
         hl.ReceiveCMsgOp,
         hl.CopyCValueOp,
         hl.AddCValueOp,
+        hl.SubCValueOp,
         hl.MultiplyCValueOp,
         hl.MultiplyConstantCValueOp,
         hl.BitConditionalMultiplyConstantCValueOp,
@@ -579,7 +580,6 @@ class HostCodeParser:
             except ValueError:
                 raise QoalaParseError(f"Deadline for block {blk} must be an integer.")
         return deadlines
-
 
     def _parse_list(self, text: str) -> List[str]:
         """

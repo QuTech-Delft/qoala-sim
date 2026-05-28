@@ -181,6 +181,27 @@ class HostProcessor:
             # Simulate instruction duration.
             yield from self._interface.wait(second_half)
             host_mem.write(loc, result)
+        elif isinstance(instr, hostlang.SubCValueOp):
+            yield from self._interface.wait(first_half)
+
+            assert isinstance(
+                instr.arguments[0], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[0], hostlang.IqoalaVectorElement)
+            assert isinstance(
+                instr.arguments[1], hostlang.IqoalaSingleton
+            ) or isinstance(instr.arguments[1], hostlang.IqoalaVectorElement)
+
+            arg0 = self._read_value_from_host_mem(instr.arguments[0], host_mem)
+            arg1 = self._read_value_from_host_mem(instr.arguments[1], host_mem)
+
+            assert isinstance(instr.results, hostlang.IqoalaSingleton)
+            loc = instr.results.name  # type: ignore
+            result = arg0 - arg1
+            self._logger.debug(f"computing {loc} = {arg0} - {arg1} = {result}")
+
+            # Simulate instruction duration.
+            yield from self._interface.wait(second_half)
+            host_mem.write(loc, result)
         elif isinstance(instr, hostlang.MultiplyCValueOp):
             yield from self._interface.wait(first_half)
 
