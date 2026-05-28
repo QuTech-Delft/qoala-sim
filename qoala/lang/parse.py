@@ -30,6 +30,7 @@ LHR_OP_NAMES: Dict[str, hl.ClassicalIqoalaOp] = {
     for cls in [
         hl.SendCMsgOp,
         hl.ReceiveCMsgOp,
+        hl.CopyCValueOp,
         hl.AddCValueOp,
         hl.MultiplyCValueOp,
         hl.MultiplyConstantCValueOp,

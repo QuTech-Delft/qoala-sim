@@ -397,6 +397,59 @@ class ReceiveCMsgOp(ClassicalIqoalaOp):
         return cls(args[0], result)
 
 
+class CopyCValueOp(ClassicalIqoalaOp):
+    """
+    A Classical Logic operation that copies the value of a variable into a singleton variable.
+    Argument variable can be a singleton or a vector element variable. Result must be a singleton variable.
+
+    Iqoala Example:
+    y = copy_cval(x)
+
+    This example copies the value of x into y.
+    """
+
+    OP_NAME = "copy_cval"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+    ) -> None:
+        super().__init__(arguments=[value0], results=result)
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
+        attr: Optional[IqoalaValue],
+    ):
+        if result is None:
+            raise HostLanguageSyntaxError(f"{cls.OP_NAME} operation must have a result.")
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
+
+        if len(args) != 1:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
+            )
+
+        if attr is not None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation cannot have an attribute."
+            )
+
+        if not isinstance(args[0], IqoalaSingleton) and not isinstance(
+            args[0], IqoalaVectorElement
+        ):
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
+            )
+
+        return cls(result, args[0])
+
+
 class AddCValueOp(ClassicalIqoalaOp):
     """
     A Classical Logic operation that adds the values of the two variables and stores the result in

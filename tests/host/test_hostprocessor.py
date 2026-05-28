@@ -11,18 +11,19 @@ from pydynaa import EventExpression
 from qoala.lang.ehi import EhiBuilder, UnitModule
 from qoala.lang.hostlang import (
     AddCValueOp,
-    MultiplyCValueOp,
     AssignCValueOp,
     BasicBlock,
     BasicBlockType,
     BitConditionalMultiplyConstantCValueOp,
     BusyOp,
     ClassicalIqoalaOp,
+    CopyCValueOp,
     IqoalaSingleton,
     IqoalaTuple,
     IqoalaVector,
     IqoalaVectorElement,
     MultiplyConstantCValueOp,
+    MultiplyCValueOp,
     ReceiveCMsgOp,
     ReturnResultOp,
     RunRequestOp,
@@ -306,6 +307,70 @@ def test_recv_msg_with_latencies():
     assert interface.recv_events[0] == InterfaceEvent("bob", MOCK_MESSAGE)
     assert process.prog_memory.host_mem.read("msg") == MOCK_MESSAGE.content
     assert ns.sim_time() == 1e6  # no host_instr_time used !
+
+
+def test_copy_cvalue():
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies.all_zero())
+    program = create_program(
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("a"), 7),
+            CopyCValueOp(IqoalaSingleton("b"), IqoalaSingleton("a")),
+        ]
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    for i in range(len(program.instructions)):
+        yield_from(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("b") == 7
+
+
+def test_copy_cvalue_with_inputs():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=500))
+    program = create_program(
+        instrs=[
+            CopyCValueOp(IqoalaSingleton("b"), IqoalaSingleton("a")),
+        ]
+    )
+    process = create_process(
+        program,
+        interface,
+        inputs={"a": 7},
+    )
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    netsquid_run(processor.assign_instr_index(process, 0))
+
+    assert process.prog_memory.host_mem.read("b") == 7
+    assert ns.sim_time() == 500
+
+
+def test_copy_cvalue_with_latencies():
+    ns.sim_reset()
+
+    interface = MockHostInterface()
+    processor = HostProcessor(interface, HostLatencies(host_instr_time=1200))
+    program = create_program(
+        instrs=[
+            AssignCValueOp(IqoalaSingleton("a"), 7),
+            CopyCValueOp(IqoalaSingleton("b"), IqoalaSingleton("a")),
+        ]
+    )
+    process = create_process(program, interface)
+    processor.initialize(process)
+
+    assert ns.sim_time() == 0
+    for i in range(len(program.instructions)):
+        netsquid_run(processor.assign_instr_index(process, i))
+
+    assert process.prog_memory.host_mem.read("b") == 7
+    assert ns.sim_time() == len(program.instructions) * 1200
 
 
 def test_add_cvalue():
@@ -978,6 +1043,9 @@ if __name__ == "__main__":
     test_send_msg_with_latencies()
     test_recv_msg()
     test_recv_msg_with_latencies()
+    test_copy_cvalue()
+    test_copy_cvalue_with_inputs()
+    test_copy_cvalue_with_latencies()
     test_add_cvalue()
     test_add_cvalue_with_inputs()
     test_add_cvalue_with_latencies()
