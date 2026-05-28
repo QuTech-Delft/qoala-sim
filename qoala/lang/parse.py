@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import keyword
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -85,6 +86,28 @@ def is_valid_name(name: str) -> bool:
         return name[1:].isdigit()
 
     return name.isidentifier() and name[0].isalpha() and name not in LHR_OP_NAMES.keys()
+
+
+def is_valid_routine_name(name: str) -> bool:
+    """Check if a string is a valid routine name.
+
+    Acceptable names:
+    - Standard identifiers (letters, digits, underscores)
+    - May start with a letter or underscore
+    - Must not be a Python keyword
+    - Must not clash with LHR operation names
+    """
+
+    if not name:
+        return False
+
+    # Routine names should not use compiler temporary format
+    if name.startswith("%"):
+        return False
+
+    return (
+        name.isidentifier() and not keyword.iskeyword(name) and name not in LHR_OP_NAMES
+    )
 
 
 class IqoalaMetaParser:
@@ -944,7 +967,7 @@ class LocalRoutineParser:
         if not name_line.startswith("SUBROUTINE "):
             raise QoalaParseError("SubRoutine Meta must start with 'SUBROUTINE'.")
         name = name_line[len("SUBROUTINE") + 1 :].strip()
-        if not is_valid_name(name):
+        if not is_valid_routine_name(name):
             raise QoalaParseError(f"Value {name} is not a valid SubRoutine name.")
         params_line = self._parse_subrt_meta_line("params", self._read_line())
         for param in params_line:
@@ -1352,7 +1375,7 @@ class RequestRoutineParser:
         if not name_line.startswith("REQUEST "):
             raise QoalaParseError("Request Routine Meta must start with 'REQUEST'.")
         name = name_line[len("REQUEST") + 1 :].strip()
-        if not is_valid_name(name):
+        if not is_valid_routine_name(name):
             raise QoalaParseError(f"Value {name} is not a valid Request Routine name.")
 
         callback_type = self._parse_callback_type("callback_type", self._read_line())

@@ -9,13 +9,13 @@ META_END
     %0 = assign_cval() : 0
 
 ^b1 {type = QL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
-    run_subroutine(tuple<state>) : prepare_qubit
+    run_subroutine(tuple<state>) : __prepare_qubit
 
 ^b2 {type = QC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
-    run_request() : epr_gen
+    run_request() : __epr_gen
 
 ^b3 {type = QL; predecessors = []; dependencies = [b1, b2]; prev_comm = ; prev_ent = ; deadlines = [] }:
-    tuple<%1; %2> = run_subroutine() : bsm
+    tuple<%1; %2> = run_subroutine() : __bsm
 
 ^b4 {type = CL; predecessors = [b0]; dependencies = [b3]; prev_comm = ; prev_ent = ; deadlines = [] }:
     send_cmsg(%0, %1)
@@ -25,7 +25,7 @@ META_END
 
 
 
-SUBROUTINE prepare_qubit
+SUBROUTINE __prepare_qubit
     params: state
     returns: 
     uses: 0
@@ -79,7 +79,7 @@ SUBROUTINE prepare_qubit
     jmp 1
   NETQASM_END
 
-SUBROUTINE bsm
+SUBROUTINE __bsm
     params: 
     returns: m1, m2
     uses: 0, 1
@@ -96,7 +96,7 @@ SUBROUTINE bsm
     store M1 @output[1]
   NETQASM_END
 
-REQUEST epr_gen
+REQUEST __epr_gen
   callback_type:
   callback: 
   return_vars: 
