@@ -16,10 +16,14 @@ class TaskGraphWriter:
             G.add_node(task_id, typ=typ)
 
         for task_id, tinfo in task_graph.get_tasks().items():
-            for pred in tinfo.predecessors:
+            for pred in tinfo.precedences.predecessors:
                 G.add_edge(pred, task_id)
-            # for succ in tinfo.successors:
-            #     G.add_edge(task_id, succ)
+            for pred in tinfo.precedences.dependencies:
+                G.add_edge(pred, task_id)
+            if tinfo.precedences.prev_comm is not None:
+                G.add_edge(tinfo.precedences.prev_comm, task_id)
+            if tinfo.precedences.prev_ent is not None:
+                G.add_edge(tinfo.precedences.prev_ent, task_id)
 
         self._nx_graph = G
 

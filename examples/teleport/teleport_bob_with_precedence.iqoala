@@ -3,32 +3,31 @@ META_START
     parameters: alice_id, state
     csockets: 0 -> alice
     epr_sockets: 0 -> alice
-    critical_sections: 0 -> E
 META_END
 
-^b0 {type = CL}:
-    csocket = assign_cval() : 0
+^b0 {type = CL; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
+    %0 = assign_cval() : 0
 
-^b1 {type = QC; critical_section = 0}:
-    run_request() : epr_gen
+^b1 {type = QC; predecessors = []; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
+    run_request() : __epr_gen
 
-^b2 {type = CC; critical_section = 0}:
-    m1 = recv_cmsg(csocket)
+^b2 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = ; prev_ent = ; deadlines = [] }:
+    %1 = recv_cmsg(%0)
 
-^b3 {type = CC; critical_section = 0}:
-    m2 = recv_cmsg(csocket)
+^b3 {type = CC; predecessors = [b0]; dependencies = []; prev_comm = b2; prev_ent = ; deadlines = [] }:
+    %2 = recv_cmsg(%0)
 
-^b4 {type = QL; critical_section = 0}:
-    run_subroutine(tuple<m1; m2>) : bsm_corrections
+^b4 {type = QL; predecessors = []; dependencies = [b2, b3]; prev_comm = ; prev_ent = ; deadlines = [] }:
+    run_subroutine(tuple<%1; %2>) : __bsm_corrections
 
-^b5 {type = QL}:
-    tuple<outcome> = run_subroutine(tuple<state>) : measure
+^b5 {type = QL; predecessors = []; dependencies = [b4]; prev_comm = ; prev_ent = ; deadlines = [] }:
+    tuple<%3> = run_subroutine(tuple<state>) : __measure
 
-^b6 {type = CL}:
-    return_result(outcome)
+^b6 {type = CL; predecessors = []; dependencies = [b5]; prev_comm = ; prev_ent = ; deadlines = [] }:
+    return_result(%3)
 
 
-SUBROUTINE bsm_corrections
+SUBROUTINE __bsm_corrections
     params: m1, m2
     returns: 
     uses: 0
@@ -48,7 +47,7 @@ SUBROUTINE bsm_corrections
     set R15 0
   NETQASM_END
 
-SUBROUTINE measure
+SUBROUTINE __measure
     params: state
     returns: outcome
     uses: 0
@@ -101,7 +100,7 @@ SUBROUTINE measure
     store M0 @output[0]
   NETQASM_END
 
-REQUEST epr_gen
+REQUEST __epr_gen
   callback_type:
   callback: 
   return_vars: 

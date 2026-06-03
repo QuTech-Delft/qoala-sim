@@ -397,6 +397,61 @@ class ReceiveCMsgOp(ClassicalIqoalaOp):
         return cls(args[0], result)
 
 
+class CopyCValueOp(ClassicalIqoalaOp):
+    """
+    A Classical Logic operation that copies the value of a variable into a singleton variable.
+    Argument variable can be a singleton or a vector element variable. Result must be a singleton variable.
+
+    Iqoala Example:
+    y = copy_cval(x)
+
+    This example copies the value of x into y.
+    """
+
+    OP_NAME = "copy_cval"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+    ) -> None:
+        super().__init__(arguments=[value0], results=result)
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
+        attr: Optional[IqoalaValue],
+    ):
+        if result is None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation must have a result."
+            )
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
+
+        if len(args) != 1:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation takes 1 argument but got {len(args)}."
+            )
+
+        if attr is not None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation cannot have an attribute."
+            )
+
+        if not isinstance(args[0], IqoalaSingleton) and not isinstance(
+            args[0], IqoalaVectorElement
+        ):
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
+            )
+
+        return cls(result, args[0])
+
+
 class AddCValueOp(ClassicalIqoalaOp):
     """
     A Classical Logic operation that adds the values of the two variables and stores the result in
@@ -451,6 +506,126 @@ class AddCValueOp(ClassicalIqoalaOp):
             raise HostLanguageSyntaxError(
                 f"{cls.OP_NAME} operation arguments must be strings or vector elements."
             )
+        return cls(result, args[0], args[1])
+
+
+class SubCValueOp(ClassicalIqoalaOp):
+    """
+    A Classical Logic operation that subtracts the values of the two variables and stores the result in
+    a singleton variable. Argument variables can be singleton or vector element variables. Result must be a singleton
+    variable.
+
+    Iqoala Example:
+    z = sub_cval_c(x, y)
+
+    This example computes z = x - y.
+    """
+
+    OP_NAME = "sub_cval_c"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+    ) -> None:
+        super().__init__(arguments=[value0, value1], results=result)
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
+        attr: Optional[IqoalaValue],
+    ):
+        if result is None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation must have a result."
+            )
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
+        if len(args) != 2:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
+            )
+        if attr is not None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation cannot have an attribute."
+            )
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
+            )
+        return cls(result, args[0], args[1])
+
+
+class MultiplyCValueOp(ClassicalIqoalaOp):
+    """
+    A Classical Logic operation that multiplies the values of two variables
+    and stores the result in a singleton variable. Argument variables can be
+    singleton or vector element variables. Result must be a singleton variable.
+
+    Iqoala Example:
+    z = mul_cval(x, y)
+
+    This example multiplies the values of variables x and y and stores the
+    result in variable z.
+    """
+
+    OP_NAME = "mult_cval"
+    TYP = IqoalaInstructionType.CL
+
+    def __init__(
+        self,
+        result: IqoalaSingleton,
+        value0: Union[IqoalaSingleton, IqoalaVectorElement],
+        value1: Union[IqoalaSingleton, IqoalaVectorElement],
+    ) -> None:
+        super().__init__(arguments=[value0, value1], results=result)
+
+    @classmethod
+    def from_generic_args(
+        cls,
+        result: Optional[IqoalaVar],
+        args: List[IqoalaVar],
+        attr: Optional[IqoalaValue],
+    ):
+        if result is None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation must have a result."
+            )
+
+        if not isinstance(result, IqoalaSingleton):
+            raise HostLanguageSyntaxError
+
+        if len(args) != 2:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation takes 2 arguments but got {len(args)}."
+            )
+
+        if attr is not None:
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation cannot have an attribute."
+            )
+
+        if (
+            not isinstance(args[0], IqoalaSingleton)
+            and not isinstance(args[0], IqoalaVectorElement)
+        ) or (
+            not isinstance(args[1], IqoalaSingleton)
+            and not isinstance(args[1], IqoalaVectorElement)
+        ):
+            raise HostLanguageSyntaxError(
+                f"{cls.OP_NAME} operation arguments must be strings or vector elements."
+            )
+
         return cls(result, args[0], args[1])
 
 
@@ -1078,15 +1253,27 @@ class BasicBlock:
     name: str
     typ: BasicBlockType
     instructions: List[ClassicalIqoalaOp]
+    predecessors: Optional[List[str]] = None
+    dependencies: Optional[List[str]] = None
+    prev_comm: Optional[str] = None
+    prev_ent: Optional[str] = None
     deadlines: Optional[Dict[str, int]] = None
     critical_section: Optional[int] = None
 
     def __str__(self) -> str:
         annotations = f"type = {self.typ.name}"
+        if self.predecessors is not None:
+            annotations += f", predecessors= {self.predecessors}"
+        if self.dependencies is not None:
+            annotations += f", dependencies= {self.dependencies}"
+        if self.prev_comm is not None:
+            annotations += f", prev_comm= {self.prev_comm}"
+        if self.prev_ent is not None:
+            annotations += f", prev_ent= {self.prev_ent}"
         if self.deadlines is not None:
-            annotations += f", deadlines: {self.deadlines}"
+            annotations += f", deadlines= {self.deadlines}"
         if self.critical_section is not None:
-            annotations += f", critical_section: {self.critical_section}"
+            annotations += f", critical_section= {self.critical_section}"
         annotations = "{" + annotations + "}"
         s = f"^{self.name} {annotations}:\n"
         return s + "\n".join("    " + str(i) for i in self.instructions)

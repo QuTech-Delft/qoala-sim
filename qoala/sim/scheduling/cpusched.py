@@ -9,13 +9,15 @@ import netsquid as ns
 from pydynaa import EventExpression
 from qoala.lang import hostlang
 from qoala.lang.hostlang import ReceiveCMsgOp
-from qoala.runtime.task import HostEventTask, QoalaTask
+from qoala.runtime.message import Message
+from qoala.runtime.task import HostEventTask, HostLocalTask, QoalaTask
 from qoala.sim.driver import CpuDriver
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.host.csocket import ClassicalSocket
 from qoala.sim.host.hostinterface import HostInterface
 from qoala.sim.memmgr import MemoryManager
 from qoala.sim.scheduling.procsched import ProcessorScheduler, SchedulerStatus, Status
+from qoala.sim.scheduling.schedmsg import TaskFinishedMsg
 
 
 class CpuScheduler(ProcessorScheduler):
@@ -71,6 +73,132 @@ class CpuScheduler(ProcessorScheduler):
         csck_id = process.host_mem.read(instr.arguments[0].name)
         return process.csockets[csck_id]
 
+    def handle_task(self, task_id: int) -> Generator[EventExpression, None, None]:
+        # Override ProcessorScheduler.handle_task to insert branch cancellation
+        # BEFORE the branch block is removed from the graph.  This prevents a
+        # window where conditional-block tasks become eligible roots before
+        # they are cancelled.
+        assert self._task_graph is not None
+        tinfo = self._task_graph.get_tinfo(task_id)
+        task = tinfo.task
+
+        if task.critical_section is not None:
+            from qoala.sim.scheduling.procsched import ActiveCriticalSection
+
+            self._critical_section = ActiveCriticalSection(
+                task.pid, task.critical_section
+            )
+
+        self._logger.debug(f"{ns.sim_time()}: {self.name}: checking next task {task}")
+
+        before = ns.sim_time()
+        start_time = self._task_graph.get_tinfo(task.task_id).start_time
+        is_busy_task = start_time is not None
+        self._logger.info(f"executing task {task}")
+        if is_busy_task:
+            self._task_logger.info(f"BUSY start  {task} (start time: {start_time})")
+        else:
+            self._task_logger.info(f"start  {task}")
+        self._task_starts[task.task_id] = before
+        self.record_start_timestamp(task.pid, before)
+
+        # Reset jump tracking before executing a CL block.
+        if isinstance(task, HostLocalTask):
+            self._host_interface.program_instance_jumps[task.pid] = -1
+
+        # Execute the task
+        success = yield from self._driver.handle_task(task)
+        if success:
+            after = ns.sim_time()
+            self.record_end_timestamp(task.pid, after)
+            self.last_finished_task_pid = (task.pid, after)
+            duration = after - before
+            self._task_graph.decrease_deadlines(duration)
+
+            # Cancel non-taken branch tasks BEFORE removing the current block
+            # from the graph, so the cascade from remove_task never exposes
+            # conditional blocks as eligible roots.
+            if isinstance(task, HostLocalTask):
+                jump_target = self._host_interface.program_instance_jumps.get(
+                    task.pid, -1
+                )
+                if jump_target != -1:
+                    process = self._memmgr.get_process(task.pid)
+                    current_idx = process.program.get_block_id(task.block_name)
+                    if jump_target > current_idx + 1:
+                        # Only cancel blocks reachable from the branch via
+                        # predecessor/dependency edges.  Independent floater
+                        # blocks (e.g. pipelined QC requests placed here by
+                        # the block-reordering pass) have predecessors=[] and
+                        # dependencies=[] and must NOT be cancelled — their
+                        # QPU tasks may already be in-flight.
+                        cancelled_names: set = {task.block_name}
+                        for i in range(current_idx + 1, jump_target):
+                            block = process.program.blocks[i]
+                            block_preds = set(block.predecessors or []) | set(
+                                block.dependencies or []
+                            )
+                            if block_preds & cancelled_names:
+                                cancelled_names.add(block.name)
+                                self._cancel_block_tasks(block.name, task.pid)
+                    elif jump_target <= current_idx:
+                        # Backward jump taken (false branch). Cancel forward
+                        # blocks that are uniquely reachable via the not-taken
+                        # forward branch.  Use predecessor edges only (not data
+                        # deps) so that merge-point blocks whose deps include a
+                        # cancelled block but also have deps outside the
+                        # not-taken path (e.g. already-executed backward-jump
+                        # targets) are NOT incorrectly cancelled.
+                        # A block is cancelled iff ALL of its predecessors are
+                        # in the cancelled set (i.e. it has no surviving
+                        # predecessor from outside the not-taken path).
+                        cancelled_names = {task.block_name}
+                        for i in range(current_idx + 1, len(process.program.blocks)):
+                            block = process.program.blocks[i]
+                            block_preds = set(block.predecessors or [])
+                            if block_preds & cancelled_names:
+                                outside_preds = block_preds - cancelled_names
+                                if not outside_preds:
+                                    cancelled_names.add(block.name)
+                                    self._cancel_block_tasks(block.name, task.pid)
+
+            # Now remove the branch block itself (cascades precedences)
+            self._task_graph.remove_task(task_id)
+            self._finished_tasks.append(task.task_id)
+
+            self.send_signal(SIGNAL_TASK_COMPLETED)
+            msg = TaskFinishedMsg(task.processor_type, task.pid, task.task_id)
+            self._comp.send_node_scheduler_message(Message(-1, -1, msg))
+
+            self._logger.info(f"finished task {task}")
+            if is_busy_task:
+                self._task_logger.info(f"BUSY finish {task}")
+            else:
+                self._task_logger.info(f"finish {task}")
+
+            self._tasks_executed[task.task_id] = task
+            self._task_ends[task.task_id] = after
+        else:
+            self._task_logger.info("task failed")
+
+    def _cancel_block_tasks(self, block_name: str, pid: int) -> None:
+        """Cancel all tasks (CPU and QPU) for a given block/pid."""
+        # Cancel from own (CPU) graph
+        for tid in list(self._task_graph.get_tasks().keys()):
+            tinfo = self._task_graph.get_tinfo(tid)
+            if tinfo.task.block_name == block_name and tinfo.task.pid == pid:
+                self._task_graph.cancel_task(tid)
+                self._finished_tasks.append(tid)
+
+        # Cancel from other (QPU) graph
+        if self._other_scheduler is not None:
+            other_graph = self._other_scheduler._task_graph
+            for tid in list(other_graph.get_tasks().keys()):
+                tinfo = other_graph.get_tinfo(tid)
+                if tinfo.task.block_name == block_name and tinfo.task.pid == pid:
+                    other_graph.cancel_task(tid)
+                    self._other_scheduler._finished_tasks.append(tid)
+
     @abstractmethod
     def choose_next_task(self, ready_tasks: List[int]) -> None:
         raise NotImplementedError
@@ -80,10 +208,10 @@ class CpuScheduler(ProcessorScheduler):
         # We simply need to compute the peer names from which we are waiting
         # for a message, but there is NOT a message already on the queue
         tg = self._task_graph
-        no_predecessors = tg.get_roots()
+        no_precedences = tg.get_roots()
 
-        event_no_predecessors = [
-            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
+        event_no_precedences = [
+            tid for tid in no_precedences if tg.get_tinfo(tid).task.is_event_task()
         ]
 
         # In scenarios of a batch with multiple iterations, we could be waiting for
@@ -91,7 +219,7 @@ class CpuScheduler(ProcessorScheduler):
         # a dictionary for storing peer names)
         peer_names = {
             self._get_peer_name_for_tid(tid)
-            for tid in event_no_predecessors
+            for tid in event_no_precedences
             if not self.is_message_available(tid)
         }
         return list(peer_names)
@@ -122,19 +250,19 @@ class CpuScheduler(ProcessorScheduler):
                 )
                 self._critical_section = None
 
-        # All tasks that have no predecessors, internal nor external.
-        no_predecessors = tg.get_roots()
+        # All tasks that have no precedences, internal nor external.
+        no_precedences = tg.get_roots()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
             cs = self._critical_section  # to make following lines more compact
-            no_predecessors = [
+            no_precedences = [
                 t
-                for t in no_predecessors
+                for t in no_precedences
                 if (tg.get_tinfo(t).task.critical_section == cs.cs_id)
                 and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
 
-        # All tasks that have only external predecessors.
+        # All tasks that have only external precedences.
         blocked_on_other_core = tg.get_tasks_blocked_only_on_external()
         # If we are in a CS, only tasks in that CS are eligible, so apply a filter.
         if self._critical_section:
@@ -146,20 +274,20 @@ class CpuScheduler(ProcessorScheduler):
                 and (tg.get_tinfo(t).task.pid == cs.pid)
             ]
 
-        # All "receive message" tasks without predecessors (internal nor external).
-        event_no_predecessors = [
-            tid for tid in no_predecessors if tg.get_tinfo(tid).task.is_event_task()
+        # All "receive message" tasks without precedences (internal nor external).
+        event_no_precedences = [
+            tid for tid in no_precedences if tg.get_tinfo(tid).task.is_event_task()
         ]
 
         event_blocked_on_message = [
-            tid for tid in event_no_predecessors if not self.is_message_available(tid)
+            tid for tid in event_no_precedences if not self.is_message_available(tid)
         ]
         self._task_logger.debug(f"event_blocked_on_message: {event_blocked_on_message}")
 
         now = ns.sim_time()
         with_future_start: Dict[int, float] = {
             tid: tg.get_tinfo(tid).start_time  # type: ignore
-            for tid in no_predecessors
+            for tid in no_precedences
             if tg.get_tinfo(tid).start_time is not None
             and tg.get_tinfo(tid).start_time > now
         }
@@ -173,7 +301,7 @@ class CpuScheduler(ProcessorScheduler):
 
         ready = [
             tid
-            for tid in no_predecessors
+            for tid in no_precedences
             if tid not in event_blocked_on_message and tid not in with_future_start
         ]
         ready_task_dict = {tid: str(tg.get_tinfo(tid).task) for tid in ready}

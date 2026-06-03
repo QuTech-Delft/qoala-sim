@@ -41,6 +41,25 @@ def test_perfect_links():
     assert link_info.fidelity == 1.0
 
 
+def test_imperfect_links():
+    server_id = 0
+    client_id = 1
+
+    num_qubits = 1
+    server_node_cfg = create_procnode_cfg("server", server_id, num_qubits)
+    client_node_cfg = create_procnode_cfg("client", client_id, num_qubits)
+
+    network_cfg = ProcNodeNetworkConfig.from_nodes_imperfect_links(
+        nodes=[server_node_cfg, client_node_cfg], link_duration=1000, link_fid=0.5
+    )
+    network = build_network_from_config(network_cfg)
+
+    server = network.nodes["server"]
+    link_info = server.network_ehi.get_link(server_id, client_id)
+    assert link_info.duration == 1000
+    assert link_info.fidelity == 0.5
+
+
 def test_depolarise_links():
     server_id = 0
     client_id = 1

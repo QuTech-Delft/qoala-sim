@@ -11,7 +11,7 @@ from netsquid.protocols import Protocol
 
 from pydynaa import EventExpression
 from qoala.runtime.message import Message
-from qoala.runtime.task import QoalaTask, TaskGraph, TaskInfo
+from qoala.runtime.task import QoalaTask, TaskGraph, TaskInfo, TaskPrecedences
 from qoala.sim.driver import Driver
 from qoala.sim.events import EVENT_WAIT, SIGNAL_TASK_COMPLETED
 from qoala.sim.memmgr import MemoryManager
@@ -124,11 +124,31 @@ class ProcessorScheduler(Protocol):
         tg = self._task_graph
 
         for r in tg.get_roots(ignore_external=True):
-            ext_preds = tg.get_tinfo(r).ext_predecessors
-            new_ext_preds = {
-                ext for ext in ext_preds if not self._other_scheduler.has_finished(ext)
-            }
-            tg.get_tinfo(r).ext_predecessors = new_ext_preds
+            ext_preds = tg.get_tinfo(r).ext_precedences
+
+            # Check if any predecessor has finished
+            new_predecessors = set()
+            if not any(
+                self._other_scheduler.has_finished(ext)
+                for ext in ext_preds.predecessors
+            ):
+                new_predecessors = ext_preds.predecessors.copy()
+
+            new_ext_preds = TaskPrecedences(
+                predecessors=new_predecessors,
+                dependencies={
+                    ext
+                    for ext in ext_preds.dependencies
+                    if not self._other_scheduler.has_finished(ext)
+                },
+                prev_comm=ext_preds.prev_comm
+                if not self._other_scheduler.has_finished(ext_preds.prev_comm)
+                else None,
+                prev_ent=ext_preds.prev_ent
+                if not self._other_scheduler.has_finished(ext_preds.prev_ent)
+                else None,
+            )
+            tg.get_tinfo(r).ext_precedences = new_ext_preds
 
     def upload_task_graph(self, graph: TaskGraph) -> None:
         """

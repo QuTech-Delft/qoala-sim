@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -19,6 +19,7 @@ class QoalaTask:
         task_id: int,
         processor_type: ProcessorType,
         pid: int,
+        block_name: str,
         duration: Optional[float] = None,
         critical_section: Optional[int] = None,
     ) -> None:
@@ -27,12 +28,16 @@ class QoalaTask:
         self._pid = pid
         self._duration = duration
         self._critical_section = critical_section
+        self._block_name = block_name
 
     def __str__(self) -> str:
-        s = f"{self.__class__.__name__}(pid={self.pid}, tid={self.task_id})"
-        if not self.is_epr_task() and hasattr(self, "block_name"):
-            s += f"block={self.block_name}"  # type: ignore
-        return s
+        fields = [
+            f"task_type={self.__class__.__name__}",
+            f"pid={self.pid}",
+            f"tid={self.task_id}",
+            f"block={self.block_name}",
+        ]
+        return " ".join(fields)
 
     @property
     def task_id(self) -> int:
@@ -45,6 +50,10 @@ class QoalaTask:
     @property
     def pid(self) -> int:
         return self._pid
+
+    @property
+    def block_name(self) -> str:
+        return self._block_name
 
     @property
     def duration(self) -> Optional[float]:
@@ -86,12 +95,8 @@ class HostLocalTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
-        self._block_name = block_name
-
-    @property
-    def block_name(self) -> str:
-        return self._block_name
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, HostLocalTask):
@@ -114,12 +119,8 @@ class HostEventTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
-        self._block_name = block_name
-
-    @property
-    def block_name(self) -> str:
-        return self._block_name
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, HostEventTask):
@@ -143,13 +144,9 @@ class LocalRoutineTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
-        self._block_name = block_name
         self._shared_ptr = shared_ptr
-
-    @property
-    def block_name(self) -> str:
-        return self._block_name
 
     @property
     def shared_ptr(self) -> int:
@@ -181,13 +178,9 @@ class PreCallTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
-        self._block_name = block_name
         self._shared_ptr = shared_ptr
-
-    @property
-    def block_name(self) -> str:
-        return self._block_name
 
     @property
     def shared_ptr(self) -> int:
@@ -219,13 +212,9 @@ class PostCallTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
-        self._block_name = block_name
         self._shared_ptr = shared_ptr
-
-    @property
-    def block_name(self) -> str:
-        return self._block_name
 
     @property
     def shared_ptr(self) -> int:
@@ -248,6 +237,7 @@ class SinglePairTask(QoalaTask):
         pid: int,
         pair_index: int,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        block_name: str,
         duration: Optional[float] = None,
         critical_section: Optional[int] = None,
     ) -> None:
@@ -257,6 +247,7 @@ class SinglePairTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
         self._pair_index = pair_index
         self._shared_ptr = shared_ptr
@@ -285,6 +276,7 @@ class MultiPairTask(QoalaTask):
         task_id: int,
         pid: int,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        block_name: str,
         duration: Optional[float] = None,
         critical_section: Optional[int] = None,
     ) -> None:
@@ -294,6 +286,7 @@ class MultiPairTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
         self._shared_ptr = shared_ptr
 
@@ -315,6 +308,7 @@ class SinglePairCallbackTask(QoalaTask):
         callback_name: str,
         pair_index: int,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        block_name: str,
         duration: Optional[float] = None,
         critical_section: Optional[int] = None,
     ) -> None:
@@ -324,6 +318,7 @@ class SinglePairCallbackTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
         self._callback_name = callback_name
         self._pair_index = pair_index
@@ -359,6 +354,7 @@ class MultiPairCallbackTask(QoalaTask):
         pid: int,
         callback_name: str,
         shared_ptr: int,  # used to identify shared (with other tasks) lrcall/rrcall objects
+        block_name: str,
         duration: Optional[float] = None,
         critical_section: Optional[int] = None,
     ) -> None:
@@ -368,6 +364,7 @@ class MultiPairCallbackTask(QoalaTask):
             pid=pid,
             duration=duration,
             critical_section=critical_section,
+            block_name=block_name,
         )
         self._callback_name = callback_name
         self._shared_ptr = shared_ptr
@@ -390,12 +387,44 @@ class MultiPairCallbackTask(QoalaTask):
         )
 
 
+class PrecedenceKind(Enum):
+    DEPENDENCY = auto()
+    PREDECESSOR = auto()
+    PREV_COMM = auto()
+    PREV_ENT = auto()
+
+
+@dataclass
+class TaskPrecedences:
+    predecessors: Set[int] = field(default_factory=set)
+    dependencies: Set[int] = field(default_factory=set)
+    prev_comm: int | None = None
+    prev_ent: int | None = None
+
+    def is_empty(self) -> bool:
+        return (
+            len(self.predecessors) == 0
+            and len(self.dependencies) == 0
+            and self.prev_comm is None
+            and self.prev_ent is None
+        )
+
+    def get_ids(self) -> Set[int]:
+        ids = self.predecessors | self.dependencies
+
+        if self.prev_comm is not None:
+            ids.add(self.prev_comm)
+        if self.prev_ent is not None:
+            ids.add(self.prev_ent)
+
+        return ids
+
+
 @dataclass
 class TaskInfo:
     task: QoalaTask
-    predecessors: Set[int]
-    ext_predecessors: Set[int]
-    successors: Set[int]
+    precedences: TaskPrecedences
+    ext_precedences: TaskPrecedences
     deadline: Optional[int]
     rel_deadlines: Dict[int, int]
     ext_rel_deadlines: Dict[int, int]
@@ -404,7 +433,7 @@ class TaskInfo:
 
     @classmethod
     def only_task(cls, task: QoalaTask) -> TaskInfo:
-        return TaskInfo(task, set(), set(), set(), None, {}, {}, None)
+        return TaskInfo(task, TaskPrecedences(), TaskPrecedences(), None, {}, {}, None)
 
     def is_cpu_task(self) -> bool:
         return self.task.processor_type == ProcessorType.CPU
@@ -418,7 +447,7 @@ class TaskGraph:
     """DAG of Tasks.
 
     Nodes are TaskInfo objects, which point to a Task object and
-    optionally to more info like deadlines, successors, etc.
+    optionally to more info like deadlines, etc.
     """
 
     def __init__(self, tasks: Optional[Dict[int, TaskInfo]] = None) -> None:
@@ -435,31 +464,26 @@ class TaskGraph:
     def __str__(self) -> str:
         return "\n".join(f"{i}: {t}" for i, t in self._tasks.items())
 
+    @property
+    def tasks(self) -> Dict[int, TaskInfo]:
+        return self._tasks
+
     def add_tasks(self, tasks: List[QoalaTask]) -> None:
         for task in tasks:
             self._tasks[task.task_id] = TaskInfo.only_task(task)
 
-    def add_precedences(self, precedences: List[Tuple[int, int]]) -> None:
+    def add_dependencies(self, dependencies: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x precedes y (y should execute after x)
-        for x, y in precedences:
+        for x, y in dependencies:
             assert x in self._tasks and y in self._tasks
-            self._tasks[y].predecessors.add(x)
-            self._tasks[x].successors.add(y)
+            self._tasks[y].precedences.dependencies.add(x)
 
-    def update_successors(self) -> None:
-        # Make sure all `successors` of all tinfos match all predecessors
-        for tid, tinfo in self.get_tasks().items():
-            for pred in tinfo.predecessors:
-                pred_tinfo = self.get_tinfo(pred)
-                if tid not in pred_tinfo.successors:
-                    pred_tinfo.successors.add(tid)
-
-    def add_ext_precedences(self, precedences: List[Tuple[int, int]]) -> None:
+    def add_ext_dependencies(self, dependencies: List[Tuple[int, int]]) -> None:
         # an entry (x, y) means that x (which is not in this graph) precedes y
         # (which is in this graph)
-        for x, y in precedences:
+        for x, y in dependencies:
             assert x not in self._tasks and y in self._tasks
-            self._tasks[y].ext_predecessors.add(x)
+            self._tasks[y].ext_precedences.dependencies.add(x)
 
     def add_deadlines(self, deadlines: List[Tuple[int, int]]) -> None:
         for x, d in deadlines:
@@ -496,24 +520,45 @@ class TaskGraph:
         return False
 
     def get_roots(self, ignore_external: bool = False) -> List[int]:
-        # Return all (IDs of) tasks that have no predecessors
+        # Return all (IDs of) tasks that have no precedences
 
         if ignore_external:
             return [
-                i for i, tinfo in self._tasks.items() if len(tinfo.predecessors) == 0
+                i for i, tinfo in self._tasks.items() if tinfo.precedences.is_empty()
             ]
         else:
             return [
                 i
                 for i, tinfo in self._tasks.items()
-                if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) == 0
+                if tinfo.precedences.is_empty() and tinfo.ext_precedences.is_empty()
             ]
+
+    def get_leaves(self) -> List[int]:
+        # All tasks ID
+        all_ids = set(self._tasks)
+
+        # Tasks that appear in any other task's precedences
+        referenced_tasks = set()
+        for _, task in self._tasks.items():
+            p = task.precedences
+
+            referenced_tasks.update(p.predecessors)
+            referenced_tasks.update(p.dependencies)
+
+            # prev_comm and prev_ent are single integers (or maybe None/invalid values)
+            # Ensure they are valid task IDs before adding
+            for related_id in (p.prev_comm, p.prev_ent):
+                if related_id in all_ids:
+                    referenced_tasks.add(related_id)
+
+        # Leaves = those not referenced in anyone else's precedences
+        return list(all_ids - referenced_tasks)
 
     def get_tasks_blocked_only_on_external(self) -> List[int]:
         return [
             i
             for i, tinfo in self._tasks.items()
-            if len(tinfo.predecessors) == 0 and len(tinfo.ext_predecessors) > 0
+            if tinfo.precedences.is_empty() and not tinfo.ext_precedences.is_empty()
         ]
 
     def get_epr_roots(self, ignore_external: bool = False) -> List[int]:
@@ -524,36 +569,80 @@ class TaskGraph:
         roots = self.get_roots(ignore_external)
         return [r for r in roots if self.get_tinfo(r).task.is_event_task()]
 
-    def linearize(self) -> List[int]:
-        # Returns None if not linear
-        if len(self.get_tasks()) == 0:
-            return []  # empty graph is linear
+    def cancel_task(self, id: int) -> None:
+        """Cancel a task regardless of root status.
 
-        roots = self.get_roots()
-        if len(roots) != 1:
-            raise RuntimeError("Task Graph cannot be linearized")
+        Used to remove tasks for non-taken conditional branches in the
+        static scheduler.  Unlike ``remove_task``, this preserves
+        transitive dependencies: any successor that depended on the
+        cancelled task inherits the cancelled task's own dependencies so
+        that the dependency chain is not broken.
+        """
+        if id not in self._tasks:
+            return
+        cancelled_info = self._tasks.pop(id)
+        cp = cancelled_info.precedences
+        cep = cancelled_info.ext_precedences
 
-        chain: List[int] = [roots[0]]
-        for _ in range(len(self._tasks) - 1):
-            successors = self.get_tinfo(chain[-1]).successors
-            if len(successors) != 1:
-                raise RuntimeError(
-                    f"Task Graph cannot be Linearized: number of successors is {len(successors)}"
+        for succ_info in self._tasks.values():
+            p = succ_info.precedences
+            if id in p.dependencies:
+                p.dependencies.remove(id)
+                # Inherit the cancelled task's dependencies (transitive).
+                # Only add IDs that still exist in this graph or that the
+                # successor can resolve via ext_precedences.
+                p.dependencies.update(d for d in cp.dependencies if d in self._tasks)
+                succ_info.ext_precedences.dependencies.update(
+                    d for d in cp.dependencies if d not in self._tasks
                 )
-            successor = successors.pop()
-            chain.append(successor)
-            successors.add(successor)
-        return chain
+                succ_info.ext_precedences.dependencies.update(cep.dependencies)
+            if id in p.predecessors:
+                p.predecessors.clear()
+            if p.prev_comm == id:
+                p.prev_comm = cp.prev_comm
+            if p.prev_ent == id:
+                p.prev_ent = cp.prev_ent
+
+            ep = succ_info.ext_precedences
+            if id in ep.dependencies:
+                ep.dependencies.remove(id)
+                ep.dependencies.update(cep.dependencies)
+                # Also inherit internal deps of cancelled task as ext deps
+                ep.dependencies.update(
+                    d for d in cp.dependencies if d not in self._tasks
+                )
+                succ_info.precedences.dependencies.update(
+                    d for d in cp.dependencies if d in self._tasks
+                )
+            if id in ep.predecessors:
+                ep.predecessors.clear()
+            if ep.prev_comm == id:
+                ep.prev_comm = cep.prev_comm
+            if ep.prev_ent == id:
+                ep.prev_ent = cep.prev_ent
 
     def remove_task(self, id: int) -> None:
         assert id in self.get_roots(ignore_external=True)
-        tinfo = self._tasks.pop(id)
+        _ = self._tasks.pop(id)
 
-        # Remove precedences of successor tasks
-        for succ in tinfo.successors:
-            succ_info = self.get_tinfo(succ)
-            assert id in succ_info.predecessors
-            succ_info.predecessors.remove(id)
+        # Remove precedences of referenced_tasks tasks
+        for succ_id, succ_info in self._tasks.items():
+            p = succ_info.precedences
+
+            # Remove from dependencies if present
+            if id in p.dependencies:
+                p.dependencies.remove(id)
+
+            # Clear predecessors if 'id' is among them because at least one predecessor
+            # needs to be executed, not all of them
+            if id in p.predecessors:
+                p.predecessors.clear()
+
+            # Nullify prev_comm and prev_ent if they reference 'id'
+            if p.prev_comm == id:
+                p.prev_comm = None
+            if p.prev_ent == id:
+                p.prev_ent = None
 
         # Change relative deadlines to absolute ones
         for t in self._tasks.values():
@@ -571,45 +660,69 @@ class TaskGraph:
     def get_qpu_graph(self) -> TaskGraph:
         return self.partial_graph(ProcessorType.QPU)
 
-    def cross_predecessors(self, task_id: int, immediate: bool = True) -> Set[int]:
-        # Return all (IDs of) tasks that are predecessors that run on
+    def get_preceding_task_sources(
+        self, task_id: int
+    ) -> dict[int, set[PrecedenceKind]]:
+        p = self.get_tinfo(task_id).precedences
+        sources: dict[int, set[PrecedenceKind]] = {}
+
+        for pid in p.predecessors:
+            sources.setdefault(pid, set()).add(PrecedenceKind.PREDECESSOR)
+        for did in p.dependencies:
+            sources.setdefault(did, set()).add(PrecedenceKind.DEPENDENCY)
+        if p.prev_comm is not None:
+            sources.setdefault(p.prev_comm, set()).add(PrecedenceKind.PREV_COMM)
+        if p.prev_ent is not None:
+            sources.setdefault(p.prev_ent, set()).add(PrecedenceKind.PREV_ENT)
+
+        return sources
+
+    def cross_precedences(
+        self, task_id: int, immediate: bool = True
+    ) -> dict[int, set[PrecedenceKind]]:
+        # Return all (IDs of) tasks that are precedences that run on
         # the other processor (CPU/QPU).
-        # If immediate = False, return all closest such predecessor, even if they are
+        # If immediate = False, return all closest such precedence, even if they are
         # no immediate parents.
         # If immediate = True, return only immediate parents with a different processor
         # type.
         # TODO: remove items from result set when they are ancestors of other items
         # in the set (in which case they are redundant)
         proc_type = self.get_tinfo(task_id).task.processor_type
-        cross_preds = set()
+        cross_preds: dict[int, set[PrecedenceKind]] = {}
 
-        for pred in self.get_tinfo(task_id).predecessors:
+        for pred, kinds in self.get_preceding_task_sources(task_id).items():
             pred_type = self.get_tinfo(pred).task.processor_type
             if pred_type != proc_type:
-                cross_preds.add(pred)  # immediate parent of different type
+                cross_preds.setdefault(pred, set()).update(
+                    kinds
+                )  # immediate parent of different type
             elif not immediate:
-                cross_preds = cross_preds.union(
-                    self.cross_predecessors(pred, immediate)
-                )
+                nested = self.cross_precedences(pred, immediate)
+                for nid, n_kinds in nested.items():
+                    cross_preds.setdefault(nid, set()).update(n_kinds)
+
         return cross_preds
 
-    def double_cross_predecessors(self, task_id: int) -> Set[int]:
-        # Return all (IDs of) tasks that are the closest predecessors that run on
+    def double_cross_precedences(self, task_id: int) -> dict[int, set[PrecedenceKind]]:
+        # Return all (IDs of) tasks that are the closest precedences that run on
         # the same processor (CPU/QPU) but where there are tasks of the other processor
-        # type inbetween (in the precedence chain).
+        # type in between (in the precedence chain).
 
         # For the first step: only check immediate parents that have different type.
         # Parents with same type already induce a normal precedence constraint in the
         # partial graph.
-        cross_preds = self.cross_predecessors(task_id, immediate=True)
-        double_cross_preds: Set[int] = set()
-        for cp in cross_preds:
+        result: dict[int, set[PrecedenceKind]] = {}
+        first_level = self.cross_precedences(task_id, immediate=True)
+
+        for cp in first_level:
             # For each different-type parent, find the nearest ancestor of the original
             # type.
-            double_cross_preds = double_cross_preds.union(
-                self.cross_predecessors(cp, immediate=False)
-            )
-        return double_cross_preds
+            second_level = self.cross_precedences(cp, immediate=False)
+            for tid, kinds in second_level.items():
+                result.setdefault(tid, set()).update(kinds)
+
+        return result
 
     def partial_graph(self, proc_type: ProcessorType) -> TaskGraph:
         # Filter tasks with the correct type.
@@ -620,27 +733,46 @@ class TaskGraph:
         }
 
         # Precedence constraints.
-        # Move predecessor tasks that have been removed to ext_predecessors.
+        # Move precdence tasks that have been removed to ext_precedences.
         for tinfo in partial_tasks.values():
-            # Keep predecessors if they are still in the graph.
-            new_predecessors = {
-                pred for pred in tinfo.predecessors if pred in partial_tasks
-            }
-            # Move others to ext_predecessors.
-            new_ext_predecessors = {
-                pred for pred in tinfo.predecessors if pred not in partial_tasks
-            }
-            tinfo.predecessors = new_predecessors
-            tinfo.ext_predecessors = new_ext_predecessors
-            # Clear successors. Will be filled in at the end of this function.
-            tinfo.successors.clear()
+            p = tinfo.precedences
+
+            # Split internal vs. external precedences
+            internal_ids = {pred for pred in p.get_ids() if pred in partial_tasks}
+            external_ids = p.get_ids() - internal_ids
+
+            # Keep precedences if they are still in the graph.
+            new_precedences = TaskPrecedences(
+                predecessors=p.predecessors & internal_ids,
+                dependencies=p.dependencies & internal_ids,
+                prev_comm=p.prev_comm if p.prev_comm in internal_ids else None,
+                prev_ent=p.prev_ent if p.prev_ent in internal_ids else None,
+            )
+
+            # Move others to ext_precedences.
+            new_ext_precedences = TaskPrecedences(
+                predecessors=p.predecessors & external_ids,
+                dependencies=p.dependencies & external_ids,
+                prev_comm=p.prev_comm if p.prev_comm in external_ids else None,
+                prev_ent=p.prev_ent if p.prev_ent in external_ids else None,
+            )
+
+            tinfo.precedences = new_precedences
+            tinfo.ext_precedences = new_ext_precedences
 
         # Precedence constraints for same-processor tasks that used to have a
         # precedence chain of other-processor tasks in between them.
         for tid, tinfo in partial_tasks.items():
-            for pred in self.double_cross_predecessors(tid):
-                if pred not in tinfo.predecessors:
-                    tinfo.predecessors.add(pred)
+            new_preds = self.double_cross_precedences(tid)
+            for pred, kinds in new_preds.items():
+                if PrecedenceKind.PREDECESSOR in kinds:
+                    tinfo.precedences.predecessors.add(pred)
+                if PrecedenceKind.DEPENDENCY in kinds:
+                    tinfo.precedences.dependencies.add(pred)
+                if PrecedenceKind.PREV_COMM in kinds:
+                    tinfo.precedences.prev_comm = pred
+                if PrecedenceKind.PREV_ENT in kinds:
+                    tinfo.precedences.prev_ent = pred
 
             # Relative deadlines.
             # Keep rel_deadline to pred if pred is still in the graph.
@@ -649,7 +781,7 @@ class TaskGraph:
                 for pred, dl in tinfo.rel_deadlines.items()
                 if pred in partial_tasks
             }
-            # Move others to ext_predecessors.
+            # Move others to ext_dependencies.
             tinfo.ext_rel_deadlines = {
                 pred: dl
                 for pred, dl in tinfo.rel_deadlines.items()
@@ -658,6 +790,4 @@ class TaskGraph:
             tinfo.rel_deadlines = new_rel_deadlines
 
         partial_graph = TaskGraph(partial_tasks)
-        # Fill in successors by taking opposite of predecessors.
-        partial_graph.update_successors()
         return partial_graph

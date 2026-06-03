@@ -12,8 +12,8 @@ from qoala.util.logging import LogManager
 
 
 class SimpleTask(QoalaTask):
-    def __init__(self, task_id: int, duration: int) -> None:
-        super().__init__(task_id, ProcessorType.CPU, 0, duration)
+    def __init__(self, task_id: int, block_name: str, duration: int) -> None:
+        super().__init__(task_id, ProcessorType.CPU, 0, block_name, duration)
 
 
 class MockDriver(Driver):
@@ -36,8 +36,8 @@ class MockDriver(Driver):
 
 def test_update_status_one_root():
     graph = TaskGraph()
-    graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
-    graph.add_precedences([(0, 1)])
+    graph.add_tasks([SimpleTask(0, "0", 200), SimpleTask(1, "1", 500)])
+    graph.add_dependencies([(0, 1)])
     graph.add_rel_deadlines([((0, 1), 100)])
     graph.get_tasks()
 
@@ -50,7 +50,7 @@ def test_update_status_one_root():
 
 def test_update_status_two_roots():
     graph = TaskGraph()
-    graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
+    graph.add_tasks([SimpleTask(0, "0", 200), SimpleTask(1, "1", 500)])
     graph.add_deadlines([(0, 1000), (1, 500)])
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
@@ -63,8 +63,8 @@ def test_update_status_two_roots():
 def test_edf_1():
     LogManager.set_task_log_level("INFO")
     graph = TaskGraph()
-    graph.add_tasks([SimpleTask(0, 200), SimpleTask(1, 500)])
-    graph.add_precedences([(0, 1)])
+    graph.add_tasks([SimpleTask(0, "0", 200), SimpleTask(1, "1", 500)])
+    graph.add_dependencies([(0, 1)])
     graph.add_rel_deadlines([((0, 1), 100)])
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
@@ -80,9 +80,14 @@ def test_edf_1():
 def test_edf_2():
     graph = TaskGraph()
     graph.add_tasks(
-        [SimpleTask(1, 500), SimpleTask(2, 80), SimpleTask(3, 300), SimpleTask(4, 100)]
+        [
+            SimpleTask(1, "1", 500),
+            SimpleTask(2, "2", 80),
+            SimpleTask(3, "3", 300),
+            SimpleTask(4, "4", 100),
+        ]
     )
-    graph.add_precedences([(1, 2), (1, 3), (2, 4)])
+    graph.add_dependencies([(1, 2), (1, 3), (2, 4)])
     graph.add_rel_deadlines([((1, 2), 200), ((1, 3), 400), ((2, 4), 100)])
 
     scheduler = CpuEdfScheduler("sched", 0, MockDriver(), None, None)
