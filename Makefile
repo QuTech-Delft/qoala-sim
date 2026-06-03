@@ -24,6 +24,7 @@ endif
 
 clean:
 	@/usr/bin/find . -name '*.pyc' -delete
+	@rm -rf build/ dist/
 
 lint-isort:
 	$(info Running isort...)
@@ -54,6 +55,8 @@ integration-tests:
 
 test-report:
 	coverage report --omit="tests/*"
+
+all-tests: unit-tests integration-tests
 
 examples:
 	@$(PYTHON3) ${RUNEXAMPLES}
