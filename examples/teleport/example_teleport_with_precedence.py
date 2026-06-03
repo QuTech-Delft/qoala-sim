@@ -144,13 +144,6 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     bob_full_graph = TaskGraphBuilder.merge_linear(bob_tasks)
     bob_procnode.scheduler.upload_task_graph(bob_full_graph)
 
-    # app_result = run_two_node_app(
-    #     num_iterations=num_iterations,
-    #     programs={"alice": alice_program, "bob": bob_program},
-    #     program_inputs={"alice": alice_input, "bob": bob_input},
-    #     network_cfg=network_cfg,
-    # )
-
     network.start()
     ns.sim_run()
 
@@ -161,10 +154,6 @@ def run_teleport(num_iterations: int) -> TeleportResult:
 
 
 if __name__ == "__main__":
-    # LogManager.set_log_level("DEBUG")
-    # LogManager.set_task_log_level("DEBUG")
-    # LogManager.log_to_file("teleport.log")
-    # LogManager.log_tasks_to_file("teleport_tasks.log")
     num_iterations = 3
 
     result = run_teleport(num_iterations=num_iterations)

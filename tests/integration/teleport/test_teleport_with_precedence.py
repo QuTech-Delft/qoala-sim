@@ -145,13 +145,6 @@ def run_teleport(num_iterations: int) -> TeleportResult:
     bob_full_graph = TaskGraphBuilder.merge_linear(bob_tasks)
     bob_procnode.scheduler.upload_task_graph(bob_full_graph)
 
-    # app_result = run_two_node_app(
-    #     num_iterations=num_iterations,
-    #     programs={"alice": alice_program, "bob": bob_program},
-    #     program_inputs={"alice": alice_input, "bob": bob_input},
-    #     network_cfg=network_cfg,
-    # )
-
     network.start()
     ns.sim_run()
 
