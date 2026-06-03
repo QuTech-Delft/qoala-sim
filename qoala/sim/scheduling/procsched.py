@@ -142,10 +142,12 @@ class ProcessorScheduler(Protocol):
                     if not self._other_scheduler.has_finished(ext)
                 },
                 prev_comm=ext_preds.prev_comm
-                if not self._other_scheduler.has_finished(ext_preds.prev_comm)
+                if ext_preds.prev_comm
+                and not self._other_scheduler.has_finished(ext_preds.prev_comm)
                 else None,
                 prev_ent=ext_preds.prev_ent
-                if not self._other_scheduler.has_finished(ext_preds.prev_ent)
+                if ext_preds.prev_ent
+                and not self._other_scheduler.has_finished(ext_preds.prev_ent)
                 else None,
             )
             tg.get_tinfo(r).ext_precedences = new_ext_preds

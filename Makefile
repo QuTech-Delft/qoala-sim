@@ -24,7 +24,7 @@ endif
 
 clean:
 	@/usr/bin/find . -name '*.pyc' -delete
-	@rm -rf build/ dist/
+	@rm -rf build/ dist/ *.log .coverage
 
 lint-isort:
 	$(info Running isort...)
