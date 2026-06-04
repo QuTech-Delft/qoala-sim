@@ -176,18 +176,18 @@ class QpuScheduler(ProcessorScheduler):
                     if self._memmgr.phys_id_for(task.pid, vid) is None
                 ]
                 # try to allocate new IDs
-                temp_allocated: List[int] = []
+                temp_allocated_b: List[int] = []
                 for virt_id in new_ids:
                     self._memmgr.allocate(task.pid, virt_id)
-                    temp_allocated.append(virt_id)
+                    temp_allocated_b.append(virt_id)
                 # Free all temporarily allocated qubits again
-                for virt_id in temp_allocated:
+                for virt_id in temp_allocated_b:
                     self._memmgr.free(task.pid, virt_id, send_signal=False)
                 self._task_logger.debug("all virt IDs available")
                 return True
             except AllocError:
                 # Make sure all qubits that did successfully allocate are freed
-                for virt_id in temp_allocated:
+                for virt_id in temp_allocated_b:
                     self._memmgr.free(task.pid, virt_id, send_signal=False)
                 self._task_logger.debug("some virt IDs unavailable")
                 return False
