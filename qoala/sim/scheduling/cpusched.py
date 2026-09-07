@@ -134,7 +134,15 @@ class CpuScheduler(ProcessorScheduler):
                         # the block-reordering pass) have predecessors=[] and
                         # dependencies=[] and must NOT be cancelled — their
                         # QPU tasks may already be in-flight.
-                        cancelled_names: set = {task.block_name}
+                        # Seed with the current block AND its branch-source
+                        # predecessors so that *sibling* else-branches (which
+                        # list the branch source — not the taken block — as
+                        # their predecessor) are correctly cancelled when the
+                        # taken block ends with a forward jump that skips them.
+                        cur_block = process.program.blocks[current_idx]
+                        cancelled_names: set = {task.block_name} | set(
+                            cur_block.predecessors or []
+                        )
                         for i in range(current_idx + 1, jump_target):
                             block = process.program.blocks[i]
                             block_preds = set(block.predecessors or []) | set(
@@ -366,16 +374,22 @@ class CpuScheduler(ProcessorScheduler):
                     )
 
                     if sys.version_info.minor > 10:
-                        # This is a workaround for a python 3.11+ change of behavior
-                        # In some release of Python 3.11, there was a change how the NotImplemented
-                        # is interpreted in boolean context evaluation
-                        # (see https://docs.python.org/3.13/library/constants.html#NotImplemented).
-                        # pydyna.core.EventExpression has a __or__ (and __ror__) operator implemented
-                        # however, they raise NotImplemented when the other operand is None.
-                        # In Python 3.10, this still evaluates to "true" in boolean contexts, but
-                        # in Python 3.11+, this raises a TypeError, which makes this fail.
-                        # As a workaround, we make a shallow copy of ev_expr when ev_msg_arrived is None.
-                        # This is the equivalent behavior in Python 3.10
+                        # Workaround for a behavior difference in pydynaa's compiled
+                        # EventExpression between Python versions.
+                        #
+                        # get_evexpr_for_msg_from() returns None when a message is
+                        # already buffered, i.e. when there is no event to wait for.
+                        # On Python 3.10, "None | ev_expr" still yielded an
+                        # EventExpression, so the plain expression below was harmless.
+                        # On 3.11+ the same expression raises:
+                        #     TypeError: unsupported operand type(s) for |:
+                        #     'NoneType' and 'pydynaa.core.EventExpression'
+                        # Only the None-on-the-left form broke; "ev_expr | None" still
+                        # works on both.
+                        #
+                        # We therefore skip the OR entirely when there is no message
+                        # event, using a shallow copy of ev_expr instead. Verified
+                        # against pydynaa 1.0.2 on 3.10, 3.11 and 3.12.
                         if ev_msg_arrived is None:
                             ev_expr = copy.copy(ev_expr)
                         else:
