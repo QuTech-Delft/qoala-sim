@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import random
 from dataclasses import dataclass
 
 import netsquid as ns
+import numpy as np
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
@@ -81,6 +83,10 @@ def run_busy_program(num_iterations: int, node_cfg: ProcNodeConfig):
 
 def test_busy():
     ns.sim_reset()
+    # Statistical assertions over 100 iterations; pin both RNGs so the
+    # test cannot fail by chance. See test_noisy_qkd for the details.
+    random.seed(42)
+    np.random.seed(42)
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config()
@@ -97,6 +103,9 @@ def test_busy():
 
 def test_busy_bad_coherence():
     ns.sim_reset()
+    # Statistical assertions; pin both RNGs (see test_busy).
+    random.seed(42)
+    np.random.seed(42)
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config(t1=10, t2=10)
@@ -114,6 +123,9 @@ def test_busy_bad_coherence():
 
 def test_busy_bad_gates():
     ns.sim_reset()
+    # Statistical assertions; pin both RNGs (see test_busy).
+    random.seed(42)
+    np.random.seed(42)
     # LogManager.set_log_level("DEBUG")
 
     node_cfg = get_config(gate_fidelity=0.5)
