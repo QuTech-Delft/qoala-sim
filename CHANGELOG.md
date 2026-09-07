@@ -213,12 +213,14 @@ Attribution is given per entry as *(author, PR)*. Contributors in this release:
   *(@sampl0, #45)*
 - Entanglement generation duration in the `three_nodes` example.
   *(@bvdvecht, #43)*
-- **Flaky noisy tests.** `test_noisy_qkd` and `test_noisy_singlenode` assert on
-  sampled quantities — the QKD duration bound is documented as a 99% confidence
-  interval — but seeded no RNG, so they failed roughly one run in a hundred.
-  Both now pin `random` and `numpy.random`. Seeding netsquid alone is not
-  enough: `ns.set_random_state` reseeds only netsquid's own generator, while the
-  depolarise link samples entanglement attempts from numpy's global RNG.
+- **Flaky noisy tests and examples.** `test_noisy_qkd`, `test_noisy_singlenode`
+  and their near-identical counterparts `example_noisy_qkd` and
+  `example_noisy_singlenode` assert on sampled quantities — the QKD duration
+  bound is documented as a 99% confidence interval — but seeded no RNG, so each
+  failed roughly one run in a hundred. All four now pin `random` and
+  `numpy.random`. Seeding netsquid alone is not enough: `ns.set_random_state`
+  reseeds only netsquid's own generator, while the depolarise link samples
+  entanglement attempts from numpy's global RNG.
   *(@spoukke)*
 
 2024-09-13 (1.0.0)
