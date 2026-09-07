@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import random
 from dataclasses import dataclass
 from typing import Optional
 
 import netsquid as ns
+import numpy as np
 
 from qoala.lang.parse import QoalaParser
 from qoala.lang.program import QoalaProgram
@@ -97,6 +99,15 @@ def run_qkd(
 
 def test_qkd_md_1pair():
     ns.sim_reset()
+    # The assertions below are statistical -- the duration bound is documented
+    # as a 99% confidence interval -- so an unseeded run fails every ~100th
+    # time. Two RNGs feed this simulation, and both must be pinned:
+    #   random      -> run_two_node_app draws its netsquid seed with
+    #                  random.randint(), which drives the measurement outcomes.
+    #   np.random   -> the depolarise link samples entanglement attempts from
+    #                  numpy's global RNG, which drives the durations.
+    random.seed(42)
+    np.random.seed(42)
 
     # LogManager.set_log_level("INFO")
 
@@ -150,6 +161,9 @@ def test_qkd_md_1pair():
 
 def test_qkd_md_npairs():
     ns.sim_reset()
+    # See test_qkd_md_1pair: statistical assertions, so pin both RNGs.
+    random.seed(42)
+    np.random.seed(42)
 
     # LogManager.set_log_level("INFO")
 
