@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import copy
 import random
-import sys
 from abc import abstractmethod
 from typing import Dict, Generator, List, Optional, Tuple
 
@@ -134,7 +132,15 @@ class CpuScheduler(ProcessorScheduler):
                         # the block-reordering pass) have predecessors=[] and
                         # dependencies=[] and must NOT be cancelled — their
                         # QPU tasks may already be in-flight.
-                        cancelled_names: set = {task.block_name}
+                        # Seed with the current block AND its branch-source
+                        # predecessors so that *sibling* else-branches (which
+                        # list the branch source — not the taken block — as
+                        # their predecessor) are correctly cancelled when the
+                        # taken block ends with a forward jump that skips them.
+                        cur_block = process.program.blocks[current_idx]
+                        cancelled_names: set = {task.block_name} | set(
+                            cur_block.predecessors or []
+                        )
                         for i in range(current_idx + 1, jump_target):
                             block = process.program.blocks[i]
                             block_preds = set(block.predecessors or []) | set(
@@ -365,23 +371,7 @@ class CpuScheduler(ProcessorScheduler):
                         waiting_msg_from_peer
                     )
 
-                    if sys.version_info.minor > 10:
-                        # This is a workaround for a python 3.11+ change of behavior
-                        # In some release of Python 3.11, there was a change how the NotImplemented
-                        # is interpreted in boolean context evaluation
-                        # (see https://docs.python.org/3.13/library/constants.html#NotImplemented).
-                        # pydyna.core.EventExpression has a __or__ (and __ror__) operator implemented
-                        # however, they raise NotImplemented when the other operand is None.
-                        # In Python 3.10, this still evaluates to "true" in boolean contexts, but
-                        # in Python 3.11+, this raises a TypeError, which makes this fail.
-                        # As a workaround, we make a shallow copy of ev_expr when ev_msg_arrived is None.
-                        # This is the equivalent behavior in Python 3.10
-                        if ev_msg_arrived is None:
-                            ev_expr = copy.copy(ev_expr)
-                        else:
-                            ev_expr = ev_msg_arrived | ev_expr
-                    else:
-                        ev_expr = ev_msg_arrived | ev_expr
+                    ev_expr = ev_msg_arrived | ev_expr
                     yield ev_expr
                     if len(ev_expr.first_term.triggered_events) > 0:
                         # It was "ev_msg_arrived" that triggered.

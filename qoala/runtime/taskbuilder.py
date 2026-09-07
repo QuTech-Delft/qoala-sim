@@ -602,11 +602,6 @@ class QoalaGraphFromProgramBuilder:
                 # Use precedences from block annotations. We assume sanity:
                 # a precedence can exist only if the block is defined before.
                 # This is ensured by the compiler.
-                assert block.dependencies is not None
-                assert block.predecessors is not None
-                assert block.prev_comm is not None
-                assert block.prev_ent is not None
-
                 precedences.dependencies = {
                     self._block_to_task_map[dep] for dep in block.dependencies
                 }
