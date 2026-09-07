@@ -67,10 +67,11 @@ Attribution is given per entry as *(author, PR)*. Contributors in this release:
   Simulation timings involving network schedules shift by one tick, so tests or
   analyses asserting exact end-of-bin timestamps need updating.
   *(@bvdvecht, #43)*
-- **Makefile `all-tests` changed meaning.** The coverage-based parallel run is
-  now the `tests` target; `all-tests` is an alias for
-  `unit-tests integration-tests`.
-  *(@spoukke, #50)*
+- **Makefile `all-tests` changed meaning.** The coverage-based parallel run was
+  renamed to the `tests` target *(@spoukke, #50)*, which left `verify` referring
+  to a target that no longer existed; `all-tests` was then reintroduced as an
+  alias for `unit-tests integration-tests` *(@dieriver, #51)*. Scripts calling
+  `make all-tests` still succeed but no longer produce coverage.
 
 ### Added
 
@@ -168,13 +169,15 @@ Attribution is given per entry as *(author, PR)*. Contributors in this release:
   3.12, with lint and mypy as gating jobs. The publish workflow now only runs
   when a tag is pushed.
   *(@dieriver, #51)*
-- The Makefile coverage run moved from the `all-tests` target to `tests`;
-  `all-tests` is now an alias for `unit-tests integration-tests` *(breaking for
-  scripts calling it)*.
-  *(@spoukke, #50)*
-- The Makefile `verify` target works again, `mypy` runs with
-  `--check-untyped-defs`, and `clean` also removes `build/`, `dist/` and logs.
+- The Makefile coverage run moved from the `all-tests` target to `tests`
+  *(@spoukke, #50)*; `all-tests` is now an alias for
+  `unit-tests integration-tests` *(@dieriver, #51)*. *(Breaking for scripts
+  calling it — see Breaking changes above.)*
+- The Makefile `verify` target works again and `clean` also removes `build/`,
+  `dist/` and logs.
   *(@dieriver, #51)*
+- The Makefile `mypy` target runs with `--check-untyped-defs`.
+  *(@dieriver, #47)*
 
 ### Fixed
 
@@ -198,15 +201,25 @@ Attribution is given per entry as *(author, PR)*. Contributors in this release:
   values while the parser expected `;`, so a printed tuple could not be parsed
   back. `__str__` now emits `;`. (Issue #39.)
   *(@DavideFrr, #40)*
-- **Python 3.11+ `NotImplemented` in boolean context.** `EventExpression.__or__`
-  raises `NotImplemented` when the other operand is `None`, which is a
-  `TypeError` on 3.11+ but truthy on 3.10. The CPU scheduler now handles the
-  `None` case explicitly.
+- **`TypeError` in the CPU scheduler on Python 3.11+.** When a message is
+  already buffered, `get_evexpr_for_msg_from` returns `None`, and the scheduler
+  evaluated `None | ev_expr`. That yielded an `EventExpression` on 3.10 but
+  raises `TypeError: unsupported operand type(s) for |: 'NoneType' and
+  'pydynaa.core.EventExpression'` on 3.11 and 3.12. The scheduler now skips the
+  `|` when there is no message event. Without this, three teleport tests fail on
+  3.11/3.12.
   *(@dieriver, #51)*
 - **Python-version-specific dictionary combination** in the BQC examples.
   *(@sampl0, #45)*
 - Entanglement generation duration in the `three_nodes` example.
   *(@bvdvecht, #43)*
+- **Flaky noisy tests.** `test_noisy_qkd` and `test_noisy_singlenode` assert on
+  sampled quantities — the QKD duration bound is documented as a 99% confidence
+  interval — but seeded no RNG, so they failed roughly one run in a hundred.
+  Both now pin `random` and `numpy.random`. Seeding netsquid alone is not
+  enough: `ns.set_random_state` reseeds only netsquid's own generator, while the
+  depolarise link samples entanglement attempts from numpy's global RNG.
+  *(@spoukke)*
 
 2024-09-13 (1.0.0)
 -------------------
