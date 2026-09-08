@@ -4,14 +4,15 @@ CHANGELOG
 2026-09-08 (2.1.0)
 -------------------
 
-Attribution is given per entry as *(author, PR)*.
+Attribution is given per entry as *(author, PR)*. Contributors in this
+release: @spoukke.
 
 ### Added
 
 - **`ProcNodeConfig.check_qubit_ancestry`** (default `False`), an opt-in
   correctness check in the QPU scheduler. See the fix below for what it does
   and why it is not on by default.
-  *(@spoukke)*
+  *(@spoukke, #56)*
 
 ### Fixed
 
@@ -43,7 +44,7 @@ Attribution is given per entry as *(author, PR)*.
   > hardware parameters: the optimized variant went from 44% to 100% success at
   > n=3 and from 57% to 100% at n=5, while the unoptimized variant was 100%
   > throughout (it allocates a fresh slot per round, so it never hit the bug).
-  *(@spoukke)*
+  *(@spoukke, #56)*
 
 ### Known issues
 
