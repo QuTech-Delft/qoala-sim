@@ -36,6 +36,7 @@ class StaticNodeScheduler(NodeScheduler):
         use_deadlines: bool = True,
         fcfs: bool = False,
         prio_epr: bool = False,
+        check_qubit_ancestry: bool = False,
     ) -> None:
         super().__init__(
             node_name=node_name,
@@ -49,6 +50,7 @@ class StaticNodeScheduler(NodeScheduler):
             use_deadlines=use_deadlines,
             fcfs=fcfs,
             prio_epr=prio_epr,
+            check_qubit_ancestry=check_qubit_ancestry,
         )
 
     def create_processes_for_batches(

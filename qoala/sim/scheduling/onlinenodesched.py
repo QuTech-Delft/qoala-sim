@@ -34,6 +34,7 @@ class OnlineNodeScheduler(NodeScheduler):
         use_deadlines: bool = True,
         fcfs: bool = False,
         prio_epr: bool = False,
+        check_qubit_ancestry: bool = False,
     ) -> None:
         super().__init__(
             node_name=node_name,
@@ -47,6 +48,7 @@ class OnlineNodeScheduler(NodeScheduler):
             use_deadlines=use_deadlines,
             fcfs=fcfs,
             prio_epr=prio_epr,
+            check_qubit_ancestry=check_qubit_ancestry,
         )
 
         # For each program instance, keep track of which block is currently being

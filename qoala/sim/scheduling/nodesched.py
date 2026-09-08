@@ -59,6 +59,7 @@ class NodeScheduler(Protocol):
         use_deadlines: bool = True,
         fcfs: bool = False,
         prio_epr: bool = False,
+        check_qubit_ancestry: bool = False,
     ) -> None:
         super().__init__(name=f"{node_name}_scheduler")
 
@@ -124,6 +125,7 @@ class NodeScheduler(Protocol):
             deterministic,
             use_deadlines,
             prio_epr,
+            check_qubit_ancestry,
         )
 
         self._comp = NodeSchedulerComponent(

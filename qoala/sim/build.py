@@ -130,6 +130,7 @@ def build_procnode_from_config(
         fcfs=cfg.fcfs,
         prio_epr=cfg.prio_epr,
         is_predictable=cfg.is_predictable,
+        check_qubit_ancestry=cfg.check_qubit_ancestry,
     )
 
     # TODO: refactor this hack
