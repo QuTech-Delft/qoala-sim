@@ -1799,6 +1799,7 @@ class ProcNodeConfig(BaseModel):
     fcfs: bool = False
     prio_epr: bool = False
     is_predictable: bool = False
+    check_qubit_ancestry: bool = False
 
     @classmethod
     def from_file(cls, path: str) -> ProcNodeConfig:

@@ -44,6 +44,7 @@ class ProcNode(Protocol):
         fcfs: bool = False,
         prio_epr: bool = False,
         is_predictable: bool = False,
+        check_qubit_ancestry: bool = False,
     ) -> None:
         """ProcNode constructor.
 
@@ -124,6 +125,7 @@ class ProcNode(Protocol):
                     use_deadlines=use_deadlines,
                     fcfs=fcfs,
                     prio_epr=prio_epr,
+                    check_qubit_ancestry=check_qubit_ancestry,
                 )
             else:
                 self._scheduler = OnlineNodeScheduler(
@@ -138,6 +140,7 @@ class ProcNode(Protocol):
                     use_deadlines=use_deadlines,
                     fcfs=fcfs,
                     prio_epr=prio_epr,
+                    check_qubit_ancestry=check_qubit_ancestry,
                 )
         else:
             self._scheduler = scheduler

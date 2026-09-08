@@ -1,6 +1,57 @@
 CHANGELOG
 =========
 
+2026-09-08 (2.1.0)
+-------------------
+
+Attribution is given per entry as *(author, PR)*.
+
+### Added
+
+- **`ProcNodeConfig.check_qubit_ancestry`** (default `False`), an opt-in
+  correctness check in the QPU scheduler. See the fix below for what it does
+  and why it is not on by default.
+  *(@spoukke)*
+
+### Fixed
+
+- **Local routines could run on a qubit belonging to an unrelated block.**
+  `QpuScheduler.are_resources_available` treats any already-allocated virtual
+  qubit as usable by a `LocalRoutineTask`. When a program reuses a qubit slot —
+  which the compiler's block reordering introduces as soon as a measured qubit
+  frees its slot for a later round — a routine can therefore be scheduled on a
+  qubit holding another block's state, silently producing wrong results.
+
+  With `check_qubit_ancestry=True` the scheduler walks the full task graph and
+  only admits an already-allocated qubit if the block that allocated it is a
+  transitive ancestor of the task; otherwise the task waits. This is what the
+  `set_allocating_block` bookkeeping and `_get_ancestor_blocks` were added for
+  in 2.0.0 — the check that consumes them was missing, leaving both unused.
+
+  **The check is opt-in because it assumes the program declares every block it
+  depends on.** A program that leaves the hand-off from an entanglement block
+  to the local routine consuming its qubit unannotated has no such ancestry
+  edge, so the routine would wait forever. Compiler-generated programs annotate
+  it; many hand-written `.iqoala` programs — including most of the fixtures in
+  this repository — do not. Enable the flag for compiler-generated programs;
+  leave it off otherwise.
+
+  > **Enabling it changes simulation output**, not just internals. Programs
+  > that reuse qubit slots schedule differently and report different — correct
+  > — success rates, so results gathered with and without the flag must not be
+  > mixed. Measured on a streaming BQC client/server pair under noiseless
+  > hardware parameters: the optimized variant went from 44% to 100% success at
+  > n=3 and from 57% to 100% at n=5, while the unoptimized variant was 100%
+  > throughout (it allocates a fresh slot per round, so it never hit the bug).
+  *(@spoukke)*
+
+### Known issues
+
+- A task that can never become runnable — for instance a local routine blocked
+  by `check_qubit_ancestry` on a program that does not declare the dependency —
+  leaves the scheduler spinning instead of failing. There is no deadlock
+  detection yet, so this presents as a simulation that never terminates.
+
 2026-09-07 (2.0.0)
 -------------------
 
