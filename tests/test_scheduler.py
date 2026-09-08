@@ -16,6 +16,7 @@ from qoala.runtime.lhi import (
     LhiProcNodeInfo,
     LhiTopologyBuilder,
 )
+from qoala.runtime.message import LrCallTuple
 from qoala.runtime.ntf import GenericNtf, TrappedIonNtf
 from qoala.runtime.program import ProgramInput, ProgramInstance
 from qoala.runtime.task import (
@@ -38,6 +39,36 @@ CL = BasicBlockType.CL
 CC = BasicBlockType.CC
 QL = BasicBlockType.QL
 QC = BasicBlockType.QC
+
+
+def get_lr_program_using_qubit() -> QoalaProgram:
+    program_text = """
+META_START
+    name: alice
+    parameters:
+    csockets:
+    epr_sockets:
+META_END
+
+^b0 {type = CL}:
+    x = assign_cval() : 3
+^b1 {type = QL}:
+    tuple<m> = run_subroutine(tuple<x>) : meas_q0
+
+SUBROUTINE meas_q0
+    params: x
+    returns: m
+    uses: 0
+    keeps:
+    request:
+  NETQASM_START
+    set Q0 0
+    meas Q0 M0
+    ret_reg M0
+  NETQASM_END
+    """
+
+    return QoalaParser(program_text).parse()
 
 
 def get_pure_host_program() -> QoalaProgram:
@@ -1114,6 +1145,93 @@ def test_cancel_block_tasks():
     assert 0 in cpu_scheduler._task_graph.get_tasks()
 
 
+def _qpu_sched_for_resource_check(
+    alloc_block: Optional[str], with_full_task_graph: bool = True
+):
+    """Build a QpuScheduler with one LocalRoutineTask that uses virt qubit 0.
+
+    The task sits in block "b1" and depends on a task in block "b0", so its
+    ancestor set is {"b0", "b1"}. Virtual qubit 0 is pre-allocated and tagged
+    as having been allocated by *alloc_block*. Returns (scheduler, task_id).
+    """
+    procnode = ObjectBuilder.simple_procnode("alice", 1)
+    pid = 0
+    program = get_lr_program_using_qubit()
+    instance = ObjectBuilder.simple_program_instance(program, pid)
+    procnode.scheduler.submit_program_instance(instance)
+
+    shared_ptr = 0
+    mem = SharedSchedulerMemory()
+    # Normally written by the PreCallTask; written directly here so the
+    # resource check can be exercised without running a simulation.
+    mem.write_shared_lrcall(shared_ptr, LrCallTuple("meas_q0", 0, 0))
+
+    lr_task_id = 3
+    tasks = [
+        HostLocalTask(1, pid, "b0"),
+        LocalRoutineTask(lr_task_id, pid, "b1", shared_ptr),
+    ]
+    graph = TaskGraphBuilder.linear_tasks(tasks)
+
+    qpu_driver = QpuDriver(
+        "alice",
+        mem,
+        procnode.qnos.processor,
+        procnode.netstack.processor,
+        procnode.memmgr,
+    )
+    qpu_scheduler = QpuScheduler("alice", 0, qpu_driver, procnode.memmgr, None)
+    qpu_scheduler.upload_task_graph(graph)
+    if with_full_task_graph:
+        # Set by the node scheduler in a real run; the ancestry walk needs it.
+        qpu_scheduler._full_task_graph = graph
+
+    if alloc_block is not None:
+        procnode.memmgr.allocate(pid, 0)
+        procnode.memmgr.set_allocating_block(pid, 0, alloc_block)
+
+    return qpu_scheduler, lr_task_id
+
+
+def test_resources_available_qubit_free():
+    # Nothing allocated yet: the task may run.
+    sched, tid = _qpu_sched_for_resource_check(alloc_block=None)
+    assert sched.are_resources_available(tid)
+
+
+def test_resources_available_qubit_held_by_ancestor():
+    # The qubit was allocated by block "b0", an ancestor of the task's block
+    # "b1", so it holds the state this task is meant to operate on.
+    sched, tid = _qpu_sched_for_resource_check(alloc_block="b0")
+    assert sched.are_resources_available(tid)
+
+
+def test_resources_unavailable_qubit_held_by_non_ancestor():
+    # The qubit was allocated by an unrelated block. Running now would operate
+    # on another block's state, so the task must wait. Without the ancestry
+    # check this returned True and the routine silently used the wrong qubit.
+    sched, tid = _qpu_sched_for_resource_check(alloc_block="b_unrelated")
+    assert not sched.are_resources_available(tid)
+
+
+def test_resources_available_without_full_task_graph():
+    # A manually constructed scheduler has no full task graph, so ancestry
+    # cannot be determined. The check then falls back to plain availability
+    # rather than blocking a task that can never become runnable.
+    sched, tid = _qpu_sched_for_resource_check(
+        alloc_block="b_unrelated", with_full_task_graph=False
+    )
+    assert sched.are_resources_available(tid)
+
+
+def test_resources_unavailable_qubit_held_by_unknown_block():
+    # Allocated, but no allocating block was recorded: we cannot prove the
+    # qubit belongs to this task's ancestry, so err on the side of waiting.
+    sched, tid = _qpu_sched_for_resource_check(alloc_block=None)
+    sched._memmgr.allocate(0, 0)
+    assert not sched.are_resources_available(tid)
+
+
 if __name__ == "__main__":
     test_cpu_scheduler()
     test_cpu_scheduler_no_time()
@@ -1139,3 +1257,8 @@ if __name__ == "__main__":
     test_blt_instruction_2()
     test_measure_all()
     test_internal_sched_latency()
+    test_resources_available_qubit_free()
+    test_resources_available_qubit_held_by_ancestor()
+    test_resources_unavailable_qubit_held_by_non_ancestor()
+    test_resources_available_without_full_task_graph()
+    test_resources_unavailable_qubit_held_by_unknown_block()

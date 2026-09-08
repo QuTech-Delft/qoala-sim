@@ -1,6 +1,39 @@
 CHANGELOG
 =========
 
+2026-09-08 (2.0.1)
+-------------------
+
+Attribution is given per entry as *(author, PR)*.
+
+### Fixed
+
+- **Local routines could run on a qubit belonging to an unrelated block.**
+  `QpuScheduler.are_resources_available` treated any already-allocated virtual
+  qubit as usable by a `LocalRoutineTask`. When a program reuses a qubit slot —
+  which the compiler's block reordering introduces as soon as a measured qubit
+  frees its slot for a later round — a routine could therefore be scheduled on
+  a qubit holding another block's state, silently producing wrong results.
+
+  The scheduler now walks the full task graph and only admits an
+  already-allocated qubit if the block that allocated it is a transitive
+  ancestor of the task; otherwise the task waits. This is what the
+  `set_allocating_block` bookkeeping and `_get_ancestor_blocks` were added for
+  in 2.0.0 — the check that consumes them was missing, leaving both unused.
+
+  Where the full task graph is not available (a manually constructed
+  scheduler, as opposed to one set up by the node scheduler), ancestry cannot
+  be determined and the previous plain availability check still applies.
+
+  > **This changes simulation output**, not just internals. Programs that reuse
+  > qubit slots schedule differently and now report different — correct —
+  > success rates, so results produced with 2.0.0 and 2.0.1 must not be mixed.
+  > Measured on a streaming BQC client/server pair under noiseless hardware
+  > parameters: the optimized variant went from 44% to 100% success at n=3 and
+  > from 57% to 100% at n=5, while the unoptimized variant was 100% throughout
+  > (it allocates a fresh slot per round, so it never hit the bug).
+  *(@spoukke)*
+
 2026-09-07 (2.0.0)
 -------------------
 

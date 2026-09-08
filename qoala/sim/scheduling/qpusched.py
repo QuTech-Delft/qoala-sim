@@ -169,12 +169,40 @@ class QpuScheduler(ProcessorScheduler):
             local_routine = process.get_local_routine(lrcall.routine_name)
             virt_ids = local_routine.metadata.qubit_use
             try:
-                # get qubit IDs that are not already allocated
-                new_ids = [
-                    vid
-                    for vid in virt_ids
-                    if self._memmgr.phys_id_for(task.pid, vid) is None
-                ]
+                # Split the routine's virt IDs into the ones still to be
+                # allocated and the ones already held by this process.
+                #
+                # An already-allocated qubit is only safe to use if the block
+                # that allocated it is a (transitive) ancestor of this task.
+                # Otherwise the qubit belongs to an unrelated block — with slot
+                # reuse, typically a later round that happens to have been
+                # scheduled first — and running now would operate on the wrong
+                # state. In that case the task has to wait.
+                #
+                # The check needs the full task graph to walk the ancestry.
+                # The node scheduler installs it for every real run, but a
+                # manually constructed scheduler may not have one; without it
+                # ancestry is unknowable, so fall back to the plain
+                # availability check instead of blocking forever.
+                ancestors = (
+                    self._get_ancestor_blocks(tid)
+                    if self._full_task_graph is not None
+                    else None
+                )
+                new_ids = []
+                for vid in virt_ids:
+                    if self._memmgr.phys_id_for(task.pid, vid) is None:
+                        new_ids.append(vid)
+                        continue
+                    if ancestors is None:
+                        continue
+                    alloc_block = self._memmgr.get_allocating_block(task.pid, vid)
+                    if alloc_block is None or alloc_block not in ancestors:
+                        self._task_logger.debug(
+                            f"virt ID {vid} allocated by non-ancestor "
+                            f"block {alloc_block}, must wait"
+                        )
+                        return False
                 # try to allocate new IDs
                 temp_allocated_b: List[int] = []
                 for virt_id in new_ids:
