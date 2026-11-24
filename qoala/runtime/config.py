@@ -53,6 +53,7 @@ from qoala.runtime.lhi import (
     LhiQubitConfigInterface,
     LhiTopologyConfigInterface,
 )
+from qoala.runtime.noise import JointDepolarNoiseModel
 from qoala.runtime.ntf import (
     GenericNtf,
     NtfInterface,
@@ -321,6 +322,15 @@ class GateNoiseConfigInterface:
 
 
 class GateDepolariseConfig(GateNoiseConfigInterface, BaseModel):
+    """Gate noise as NetSquid's per-qubit ``DepolarNoiseModel``.
+
+    Each qubit the gate acts on is depolarized *independently* with
+    probability ``depolarise_prob``. For single-qubit gates this is the
+    standard depolarizing channel. For multi-qubit gates it is **not** the
+    joint channel ``rho -> (1 - p) rho + p I/2**n``; use
+    :class:`GateJointDepolariseConfig` for that. See :mod:`qoala.runtime.noise`.
+    """
+
     duration: int
     depolarise_prob: float
 
@@ -337,6 +347,45 @@ class GateDepolariseConfig(GateNoiseConfigInterface, BaseModel):
 
     def to_error_model(self) -> Type[QuantumErrorModel]:
         return DepolarNoiseModel
+
+    def to_error_model_kwargs(self) -> Dict[str, Any]:
+        return {"depolar_rate": self.depolarise_prob, "time_independent": True}
+
+
+class GateJointDepolariseConfig(GateNoiseConfigInterface, BaseModel):
+    """Gate noise as a *joint* depolarizing channel on all qubits of the gate.
+
+    With probability ``depolarise_prob`` the joint state of the ``n`` qubits the
+    gate acts on is replaced by the maximally mixed state ``I/2**n``, i.e.
+    ``rho -> (1 - p) rho + p I/2**n``. Maps to
+    :class:`qoala.runtime.noise.JointDepolarNoiseModel`.
+
+    Unlike :class:`GateDepolariseConfig`, the resulting gate fidelity does not
+    depend on the output state, and for two-qubit gates it equals
+    ``prob_max_mixed_to_fidelity(2, depolarise_prob)``. This is the config used
+    by :meth:`GateConfig.with_two_gate_fidelity`. For single-qubit gates it is
+    identical to :class:`GateDepolariseConfig`.
+
+    In YAML, select it with ``noise_config_cls: "GateJointDepolariseConfig"``;
+    the fields are the same as for ``GateDepolariseConfig``.
+    """
+
+    duration: int
+    depolarise_prob: float
+
+    @classmethod
+    def from_file(cls, path: str) -> GateJointDepolariseConfig:
+        return cls.from_dict(_read_dict(path))
+
+    @classmethod
+    def from_dict(cls, dict: Any) -> GateJointDepolariseConfig:
+        return GateJointDepolariseConfig(**dict)
+
+    def to_duration(self) -> int:
+        return self.duration
+
+    def to_error_model(self) -> Type[QuantumErrorModel]:
+        return JointDepolarNoiseModel
 
     def to_error_model_kwargs(self) -> Dict[str, Any]:
         return {"depolar_rate": self.depolarise_prob, "time_independent": True}
@@ -404,11 +453,41 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         return cls.with_depolar_prob(name, duration, depolar_prob)
 
     @classmethod
+    def with_joint_depolar_prob(
+        cls, name: str, duration: int, depolar_prob: float
+    ) -> GateConfig:
+        """
+        Configures a gate that experiences depolarising noise applied jointly
+        to all the qubits it acts on (see :class:`GateJointDepolariseConfig`).
+
+        :param name: The gate instruction name
+        :param duration: How long it takes to execute the gate (ns)
+        :param depolar_prob: The probability that the joint state of the gate's
+            qubits is replaced by the maximally mixed state
+        :return: A GateConfig object for a gate that experiences joint
+            depolarising noise
+        """
+        return GateConfig(
+            name=name,
+            noise_config_cls="GateJointDepolariseConfig",
+            noise_config=GateJointDepolariseConfig(
+                duration=duration, depolarise_prob=depolar_prob
+            ),
+        )
+
+    @classmethod
     def with_two_gate_fidelity(
         cls, name: str, duration: int, fidelity: float
     ) -> GateConfig:
         """
         Configures a two qubit gate that experiences depolarising noise.
+
+        The noise is a *joint* two-qubit depolarizing channel
+        (:class:`GateJointDepolariseConfig`), so that every pure output state of
+        the gate has exactly the given fidelity. Earlier versions used the
+        per-qubit :class:`GateDepolariseConfig`, which made the gate noisier
+        than configured (about 2x the infidelity on a Bell-pair output); see
+        :mod:`qoala.runtime.noise`.
 
         :param name: The gate instruction name
         :param duration: How long it takes to execute the gate (ns)
@@ -416,7 +495,7 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         :return: A GateConfig object for a two qubit gate that experiences depolarising noise
         """
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=2, fid=fidelity)
-        return cls.with_depolar_prob(name, duration, depolar_prob)
+        return cls.with_joint_depolar_prob(name, duration, depolar_prob)
 
     @classmethod
     def with_all_qubit_gate_fidelity(
@@ -430,9 +509,17 @@ class GateConfig(LhiGateConfigInterface, BaseModel):
         :param fidelity: The fidelity of the gate
         :param num_qubits: How many qubits the gate acts on
         :return: A GateConfig object for an all qubit gate that experiences depolarising noise
+
+        For ``num_qubits >= 2`` the noise is applied jointly to all qubits
+        (:class:`GateJointDepolariseConfig`), matching the joint-channel
+        assumption of :func:`qoala.util.math.fidelity_to_prob_max_mixed`. For
+        ``num_qubits == 1`` the per-qubit :class:`GateDepolariseConfig` is kept;
+        both channels are identical on a single qubit.
         """
         depolar_prob = fidelity_to_prob_max_mixed(num_qubits=num_qubits, fid=fidelity)
-        return cls.with_depolar_prob(name, duration, depolar_prob)
+        if num_qubits == 1:
+            return cls.with_depolar_prob(name, duration, depolar_prob)
+        return cls.with_joint_depolar_prob(name, duration, depolar_prob)
 
     @classmethod
     def from_dict(
@@ -544,6 +631,7 @@ class DefaultQubitConfigRegistry(QubitConfigRegistry):
 class DefaultGateConfigRegistry(GateConfigRegistry):
     _MAP = {
         "GateDepolariseConfig": GateDepolariseConfig,
+        "GateJointDepolariseConfig": GateJointDepolariseConfig,
     }
 
     @classmethod
