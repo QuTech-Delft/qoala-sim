@@ -329,6 +329,13 @@ class GateDepolariseConfig(GateNoiseConfigInterface, BaseModel):
     standard depolarizing channel. For multi-qubit gates it is **not** the
     joint channel ``rho -> (1 - p) rho + p I/2**n``; use
     :class:`GateJointDepolariseConfig` for that. See :mod:`qoala.runtime.noise`.
+
+    It is kept unchanged for backwards compatibility (existing YAML files and
+    comparisons with earlier results). Building a processor with it on a
+    multi-qubit gate and a non-zero ``depolarise_prob`` emits a
+    :class:`qoala.runtime.noise.PerQubitDepolarNoiseWarning`. Its use on
+    multi-qubit gates is deprecated: a future major release may map it to the
+    joint model.
     """
 
     duration: int

@@ -38,12 +38,24 @@ from __future__ import annotations
 import functools
 import itertools
 import math
-from typing import List, Sequence, Tuple
+import warnings
+from typing import Any, Dict, List, Sequence, Tuple, Type
 
-from netsquid.components.models.qerrormodels import DepolarNoiseModel
+from netsquid.components.models.qerrormodels import DepolarNoiseModel, QuantumErrorModel
 from netsquid.qubits import operators as ops
 from netsquid.qubits import qubitapi as qapi
 from netsquid.qubits.qubit import Qubit
+
+# Re-exported so it can be imported from here. It is *defined* in a module
+# without NetSquid imports: see qoala.runtime.noise_warnings.
+from qoala.runtime.noise_warnings import PerQubitDepolarNoiseWarning
+
+__all__ = [
+    "JointDepolarNoiseModel",
+    "PerQubitDepolarNoiseWarning",
+    "joint_depolarize",
+    "warn_if_per_qubit_depolar_on_multi_qubit_gate",
+]
 
 
 @functools.lru_cache(maxsize=None)
@@ -153,3 +165,35 @@ class JointDepolarNoiseModel(DepolarNoiseModel):
             prob = 1.0 - math.exp(-delta_time * self.depolar_rate * 1e-9)
 
         joint_depolarize(present, prob)
+
+
+def warn_if_per_qubit_depolar_on_multi_qubit_gate(
+    instruction_name: str,
+    num_qubits: int,
+    error_model: Type[QuantumErrorModel],
+    error_model_kwargs: Dict[str, Any],
+) -> None:
+    """Emit :class:`PerQubitDepolarNoiseWarning` if a multi-qubit gate uses
+    NetSquid's per-qubit ``DepolarNoiseModel`` with a non-zero probability.
+
+    No warning is emitted for:
+
+    * single-qubit gates (per-qubit and joint channels are identical there);
+    * noiseless gates (``depolar_rate == 0``, e.g. ``GateConfig.perfect_config``);
+    * :class:`JointDepolarNoiseModel` or any other model (the check is on the
+      exact class, not on subclasses).
+    """
+    if num_qubits < 2 or error_model is not DepolarNoiseModel:
+        return
+    if error_model_kwargs.get("depolar_rate", 0) == 0:
+        return
+    warnings.warn(
+        f"Gate '{instruction_name}' acts on {num_qubits} qubits but uses "
+        "NetSquid's DepolarNoiseModel (GateDepolariseConfig), which depolarizes "
+        "each qubit independently rather than jointly. The gate's fidelity then "
+        "depends on its output state (about 2x the expected infidelity on a "
+        "Bell pair). Use GateJointDepolariseConfig (JointDepolarNoiseModel) for "
+        "a joint depolarizing channel. See qoala.runtime.noise.",
+        PerQubitDepolarNoiseWarning,
+        stacklevel=3,
+    )
