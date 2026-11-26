@@ -22,6 +22,7 @@ from qoala.runtime.lhi import (
     LhiTopologyBuilder,
 )
 from qoala.runtime.lhi_to_ehi import LhiConverter
+from qoala.runtime.noise import warn_if_per_qubit_depolar_on_multi_qubit_gate
 from qoala.runtime.ntf import NtfInterface
 from qoala.sim.entdist.entdist import EntDist
 from qoala.sim.entdist.entdistcomp import EntDistComponent
@@ -77,6 +78,14 @@ def build_qprocessor_from_topology(
     for multi_qubit, gate_infos in topology.multi_gate_infos.items():
         qubit_ids = tuple(multi_qubit.qubit_ids)
         for gate_info in gate_infos:
+            # Backwards compatible: the per-qubit model is still allowed, but
+            # warn since it is not a joint channel (see qoala.runtime.noise).
+            warn_if_per_qubit_depolar_on_multi_qubit_gate(
+                gate_info.instruction.name,
+                len(qubit_ids),
+                gate_info.error_model,
+                gate_info.error_model_kwargs,
+            )
             phys_instr = PhysicalInstruction(
                 instruction=gate_info.instruction,
                 duration=gate_info.duration,
@@ -89,6 +98,12 @@ def build_qprocessor_from_topology(
 
     if topology.all_qubit_gate_infos is not None:
         for gate_info in topology.all_qubit_gate_infos:
+            warn_if_per_qubit_depolar_on_multi_qubit_gate(
+                gate_info.instruction.name,
+                num_qubits,
+                gate_info.error_model,
+                gate_info.error_model_kwargs,
+            )
             phys_instr = PhysicalInstruction(
                 instruction=gate_info.instruction,
                 duration=gate_info.duration,

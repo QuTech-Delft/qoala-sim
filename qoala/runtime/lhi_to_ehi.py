@@ -39,7 +39,9 @@ class LhiConverter:
     def error_model_to_rate(
         cls, model: Type[QuantumErrorModel], model_kwargs: Dict[str, Any]
     ) -> float:
-        if model == DepolarNoiseModel:
+        # issubclass (not ==) so that subclasses such as
+        # qoala.runtime.noise.JointDepolarNoiseModel are also accepted.
+        if issubclass(model, DepolarNoiseModel):
             return model_kwargs["depolar_rate"]  # type: ignore
         elif model == T1T2NoiseModel:
             # TODO use T2 somehow

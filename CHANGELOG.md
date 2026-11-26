@@ -1,6 +1,59 @@
 CHANGELOG
 =========
 
+2026-11-26 (2.2.0)
+-------------------
+
+Attribution is given per entry as *(author, PR)*. Contributors in this
+release: @spoukke.
+
+### Added
+
+- **`JointDepolarNoiseModel`** (`qoala.runtime.noise`), a subclass of NetSquid's
+  `DepolarNoiseModel` that applies the depolarizing channel
+  `ρ → (1−p)ρ + p·I/2ⁿ` *jointly* to all qubits of a gate, and the matching
+  gate config **`GateJointDepolariseConfig`** (registered in the default
+  registry, so YAML files can select it with
+  `noise_config_cls: "GateJointDepolariseConfig"`). Also added
+  `GateConfig.with_joint_depolar_prob`.
+  *(@spoukke, #57)*
+- **`PerQubitDepolarNoiseWarning`**, emitted by `build_qprocessor_from_topology`
+  when a multi-qubit gate uses the per-qubit `DepolarNoiseModel`
+  (`GateDepolariseConfig`) with a non-zero probability.
+  *(@spoukke, #57)*
+
+### Fixed
+
+- **Two-qubit gates configured from a fidelity were noisier than configured.**
+  `fidelity_to_prob_max_mixed(2, F)` returns `p = (1 − F)·4/3`, which assumes a
+  joint two-qubit depolarizing channel, but the gate used NetSquid's
+  `DepolarNoiseModel`, which depolarizes each qubit independently. For a
+  configured `F = 0.99`, a CNOT producing a Bell pair reached `F = 0.9801`
+  (about 2× the configured infidelity) and one producing `|00⟩` reached
+  `F = 0.9867` (about 4/3×). `GateConfig.with_two_gate_fidelity` and
+  `GateConfig.with_all_qubit_gate_fidelity` (for `num_qubits >= 2`) now use
+  `GateJointDepolariseConfig`, so every output state gets exactly the
+  configured fidelity.
+  *(@spoukke, #57)*
+
+  > **This changes simulation output** for topologies whose two-qubit gates are
+  > built from a fidelity, including the `TopologyConfig.uniform_*_imperfect_gates`
+  > builders: gates are now less noisy, as configured. Results gathered before
+  > and after this change must not be mixed.
+
+  Configurations that select `GateDepolariseConfig` explicitly, including
+  existing YAML files, are **unchanged** and still load and simulate exactly
+  as before; they now emit `PerQubitDepolarNoiseWarning` on multi-qubit gates.
+
+### Deprecated
+
+- Using `GateDepolariseConfig` (per-qubit `DepolarNoiseModel`) on multi-qubit
+  gates. A future major release may map it to the joint model. Switch to
+  `GateJointDepolariseConfig`, or silence the warning with
+  `warnings.filterwarnings("ignore", category=PerQubitDepolarNoiseWarning)` if
+  the per-qubit channel is intended (e.g. to reproduce earlier results).
+  *(@spoukke, #57)*
+
 2026-09-08 (2.1.0)
 -------------------
 
